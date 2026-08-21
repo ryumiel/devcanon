@@ -10,6 +10,7 @@ Use this template when dispatching a spec compliance reviewer subagent.
 source-immutable, with zero handoffs. The controller supplies the captured task
 head and applies GUARD-001 outside this prompt. Do not change source, tests,
 configuration, documentation, or external systems; return only the response.
+Findings are evidence; mutation disposition belongs to the controller.
 
 **Fresh configuration:** Before D14 capture, validate `deep-reviewer`,
 `frontier`, the nonblank full model resolved from `devcanon.config.yaml`

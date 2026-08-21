@@ -180,13 +180,26 @@ captured task head before either result is final.
 [Ledger post-dispatch: Task 2 code-quality reviewer, agent_id=quality-2]
 Spec reviewer: ❌ Issues:
   - Missing: Progress reporting (spec says "report every 100 items")
-  - Extra: Added --json flag (not requested)
 Code-quality reviewer: Strengths: Solid. Issues (Nit): Magic number (100)
 
 [Lifecycle ledger update]
-Task 2 spec reviewer: agent_id=spec-2, status=findings-recorded, review scope captured, base/head SHA captured, reviewed head SHA=task-2-head, report captured, reviewer result disposition=final-findings, findings captured: Missing progress reporting; Extra --json flag, routing target=Task 2 implementer, re-review target=spec-2-rereview, observed close result=success, closed=yes after findings routed.
-Task 2 code-quality reviewer: agent_id=quality-2, status=findings-recorded, review scope captured, base/head SHA captured, reviewed head SHA=task-2-head, report captured, reviewer result disposition=advisory, findings captured: Magic number (100), routing target=Task 2 implementer if combined same-head findings are routed, re-review target=quality-2-rereview, observed close result=success, closed=yes after advisory findings captured and routed.
-Controller records the combined spec and code-quality finding set routed to Task 2 implementer because both reviewers inspected the same head.
+Task 2 spec reviewer: agent_id=spec-2, status=findings-recorded, review scope captured, base/head SHA captured, reviewed head SHA=task-2-head, report captured, reviewer result disposition=final-findings, findings captured: Missing progress reporting, disposition pending controller preview/classification, observed close result=success, closed=yes after findings retained.
+Task 2 code-quality reviewer: agent_id=quality-2, status=findings-recorded, review scope captured, base/head SHA captured, reviewed head SHA=task-2-head, report captured, reviewer result disposition=advisory, findings captured: Magic number (100), disposition pending controller preview/classification, observed close result=success, closed=yes after advisory findings retained.
+Controller first retains a bounded impact preview for every candidate and
+classifies independently before grouping: the missing progress report is an
+in-scope product blocker because the extracted Task 2 acceptance requires
+progress reporting every 100 items, the reachable long-running batch path
+otherwise leaves operators without its required liveness signal, and the
+minimal behavioral regression is that single omitted emission; the magic-number
+suggestion is an adjacent independently releasable defect. Because D14
+authorizes a fix, the controller retains that D15 disposition provisionally but
+does not emit a caller handoff. This complete same-head wave counts as failed
+round 1, so only the progress-reporting correction can route to Task 2
+implementer.
+
+[Lifecycle ledger disposition update]
+Task 2 spec reviewer: routing target=Task 2 implementer, re-review target=spec-2-rereview after the authorized fix.
+Task 2 code-quality reviewer: provisional adjacent disposition, caller handoff deferred, routing target=none, re-review target=quality-2-rereview after the authorized fix.
 Task 2 implementer: closed=no because routed same-head findings need same-session fixup.
 
 [Implementer fixes issues]
@@ -196,14 +209,25 @@ verified-auto route, the message also carries the freshly revalidated
 controller-provided auto-route attestation as structured context; direct/manual
 routes do not invent it. It does not resend the full implementer prompt, full
 task context, role, model, effort, fork, or an equivalent configuration override.
-Implementer: Removed --json flag, added progress reporting, extracted PROGRESS_INTERVAL constant
+Implementer: Added progress reporting
 
 [Lifecycle ledger update]
 Task 2 implementer: fixup count=1, blocker state=none, report refreshed,
 changed files and head SHA refreshed, test state refreshed, snapshot
 state=emitted, closed=no because spec re-review and any required code-quality
 re-review or disposition are pending.
-Task 2 D14 and D15 results: dispositions=stale; the fix invalidates both results.
+Task 2 D14 and D15 results: dispositions=stale; the fix invalidates both results, and the provisional D15 disposition becomes stale before any caller handoff.
+
+[If the review-loop limit is reached]
+After a third complete same-head wave that requires an authorized correction,
+the controller records the failed round and returns `BLOCKED` with
+`review-loop-limit` before D12. A current finding-bound approval can authorize
+one identified fix attempt without resetting the count; a failed fresh wave
+after it blocks again. Alternatively, only a material authoritative change to
+the task scope or acceptance, followed by refreshed context, structural
+validation, head/route revalidation, and reclassification, can reset the
+current-episode fixup count and start a fresh review budget. Cosmetic wording
+does not resume or dispatch.
 
 [Revalidate effective review route]
 Controller compares the original Task 2 base SHA to the refreshed task head.
@@ -228,6 +252,8 @@ Task 2 implementer: closed=no because code-quality fixups may still need same-se
 [Dispatch code-quality re-reviewer]
 [Ledger post-dispatch: Task 2 code-quality re-reviewer, agent_id=quality-2-rereview]
 Code-quality reviewer: ✅ Approved
+The earlier magic-number candidate is absent, so no caller handoff is emitted;
+only a fresh post-fix D15 candidate could support one.
 
 [Lifecycle ledger update]
 Task 2 code-quality re-reviewer: review scope captured, base/head SHA captured, reviewed head SHA=task-2-fixup-head, report captured, reviewer result disposition=final-pass after same-head spec pass and current task-head validation, observed close result=success, closed=yes after PASS verdict recorded.

@@ -557,6 +557,8 @@ repo files alone cannot authorize reduced routes.
 Hard-risk and unclear multi-task tasks select `spec-and-quality`, which assigns
 D14 and D15 to the task. Post-selection result disposition, freshness,
 invalidation, and failure transitions belong to the lifecycle/status policy.
+That policy also owns proportionality disposition, review-loop limit, and
+resumption before a D14/D15 finding can reach D12.
 
 Load [`references/review-routing-policy.md`](references/review-routing-policy.md)
 when computing the initial effective route, validating auto-handoff

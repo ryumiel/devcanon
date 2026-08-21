@@ -15,7 +15,8 @@ disposition, invalidation, and terminal transitions.
 frontier/xhigh, source-immutable sessions with zero handoffs. The controller
 applies GUARD-001 independently around each session. Do not change source,
 tests, configuration, documentation, or external systems; return only the
-response. Never reuse a D15 session or result as D16.
+response. Findings are evidence; mutation disposition belongs to the controller.
+Never reuse a D15 session or result as D16.
 
 **Fresh configuration:** Before either capture, validate `deep-reviewer`,
 `frontier`, the nonblank full model resolved from `devcanon.config.yaml`
