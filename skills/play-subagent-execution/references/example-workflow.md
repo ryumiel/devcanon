@@ -184,15 +184,21 @@ Spec reviewer: ❌ Issues:
 Code-quality reviewer: Strengths: Solid. Issues (Nit): Magic number (100)
 
 [Lifecycle ledger update]
-Task 2 spec reviewer: agent_id=spec-2, status=findings-recorded, review scope captured, base/head SHA captured, reviewed head SHA=task-2-head, report captured, reviewer result disposition=final-findings, findings captured: Missing progress reporting; Extra --json flag, routing target=Task 2 implementer, re-review target=spec-2-rereview, observed close result=success, closed=yes after findings routed.
-Task 2 code-quality reviewer: agent_id=quality-2, status=findings-recorded, review scope captured, base/head SHA captured, reviewed head SHA=task-2-head, report captured, reviewer result disposition=advisory, findings captured: Magic number (100), routing target=Task 2 implementer if combined same-head findings are routed, re-review target=quality-2-rereview, observed close result=success, closed=yes after advisory findings captured and routed.
+Task 2 spec reviewer: agent_id=spec-2, status=findings-recorded, review scope captured, base/head SHA captured, reviewed head SHA=task-2-head, report captured, reviewer result disposition=final-findings, findings captured: Missing progress reporting; Extra --json flag, disposition pending controller preview/classification, observed close result=success, closed=yes after findings retained.
+Task 2 code-quality reviewer: agent_id=quality-2, status=findings-recorded, review scope captured, base/head SHA captured, reviewed head SHA=task-2-head, report captured, reviewer result disposition=advisory, findings captured: Magic number (100), disposition pending controller preview/classification, observed close result=success, closed=yes after advisory findings retained.
 Controller first retains a bounded impact preview for every candidate and
 classifies independently before grouping: the missing progress report is an
-in-scope product blocker; the extra `--json` flag is an in-scope correction;
-the magic-number suggestion is an adjacent separate-work handoff. The adjacent
-finding does not enter the fix. This complete same-head wave counts as failed
-round 1, so only the smallest authorized correction can route to Task 2
-implementer.
+in-scope product blocker because the extracted Task 2 acceptance requires
+progress reporting every 100 items; the `--json` flag is an in-scope product
+blocker because the extracted Task 2 contract authorizes only verify/repair
+modes; the magic-number suggestion is an adjacent independently releasable
+defect. The adjacent finding receives a separate-work handoff and does not
+enter the fix. This complete same-head wave counts as failed round 1, so only
+the two smallest authorized corrections can route to Task 2 implementer.
+
+[Lifecycle ledger disposition update]
+Task 2 spec reviewer: routing target=Task 2 implementer, re-review target=spec-2-rereview after the authorized fix.
+Task 2 code-quality reviewer: adjacent separate-work handoff, routing target=none, re-review target=quality-2-rereview after the authorized fix.
 Task 2 implementer: closed=no because routed same-head findings need same-session fixup.
 
 [Implementer fixes issues]
@@ -202,7 +208,7 @@ verified-auto route, the message also carries the freshly revalidated
 controller-provided auto-route attestation as structured context; direct/manual
 routes do not invent it. It does not resend the full implementer prompt, full
 task context, role, model, effort, fork, or an equivalent configuration override.
-Implementer: Removed --json flag, added progress reporting, extracted PROGRESS_INTERVAL constant
+Implementer: Removed --json flag and added progress reporting
 
 [Lifecycle ledger update]
 Task 2 implementer: fixup count=1, blocker state=none, report refreshed,

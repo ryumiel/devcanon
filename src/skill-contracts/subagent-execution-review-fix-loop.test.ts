@@ -103,6 +103,65 @@ describe("subagent-execution review-fix loop owner", () => {
     );
   });
 
+  it("rejects one-dimensional mutations at the lifecycle owner's review gates", async () => {
+    const lifecycle = await readRepoFile(LIFECYCLE);
+
+    const omittedPreview = lifecycle.replace(
+      "Only after this separation, preview, classification, current contract/head/route validation, and limit decision may authorized incremental context reach D12",
+      "Only after this separation, classification, current contract/head/route validation, and limit decision may authorized incremental context reach D12",
+    );
+    expect(() =>
+      expect(omittedPreview).toContain(
+        "Only after this separation, preview, classification, current contract/head/route validation, and limit decision may authorized incremental context reach D12",
+      ),
+    ).toThrow();
+
+    const adjacentEnteringFix = lifecycle.replace(
+      "receives a concise\n  separate-work non-mutating caller handoff.",
+      "may enter the active-task fix.",
+    );
+    expect(() =>
+      expect(adjacentEnteringFix).toContain(
+        "separate-work non-mutating caller handoff",
+      ),
+    ).toThrow();
+
+    const thirdAutomaticAttempt = lifecycle.replace(
+      "Round 3 returns existing `BLOCKED`",
+      "Round 3 may permit one bounded fix",
+    );
+    expect(() =>
+      expect(thirdAutomaticAttempt).toContain(
+        "Round 3 returns existing `BLOCKED`",
+      ),
+    ).toThrow();
+
+    const reusableApproval = lifecycle.replace("single-use.", "reusable.");
+    expect(() =>
+      expect(reusableApproval).toContain(
+        "finding-bound, current-head/current-route/current-contract/current-evidence,\nsingle-use.",
+      ),
+    ).toThrow();
+
+    const cosmeticReset = lifecycle.replace(
+      "Cosmetic wording or still-unauthorized evidence cannot reset or\ndispatch.",
+      "Cosmetic wording may reset and dispatch.",
+    );
+    expect(() =>
+      expect(cosmeticReset).toContain(
+        "Cosmetic wording or still-unauthorized evidence cannot reset or\ndispatch.",
+      ),
+    ).toThrow();
+
+    const staleVerdictSurvival = lifecycle.replace(
+      "no earlier verdict\nsurvives.",
+      "an earlier verdict survives.",
+    );
+    expect(() =>
+      expect(staleVerdictSurvival).toContain("no earlier verdict\nsurvives."),
+    ).toThrow();
+  });
+
   it("preserves same-head D14/D15 finality, freshness, and invalidation", async () => {
     const lifecycle = await readRepoFile(LIFECYCLE);
 
@@ -152,8 +211,47 @@ describe("subagent-execution review-fix loop owner", () => {
     );
     expect(example).toContain("bounded impact preview");
     expect(example).toContain("adjacent separate-work handoff");
-    expect(redFlags).toContain(
+    expect(redFlags).toMatch(
+      /Treat reviewer findings as automatic mutation authority; they are evidence\s+only\./,
+    );
+    expect(redFlags).not.toContain(
       "Treat reviewer findings as evidence, not automatic mutation authority",
+    );
+  });
+
+  it("keeps illustrative review findings ordered, classified, and routed consistently", async () => {
+    const [diagrams, example] = await Promise.all([
+      readRepoFile(
+        "skills/play-subagent-execution/references/process-diagrams.md",
+      ),
+      readRepoFile(
+        "skills/play-subagent-execution/references/example-workflow.md",
+      ),
+    ]);
+
+    const classification = example.indexOf(
+      "Controller first retains a bounded impact preview",
+    );
+    expect(classification).toBeGreaterThanOrEqual(0);
+    expect(example.slice(0, classification)).not.toContain(
+      "routing target=Task 2 implementer",
+    );
+    expect(example).toMatch(
+      /missing progress report is an\s+in-scope product blocker because the extracted Task 2 acceptance requires\s+progress reporting every 100 items/,
+    );
+    expect(example).toMatch(
+      /`--json` flag is an\s+in-scope product\s+blocker because the extracted Task 2 contract authorizes only verify\/repair\s+modes/,
+    );
+    expect(example).toMatch(
+      /magic-number suggestion is an adjacent independently releasable\s+defect/,
+    );
+    expect(example).not.toContain("extracted PROGRESS_INTERVAL constant");
+
+    expect(diagrams).toContain(
+      '"Bounded fix permitted?" -> "Mark task complete" [label="no; all-non-mutating dispositions satisfy active-task gate"];',
+    );
+    expect(diagrams).toContain(
+      '"Bounded fix permitted?" -> "Stop: BLOCKED/NEEDS_CONTEXT" [label="no; unclear authority or round 3/repeated family"];',
     );
   });
 });
