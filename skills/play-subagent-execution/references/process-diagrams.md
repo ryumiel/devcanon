@@ -119,7 +119,7 @@ digraph process {
     "Bounded fix permitted?" -> "Send incremental D12 follow-up to stable session" [label="yes; compatible stable D12"];
     "Bounded fix permitted?" -> "Dispatch implementer prompt" [label="yes; fresh D12 required"];
     "Bounded fix permitted?" -> "Mark task complete" [label="no; all-non-mutating dispositions satisfy active-task gate"];
-    "Bounded fix permitted?" -> "Stop: BLOCKED" [label="no; unclear authority or round 3/repeated family"];
+    "Bounded fix permitted?" -> "Stop: BLOCKED" [label="no; unclear authority, mandatory round 3, or optional unchanged-family early stop"];
     "Spec-only review passes?" -> "Mark task complete" [label="yes"];
     "Spec passes for reviewed head?" -> "Quality result final for same reviewed head?" [label="yes"];
     "Quality result final for same reviewed head?" -> "Resolve quality disposition or rerun quality" [label="no"];
@@ -163,11 +163,12 @@ pre-dispatch D13 selection is governed by
 For a review finding, the classification box represents the lifecycle owner's
 private bounded impact preview and four-way disposition before a D12 edge. A
 complete authorized-correction wave records its round before the decision:
-rounds 1 and 2 may take the bounded-fix edge, while round 3 or an unchanged
-family stops at `BLOCKED` with `review-loop-limit`. A finding-bound single-use
-approval can permit one identified extra edge; only a materially revalidated
-contract can begin a new three-round episode. These are summary labels, not
-additional reviewer fields or a policy source.
+rounds 1 and 2 may take the bounded-fix edge, while round 3 must stop at
+`BLOCKED` with `review-loop-limit` before D12; a materially unchanged family
+may stop earlier through that same blocker and resumption path. A
+finding-bound single-use approval can permit one identified extra edge; only a
+materially revalidated contract can begin a new three-round episode. These are
+summary labels, not additional reviewer fields or a policy source.
 
 Prompt boxes point to the child-action/report owners in `implementer-prompt.md`,
 `executor-prompt.md`, `spec-reviewer-prompt.md`, and
