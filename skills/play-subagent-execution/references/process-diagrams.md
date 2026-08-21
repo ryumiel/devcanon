@@ -81,6 +81,7 @@ digraph process {
     "Branch-review approval evidence or explicit waiver present?" [shape=diamond];
     "Invoke play-branch-finish" [shape=box style=filled fillcolor=lightgreen];
     "Stop: BLOCKED/NEEDS_CONTEXT" [shape=box];
+    "Stop: BLOCKED" [shape=box];
 
     "Read plan and extract authored tasks" -> "Task contract structurally valid?";
     "Task contract structurally valid?" -> "Stop: BLOCKED/NEEDS_CONTEXT" [label="no; task contract"];
@@ -118,7 +119,7 @@ digraph process {
     "Bounded fix permitted?" -> "Send incremental D12 follow-up to stable session" [label="yes; compatible stable D12"];
     "Bounded fix permitted?" -> "Dispatch implementer prompt" [label="yes; fresh D12 required"];
     "Bounded fix permitted?" -> "Mark task complete" [label="no; all-non-mutating dispositions satisfy active-task gate"];
-    "Bounded fix permitted?" -> "Stop: BLOCKED/NEEDS_CONTEXT" [label="no; unclear authority or round 3/repeated family"];
+    "Bounded fix permitted?" -> "Stop: BLOCKED" [label="no; unclear authority or round 3/repeated family"];
     "Spec-only review passes?" -> "Mark task complete" [label="yes"];
     "Spec passes for reviewed head?" -> "Quality result final for same reviewed head?" [label="yes"];
     "Quality result final for same reviewed head?" -> "Resolve quality disposition or rerun quality" [label="no"];

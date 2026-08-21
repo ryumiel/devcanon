@@ -6,6 +6,21 @@ const LIFECYCLE =
 const PROPORTIONALITY =
   "skills/play-review-response/references/finding-proportionality.md";
 
+const REVIEW_GATE_CONTRACT = [
+  "Only after this separation, preview, classification, current contract/head/route\nvalidation, and limit decision may authorized incremental context reach D12\nthrough the existing compatible-session or fresh-child route.",
+  "separate-work non-mutating caller handoff",
+  "Round 3 returns existing `BLOCKED`",
+  "finding-bound, current-head/current-route/current-contract/current-evidence,\nsingle-use.",
+  "Cosmetic wording or still-unauthorized evidence cannot reset or\ndispatch.",
+  "no earlier verdict\nsurvives.",
+];
+
+function assertReviewGateContract(source: string): void {
+  for (const anchor of REVIEW_GATE_CONTRACT) {
+    expect(source).toContain(anchor);
+  }
+}
+
 describe("subagent-execution review-fix loop owner", () => {
   it("consumes the portable four-way policy before D12 and retains bounded preview evidence", async () => {
     const [lifecycle, proportionality] = await Promise.all([
@@ -106,60 +121,36 @@ describe("subagent-execution review-fix loop owner", () => {
   it("rejects one-dimensional mutations at the lifecycle owner's review gates", async () => {
     const lifecycle = await readRepoFile(LIFECYCLE);
 
-    const omittedPreview = lifecycle.replace(
-      "Only after this separation, preview, classification, current contract/head/route validation, and limit decision may authorized incremental context reach D12",
-      "Only after this separation, classification, current contract/head/route validation, and limit decision may authorized incremental context reach D12",
-    );
-    expect(() =>
-      expect(omittedPreview).toContain(
-        "Only after this separation, preview, classification, current contract/head/route validation, and limit decision may authorized incremental context reach D12",
-      ),
-    ).toThrow();
+    assertReviewGateContract(lifecycle);
 
-    const adjacentEnteringFix = lifecycle.replace(
-      "receives a concise\n  separate-work non-mutating caller handoff.",
-      "may enter the active-task fix.",
-    );
-    expect(() =>
-      expect(adjacentEnteringFix).toContain(
-        "separate-work non-mutating caller handoff",
+    const mutants = [
+      lifecycle.replace(
+        "Only after this separation, preview, classification, current contract/head/route\nvalidation, and limit decision may authorized incremental context reach D12\nthrough the existing compatible-session or fresh-child route.",
+        "Only after this separation, classification, current contract/head/route\nvalidation, and limit decision may authorized incremental context reach D12\nthrough the existing compatible-session or fresh-child route.",
       ),
-    ).toThrow();
-
-    const thirdAutomaticAttempt = lifecycle.replace(
-      "Round 3 returns existing `BLOCKED`",
-      "Round 3 may permit one bounded fix",
-    );
-    expect(() =>
-      expect(thirdAutomaticAttempt).toContain(
+      lifecycle.replace(
+        "receives a concise\n  separate-work non-mutating caller handoff.",
+        "may enter the active-task fix.",
+      ),
+      lifecycle.replace(
         "Round 3 returns existing `BLOCKED`",
+        "Round 3 may permit one bounded fix",
       ),
-    ).toThrow();
-
-    const reusableApproval = lifecycle.replace("single-use.", "reusable.");
-    expect(() =>
-      expect(reusableApproval).toContain(
-        "finding-bound, current-head/current-route/current-contract/current-evidence,\nsingle-use.",
-      ),
-    ).toThrow();
-
-    const cosmeticReset = lifecycle.replace(
-      "Cosmetic wording or still-unauthorized evidence cannot reset or\ndispatch.",
-      "Cosmetic wording may reset and dispatch.",
-    );
-    expect(() =>
-      expect(cosmeticReset).toContain(
+      lifecycle.replace("single-use.", "reusable."),
+      lifecycle.replace(
         "Cosmetic wording or still-unauthorized evidence cannot reset or\ndispatch.",
+        "Cosmetic wording may reset and dispatch.",
       ),
-    ).toThrow();
+      lifecycle.replace(
+        "no earlier verdict\nsurvives.",
+        "an earlier verdict survives.",
+      ),
+    ];
 
-    const staleVerdictSurvival = lifecycle.replace(
-      "no earlier verdict\nsurvives.",
-      "an earlier verdict survives.",
-    );
-    expect(() =>
-      expect(staleVerdictSurvival).toContain("no earlier verdict\nsurvives."),
-    ).toThrow();
+    for (const mutant of mutants) {
+      expect(mutant).not.toBe(lifecycle);
+      expect(() => assertReviewGateContract(mutant)).toThrow();
+    }
   });
 
   it("preserves same-head D14/D15 finality, freshness, and invalidation", async () => {
@@ -251,7 +242,7 @@ describe("subagent-execution review-fix loop owner", () => {
       '"Bounded fix permitted?" -> "Mark task complete" [label="no; all-non-mutating dispositions satisfy active-task gate"];',
     );
     expect(diagrams).toContain(
-      '"Bounded fix permitted?" -> "Stop: BLOCKED/NEEDS_CONTEXT" [label="no; unclear authority or round 3/repeated family"];',
+      '"Bounded fix permitted?" -> "Stop: BLOCKED" [label="no; unclear authority or round 3/repeated family"];',
     );
   });
 });
