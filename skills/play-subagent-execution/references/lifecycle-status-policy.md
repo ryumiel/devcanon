@@ -95,12 +95,14 @@ consumer. For each candidate, retain all of these facts:
 
 A proof-only gap may explicitly state `no demonstrated production path;
 proof-only gap`, but it still requires an authoritative proof obligation and an
-existing proof owner. Missing preview evidence, proof owner, classification, or
-authority is not a new classification: Unclear classification or authority is a
-gate failure returning existing `BLOCKED` before D12 with a concise sanitized
-summary of the missing authority, classification, or proof-owner fact plus
-permitted repository anchors or minimum evidence pointers. The detailed impact
-preview stays controller-local.
+existing proof owner. For an invalid or speculative finding, an explicit record
+that no authoritative contract anchor, production path, or meaningful bad
+outcome was demonstrated is sufficient negative evidence for rejection; it is
+not missing preview evidence. Return existing `BLOCKED` before D12 only when the
+controller cannot determine the classification or whether required authority,
+evidence, or proof ownership exists. Include a concise sanitized summary of the
+unknown fact plus permitted repository anchors or minimum evidence pointers.
+The detailed impact preview stays controller-local.
 
 Classify every candidate independently and separate dispositions before
 grouping so mixed sets cannot carry unauthorized work. Apply exactly these four
@@ -114,6 +116,12 @@ classifications and dispositions from the portable policy:
   separate-work non-mutating caller handoff.
 - An invalid or speculative finding receives a concise rejection and no
   mutation.
+
+Treat the wave as the publication boundary. If any D14/D15 candidate authorizes
+a head-changing fix, keep every same-wave non-mutating handoff provisional and
+do not issue it to the caller. The fresh post-fix wave must independently
+confirm the handoff before publication. A no-fix wave may finalize its
+dispositions after same-head validation.
 
 Only after this separation, preview, classification, current contract/head/route
 validation, and limit decision may authorized incremental context reach D12
