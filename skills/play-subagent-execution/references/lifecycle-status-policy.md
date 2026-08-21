@@ -97,8 +97,10 @@ A proof-only gap may explicitly state `no demonstrated production path;
 proof-only gap`, but it still requires an authoritative proof obligation and an
 existing proof owner. Missing preview evidence, proof owner, classification, or
 authority is not a new classification: Unclear classification or authority is a
-gate failure returning existing `BLOCKED` before D12 with the available finding
-and preview evidence.
+gate failure returning existing `BLOCKED` before D12 with a concise sanitized
+summary of the missing authority, classification, or proof-owner fact plus
+permitted repository anchors or minimum evidence pointers. The detailed impact
+preview stays controller-local.
 
 Classify every candidate independently and separate dispositions before
 grouping so mixed sets cannot carry unauthorized work. Apply exactly these four

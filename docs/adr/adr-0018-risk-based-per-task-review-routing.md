@@ -125,10 +125,23 @@ continues as `spec-and-quality`.
 
 When both `spec-and-quality` reviewers report findings on the same reviewed
 head, the controller may route the combined spec and code-quality finding set
-to the same implementer for one fixup round. After any spec fixup, the
-controller reruns spec and reruns quality unless it can prove the fixup is
-irrelevant to the previous quality result. Unclear freshness or irrelevance
-classification fails closed to rerunning code quality.
+to the same implementer for one fixup round only after independently
+classifying each finding under the repository's proportional mutation policy.
+Findings are evidence, not mutation authority: only an in-scope production
+correction or a repair at an existing proof owner may re-enter implementation.
+Adjacent and speculative findings retain non-mutating dispositions.
+
+Per-task review-fix episodes are bounded. The lifecycle policy owns the exact
+round count, stop threshold, blocker family, and transition mechanics. Reaching
+that limit blocks before another implementation attempt. Explicit resumption
+approval is finding-bound and authorizes one identified extra attempt without
+erasing prior failure history; a material authoritative scope or acceptance
+change instead starts a new bounded episode while retaining the prior ledger.
+
+Every head-changing fix invalidates both same-head reviewer verdicts. The
+controller revalidates the effective route and reruns every reviewer required
+by that route as a fresh one-shot session against the new task head; no prior
+quality verdict survives through an irrelevance exception.
 
 DevCanon-specific checks remain available through two paths:
 
