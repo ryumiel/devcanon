@@ -186,7 +186,13 @@ Code-quality reviewer: Strengths: Solid. Issues (Nit): Magic number (100)
 [Lifecycle ledger update]
 Task 2 spec reviewer: agent_id=spec-2, status=findings-recorded, review scope captured, base/head SHA captured, reviewed head SHA=task-2-head, report captured, reviewer result disposition=final-findings, findings captured: Missing progress reporting; Extra --json flag, routing target=Task 2 implementer, re-review target=spec-2-rereview, observed close result=success, closed=yes after findings routed.
 Task 2 code-quality reviewer: agent_id=quality-2, status=findings-recorded, review scope captured, base/head SHA captured, reviewed head SHA=task-2-head, report captured, reviewer result disposition=advisory, findings captured: Magic number (100), routing target=Task 2 implementer if combined same-head findings are routed, re-review target=quality-2-rereview, observed close result=success, closed=yes after advisory findings captured and routed.
-Controller records the combined spec and code-quality finding set routed to Task 2 implementer because both reviewers inspected the same head.
+Controller first retains a bounded impact preview for every candidate and
+classifies independently before grouping: the missing progress report is an
+in-scope product blocker; the extra `--json` flag is an in-scope correction;
+the magic-number suggestion is an adjacent separate-work handoff. The adjacent
+finding does not enter the fix. This complete same-head wave counts as failed
+round 1, so only the smallest authorized correction can route to Task 2
+implementer.
 Task 2 implementer: closed=no because routed same-head findings need same-session fixup.
 
 [Implementer fixes issues]
@@ -204,6 +210,17 @@ changed files and head SHA refreshed, test state refreshed, snapshot
 state=emitted, closed=no because spec re-review and any required code-quality
 re-review or disposition are pending.
 Task 2 D14 and D15 results: dispositions=stale; the fix invalidates both results.
+
+[If the review-loop limit is reached]
+After a third complete same-head wave that requires an authorized correction,
+the controller records the failed round and returns `BLOCKED` with
+`review-loop-limit` before D12. A current finding-bound approval can authorize
+one identified fix attempt without resetting the count; a failed fresh wave
+after it blocks again. Alternatively, only a material authoritative change to
+the task scope or acceptance, followed by refreshed context, structural
+validation, head/route revalidation, and reclassification, can reset the
+current-episode fixup count and start a fresh review budget. Cosmetic wording
+does not resume or dispatch.
 
 [Revalidate effective review route]
 Controller compares the original Task 2 base SHA to the refreshed task head.

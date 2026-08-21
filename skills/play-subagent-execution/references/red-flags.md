@@ -18,6 +18,13 @@ lifecycle transitions.
 - Skip scene-setting context (subagent needs to understand where task fits)
 - Bypass the returned-status and completion rules in the
   [lifecycle/status policy](lifecycle-status-policy.md)
+- Treat reviewer findings as evidence, not automatic mutation authority. The
+  lifecycle owner must apply the portable proportionality policy, retain its
+  bounded impact preview, separate dispositions, and enforce the review-loop
+  stop before D12.
+- Reset the review-loop count with approval, reuse stale approval after a head,
+  route, contract, or evidence change, or call a cosmetic contract edit a new
+  review episode.
 - Stop after an implementation summary, verification summary, or review pass
   report instead of returning to the verified owning caller or resolving
   branch-level review status on the direct/manual path. Those summaries are

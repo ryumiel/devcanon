@@ -2,7 +2,12 @@
 
 The [source-immutability usage](source-immutability-usage.md) owns D14-D16
 guard commands, I/O, and refusal mechanics. This reference owns lifecycle
-ordering, status disposition, freshness, and escalation.
+ordering, status disposition, freshness, escalation, and the D14/D15
+review-fix-loop disposition. It consumes the existing [finding proportionality
+runtime reference](../../play-review-response/references/finding-proportionality.md)
+before any D12 route. Writing Skills remains the sole classification authority;
+this lifecycle policy remains the sole execution disposition, count, stop, and
+resumption owner.
 
 ## Subagent Lifecycle
 
@@ -52,19 +57,97 @@ through the selected route.
 
 D14 and D15 use independent fresh one-shot sessions and prompts against the
 same task head; they never receive a follow-up or reuse a prior reviewer
-session. A D14/D15 finding routes to the original stable D12 session through
-the incremental-only follow-up above when it remains compatible and the route
-permits it. Otherwise it uses the shared fresh-child lifecycle path.
-Quality is final only after same-head spec pass and current-head validation;
-otherwise it is advisory, stale, or superseded. Every fix commit invalidates
-both verdicts. Revalidate the route after each fixup: it may stay or escalate,
-never downgrade.
+session. For `spec-and-quality`, one complete same-head required reviewer wave
+is one round regardless of reviewer or finding count. Join same-head results
+only after the independent guard lifecycles settle. D15 stays provisional until
+the active-task D14 gate is satisfied: a literal D14 pass or finalized
+all-non-mutating D14 dispositions satisfies that gate without rewriting raw
+responses. When D14 authorizes a fix, same-head provisional D15 candidates may
+join that single fix only when independently proportionate; they neither
+complete the task nor add a second round. `spec-only` D14 is one wave.
 
-A fresh D14 pass plus every reviewer required by the effective route passing on
-that same head permits task completion. Any D14 finding, or any D15 finding
-after a same-head D14 pass, routes to D12 for a fix. After a head-changing fix,
-rerun every reviewer required by the revalidated route as fresh one-shot
-reviewers against the new same task head; no earlier verdict survives.
+Quality is final only after the same-head D14 gate and current-head validation;
+otherwise it is advisory, stale, or superseded. A fresh D14 pass plus every
+reviewer required by the effective route passing on that same head permits task
+completion. Every fix commit invalidates both verdicts. Revalidate the route
+after each fixup: it may stay or escalate, never downgrade. After a
+head-changing fix, rerun every reviewer required by the revalidated route as
+fresh one-shot reviewers against the new same task head; no earlier verdict
+survives.
+
+## D14/D15 Proportional Disposition and Bounded Fix Loops
+
+After guarded capture → spawn → verify → validate/retain → cleanup → apply and
+before any D12 route, process every guard-verified semantically consumable
+candidate that could otherwise reach D12 through the portable four-way policy.
+Retain a private, transient, same-controller, unnamed, unpersisted bounded
+impact preview. It has no helper, schema, artifact, notice, or independent
+consumer. For each candidate, retain all of these facts:
+
+- authoritative contract anchor;
+- reachable production path and meaningful bad outcome;
+- proposed files or modules;
+- new state or lifecycle ownership;
+- behavior changed or disabled;
+- proof and test growth; and
+- why the existing correctness owner is insufficient, or that it remains
+  sufficient.
+
+A proof-only gap may explicitly state `no demonstrated production path;
+proof-only gap`, but it still requires an authoritative proof obligation and an
+existing proof owner. Missing preview evidence, proof owner, classification, or
+authority is not a new classification: Unclear classification or authority is a
+gate failure returning existing `BLOCKED` before D12 with the available finding
+and preview evidence.
+
+Classify every candidate independently and separate dispositions before
+grouping so mixed sets cannot carry unauthorized work. Apply exactly these four
+classifications and dispositions from the portable policy:
+
+- An in-scope product blocker may receive only the smallest authorized
+  production correction.
+- A proof or test defect may receive a repair only at its existing proof owner,
+  with no production-behavior expansion.
+- An adjacent independently releasable defect receives a concise
+  separate-work non-mutating caller handoff.
+- An invalid or speculative finding receives a concise rejection and no
+  mutation.
+
+Only after this separation, preview, classification, current contract/head/route
+validation, and limit decision may authorized incremental context reach D12
+through the existing compatible-session or fresh-child route. Reviewer evidence,
+severity, validity, technical fixability, grouping, or approval prose alone is
+not mutation authority.
+
+Count a failed round only when a complete guard-verified semantically valid wave
+requires an authorized production or proof correction. Initial implementation
+and unavailable, malformed, verification-rejected, mutation-detected,
+cleanup-failed, or non-mutating-only waves do not consume this budget and keep
+their existing terminal handling. The existing current-episode fixup count `0`,
+`1`, or `2` makes the newly observed failed wave round `1`, `2`, or `3`.
+Record the failed wave before deciding. Rounds 1 and 2 may each permit one
+bounded fix. Round 3 returns existing `BLOCKED` with blocker family
+`review-loop-limit` before D12. A materially unchanged unresolved finding
+family may stop earlier with that same blocker and resumption path; changed SHA
+alone is not new evidence.
+
+After a `review-loop-limit` block, explicit resumption approval must be
+finding-bound, current-head/current-route/current-contract/current-evidence,
+single-use. It authorizes exactly one identified D12 attempt without clearing
+history or resetting count. A stale approval cannot revive after a changed
+head, route, contract, or material evidence; current evidence needs new
+explicit approval unless the revised-contract route applies. A failed fresh
+wave after that extra attempt blocks before any further D12.
+
+Revised-contract resumption instead requires material authoritative scope or
+acceptance change, refreshed extracted context, structural contract validation,
+head and route revalidation, and reclassification. When the revised contract
+authorizes correction, reset only existing current-episode fixup count to `0`,
+retain prior ledger and family history, dispatch through the existing D12
+compatibility logic, and begin the new three-round budget with post-fix fresh
+review. Cosmetic wording or still-unauthorized evidence cannot reset or
+dispatch. Prior family history supports early stop only when authority, outcome,
+and impact remain materially unchanged.
 
 Resolve the installed `play-subagent-execution` bundle before the first guarded
 review and discover the local guard contract once for the enclosing D14-D16

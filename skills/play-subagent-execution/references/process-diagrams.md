@@ -57,6 +57,8 @@ digraph process {
     "Dispatch spec reviewer" [shape=box];
     "D14 verify-validate-cleanup-apply" [shape=box];
     "Join same-head review results" [shape=box];
+    "Classify independently and separate dispositions before grouping" [shape=box];
+    "Bounded fix permitted?" [shape=diamond];
     "Spec-only review passes?" [shape=diamond];
     "Spec passes for reviewed head?" [shape=diamond];
     "Quality result final for same reviewed head?" [shape=diamond];
@@ -109,17 +111,17 @@ digraph process {
     "Dispatch spec reviewer" -> "D14 verify-validate-cleanup-apply";
     "D14 verify-validate-cleanup-apply" -> "Spec-only review passes?";
     "Join same-head review results" -> "Spec passes for reviewed head?";
-    "Spec-only review passes?" -> "Send incremental D12 follow-up to stable session" [label="no; compatible stable D12"];
-    "Spec-only review passes?" -> "Dispatch implementer prompt" [label="no; fresh D12 required"];
+    "Spec-only review passes?" -> "Classify independently and separate dispositions before grouping" [label="no"];
+    "Spec passes for reviewed head?" -> "Classify independently and separate dispositions before grouping" [label="no"];
+    "Quality findings present?" -> "Classify independently and separate dispositions before grouping" [label="yes"];
+    "Classify independently and separate dispositions before grouping" -> "Bounded fix permitted?";
+    "Bounded fix permitted?" -> "Send incremental D12 follow-up to stable session" [label="yes; compatible stable D12"];
+    "Bounded fix permitted?" -> "Dispatch implementer prompt" [label="yes; fresh D12 required"];
     "Spec-only review passes?" -> "Mark task complete" [label="yes"];
-    "Spec passes for reviewed head?" -> "Send incremental D12 follow-up to stable session" [label="no; compatible stable D12"];
-    "Spec passes for reviewed head?" -> "Dispatch implementer prompt" [label="no; fresh D12 required"];
     "Spec passes for reviewed head?" -> "Quality result final for same reviewed head?" [label="yes"];
     "Quality result final for same reviewed head?" -> "Resolve quality disposition or rerun quality" [label="no"];
     "Resolve quality disposition or rerun quality" -> "Join same-head review results";
     "Quality result final for same reviewed head?" -> "Quality findings present?" [label="yes"];
-    "Quality findings present?" -> "Send incremental D12 follow-up to stable session" [label="yes; compatible stable D12"];
-    "Quality findings present?" -> "Dispatch implementer prompt" [label="yes; fresh D12 required"];
     "Quality findings present?" -> "Mark task complete" [label="no"];
     "Controller executes Write/Edit + verify + commit inline" -> "Inline branch: no child DONE report or snapshot request";
     "Inline branch: no child DONE report or snapshot request" -> "Mark task complete";
@@ -154,6 +156,15 @@ deliberate and are governed by
 are governed by [`review-routing-policy.md`](review-routing-policy.md), and
 pre-dispatch D13 selection is governed by
 [`skip-dispatch-policy.md`](skip-dispatch-policy.md).
+
+For a review finding, the classification box represents the lifecycle owner's
+private bounded impact preview and four-way disposition before a D12 edge. A
+complete authorized-correction wave records its round before the decision:
+rounds 1 and 2 may take the bounded-fix edge, while round 3 or an unchanged
+family stops at `BLOCKED` with `review-loop-limit`. A finding-bound single-use
+approval can permit one identified extra edge; only a materially revalidated
+contract can begin a new three-round episode. These are summary labels, not
+additional reviewer fields or a policy source.
 
 Prompt boxes point to the child-action/report owners in `implementer-prompt.md`,
 `executor-prompt.md`, `spec-reviewer-prompt.md`, and
