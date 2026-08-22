@@ -23,13 +23,17 @@ Source files are authoritative. Generated outputs are disposable.
 
 ## Quick Start
 
-**Prerequisites:** Node.js `>=24.0.0` and pnpm `10.33.0`. The supported setup
-and verification scope is macOS and Linux.
+**Prerequisites:** Node.js `>=24.0.0` and pnpm `10.33.0`.
 
-Before `pnpm run setup:cli`, pnpm's user-global bin directory must be
-configured and on `PATH`. If pnpm reports it missing, run `pnpm setup` and
-follow pnpm's shell-reload guidance before continuing. DevCanon does not run
-`pnpm setup` or modify `PATH`.
+Before `pnpm run setup:cli`, configure the platform's global executable
+directory on `PATH`:
+
+- On macOS and Linux, configure pnpm's user-global bin directory. If pnpm
+  reports it missing, run `pnpm setup` and follow its shell-reload guidance.
+- On Windows, ensure npm's global prefix is on `PATH`; `setup:cli` uses npm for
+  global registration.
+
+DevCanon does not modify `PATH`.
 
 ```sh
 # Clone into a stable location: the globally registered CLI points here, and

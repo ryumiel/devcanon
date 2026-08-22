@@ -25,6 +25,9 @@ const windowsHelperIntegrationIncludes = [
   "src/skill-scripts/pr-merge-worktree-helpers.integration.test.ts",
   // Review manifest helpers validate Windows-aware path normalization and repo roots.
   "src/skill-scripts/pr-review-manifests-helper.integration.test.ts",
+  ...(process.platform === "win32"
+    ? ["src/cli/setup-cli.integration.test.ts"]
+    : []),
 ];
 const windowsIntegrationIncludes = [
   ...renderInstallIntegrationIncludes,

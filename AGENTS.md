@@ -31,13 +31,18 @@ see [`docs/specs/`](docs/specs/).
 
 ## Golden Path
 
-For a new user-wide installation on macOS or Linux, clone DevCanon into a
-stable checkout, install dependencies, register the CLI, and then sync the
-managed outputs:
+For a new user-wide installation, clone DevCanon into a stable checkout,
+install dependencies, register the CLI, and then sync the managed outputs.
 
-Before `pnpm run setup:cli`, ensure pnpm's user-global bin directory is
-configured and on `PATH`. If it is missing, run `pnpm setup` and follow pnpm's
-shell-reload guidance; DevCanon does not run that command or modify `PATH`.
+Before `pnpm run setup:cli`, configure the platform's global executable
+directory on `PATH`:
+
+- On macOS and Linux, configure pnpm's user-global bin directory. If it is
+  missing, run `pnpm setup` and follow pnpm's shell-reload guidance.
+- On Windows, ensure npm's global prefix is on `PATH`; `setup:cli` uses npm for
+  global registration.
+
+DevCanon does not modify `PATH`.
 
 ```sh
 git clone <repo-url> devcanon
@@ -66,8 +71,7 @@ The primary library-authoring workflow is:
 
 ## Quick Start
 
-**Prerequisites:** Node.js `>=24.0.0`, pnpm `10.33.0`, and macOS or Linux.
-Windows setup and verification are deferred.
+**Prerequisites:** Node.js `>=24.0.0` and pnpm `10.33.0`.
 
 For user-wide CLI setup, follow the Golden Path above. To set up the existing
 contributor hooks and commit template for this checkout, run:
