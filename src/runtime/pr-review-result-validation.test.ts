@@ -16,6 +16,8 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   createPrReviewResultValidationContext,
+  validatePrReviewHandoffFacts,
+  validatePrReviewHandoffObject,
   validatePrReviewResultCommandAuthority,
   validatePrReviewResultCommandAuthorityForFindingsPublication,
   validatePrReviewResultCommandAuthorityForReviewBodyRecovery,
@@ -30,6 +32,109 @@ const realPriorThreadAdapter = path.join(
 
 afterEach(async () => {
   process.chdir(originalCwd);
+});
+
+describe("PR-review shared handoff validation", () => {
+  it("validates canonical handoff evidence through exported object and fact validators", async () => {
+    const workspace = await makeWorkspace();
+    try {
+      process.chdir(workspace.root);
+      const handoff = await readJson(workspace.root, workspace.handoffFile);
+
+      validatePrReviewHandoffObject(handoff, workspace.handoffFile);
+      await validatePrReviewHandoffFacts(handoff, workspace.handoffFile, {
+        repository: "owner/repo",
+        prNumber: 42,
+        reviewHeadSha: workspace.headSha,
+      });
+    } finally {
+      await rm(workspace.root, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    {
+      name: "unsupported mode",
+      mutate: async (workspace: Workspace) => {
+        const handoff = await readJson(workspace.root, workspace.handoffFile);
+        handoff.mode = "unsupported";
+        await writeJson(workspace.root, workspace.handoffFile, handoff);
+        const result = await readJson(workspace.root, workspace.resultFile);
+        (result.digests as JsonObject).handoff_sha256 = await sha256File(
+          path.join(workspace.root, workspace.handoffFile),
+        );
+        await writeJson(workspace.root, workspace.resultFile, result);
+      },
+      error: "handoff schema mismatch",
+    },
+    {
+      name: "extra key",
+      mutate: async (workspace: Workspace) => {
+        const handoff = await readJson(workspace.root, workspace.handoffFile);
+        handoff.untrusted = true;
+        await writeJson(workspace.root, workspace.handoffFile, handoff);
+        const result = await readJson(workspace.root, workspace.resultFile);
+        (result.digests as JsonObject).handoff_sha256 = await sha256File(
+          path.join(workspace.root, workspace.handoffFile),
+        );
+        await writeJson(workspace.root, workspace.resultFile, result);
+      },
+      error: "handoff schema mismatch",
+    },
+    {
+      name: "wrong repository",
+      mutate: async (workspace: Workspace) => {
+        const handoff = await readJson(workspace.root, workspace.handoffFile);
+        handoff.repository = "other/repo";
+        await writeJson(workspace.root, workspace.handoffFile, handoff);
+        const result = await readJson(workspace.root, workspace.resultFile);
+        (result.digests as JsonObject).handoff_sha256 = await sha256File(
+          path.join(workspace.root, workspace.handoffFile),
+        );
+        await writeJson(workspace.root, workspace.resultFile, result);
+      },
+      error: "handoff repository mismatch",
+    },
+    {
+      name: "wrong review head",
+      mutate: async (workspace: Workspace) => {
+        const handoff = await readJson(workspace.root, workspace.handoffFile);
+        handoff.review_head_sha = "a".repeat(40);
+        await writeJson(workspace.root, workspace.handoffFile, handoff);
+        const result = await readJson(workspace.root, workspace.resultFile);
+        (result.digests as JsonObject).handoff_sha256 = await sha256File(
+          path.join(workspace.root, workspace.handoffFile),
+        );
+        await writeJson(workspace.root, workspace.resultFile, result);
+      },
+      error: "review head mismatch",
+    },
+    {
+      name: "provider evidence digest drift",
+      mutate: async (workspace: Workspace) => {
+        const evidence = path.join(workspace.root, workspace.evidenceFile);
+        await writeFile(evidence, `${await readFile(evidence, "utf8")}\n`);
+      },
+      error: "provider scope evidence digest mismatch",
+    },
+  ])("rejects $name through result consumption", async ({ mutate, error }) => {
+    const workspace = await makeWorkspace();
+    try {
+      process.chdir(workspace.root);
+      await mutate(workspace);
+      const validationContext = await createPrReviewResultValidationContext({
+        worktreeRoot: workspace.root,
+      });
+
+      await expect(
+        validatePrReviewResultCommandAuthority(
+          authorityInput(workspace, validationContext),
+        ),
+      ).rejects.toThrow(error);
+    } finally {
+      await rm(workspace.root, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("PR-review result validation context", () => {

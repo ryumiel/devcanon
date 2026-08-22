@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 import { runPrReviewLeasesCommand } from "./pr-review-leases.js";
-import { createPrReviewResultValidationContext, validatePrReviewResultCommandAuthority, validatePrReviewResultCommandAuthorityForFindingsPublication, validatePrReviewResultCommandAuthorityForReviewBodyRecovery, } from "./pr-review-result-validation.js";
+import { createPrReviewResultValidationContext, validatePrReviewHandoffFacts, validatePrReviewHandoffObject, validatePrReviewResultCommandAuthority, validatePrReviewResultCommandAuthorityForFindingsPublication, validatePrReviewResultCommandAuthorityForReviewBodyRecovery, } from "./pr-review-result-validation.js";
 const execFileAsync = promisify(execFile);
 const PRE_INPUT_FINDINGS_SHA256 = createHash("sha256").digest("hex");
 const FORBIDDEN_KEYS = new Set([
@@ -139,7 +139,7 @@ async function writeHandoff() {
             provider_scope_evidence_sha256: providerEvidence.sha256,
         },
     };
-    validateHandoffObject(handoff, file, file);
+    validatePrReviewHandoffObject(handoff, file);
     await validateHandoffFacts(handoff, file);
     await writeTextAtomically(path.join(process.cwd(), file), `${json(handoff)}\n`);
     await rm(path.join(process.cwd(), tmpPathFor(file)), { force: true });
@@ -758,7 +758,7 @@ async function validateHandoffFile(file, identityFile = file) {
     validateDirectChildPath("handoff", file);
     await assertReadableFile("handoff file", file);
     const handoff = await readJsonObject(file, "handoff file");
-    validateHandoffObject(handoff, file, identityFile);
+    validatePrReviewHandoffObject(handoff, file);
     await validateHandoffFacts(handoff, identityFile);
 }
 async function validateResultFile(file, identityFile = file, validationContext) {
@@ -801,74 +801,6 @@ function inheritedHelperEnv() {
         }
     }
     return inherited;
-}
-function validateHandoffObject(value, file, identityFile) {
-    if (!isObject(value) ||
-        !hasExactKeys(value, [
-            "schema",
-            "pr_number",
-            "repository",
-            "execution",
-            "base_ref",
-            "head_ref",
-            "review_scope_base_ref",
-            "active_diff_range",
-            "full_pr_diff_range",
-            "review_head_sha",
-            "mode",
-            "language_hints",
-            "follow_up",
-            "artifacts",
-        ]) ||
-        hasForbiddenKey(value)) {
-        fail(`handoff schema mismatch: ${file}`);
-    }
-    const execution = objectField(value, "execution", `handoff schema mismatch: ${file}`);
-    const followUp = objectField(value, "follow_up", `handoff schema mismatch: ${file}`);
-    const artifacts = objectField(value, "artifacts", `handoff schema mismatch: ${file}`);
-    const followState = stringField(followUp, "state", `handoff schema mismatch: ${file}`);
-    const lastReviewed = nullableStringField(followUp, "last_reviewed_sha", `handoff schema mismatch: ${file}`);
-    const isFollowupNarrow = booleanField(followUp, "is_followup_narrow", `handoff schema mismatch: ${file}`);
-    if (stringField(value, "schema", "") !== "pr-review/handoff/v1" ||
-        !isPositiveInteger(value.pr_number) ||
-        !isRepository(stringField(value, "repository", "")) ||
-        !hasExactKeys(execution, ["kind", "working_directory"]) ||
-        stringField(execution, "kind", "") !== "review-worktree" ||
-        !isAbsolutePath(stringField(execution, "working_directory", "")) ||
-        !isRefString(stringField(value, "base_ref", "")) ||
-        !isRefString(stringField(value, "head_ref", "")) ||
-        !isRefString(stringField(value, "review_scope_base_ref", "")) ||
-        stringField(value, "active_diff_range", "").length === 0 ||
-        stringField(value, "full_pr_diff_range", "").length === 0 ||
-        !isSha(stringField(value, "review_head_sha", "")) ||
-        stringField(value, "mode", "") !== "github-post" ||
-        !stringArrayField(value, "language_hints", `handoff schema mismatch: ${file}`).every((hint) => /^[a-z0-9][a-z0-9_+-]*$/u.test(hint)) ||
-        !hasExactKeys(followUp, [
-            "state",
-            "last_reviewed_sha",
-            "is_followup_narrow",
-        ]) ||
-        !["initial", "follow-up-full", "follow-up-narrow"].includes(followState) ||
-        !hasExactKeys(artifacts, [
-            "scope_decision_file",
-            "prior_threads_file",
-            "provider_scope_evidence_file",
-            "provider_scope_evidence_sha256",
-        ]) ||
-        !isDirectEphemeralPath(stringField(artifacts, "scope_decision_file", ""), "-scope-decision.json") ||
-        !isNullableDirectEphemeralPath(artifacts.prior_threads_file, "-prior-threads.json") ||
-        !isDirectEphemeralPath(stringField(artifacts, "provider_scope_evidence_file", ""), "-provider-scope-evidence.json") ||
-        !isSha256(stringField(artifacts, "provider_scope_evidence_sha256", ""))) {
-        fail(`handoff schema mismatch: ${file}`);
-    }
-    if ((followState === "initial" &&
-        (lastReviewed !== null || isFollowupNarrow !== false)) ||
-        (followState === "follow-up-narrow" &&
-            (!isSha(lastReviewed ?? "") || isFollowupNarrow !== true)) ||
-        (followState === "follow-up-full" &&
-            (!isSha(lastReviewed ?? "") || isFollowupNarrow !== false))) {
-        fail(`handoff schema mismatch: ${file}`);
-    }
 }
 function validateResultObject(value, file, identityFile) {
     if (!isObject(value) ||
@@ -956,84 +888,18 @@ function validateResultObject(value, file, identityFile) {
     }
 }
 async function validateHandoffFacts(handoff, identityFile) {
-    const prNumber = String(readPrNumber());
+    const prNumber = readPrNumber();
     const headSha = readHeadSha();
-    const manifestPrNumber = String(numberField(handoff, "pr_number"));
-    if (manifestPrNumber !== prNumber) {
-        fail(`handoff PR number mismatch: manifest ${manifestPrNumber}, current ${prNumber}`);
-    }
-    const reviewHeadSha = stringField(handoff, "review_head_sha");
-    if (reviewHeadSha !== headSha) {
-        fail(`review head mismatch: manifest ${reviewHeadSha}, current ${headSha}`);
-    }
-    if (stringField(handoff, "repository") !== requiredEnv("REPOSITORY")) {
-        fail("handoff repository mismatch");
-    }
-    const expected = expectedHandoffPath(Number(prNumber), reviewHeadSha);
-    if (identityFile !== expected) {
-        fail(`handoff path mismatch: ${identityFile}`);
-    }
-    const execution = objectField(handoff, "execution");
-    await validateExecutionRoot(stringField(execution, "working_directory"), reviewHeadSha);
+    await validatePrReviewHandoffFacts(handoff, identityFile, {
+        repository: requiredEnv("REPOSITORY"),
+        prNumber,
+        reviewHeadSha: headSha,
+    });
     const artifacts = objectField(handoff, "artifacts");
     const scopeDecisionFile = stringField(artifacts, "scope_decision_file");
     const priorThreadsFile = nullableStringField(artifacts, "prior_threads_file");
-    const providerScopeEvidenceFile = stringField(artifacts, "provider_scope_evidence_file");
-    const providerScopeEvidenceSha256 = stringField(artifacts, "provider_scope_evidence_sha256");
     const reviewScopeBaseRef = stringField(handoff, "review_scope_base_ref");
     await validateScopeAuthority(scopeDecisionFile, reviewScopeBaseRef, priorThreadsFile);
-    const providerEvidence = await readProviderScopeEvidenceBinding(scopeDecisionFile, {
-        repository: stringField(handoff, "repository"),
-        prNumber: Number(prNumber),
-    });
-    if (providerScopeEvidenceFile !== providerEvidence.file) {
-        fail("handoff provider scope evidence mismatch");
-    }
-    if (providerScopeEvidenceSha256 !== providerEvidence.sha256) {
-        fail("handoff provider scope evidence digest mismatch");
-    }
-    if (reviewScopeBaseRef !== providerEvidence.providerDiffBaseSha) {
-        fail("handoff review scope base mismatch");
-    }
-    await validateDigest("provider scope evidence", providerScopeEvidenceFile, providerScopeEvidenceSha256);
-    const scope = await readJsonObject(scopeDecisionFile, "scope decision file");
-    if (stringField(scope, "head_sha") !== reviewHeadSha) {
-        fail("scope decision head mismatch");
-    }
-    if (stringField(handoff, "active_diff_range") !==
-        stringField(scope, "selected_range")) {
-        fail("handoff active diff range mismatch");
-    }
-    if (stringField(handoff, "full_pr_diff_range") !==
-        stringField(scope, "full_range")) {
-        fail("handoff full diff range mismatch");
-    }
-    if (!jsonEqual(arrayField(handoff, "language_hints"), arrayField(scope, "language_hints"))) {
-        fail("handoff language hints mismatch");
-    }
-    const followUp = objectField(handoff, "follow_up");
-    const scopeMode = stringField(scope, "mode");
-    const scopeNarrow = booleanField(scope, "is_followup_narrow");
-    const expectedFollowState = scopeMode === "initial" && !scopeNarrow
-        ? "initial"
-        : scopeMode === "follow-up" && scopeNarrow
-            ? "follow-up-narrow"
-            : scopeMode === "follow-up" && !scopeNarrow
-                ? "follow-up-full"
-                : null;
-    if (expectedFollowState === null) {
-        fail("scope decision follow-up state mismatch");
-    }
-    if (stringField(followUp, "state") !== expectedFollowState) {
-        fail("handoff follow-up state mismatch");
-    }
-    if ((nullableStringField(followUp, "last_reviewed_sha") ?? "") !==
-        (nullableStringField(scope, "last_reviewed_sha") ?? "")) {
-        fail("handoff last reviewed SHA mismatch");
-    }
-    if (booleanField(followUp, "is_followup_narrow") !== scopeNarrow) {
-        fail("handoff follow-up narrow mismatch");
-    }
 }
 async function validateResultFacts(result, identityFile) {
     const prNumber = String(readPrNumber());

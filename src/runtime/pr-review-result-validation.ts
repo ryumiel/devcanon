@@ -181,15 +181,22 @@ async function validateHandoffFile(
   validateDirectChildPath("handoff", file, "-handoff.json");
   await assertReadableFile("handoff file", file);
   const handoff = await readJsonObject(file, "handoff file");
-  validateHandoffObject(handoff, file);
-  await validateHandoffFacts(handoff, identityPath, input);
+  validatePrReviewHandoffObject(handoff, file);
+  await validatePrReviewHandoffFacts(handoff, identityPath, input);
   return handoff;
 }
 
-async function validateHandoffFacts(
+export async function validatePrReviewHandoffFacts(
   handoff: JsonObject,
   identityPath: string,
-  input: PrReviewResultValidationInput,
+  input: Pick<
+    PrReviewResultValidationInput,
+    | "repository"
+    | "prNumber"
+    | "reviewHeadSha"
+    | "leaseBaseRef"
+    | "leaseHeadRef"
+  >,
 ): Promise<void> {
   const manifestPrNumber = String(numberField(handoff, "pr_number"));
   if (manifestPrNumber !== String(input.prNumber)) {
@@ -486,7 +493,7 @@ async function validateResultFacts(
   return handoff;
 }
 
-function validateHandoffObject(
+export function validatePrReviewHandoffObject(
   value: unknown,
   file: string,
 ): asserts value is JsonObject {

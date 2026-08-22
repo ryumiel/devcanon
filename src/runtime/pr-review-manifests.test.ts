@@ -29,6 +29,18 @@ const managedEnvKeys = [
   "REPOSITORY",
   "PR_NUMBER",
   "HEAD_SHA",
+  "HANDOFF_FILE",
+  "EXECUTION_WORKING_DIRECTORY",
+  "BASE_REF",
+  "HEAD_REF",
+  "REVIEW_SCOPE_BASE_REF",
+  "ACTIVE_DIFF_RANGE",
+  "FULL_PR_DIFF_RANGE",
+  "MODE",
+  "LANGUAGE_HINTS_JSON",
+  "FOLLOW_UP_STATE",
+  "IS_FOLLOWUP_NARROW",
+  "SCOPE_DECISION_FILE",
   "RESULT_FILE",
   "PRIMARY_REPOSITORY_ROOT",
   "WORKTREE_PATH",
@@ -95,6 +107,160 @@ afterEach(async () => {
 
 afterAll(async () => {
   await commandHarness.dispose();
+});
+
+describe("pr-review manifest handoff validation", () => {
+  it.each([
+    {
+      name: "canonical evidence",
+      mutate: async () => undefined,
+      exitCode: 0,
+      stderr: "",
+    },
+    {
+      name: "unsupported mode",
+      mutate: async (workspace: ManifestWorkspace, handoffFile: string) => {
+        const handoff = JSON.parse(
+          await readFile(path.join(workspace.worktree, handoffFile), "utf8"),
+        ) as Record<string, unknown>;
+        handoff.mode = "unsupported";
+        await writeJson(workspace.worktree, handoffFile, handoff);
+      },
+      exitCode: 1,
+      stderr: "handoff schema mismatch",
+    },
+    {
+      name: "extra key",
+      mutate: async (workspace: ManifestWorkspace, handoffFile: string) => {
+        const handoff = JSON.parse(
+          await readFile(path.join(workspace.worktree, handoffFile), "utf8"),
+        ) as Record<string, unknown>;
+        handoff.untrusted = true;
+        await writeJson(workspace.worktree, handoffFile, handoff);
+      },
+      exitCode: 1,
+      stderr: "handoff schema mismatch",
+    },
+    {
+      name: "wrong repository",
+      mutate: async (workspace: ManifestWorkspace, handoffFile: string) => {
+        const handoff = JSON.parse(
+          await readFile(path.join(workspace.worktree, handoffFile), "utf8"),
+        ) as Record<string, unknown>;
+        handoff.repository = "other/repo";
+        await writeJson(workspace.worktree, handoffFile, handoff);
+      },
+      exitCode: 1,
+      stderr: "handoff repository mismatch",
+    },
+    {
+      name: "wrong review head",
+      mutate: async (workspace: ManifestWorkspace, handoffFile: string) => {
+        const handoff = JSON.parse(
+          await readFile(path.join(workspace.worktree, handoffFile), "utf8"),
+        ) as Record<string, unknown>;
+        handoff.review_head_sha = "a".repeat(40);
+        await writeJson(workspace.worktree, handoffFile, handoff);
+      },
+      exitCode: 1,
+      stderr: "review head mismatch",
+    },
+    {
+      name: "provider evidence digest drift",
+      mutate: async (workspace: ManifestWorkspace) => {
+        const evidenceFile = path.join(
+          workspace.worktree,
+          workspace.providerScopeEvidenceFile,
+        );
+        await writeFile(
+          evidenceFile,
+          `${await readFile(evidenceFile, "utf8")}\n`,
+        );
+      },
+      exitCode: 1,
+      stderr: "provider scope evidence digest mismatch",
+    },
+  ])("accepts or rejects $name", async ({ mutate, exitCode, stderr }) => {
+    const workspace = await makeManifestWorkspace("pr-review-handoff-");
+    const handoffFile = `.ephemeral/pr-432-${workspace.headSha}-handoff.json`;
+    setSummaryEnv(workspace);
+    process.env.HANDOFF_FILE = handoffFile;
+    process.chdir(workspace.worktree);
+    await mutate(workspace, handoffFile);
+
+    const outcome = await runManifestCommand(["validate-handoff"]);
+
+    expect(outcome.exitCode).toBe(exitCode);
+    expect(outcome.stdout).toBe("");
+    expect(outcome.stderr).toContain(stderr);
+  });
+
+  it("retains helper-backed scope authority after shared validation", async () => {
+    const workspace = await makeManifestWorkspace("pr-review-handoff-scope-");
+    const handoffFile = `.ephemeral/pr-432-${workspace.headSha}-handoff.json`;
+    const scopeValidationLog = path.join(
+      workspace.tempRoot,
+      "scope-validation.log",
+    );
+    setSummaryEnv(workspace);
+    process.env.HANDOFF_FILE = handoffFile;
+    process.env.PR_REVIEW_DIR = await writeCountingPrReviewHelper(
+      workspace.tempRoot,
+      scopeValidationLog,
+    );
+    process.chdir(workspace.worktree);
+
+    await expect(runManifestCommand(["validate-handoff"])).resolves.toEqual({
+      exitCode: 0,
+      stdout: "",
+      stderr: "",
+    });
+    await expect(readFile(scopeValidationLog, "utf8")).resolves.toBe(
+      "validate-scope-decision\n",
+    );
+  });
+
+  it("does not write a handoff when retained scope authority refuses it", async () => {
+    const workspace = await makeManifestWorkspace("pr-review-handoff-refuse-");
+    const handoffFile = `.ephemeral/pr-432-${workspace.headSha}-handoff.json`;
+    const scopeValidationLog = path.join(
+      workspace.tempRoot,
+      "scope-validation.log",
+    );
+    const scopeFile = `.ephemeral/topic-${workspace.headSha}-scope-decision.json`;
+    const handoffPath = path.join(workspace.worktree, handoffFile);
+    const before = await readFile(handoffPath, "utf8");
+    setSummaryEnv(workspace);
+    Object.assign(process.env, {
+      EXECUTION_WORKING_DIRECTORY: workspace.physicalWorktree,
+      BASE_REF: "main",
+      HEAD_REF: "topic",
+      REVIEW_SCOPE_BASE_REF: workspace.baseSha,
+      ACTIVE_DIFF_RANGE: `${workspace.baseSha}..${workspace.headSha}`,
+      FULL_PR_DIFF_RANGE: `${workspace.baseSha}..${workspace.headSha}`,
+      MODE: "github-post",
+      LANGUAGE_HINTS_JSON: "[]",
+      FOLLOW_UP_STATE: "initial",
+      IS_FOLLOWUP_NARROW: "false",
+      SCOPE_DECISION_FILE: scopeFile,
+    });
+    process.env.PR_REVIEW_DIR = await writeCountingPrReviewHelper(
+      workspace.tempRoot,
+      scopeValidationLog,
+      true,
+    );
+    process.chdir(workspace.worktree);
+
+    await expect(runManifestCommand(["write-handoff"])).resolves.toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: "scope authority refused\n",
+    });
+    await expect(readFile(handoffPath, "utf8")).resolves.toBe(before);
+    await expect(readFile(scopeValidationLog, "utf8")).resolves.toBe(
+      "validate-scope-decision\n",
+    );
+  });
 });
 
 describe("pr-review Phase 5 audit summary renderer", () => {
@@ -2090,6 +2256,7 @@ async function writePrReviewHelper(tempRoot: string): Promise<string> {
 async function writeCountingPrReviewHelper(
   tempRoot: string,
   scopeValidationLog: string,
+  refuseScope = false,
 ): Promise<string> {
   const prReviewDir = path.join(tempRoot, "counting-pr-review");
   await mkdir(path.join(prReviewDir, "scripts"), { recursive: true });
@@ -2101,6 +2268,9 @@ async function writeCountingPrReviewHelper(
       'case "${1:-}" in',
       "  validate-scope-decision)",
       `    printf 'validate-scope-decision\\n' >> ${JSON.stringify(scopeValidationLog)}`,
+      ...(refuseScope
+        ? ['    echo "scope authority refused" >&2', "    exit 1"]
+        : []),
       "    ;;",
       "  validate-prior-threads)",
       "    ;;",
