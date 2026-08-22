@@ -14,7 +14,7 @@
   },
   "scripts": {
     "setup": "git config core.hooksPath scripts/hooks && git config commit.template .gitmessage.txt",
-    "setup:cli": "pnpm run build && pnpm add --global \"$PWD\"",
+    "setup:cli": "pnpm run build && node scripts/setup-cli.mjs",
     "build": "tsc -p tsconfig.build.json",
     "build:runtime": "tsc -p tsconfig.runtime.json",
     "check:runtime": "pnpm run build:runtime && node scripts/check-runtime-build.mjs",
@@ -54,6 +54,7 @@
     "@biomejs/biome": "^1.9.4",
     "@types/diff": "^7.0.2",
     "@types/node": "^22.15.21",
+    "cross-spawn": "^7.0.6",
     "markdownlint-cli2": "^0.18.1",
     "prettier": "^3.5.3",
     "smol-toml": "^1.6.1",
