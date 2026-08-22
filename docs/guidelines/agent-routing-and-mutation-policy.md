@@ -19,7 +19,7 @@ blocked until the ADR's complete acceptance gate passes.
 The [agent spec](../specs/agents.md#semantic-role-catalog) is the single
 owner of the six semantic identities and their exact capability, Claude effort,
 route effort, tools, sandbox, network, source default, and external default.
-This policy consumes that envelope and records the complete D1-D17 route tuple;
+This policy consumes that envelope and records the complete D1-D18 route tuple;
 it does not add a source-level Codex model or effort default.
 
 ## Closed Classifications
@@ -129,6 +129,7 @@ existing response contract.
 | D15 | Per-task quality review — execution review routing                                      | `deep-reviewer`, frontier/xhigh, source-immutable                                                                                                                                                          | Existing distinct prompt/provisional same-head loop                                                                           |
 | D16 | Final whole-implementation quality review — execution Process step 10/final-review gate | `deep-reviewer`, frontier/xhigh, source-immutable                                                                                                                                                          | Whole-range prompt; narrow ADR-0016 skip; final fix/fresh-review or terminal-owner route                                      |
 | D17 | CI diagnosis/fix — `pr-merge` Step 4                                                    | branch `diagnosis`: `investigator`, balanced/high, source-immutable; branch `exact-fix`: `executor`, efficient/medium, source-mutable; branch `judgment-fix`: `implementer`, balanced/high, source-mutable | Guard diagnosis before fix classification; mutable child commits only; root alone separately owns external-mutable push/merge |
+| D18 | Semantic review context — `play-review` Phase 2.25                                      | `assessor`, balanced/medium, source-immutable                                                                                                                                                              | Response-only four-family summary; controller validates, cleans, maps, and continues                                          |
 
 ## Capability Escalation Adoption Inventory
 
@@ -163,6 +164,7 @@ it does not replace any route's workflow-local dispatch or termination owner.
 | D15 | opt-out        | none       |
 | D16 | opt-out        | none       |
 | D17 | opt-out        | none       |
+| D18 | opt-out        | none       |
 
 `adopt`, `specialize`, and `opt-out` remain the conceptual closed adoption
 states. Current parser validation is deliberately fail-closed: it accepts only
@@ -178,7 +180,7 @@ distinct sessions just because they share a semantic agent.
 ## Fresh Codex Route Contract
 
 This policy is the sole owner of the complete fresh-Codex spawn contract for
-D1-D17. For every fresh child, the controller validates and supplies all of the
+D1-D18. For every fresh child, the controller validates and supplies all of the
 following from the selected policy route and existing configuration:
 
 - a lifecycle-owned, route-local `task_name`;
@@ -193,7 +195,7 @@ following from the selected policy route and existing configuration:
 The controller must not derive a fresh Codex model or effort from source-agent
 Codex fields. Compatible same-session reuse is permitted only for D12's
 original stable-task fix or within-scope continuation and D17's unchanged stable
-branch/task. Every other D1-D17 route is fresh-only; D14, D15, and D16 are
+branch/task. Every other D1-D18 route is fresh-only; D14, D15, and D16 are
 explicitly one-shot fresh reviewers. After this route permission, the existing
 lifecycle owner performs task-name allocation, follow-up, capture,
 supersession, cleanup, slot recovery, and rejection mechanics; this policy does
@@ -248,7 +250,7 @@ the B3 routing boundary, a source-immutable D4 selection is response-only.
 ### Ordinary child failure disposition
 
 After safe cleanup, existing unavailable or invalid-child behavior remains in
-force. The four surfaces that need a minimum explicit disposition use this
+force. The five surfaces that need a minimum explicit disposition use this
 table:
 
 | Routes                                  | Ordinary unavailable, failed, malformed, or verification-rejected child after safe cleanup                                                       |
@@ -257,6 +259,7 @@ table:
 | Per-task reviews (D14-D15)              | Keep the task incomplete and return the existing execution `BLOCKED` state with the failed review named; no verdict passes                       |
 | Final whole-implementation review (D16) | Keep final review incomplete and return `BLOCKED` to the owning caller or direct/manual terminal-status path; do not enter branch finish         |
 | CI diagnosis (D17)                      | Keep retry count unchanged, perform no fix/push/merge, and report the failed check plus manual-resolution recommendation                         |
+| Semantic review context (D18)           | Stop before shared-context construction and topical fanout; do not use controller summarization, partial context, or the rejected result         |
 
 Other routes retain their current gate/revision, partial research, missing
 topical, unverified critic, or fresh-scenario behavior. Only detected source

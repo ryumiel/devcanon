@@ -162,6 +162,6 @@ Notes:
 - `devcanon` does not manage `~/.codex/config.toml` in v1.
 - The exact semantic catalog and role envelope are owned by the
   [agent spec](agents.md#semantic-role-catalog).
-- The mutation vocabulary and complete 33-skill and D1-D17 inventories are
+- The mutation vocabulary and complete 33-skill and D1-D18 inventories are
   owned by the
   [Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md).

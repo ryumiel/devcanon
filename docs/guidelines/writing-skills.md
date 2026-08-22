@@ -291,7 +291,8 @@ script to open when more detail is needed.
 When authoring a controller that could change a direct child's capability or
 effort after a failure, reference `subagent-lifecycle` and the
 [Agent Routing and Mutation Policy](agent-routing-and-mutation-policy.md)
-adoption inventory. That policy is the sole authoritative D1-D17 adoption inventory and grammar owner; this guide is a non-owning consumer projection, so
+adoption inventory. That policy is the sole authoritative D1-D18 adoption
+inventory and grammar owner; this guide is a non-owning consumer projection, so
 authors must consult the owner rather than reproduce a registry or grammar here.
 
 <!-- guide-capability-transition-projection

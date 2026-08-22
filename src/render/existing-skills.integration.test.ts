@@ -85,7 +85,7 @@ function expectSidecarParity(
 }
 
 describe("shipped skill rendering", () => {
-  it("materializes every D1-D17 route model binding from the configured capability", async () => {
+  it("materializes every D1-D18 route model binding from the configured capability", async () => {
     const config = await loadConfig(
       path.join(process.cwd(), "devcanon.config.yaml"),
     );
@@ -109,6 +109,7 @@ describe("shipped skill rendering", () => {
       ["pr-merge", "D17_DIAGNOSIS_MODEL", "balanced"],
       ["pr-merge", "D17_EXACT_FIX_MODEL", "efficient"],
       ["pr-merge", "D17_JUDGMENT_FIX_MODEL", "balanced"],
+      ["play-review", "D18_MODEL", "balanced"],
     ] as const;
 
     for (const [skill, binding, capability] of bindings) {
@@ -195,6 +196,32 @@ describe("shipped skill rendering", () => {
           ].join("\n"),
         );
       }
+    }
+  });
+
+  it("renders the D18 route for both targets", async () => {
+    const config = await loadConfig(
+      path.join(process.cwd(), "devcanon.config.yaml"),
+    );
+    const { outputs } = await renderAll(config, false, true);
+    const d18Spawn = [
+      "Codex.spawn_agent({",
+      "  task_name: d18_<instance_ordinal>,",
+      '  agent_type: "assessor",',
+      "  model: D18_MODEL,",
+      '  reasoning_effort: "medium",',
+      '  fork_turns: "none",',
+      "  message: D18_SEMANTIC_CONTEXT_PROMPT,",
+      "})",
+    ].join("\n");
+
+    for (const target of TARGETS) {
+      const { body } = parseFrontmatter(
+        getSkillOutput(outputs, "play-review", target).content,
+      );
+
+      expect(body).toContain(d18Spawn);
+      expect(body).toContain(config.capabilityProfiles.balanced[target]);
     }
   });
 

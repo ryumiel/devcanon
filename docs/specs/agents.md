@@ -296,7 +296,7 @@ Effort is independent. An explicit `claude.effort` or
 `codex.model_reasoning_effort` is emitted as written; when absent it remains
 omitted and ambient target behavior applies. Capability never supplies or
 inherits effort. The six semantic-role Codex efforts instead come from the
-selected D1-D17 route in the Agent Routing and Mutation Policy; source agent
+selected D1-D18 route in the Agent Routing and Mutation Policy; source agent
 Codex fields never override that route selection.
 
 Effort validation is local and syntactic. Accepting an effort such as `max`

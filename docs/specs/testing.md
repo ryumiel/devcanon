@@ -96,7 +96,7 @@ validates that table once. Source-contract and render consumers reuse the
 adapter's parsed rows. They must not maintain separate skill, agent, route, or
 target registries. For agent routing, `docs/specs/agents.md` owns the six
 semantic roles and observable target configuration, while
-`docs/guidelines/agent-routing-and-mutation-policy.md` owns the D1-D17
+`docs/guidelines/agent-routing-and-mutation-policy.md` owns the D1-D18
 direct-child route inventory. The tests consume those owners without copying
 either table.
 

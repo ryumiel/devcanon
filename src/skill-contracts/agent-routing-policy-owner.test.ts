@@ -191,10 +191,20 @@ const FRESH_SPAWNS = [
     "source-mutable",
     "D17_JUDGMENT_FIX_SELF_CONTAINED_PROMPT",
   ],
+  [
+    "D18",
+    "play-review",
+    "assessor",
+    "balanced",
+    "D18_MODEL",
+    "medium",
+    "source-immutable",
+    "D18_SEMANTIC_CONTEXT_PROMPT",
+  ],
 ] as const;
 
 describe("agent routing and mutation policy owner", () => {
-  it("parses the complete skill and D1-D17 route inventories", async () => {
+  it("parses the complete skill and D1-D18 route inventories", async () => {
     const [owner, sourceSkills] = await Promise.all([
       readAgentRoutingPolicyOwner(OWNER_PATH),
       readdir("skills", { withFileTypes: true }).then((entries) =>
@@ -209,10 +219,10 @@ describe("agent routing and mutation policy owner", () => {
       sourceSkills,
     );
     expect(owner.directChildRoutes.map((row) => row.id)).toEqual(
-      Array.from({ length: 17 }, (_, index) => `D${index + 1}`),
+      Array.from({ length: 18 }, (_, index) => `D${index + 1}`),
     );
     expect(owner.escalationAdoptionInventory).toEqual(
-      Array.from({ length: 17 }, (_, index) => ({
+      Array.from({ length: 18 }, (_, index) => ({
         id: `D${index + 1}`,
         state: "opt-out",
         transition: "none",
@@ -242,7 +252,7 @@ describe("agent routing and mutation policy owner", () => {
     }
   });
 
-  it("correlates every fixed D1-D17 policy clause to its exact fresh Codex tuple", async () => {
+  it("correlates every fixed D1-D18 policy clause to its exact fresh Codex tuple", async () => {
     const [owner, config] = await Promise.all([
       readAgentRoutingPolicyOwner(OWNER_PATH),
       loadConfig("devcanon.config.yaml", true),

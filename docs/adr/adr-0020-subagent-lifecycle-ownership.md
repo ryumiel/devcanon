@@ -83,8 +83,9 @@ exceptions. `play-review` owns reviewer and critic fanout, and records
 reviewer state separately from critic verdict state.
 
 The lifecycle owner is the common escalation-policy owner, not a dispatcher or
-provider-support registry. The routing guideline owns the D1-D17 adoption
-inventory; each current route is opt-out with literal transition `none`. The
+provider-support registry. The routing guideline owns the complete current
+direct-child adoption inventory; each current route is opt-out with literal
+transition `none`. The
 shared policy defines a total precedence classifier: context, then
 tool-or-permission, then authority, then the final integrity-or-route boundary;
 only a result that matches none of those and satisfies every positive predicate

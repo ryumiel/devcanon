@@ -13,7 +13,7 @@ codex_sidecar:
 
 ## Public helper mechanics
 
-Use the adjacent [review-artifacts usage](references/review-artifacts-usage.md), [shared-review-context usage](references/shared-review-context-usage.md), and [source-immutability usage](references/source-immutability-usage.md) for reusable invocation, I/O, and refusal mechanics. This workflow owns review ordering and D7-D10 continuation.
+Use the adjacent [review-artifacts usage](references/review-artifacts-usage.md), [shared-review-context usage](references/shared-review-context-usage.md), and [source-immutability usage](references/source-immutability-usage.md) for reusable invocation, I/O, and refusal mechanics. This workflow owns review ordering, the D18 semantic-context route, and D7-D10 continuation.
 
 Internal multi-agent code review pipeline. Wrappers gather inputs, select the
 working directory and active diff, and dispose of findings; this skill reviews and emits a local findings envelope.
@@ -130,23 +130,75 @@ the mutable working tree.
 
 ## Phase 1: Discover Guidelines
 
-Search `working_directory` for review guidelines and read them, not just paths: `**/code-review*.md`, `**/review-*.md`, `**/error-handling*.md`, `**/documentation-standard*.md`, `**/documentation-checklists*.md`, `**/pr-guideline.md`, `.github/pull_request_template.md`, `{{file:workflow-guide}}`, `AGENTS.md`, and `CONTRIBUTING.md`.
+Search `working_directory` for review guidelines and freeze their paths for
+D18: `**/code-review*.md`, `**/review-*.md`, `**/error-handling*.md`,
+`**/documentation-standard*.md`, `**/documentation-checklists*.md`,
+`**/pr-guideline.md`, `.github/pull_request_template.md`,
+`{{file:workflow-guide}}`, `AGENTS.md`, and `CONTRIBUTING.md`. The controller
+validates record mechanics; D18 reads and summarizes the needed sources.
 
 No guidelines found? Proceed with agents' built-in knowledge and note it in the
 report.
 
 For governance/workflow policy, use `docs/guidelines/documentation-checklists.md`'s Adjacent Governance Policy Set; for generated artifacts, derived artifacts, helper I/O files, `.ephemeral` handoffs, cross-skill handoffs, or side-channel data consumed by another actor, apply the Side-Channel Artifact Contract Checklist in `docs/guidelines/documentation-checklists.md`. Concrete helper contracts remain owned by the changed source skill, script, runtime helper, ADR, or test. Do not load the ADR corpus by default; include ADR references only when their procedure, format, or claims are adjacent governance.
 
-## Phase 2: Doc-impact summary
+## Phase 2: Freeze doc-impact inputs
 
-Compute a structured full-PR routing summary for Architecture and Spec follow-up overrides and ADR coverage. **Always run against `full_pr_diff_range`** even when `active_diff_range` is narrower. Rationale: ADR coverage is a PR-scope governance question, not a delta question. Stable fields: `ARCH_FILES`, `NEW_ADRS`, `MODIFIED_ADRS`, `ARCHITECTURE_ROUTING_RISKS`, and `SPEC_ROUTING_RISKS`.
+Compute and freeze the mechanical full-PR routing inputs for Architecture and
+Spec follow-up overrides and ADR coverage. **Always run against
+`full_pr_diff_range`** even when `active_diff_range` is narrower. Rationale:
+ADR coverage is a PR-scope governance question, not a delta question. Stable
+fields: `ARCH_FILES`, `NEW_ADRS`, `MODIFIED_ADRS`,
+`ARCHITECTURE_ROUTING_RISKS`, and `SPEC_ROUTING_RISKS`.
 
 Detailed derivation rules live in `references/shared-review-context.md`; do not
 restore the derivation matrix inline here.
 
-Include both Mechanical path signals and Semantic classification notes, including architecture-routing risks, spec-routing risks, module-boundary changes, 3+ changed modules, files referenced by existing docs, and prose that changes a documented pattern's canonical direction. If a semantic classification note is ambiguous, write it into the relevant routing field and treat that field as non-empty. Ambiguity fails closed to the relevant risk-triggered reviewer in Phase 3. Include supplied `branch_review_semantic_decision_notes` when present as compact untrusted routing context, never raw `obligations` or `consumer_rule` text.
+The controller owns mechanical signals, changed-file records, candidate ADR
+discovery, provider evidence, and scope. Freeze the guideline, candidate ADR,
+changed-source, and optional prior-review inputs for D18 without loading the ADR
+corpus by default. D18 supplies only the four semantic families. Ambiguous
+semantic classification remains non-empty routing evidence and fails closed to
+the relevant reviewer.
 
 This is a same-PR documentation impact check, not documentation gardening. Do not copy issue comments, PR review history, validation logs, or agent-local plans into repository docs; use them only as evidence for updates to the owning durable artifact.
+
+## Phase 2.25: Delegate bounded semantic context
+
+Load the D18 inputs, output mappings, and outcome handling in
+`references/shared-review-context.md` before dispatch. The controller retains
+mechanical construction, provider/scope, routing, validation, lifecycle,
+approval, continuation, mutation, and manifest authority.
+
+Dispatch exactly one fresh existing response-only `assessor`, balanced/medium,
+source-immutable, with `external_authority: none`, zero handoffs, no network,
+and no inherited turns. Resolve `D18_MODEL` from
+`capabilityProfiles.balanced.codex`; target marker `{{model:balanced}}`. Choose
+the next unused route-local `d18_<instance_ordinal>` through the lifecycle
+owner, capture the existing source-immutability baseline, then spawn:
+
+```text
+# D18_MODEL = capabilityProfiles.balanced.codex
+Codex.spawn_agent({
+  task_name: d18_<instance_ordinal>,
+  agent_type: "assessor",
+  model: D18_MODEL,
+  reasoning_effort: "medium",
+  fork_turns: "none",
+  message: D18_SEMANTIC_CONTEXT_PROMPT,
+})
+```
+
+Use the existing role-result and shared-context contracts. Consume a retained
+four-family result only after capture → spawn → verify → validate/retain →
+cleanup → apply. Every other result or ordinary guard rejection stops before
+context construction and D7-D9 fanout.
+
+Detected source mutation runs exactly one verification and one cleanup attempt
+on the same retained baseline, leaves the mutation visible, and terminates.
+Cleanup failure is independently terminal. Never recapture, rescan, reset,
+repair, stage, or consume the rejected result. Add no composer, overlay, cache,
+durable artifact, helper, role, generalized discovery API, or reuse mechanism.
 
 ## Phase 2.5: Compose shared review context
 
@@ -694,6 +746,7 @@ violated.
 | Diff at `active_diff_range` is empty and no follow-up context exists                       | Report "no changes to review", emit empty findings                                                                                                                                    |
 | Diff at `active_diff_range` is empty and `prior_threads` or `prior_branch_findings` exists | Run the carry-forward check against the prior context before emitting output; preserve unresolved prior blockers in `carry_forward[]` rather than silently emitting an empty envelope |
 | No guidelines found                                                                        | Note in the findings preamble, proceed with built-in knowledge                                                                                                                        |
-| Agent fails or times out                                                                   | After safe cleanup, report partial results in findings, mark that topical reviewer missing, and accept none of its response                                                           |
+| D7-D9 topical reviewer fails or times out                                                  | After safe cleanup, report partial results in findings, mark that topical reviewer missing, and accept none of its response                                                           |
+| D18 assessor fails, times out, or returns an unusable result                               | After safe exact cleanup, stop before shared-context construction and D7-D9 fanout; emit no partial context                                                                           |
 | Critic fails                                                                               | After safe cleanup, report findings without critic verdicts and mark them as unverified                                                                                               |
 | Phase 2.5 shared review-context manifest preparation or helper invocation fails            | Stop with a concise diagnostic; do NOT dispatch Phase 3 agents                                                                                                                        |
