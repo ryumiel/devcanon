@@ -27,6 +27,7 @@
     "test:integration:windows": "vitest run --project integration-windows-helper",
     "test:ci:ubuntu": "pnpm run test",
     "test:ci:windows:pr-review": "vitest run --project unit --testTimeout 12000 --no-file-parallelism src/__test-helpers__/pr-review-command-harness.test.ts src/__test-helpers__/pr-review-process-protocol.test.ts src/__test-helpers__/pr-review-root-identity.test.ts src/__test-helpers__/pr-review-process-lifecycle.test.ts src/runtime/pr-review-leases.test.ts src/runtime/pr-review-manifests.test.ts src/runtime/source-immutability.test.ts --testNamePattern \"PR-review command harness|pr-review process protocol|pr-review root identity|pr-review process lifecycle|(?:rejects stale or mismatched gated result evidence: (?:stale-timestamp|presentation-mismatch)|requires explicit provider evidence input for adapter scope validation|rejects noncanonical retained fingerprint path (?:\\.\\./outside|/absolute) before verify or cleanup deletion)$\"",
+    "test:ci:windows:setup": "vitest run --project integration-windows-helper --no-file-parallelism src/cli/setup-cli.integration.test.ts",
     "test:ci:windows": "pnpm run test:unit:windows && pnpm run test:integration:render-install && pnpm run test:integration:windows",
     "test:unit:windows": "vitest run --project unit --no-file-parallelism",
     "test:watch": "vitest",

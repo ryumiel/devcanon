@@ -28,10 +28,11 @@ Source files are authoritative. Generated outputs are disposable.
 Before `pnpm run setup:cli`, configure the platform's global executable
 directory on `PATH`:
 
-- On macOS and Linux, configure pnpm's user-global bin directory. If pnpm
-  reports it missing, run `pnpm setup` and follow its shell-reload guidance.
-- On Windows, ensure npm's global prefix is on `PATH`; `setup:cli` uses npm for
-  global registration.
+- On macOS, Linux, and WSL, configure pnpm's user-global bin directory. If
+  pnpm reports it missing, run `pnpm setup` and follow its shell-reload
+  guidance.
+- On native Windows, including PowerShell, cmd, and Git Bash, ensure npm's
+  global prefix is on `PATH`; `setup:cli` uses npm for global registration.
 
 DevCanon does not modify `PATH`.
 

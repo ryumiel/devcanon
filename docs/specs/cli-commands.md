@@ -10,10 +10,11 @@ checkout root after dependencies are installed. It is not a `devcanon`
 application subcommand and does not render or install managed outputs.
 
 Before this operation, the platform's global executable directory must be on
-`PATH`. On macOS and Linux, this is pnpm's user-global bin directory; if pnpm
-reports it missing, the operator runs `pnpm setup` and follows its shell-reload
-guidance. On Windows, npm's global prefix must be on `PATH`, and `setup:cli`
-uses npm for global registration. DevCanon does not modify `PATH`.
+`PATH`. On macOS, Linux, and WSL, this is pnpm's user-global bin directory; if
+pnpm reports it missing, the operator runs `pnpm setup` and follows its
+shell-reload guidance. On native Windows, including PowerShell, cmd, and Git
+Bash, npm's global prefix must be on `PATH`, and `setup:cli` uses npm for global
+registration. DevCanon does not modify `PATH`.
 
 The package manifest owns the exact script, the required Node.js version
 (`>=24.0.0`), and the pinned package manager (`pnpm@10.33.0`). The registered
