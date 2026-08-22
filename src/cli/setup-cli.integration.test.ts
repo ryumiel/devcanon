@@ -1,5 +1,12 @@
 import { exec, execFile } from "node:child_process";
-import { access, mkdtemp, rm } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -116,6 +123,29 @@ describe.runIf(process.platform === "win32")("setup:cli", () => {
 
       expect(version.stdout.trim()).toBe("0.1.0");
       expect(help.stdout).toContain("Usage: devcanon");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses to overwrite a foreign command shim", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "devcanon-npm-data-"));
+
+    try {
+      const env = isolatedNpmEnvironment(root);
+      const commandShell = process.env.ComSpec ?? "cmd.exe";
+      const executable = path.join(root, "npm", "devcanon.cmd");
+      const sentinel = "@echo foreign command\r\n";
+      await mkdir(path.dirname(executable), { recursive: true });
+      await writeFile(executable, sentinel, "utf8");
+
+      await expect(
+        execFileAsync(commandShell, ["/d", "/s", "/c", "pnpm run setup:cli"], {
+          cwd: process.cwd(),
+          env,
+        }),
+      ).rejects.toMatchObject({ code: 1 });
+      expect(await readFile(executable, "utf8")).toBe(sentinel);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
