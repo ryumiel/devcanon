@@ -53,7 +53,7 @@ Quick navigation index for the DevCanon repository.
 - Where is the agent schema spec? -> [`docs/specs/agents.md`](docs/specs/agents.md)
 - Where is the exact six-role semantic catalog and role envelope defined? ->
   [`docs/specs/agents.md`](docs/specs/agents.md#semantic-role-catalog)
-- Where are the mutation vocabulary, 33-skill inventory, and D1-D17
+- Where are the mutation vocabulary, 33-skill inventory, and D1-D18
   direct-child routes defined? ->
   [`docs/guidelines/agent-routing-and-mutation-policy.md`](docs/guidelines/agent-routing-and-mutation-policy.md)
 - Where is the target mapping spec? -> [`docs/specs/target-mapping.md`](docs/specs/target-mapping.md)

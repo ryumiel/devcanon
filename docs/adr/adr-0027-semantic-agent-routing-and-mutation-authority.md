@@ -116,6 +116,25 @@ or public interchange protocol. Comprehensive workspace enforcement and
 broader evidence machinery remain explicit follow-up categories rather than
 part of this decision.
 
+### Bounded semantic review-context delegation
+
+`play-review` may delegate bounded semantic review-context summaries to one
+fresh existing `assessor` when broad review usage would otherwise keep that
+semantic source material in controller context. The controller freezes the
+candidate inputs and retains every mechanical, provider, scope, routing,
+validation, lifecycle, approval, continuation, source-mutation, and
+external-mutation decision. The assessor is response-only and source-immutable;
+its output can populate only the existing shared review-context fields after
+the controller validates its existing role result and completes the minimum
+source-immutability guard.
+
+This is an allocation of bounded semantic work, not a new composition layer or
+artifact boundary. Exact summary families, route tuple, result disposition,
+guard ordering, and failure behavior remain owned by `play-review`, the
+routing policy, and the AFDS workflow spec. No composer, overlay schema, durable
+summary artifact, helper, agent role, cache, reuse mechanism, or generalized
+discovery API is introduced.
+
 ### Bounded runtime acceptance
 
 After local tests and both-target render parsing pass, the selected capability
@@ -176,6 +195,9 @@ rerun under separately authorized acceptance work.
 - Source-immutable results are rejected on unexpected Git-visible source
   change, but the minimum guard does not claim comprehensive workspace or
   external-system enforcement.
+- Bounded semantic review-context delegation can reduce controller-context
+  pressure without transferring mechanical construction or workflow authority
+  and without creating another shared-context contract.
 - Existing path-based response and handoff contracts remain response-only
   where required by ADR-0013. The final-review carve-out in ADR-0016 remains
   narrow and caller-scoped.
@@ -217,6 +239,11 @@ decision's implementation:
 - **Promote the guard into comprehensive workspace enforcement.** Rejected
   because ignored files, outside-worktree paths, races, and external systems
   require a broader security and evidence design.
+- **Introduce a runtime composer, semantic overlay, or reusable summary
+  cache.** Rejected because the existing shared-context manifest and
+  controller-owned lifecycle are sufficient for the bounded delegation, while
+  another artifact or reuse layer would create new authority and freshness
+  obligations.
 - **Build a broad evaluation framework before routing.** Rejected because the
   selected pairs need a bounded availability check, not a benchmark platform.
 

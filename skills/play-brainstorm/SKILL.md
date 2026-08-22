@@ -422,7 +422,7 @@ Before planning proceeds:
 1. reconcile the current source skill directories with the complete skill
    inventory and its closed demand, stance, source-authority,
    external-authority, and phase-override fields;
-2. reconcile D1-D17 with their current source anchors and full route fields,
+2. reconcile D1-D18 with their current source anchors and full route fields,
    including role, capability, effort, source authority, external authority,
    scope, output, and termination. Every semantic child keeps external
    authority `none`; only a separately authorized owning root/controller may
