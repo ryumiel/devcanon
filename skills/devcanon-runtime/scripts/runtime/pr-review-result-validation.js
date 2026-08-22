@@ -74,11 +74,11 @@ async function validateHandoffFile(file, input, identityPath = file) {
     validateDirectChildPath("handoff", file, "-handoff.json");
     await assertReadableFile("handoff file", file);
     const handoff = await readJsonObject(file, "handoff file");
-    validateHandoffObject(handoff, file);
-    await validateHandoffFacts(handoff, identityPath, input);
+    validatePrReviewHandoffObject(handoff, file);
+    await validatePrReviewHandoffFacts(handoff, identityPath, input);
     return handoff;
 }
-async function validateHandoffFacts(handoff, identityPath, input) {
+export async function validatePrReviewHandoffFacts(handoff, identityPath, input) {
     const manifestPrNumber = String(numberField(handoff, "pr_number"));
     if (manifestPrNumber !== String(input.prNumber)) {
         fail(`handoff PR number mismatch: manifest ${manifestPrNumber}, current ${input.prNumber}`);
@@ -262,7 +262,7 @@ async function validateResultFacts(result, input, options = {}) {
     }
     return handoff;
 }
-function validateHandoffObject(value, file) {
+export function validatePrReviewHandoffObject(value, file) {
     if (!isObject(value) ||
         !hasExactKeys(value, [
             "schema",
