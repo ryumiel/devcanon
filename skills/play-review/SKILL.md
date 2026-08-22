@@ -165,7 +165,7 @@ This is a same-PR documentation impact check, not documentation gardening. Do no
 
 ## Phase 2.25: Delegate bounded semantic context
 
-Load the D18 inputs, output mappings, and closed outcome table in
+Load the D18 inputs, output mappings, and outcome handling in
 `references/shared-review-context.md` before dispatch. The controller retains
 mechanical construction, provider/scope, routing, validation, lifecycle,
 approval, continuation, mutation, and manifest authority.
@@ -189,10 +189,10 @@ Codex.spawn_agent({
 })
 ```
 
-Use the existing role-result and shared-context contracts and the referenced
-outcome table. Consume a retained four-family result only after capture → spawn
-→ verify → validate/retain → cleanup → apply. Every other result or ordinary
-guard rejection stops before context construction and D7-D9 fanout.
+Use the existing role-result and shared-context contracts. Consume a retained
+four-family result only after capture → spawn → verify → validate/retain →
+cleanup → apply. Every other result or ordinary guard rejection stops before
+context construction and D7-D9 fanout.
 
 Detected source mutation runs exactly one verification and one cleanup attempt
 on the same retained baseline, leaves the mutation visible, and terminates.

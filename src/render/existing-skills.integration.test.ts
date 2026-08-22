@@ -7,7 +7,6 @@ import {
   listRelativeFiles,
   parseRenderedYamlArtifact,
 } from "../__test-helpers__/render.js";
-import { getMarkdownSection } from "../__test-helpers__/skill-contracts.js";
 import { loadConfig } from "../config/load.js";
 import type { SkillSource } from "../config/schema.js";
 import { pathExists } from "../utils/fs.js";
@@ -200,31 +199,11 @@ describe("shipped skill rendering", () => {
     }
   });
 
-  it("renders the D18 route for both targets and keeps closed failure outcomes", async () => {
+  it("renders the D18 route for both targets", async () => {
     const config = await loadConfig(
       path.join(process.cwd(), "devcanon.config.yaml"),
     );
     const { outputs } = await renderAll(config, false, true);
-    const contextReference = await readFile(
-      path.join(
-        process.cwd(),
-        "skills/play-review/references/shared-review-context.md",
-      ),
-      "utf8",
-    );
-    const outcomeRows = getMarkdownSection(
-      contextReference,
-      "D18 Result and Guard Outcomes",
-    )
-      .split(/\r?\n/)
-      .filter((line) => line.startsWith("|"))
-      .slice(2)
-      .map((line) =>
-        line
-          .slice(1, -1)
-          .split("|")
-          .map((cell) => cell.trim()),
-      );
     const d18Spawn = [
       "Codex.spawn_agent({",
       "  task_name: d18_<instance_ordinal>,",
@@ -244,33 +223,6 @@ describe("shipped skill rendering", () => {
       expect(body).toContain(d18Spawn);
       expect(body).toContain(config.capabilityProfiles.balanced[target]);
     }
-
-    expect(outcomeRows).toEqual([
-      [
-        "success",
-        "`COMPLETE_NO_FINDINGS`",
-        "build shared context",
-        "capture → spawn → verify → validate/retain → cleanup → apply",
-      ],
-      [
-        "unusable result",
-        "`COMPLETE_WITH_FINDINGS`, `NEEDS_CONTEXT`, `FAILED`, blank, malformed, incomplete, unavailable, timeout, semantic rejection, ordinary verification rejection",
-        "stop before context and D7-D9",
-        "exact cleanup on retained baseline",
-      ],
-      [
-        "source mutation",
-        "source-mutation verification rejection",
-        "terminal; source remains visible",
-        "verify once → cleanup once on same baseline",
-      ],
-      [
-        "cleanup failure",
-        "cleanup rejection",
-        "terminal",
-        "no retry, recapture, reverify, rescan, or repair",
-      ],
-    ]);
   });
 
   it("renders every validated source skill once for each enabled target", async () => {

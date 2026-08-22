@@ -49,18 +49,6 @@ incomplete, duplicate, over-budget, out-of-scope, unavailable, timed-out,
 semantically rejected, or ordinary verification-rejected results are not
 usable context. D18 output never enters findings or critic input.
 
-## D18 Result and Guard Outcomes
-
-This closed table owns the stable result, continuation, and guard dispositions;
-surrounding prose explains them without adding another outcome.
-
-| Outcome         | Role result or observation                                                                                                                                   | Continuation                     | Guard disposition                                            |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- | ------------------------------------------------------------ |
-| success         | `COMPLETE_NO_FINDINGS`                                                                                                                                       | build shared context             | capture → spawn → verify → validate/retain → cleanup → apply |
-| unusable result | `COMPLETE_WITH_FINDINGS`, `NEEDS_CONTEXT`, `FAILED`, blank, malformed, incomplete, unavailable, timeout, semantic rejection, ordinary verification rejection | stop before context and D7-D9    | exact cleanup on retained baseline                           |
-| source mutation | source-mutation verification rejection                                                                                                                       | terminal; source remains visible | verify once → cleanup once on same baseline                  |
-| cleanup failure | cleanup rejection                                                                                                                                            | terminal                         | no retry, recapture, reverify, rescan, or repair             |
-
 The controller verifies before parsing or semantic validation, retains a valid
 report only in memory, cleans the exact baseline, and applies it only after
 cleanup. Cleanup removes only guard-owned bookkeeping. Source mutation remains
