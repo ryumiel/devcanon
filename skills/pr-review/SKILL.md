@@ -84,8 +84,8 @@ bash "$PR_REVIEW_LEASE_HELPER" discover
 ```
 
 The planner emits one closed selection result. Only `create` without an
-authority-valid `reentry` candidate permits `session-create` canonical worktree
-progression. A missing canonical LC-18 `reentry` is admitted only
+authority-valid `reentry` candidate permits the default `session-create`
+canonical-worktree progression. A missing canonical LC-18 `reentry` is admitted only
 when its exact deterministic terminal archive is absent or byte-equal; a
 divergent or unreadable archive remains a stop condition. When `create` reports
 one authority-valid `reentry` candidate and `canonical_worktree_present=true`,
@@ -94,9 +94,10 @@ canonical worktree and write the fresh LC-18 lease without rerunning `git
 worktree add`. Do not invoke `session-create` for any `reentry` candidate.
 `resume` identifies the already registered worktree and lease to
 validate through the existing lifecycle flow;
-`cleanup-required`, `ambiguous`, and `invalid` stop for the existing cleanup
-or lifecycle owner. Discovery is read-only: it never creates, removes, or
-updates worktrees, leases, or artifacts.
+`ambiguous` and `invalid` stop for the existing cleanup or lifecycle owner.
+`cleanup-required` also stops, except for the single eligible terminal
+candidate in the next paragraph. Discovery is read-only: it never creates,
+removes, or updates worktrees, leases, or artifacts.
 
 When discovery shows exactly one present, registered, clean, managed canonical
 `posted` or `aborted` candidate, read its old head without mutation using

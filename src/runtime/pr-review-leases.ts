@@ -1122,13 +1122,16 @@ async function assertGitCommit(
   immutableHead: string,
 ): Promise<void> {
   try {
-    await execFileAsync("git", [
+    const { stdout } = await execFileAsync("git", [
       "-C",
       primaryRoot,
       "cat-file",
-      "-e",
-      `${immutableHead}^{commit}`,
+      "-t",
+      immutableHead,
     ]);
+    if (stdout.trim() !== "commit") {
+      throw new PrReviewLeaseError("HEAD_SHA must name an available commit");
+    }
   } catch {
     throw new PrReviewLeaseError("HEAD_SHA must name an available commit");
   }

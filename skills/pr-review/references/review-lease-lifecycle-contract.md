@@ -106,14 +106,14 @@ the platform boundary in `docs/specs/platform.md`. Its guarantees are closed:
 - **SC-01 — Exclusive reservation:** one direct-child reservation is acquired
   exclusively and verified before worktree mutation. Existing or unverifiable
   reservation evidence is preserved and never reclaimed by age or inference.
-- **SC-02 — Canonical worktree:** the transaction creates and verifies one
-  canonical detached worktree at the immutable provider head before lease
-  publication.
-- **SC-03 — No-clobber LC-01 publication:** the exact fresh LC-01 bytes are
-  published without overwriting an existing lease. Successful publication is
-  the transaction commit boundary; later failures preserve the discoverable
-  lease.
-- **SC-04 — Final verification:** success is returned only after worktree,
+- **SC-02 — Default canonical worktree:** the default fresh LC-01 route
+  creates and verifies one canonical detached worktree at the immutable
+  provider head before lease publication.
+- **SC-03 — Default no-clobber LC-01 publication:** the default fresh route
+  publishes the exact LC-01 bytes without overwriting an existing lease.
+  Successful publication is its transaction commit boundary; later failures
+  preserve the discoverable lease.
+- **SC-04 — Final verification:** either successful route returns only after worktree,
   registration, repository, head, lease, and discovery identity verify as one
   session.
 - **SC-05 — Invocation-owned recovery:** before the commit boundary, complete
@@ -123,6 +123,12 @@ the platform boundary in `docs/specs/platform.md`. Its guarantees are closed:
 - **SC-06 — Crash retention:** evidence retained by a crash or incomplete
   recovery blocks later creation. The transaction performs no automatic stale
   reclamation.
+- **SC-07 — Opted terminal advance:** with exact opt-in, only the eligible
+  terminal candidate may reuse its verified detached canonical worktree. Its
+  validated terminal bytes are archived before advancement; a fresh LC-18
+  lease has cleared authority and old owned artifacts are preflighted before
+  removal. Any post-advance incompleteness retains the reservation and
+  evidence through the existing `manual-cleanup: rollback-incomplete` result.
 
 The source-owned command contract remains closed. Required inputs are
 `REPOSITORY`, `PR_NUMBER`, `PRIMARY_REPOSITORY_ROOT`, `HEAD_SHA`, `BASE_REF`,
