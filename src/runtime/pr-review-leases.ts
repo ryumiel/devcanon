@@ -816,7 +816,13 @@ async function sessionCreateTerminalAdvance({
         headSha,
       ]);
     } catch {
+      observed.length = 0;
       try {
+        if (
+          await pathExists(path.join(identity.primaryRoot, reservationFile))
+        ) {
+          observed.push("reservation");
+        }
         if (await pathExists(candidate.worktreePath)) {
           observed.push("worktree");
         }
@@ -835,7 +841,7 @@ async function sessionCreateTerminalAdvance({
           observed.push("lease");
         }
       } catch {
-        // The closed manual-cleanup result still preserves the known reservation.
+        // Keep only evidence successfully observed before inspection failed.
       }
       return terminalAdvanceManualCleanup(
         reservation,
@@ -843,6 +849,10 @@ async function sessionCreateTerminalAdvance({
         null,
         observed,
       );
+    }
+    observed.length = 0;
+    if (await pathExists(path.join(identity.primaryRoot, reservationFile))) {
+      observed.push("reservation");
     }
     if (await pathExists(candidate.worktreePath)) {
       observed.push("worktree");
@@ -869,29 +879,26 @@ async function sessionCreateTerminalAdvance({
       candidate.leaseFile,
       "lease",
     );
-    if (
-      !(await directSessionLeaseMatches(
+    const [leaseOwned, archiveOwned, reservationOwned] = await Promise.all([
+      directSessionLeaseMatches(
         identity.primaryRoot,
         candidate.leaseFile,
         candidate.leaseBytes,
         sha256Text(candidate.leaseBytes),
-      ))
-    ) {
-      return terminalAdvanceManualCleanup(
-        reservation,
-        registration,
-        null,
-        observed,
-      );
-    }
-    if (
-      !(await directSessionLeaseMatches(
+      ),
+      directSessionLeaseMatches(
         identity.primaryRoot,
         archive,
         candidate.leaseBytes,
         sha256Text(candidate.leaseBytes),
-      ))
-    ) {
+      ),
+      reservationMatches(
+        path.join(identity.primaryRoot, reservationFile),
+        reservation,
+        reservationBytes,
+      ),
+    ]);
+    if (!leaseOwned || !archiveOwned || !reservationOwned) {
       return terminalAdvanceManualCleanup(
         reservation,
         registration,
@@ -1070,6 +1077,23 @@ async function snapshotTerminalArtifacts(
   const snapshots: TerminalArtifactSnapshot[] = [];
   for (const file of files) {
     validateDirectChild("terminal artifact", file);
+    let tracked = false;
+    try {
+      await execFileAsync("git", [
+        "-C",
+        worktreePath,
+        "ls-files",
+        "--error-unmatch",
+        "--",
+        file,
+      ]);
+      tracked = true;
+    } catch (err) {
+      if ((err as { code?: unknown }).code !== 1) throw err;
+    }
+    if (tracked) {
+      throw new PrReviewLeaseError("terminal artifact is tracked");
+    }
     const target = path.join(worktreePath, file);
     const before = await lstat(target);
     if (!before.isFile() || before.isSymbolicLink()) {

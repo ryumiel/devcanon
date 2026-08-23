@@ -343,7 +343,11 @@ async function sessionCreateTerminalAdvance({ identity, headSha, baseRef, headRe
             ]);
         }
         catch {
+            observed.length = 0;
             try {
+                if (await pathExists(path.join(identity.primaryRoot, reservationFile))) {
+                    observed.push("reservation");
+                }
                 if (await pathExists(candidate.worktreePath)) {
                     observed.push("worktree");
                 }
@@ -356,9 +360,13 @@ async function sessionCreateTerminalAdvance({ identity, headSha, baseRef, headRe
                 }
             }
             catch {
-                // The closed manual-cleanup result still preserves the known reservation.
+                // Keep only evidence successfully observed before inspection failed.
             }
             return terminalAdvanceManualCleanup(reservation, registration, null, observed);
+        }
+        observed.length = 0;
+        if (await pathExists(path.join(identity.primaryRoot, reservationFile))) {
+            observed.push("reservation");
         }
         if (await pathExists(candidate.worktreePath)) {
             observed.push("worktree");
@@ -374,10 +382,12 @@ async function sessionCreateTerminalAdvance({ identity, headSha, baseRef, headRe
             return terminalAdvanceManualCleanup(reservation, null, null, observed);
         }
         await assertWritableDirectChild(identity.primaryRoot, candidate.leaseFile, "lease");
-        if (!(await directSessionLeaseMatches(identity.primaryRoot, candidate.leaseFile, candidate.leaseBytes, sha256Text(candidate.leaseBytes)))) {
-            return terminalAdvanceManualCleanup(reservation, registration, null, observed);
-        }
-        if (!(await directSessionLeaseMatches(identity.primaryRoot, archive, candidate.leaseBytes, sha256Text(candidate.leaseBytes)))) {
+        const [leaseOwned, archiveOwned, reservationOwned] = await Promise.all([
+            directSessionLeaseMatches(identity.primaryRoot, candidate.leaseFile, candidate.leaseBytes, sha256Text(candidate.leaseBytes)),
+            directSessionLeaseMatches(identity.primaryRoot, archive, candidate.leaseBytes, sha256Text(candidate.leaseBytes)),
+            reservationMatches(path.join(identity.primaryRoot, reservationFile), reservation, reservationBytes),
+        ]);
+        if (!leaseOwned || !archiveOwned || !reservationOwned) {
             return terminalAdvanceManualCleanup(reservation, registration, null, observed);
         }
         await writeTextAtomically(path.join(identity.primaryRoot, candidate.leaseFile), leaseBytes);
@@ -469,6 +479,25 @@ async function snapshotTerminalArtifacts(lease, worktreePath) {
     const snapshots = [];
     for (const file of files) {
         validateDirectChild("terminal artifact", file);
+        let tracked = false;
+        try {
+            await execFileAsync("git", [
+                "-C",
+                worktreePath,
+                "ls-files",
+                "--error-unmatch",
+                "--",
+                file,
+            ]);
+            tracked = true;
+        }
+        catch (err) {
+            if (err.code !== 1)
+                throw err;
+        }
+        if (tracked) {
+            throw new PrReviewLeaseError("terminal artifact is tracked");
+        }
         const target = path.join(worktreePath, file);
         const before = await lstat(target);
         if (!before.isFile() || before.isSymbolicLink()) {
