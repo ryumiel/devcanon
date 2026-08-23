@@ -1921,6 +1921,185 @@ describe("pr-review lease command validation", () => {
     }
   });
 
+  it("preserves every terminal artifact when a late target collision is detected", async () => {
+    const fixture = await makeTerminalAdvanceRefusalFixture({
+      canonical: true,
+    });
+    const scopeDecisionFile = ".ephemeral/pr-432-retained-scope.json";
+    const priorThreadsFile = ".ephemeral/pr-432-retained-prior.json";
+    const providerEvidenceFile = ".ephemeral/pr-432-retained-provider.json";
+    const scopeDecisionBytes = "retained scope\n";
+    const priorThreadsBytes = "retained prior threads\n";
+    const providerEvidenceBytes = "target-tracked collision\n";
+    const handoffBytes = `${JSON.stringify({
+      repository: "owner/repo",
+      pr_number: 432,
+      base_ref: "main",
+      head_ref: "topic",
+      artifacts: {
+        scope_decision_file: scopeDecisionFile,
+        prior_threads_file: priorThreadsFile,
+        provider_scope_evidence_file: providerEvidenceFile,
+      },
+    })}\n`;
+    try {
+      const lease = JSON.parse(
+        await readFile(fixture.leasePath, "utf8"),
+      ) as PrReviewLease;
+      const leaseBytes = `${JSON.stringify(lease, null, 2)}\n`;
+      await writeFile(fixture.leasePath, leaseBytes);
+      await writeFile(
+        path.join(fixture.worktree, fixture.handoffFile),
+        handoffBytes,
+      );
+      await writeFile(
+        path.join(fixture.worktree, scopeDecisionFile),
+        scopeDecisionBytes,
+      );
+      await writeFile(
+        path.join(fixture.worktree, priorThreadsFile),
+        priorThreadsBytes,
+      );
+      await writeFile(
+        path.join(fixture.worktree, providerEvidenceFile),
+        "old provider evidence\n",
+      );
+      await writeFile(
+        path.join(fixture.repository.physicalRepository, providerEvidenceFile),
+        providerEvidenceBytes,
+      );
+      await execFileAsync("git", [
+        "-C",
+        fixture.repository.physicalRepository,
+        "add",
+        "-f",
+        providerEvidenceFile,
+      ]);
+      await execFileAsync("git", [
+        "-C",
+        fixture.repository.physicalRepository,
+        "commit",
+        "-m",
+        "track late terminal artifact collision",
+      ]);
+      const { stdout: targetHeadOutput } = await execFileAsync("git", [
+        "-C",
+        fixture.repository.physicalRepository,
+        "rev-parse",
+        "HEAD",
+      ]);
+      const targetHead = targetHeadOutput.trim();
+      process.chdir(fixture.repository.physicalRepository);
+      setTerminalAdvanceEnv(fixture.repository.physicalRepository, targetHead);
+
+      const result = await runPrReviewLeasesCommand(["session-create"]);
+
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        outcome: "manual-cleanup",
+        reason: "rollback-incomplete",
+        immutable_head: targetHead,
+      });
+      await expect(
+        readFile(path.join(fixture.worktree, fixture.handoffFile), "utf8"),
+      ).resolves.toBe(handoffBytes);
+      await expect(
+        readFile(path.join(fixture.worktree, scopeDecisionFile), "utf8"),
+      ).resolves.toBe(scopeDecisionBytes);
+      await expect(
+        readFile(path.join(fixture.worktree, priorThreadsFile), "utf8"),
+      ).resolves.toBe(priorThreadsBytes);
+      await expect(
+        readFile(path.join(fixture.worktree, providerEvidenceFile), "utf8"),
+      ).resolves.toBe(providerEvidenceBytes);
+      await expect(
+        readFile(
+          path.join(
+            fixture.repository.physicalRepository,
+            ".ephemeral",
+            fixture.archiveName,
+          ),
+          "utf8",
+        ),
+      ).resolves.toBe(leaseBytes);
+      await expect(
+        lstat(
+          path.join(
+            fixture.repository.physicalRepository,
+            ".ephemeral/pr-432-session-create-reservation.json",
+          ),
+        ),
+      ).resolves.toMatchObject({ isFile: expect.any(Function) });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(fixture.repository.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves checkout-hook lease drift instead of publishing a fresh lease", async () => {
+    const fixture = await makeTerminalAdvanceRefusalFixture({
+      canonical: true,
+    });
+    const driftedLeaseBytes = "checkout-hook drift\\n";
+    const leaseFile = path.relative(
+      fixture.repository.physicalRepository,
+      fixture.leasePath,
+    );
+    try {
+      const hookPath = path.join(
+        fixture.repository.physicalRepository,
+        ".git",
+        "hooks",
+        "post-checkout",
+      );
+      await writeFile(
+        hookPath,
+        [
+          "#!/bin/sh",
+          `printf '%s' ${JSON.stringify(driftedLeaseBytes)} >\"$PRIMARY_REPOSITORY_ROOT/${leaseFile}\"`,
+          "",
+        ].join("\n"),
+      );
+      await chmod(hookPath, 0o755);
+      process.chdir(fixture.repository.physicalRepository);
+      setTerminalAdvanceEnv(
+        fixture.repository.physicalRepository,
+        fixture.newHead,
+      );
+
+      const result = await runPrReviewLeasesCommand(["session-create"]);
+
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        outcome: "manual-cleanup",
+        reason: "rollback-incomplete",
+        immutable_head: fixture.newHead,
+      });
+      await expect(readFile(fixture.leasePath, "utf8")).resolves.toBe(
+        driftedLeaseBytes,
+      );
+      await expect(
+        readFile(
+          path.join(
+            fixture.repository.physicalRepository,
+            ".ephemeral",
+            fixture.archiveName,
+          ),
+          "utf8",
+        ),
+      ).resolves.toBe(fixture.leaseBytes);
+      await expect(
+        lstat(
+          path.join(
+            fixture.repository.physicalRepository,
+            ".ephemeral/pr-432-session-create-reservation.json",
+          ),
+        ),
+      ).resolves.toMatchObject({ isFile: expect.any(Function) });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(fixture.repository.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("preserves the published lease when final verification sees a resumed dirty session", async () => {
     const repository = await commandHarness.createReviewRepository();
     const { stdout: headOutput } = await execFileAsync("git", [

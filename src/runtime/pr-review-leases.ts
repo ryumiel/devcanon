@@ -3,7 +3,6 @@ import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import {
   access,
-  copyFile,
   link,
   lstat,
   mkdir,
@@ -12,6 +11,7 @@ import {
   readdir,
   realpath,
   rm,
+  writeFile,
 } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -795,6 +795,7 @@ async function sessionCreateTerminalAdvance({
       await writeTerminalArchive(
         path.join(identity.primaryRoot, candidate.leaseFile),
         path.join(identity.primaryRoot, archive),
+        Buffer.from(candidate.leaseBytes, "utf8"),
       );
     } catch {
       return await terminalAdvancePreAdvanceResult(
@@ -832,6 +833,21 @@ async function sessionCreateTerminalAdvance({
       candidate.leaseFile,
       "lease",
     );
+    if (
+      !(await directSessionLeaseMatches(
+        identity.primaryRoot,
+        candidate.leaseFile,
+        candidate.leaseBytes,
+        sha256Text(candidate.leaseBytes),
+      ))
+    ) {
+      return terminalAdvanceManualCleanup(reservation, registration, null, [
+        "reservation",
+        "worktree",
+        "registration",
+        "lease",
+      ]);
+    }
     await writeTextAtomically(
       path.join(identity.primaryRoot, candidate.leaseFile),
       leaseBytes,
@@ -1025,6 +1041,24 @@ async function removeTerminalArtifacts(
   worktreePath: string,
   snapshots: readonly TerminalArtifactSnapshot[],
 ): Promise<boolean> {
+  if (!(await terminalArtifactsMatchSnapshots(worktreePath, snapshots))) {
+    return false;
+  }
+  for (const snapshot of snapshots) {
+    try {
+      const target = path.join(worktreePath, snapshot.file);
+      await rm(target);
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
+
+async function terminalArtifactsMatchSnapshots(
+  worktreePath: string,
+  snapshots: readonly TerminalArtifactSnapshot[],
+): Promise<boolean> {
   for (const snapshot of snapshots) {
     try {
       await execFileAsync("git", [
@@ -1051,7 +1085,6 @@ async function removeTerminalArtifacts(
       ) {
         return false;
       }
-      await rm(target);
     } catch {
       return false;
     }
@@ -2242,18 +2275,17 @@ async function writeLease(
 async function writeTerminalArchive(
   target: string,
   archive: string,
+  content?: Buffer,
 ): Promise<void> {
+  const expected = content ?? (await readFile(target));
   try {
-    await copyFile(target, archive, constants.COPYFILE_EXCL);
+    await writeFile(archive, expected, { flag: "wx" });
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== "EEXIST") {
       throw err;
     }
-    const [existing, active] = await Promise.all([
-      readFile(archive),
-      readFile(target),
-    ]);
-    if (!existing.equals(active)) {
+    const existing = await readFile(archive);
+    if (!existing.equals(expected)) {
       throw new PrReviewLeaseError("archived lease collision");
     }
   }
