@@ -1405,6 +1405,36 @@ describe("pr-review lease command validation", () => {
       const result = await runPrReviewLeasesCommand(["session-create"]);
 
       expect(result.exitCode, `${result.stdout}${result.stderr}`).toBe(0);
+      expect(await readLease(workspace.primary, workspace.leaseFile)).toEqual({
+        schema: "pr-review/lease/v1",
+        repository: "owner/repo",
+        pr_number: 432,
+        state: "created",
+        base_ref: "main",
+        head_ref: "topic",
+        worktree_path: workspace.physicalWorktree,
+        worktree_digest: workspace.worktreeDigest,
+        lease_file: workspace.leaseFile,
+        created_at: "2026-07-31T00:00:00Z",
+        updated_at: "2026-07-31T00:00:00Z",
+        artifacts: {
+          handoff_file: null,
+          result_file: null,
+          approved_review_file: null,
+          validated_payload_file: null,
+        },
+        validation: {
+          result_manifest: { status: null, validated_at: null, sha256: null },
+        },
+        presentation: { presented_at: null, status: null },
+        terminal: { finished_at: null, reason: null },
+        failure: { phase: null, reason: null, recoverability: null },
+        github: {
+          github_post_attempted: false,
+          github_post_result: "not-attempted",
+          github_posted_at: null,
+        },
+      });
       await expect(
         readdir(path.join(workspace.worktree, ".ephemeral")),
       ).resolves.toEqual([]);
@@ -1539,6 +1569,121 @@ describe("pr-review lease command validation", () => {
       ),
     ).resolves.toMatchObject({ isFile: expect.any(Function) });
   });
+
+  it.each([
+    "same-head",
+    "dirty",
+    "unmanaged",
+    "ambiguous",
+    "noncanonical",
+    "invalid-terminal-lease",
+    "unregistered",
+    "unavailable-target-commit",
+  ] as const)(
+    "refuses opted terminal advancement before mutation: %s",
+    async (kind) => {
+      const fixture = await makeTerminalAdvanceRefusalFixture({
+        canonical: kind !== "noncanonical",
+      });
+      try {
+        let expectedLeaseBytes = fixture.leaseBytes;
+        let targetHead = fixture.newHead;
+        if (kind === "same-head") {
+          targetHead = fixture.oldHead;
+        }
+        if (kind === "dirty") {
+          await writeFile(path.join(fixture.worktree, "dirty.txt"), "dirty\n");
+        }
+        if (kind === "unmanaged") {
+          await writeFile(
+            path.join(fixture.worktree, ".ephemeral", "unmanaged.json"),
+            "{}\n",
+          );
+        }
+        if (kind === "ambiguous") {
+          await addAmbiguousTerminalCandidate(fixture);
+        }
+        if (kind === "invalid-terminal-lease") {
+          expectedLeaseBytes = "{invalid terminal lease}\n";
+          await writeFile(fixture.leasePath, expectedLeaseBytes);
+        }
+        if (kind === "unregistered") {
+          await execFileAsync("git", [
+            "-C",
+            fixture.repository.physicalRepository,
+            "worktree",
+            "remove",
+            "-f",
+            fixture.worktree,
+          ]);
+          await mkdir(fixture.worktree, { recursive: true });
+        }
+        if (kind === "unavailable-target-commit") {
+          targetHead = "b".repeat(40);
+        }
+        process.chdir(fixture.repository.physicalRepository);
+        setTerminalAdvanceEnv(
+          fixture.repository.physicalRepository,
+          targetHead,
+        );
+
+        const result = await runPrReviewLeasesCommand(["session-create"]);
+
+        if (kind === "unavailable-target-commit") {
+          expect(result).toEqual({
+            exitCode: 1,
+            stdout: "",
+            stderr: "HEAD_SHA must name an available commit\n",
+          });
+        } else {
+          expect(result.exitCode).toBe(1);
+          expect(JSON.parse(result.stdout)).toMatchObject({
+            outcome: "conflict",
+            reason: "discovery-not-create",
+          });
+        }
+        await expect(readFile(fixture.leasePath, "utf8")).resolves.toBe(
+          expectedLeaseBytes,
+        );
+        await expect(
+          readdir(
+            path.join(fixture.repository.physicalRepository, ".ephemeral"),
+          ),
+        ).resolves.not.toContain(fixture.archiveName);
+        await expect(
+          lstat(
+            path.join(
+              fixture.repository.physicalRepository,
+              ".ephemeral/pr-432-session-create-reservation.json",
+            ),
+          ),
+        ).rejects.toMatchObject({ code: "ENOENT" });
+        if (kind !== "unregistered") {
+          const { stdout } = await execFileAsync("git", [
+            "-C",
+            fixture.worktree,
+            "rev-parse",
+            "HEAD",
+          ]);
+          expect(stdout.trim()).toBe(fixture.oldHead);
+          const { stdout: registrations } = await execFileAsync("git", [
+            "-C",
+            fixture.repository.physicalRepository,
+            "worktree",
+            "list",
+            "--porcelain",
+          ]);
+          expect(registrations).toContain(`worktree ${fixture.worktree}\n`);
+          await expect(
+            readFile(path.join(fixture.worktree, fixture.handoffFile), "utf8"),
+          ).resolves.toBe(fixture.handoffBytes);
+        }
+      } finally {
+        process.chdir(originalCwd);
+        await rm(fixture.repository.tempRoot, { recursive: true, force: true });
+      }
+    },
+  );
 
   it("preserves the published lease when final verification sees a resumed dirty session", async () => {
     const repository = await commandHarness.createReviewRepository();
@@ -6677,6 +6822,140 @@ function abortedCommandLease(
       github_posted_at: null,
     },
   };
+}
+
+interface TerminalAdvanceRefusalFixture {
+  repository: Awaited<ReturnType<typeof commandHarness.createReviewRepository>>;
+  worktree: string;
+  oldHead: string;
+  newHead: string;
+  leasePath: string;
+  leaseBytes: string;
+  archiveName: string;
+  handoffFile: string;
+  handoffBytes: string;
+}
+
+async function makeTerminalAdvanceRefusalFixture({
+  canonical,
+}: {
+  canonical: boolean;
+}): Promise<TerminalAdvanceRefusalFixture> {
+  const repository = await commandHarness.createReviewRepository();
+  const worktree = canonical
+    ? path.join(repository.physicalRepository, ".worktrees", "pr-432-review")
+    : path.join(repository.tempRoot, "noncanonical-review");
+  await mkdir(path.dirname(worktree), { recursive: true });
+  const { stdout: oldHeadOutput } = await execFileAsync("git", [
+    "-C",
+    repository.physicalRepository,
+    "rev-parse",
+    "HEAD",
+  ]);
+  const oldHead = oldHeadOutput.trim();
+  await writeFile(
+    path.join(repository.physicalRepository, ".git", "info", "exclude"),
+    ".ephemeral/\n",
+  );
+  await execFileAsync("git", [
+    "-C",
+    repository.physicalRepository,
+    "worktree",
+    "add",
+    "--detach",
+    worktree,
+    oldHead,
+  ]);
+  const physicalWorktree = await realpath(worktree);
+  await mkdir(path.join(physicalWorktree, ".ephemeral"), { recursive: true });
+  const worktreeDigest = discoveryWorktreeDigest(physicalWorktree);
+  const leaseFile = `.ephemeral/pr-432-${worktreeDigest}-lease.json`;
+  const handoffFile = ".ephemeral/pr-432-retained-handoff.json";
+  const lease = abortedCommandLease(
+    leaseFile,
+    physicalWorktree,
+    worktreeDigest,
+  );
+  lease.artifacts.handoff_file = handoffFile;
+  const leaseBytes = `${JSON.stringify(lease, null, 2)}\n`;
+  const handoffBytes = `${JSON.stringify({ repository: "owner/repo", pr_number: 432, base_ref: "main", head_ref: "topic" })}\n`;
+  await writeFile(
+    path.join(repository.physicalRepository, leaseFile),
+    leaseBytes,
+  );
+  await writeFile(path.join(physicalWorktree, handoffFile), handoffBytes);
+  await writeFile(
+    path.join(repository.physicalRepository, "next.txt"),
+    "next\n",
+  );
+  await execFileAsync("git", [
+    "-C",
+    repository.physicalRepository,
+    "add",
+    "next.txt",
+  ]);
+  await execFileAsync("git", [
+    "-C",
+    repository.physicalRepository,
+    "commit",
+    "-m",
+    "next head",
+  ]);
+  const { stdout: newHeadOutput } = await execFileAsync("git", [
+    "-C",
+    repository.physicalRepository,
+    "rev-parse",
+    "HEAD",
+  ]);
+  return {
+    repository,
+    worktree: physicalWorktree,
+    oldHead,
+    newHead: newHeadOutput.trim(),
+    leasePath: path.join(repository.physicalRepository, leaseFile),
+    leaseBytes,
+    archiveName: `pr-432-${worktreeDigest}-20260611T000100-aborted-archived-lease.json`,
+    handoffFile,
+    handoffBytes,
+  };
+}
+
+async function addAmbiguousTerminalCandidate(
+  fixture: TerminalAdvanceRefusalFixture,
+): Promise<void> {
+  const worktree = path.join(fixture.repository.tempRoot, "second-review");
+  await execFileAsync("git", [
+    "-C",
+    fixture.repository.physicalRepository,
+    "worktree",
+    "add",
+    "--detach",
+    worktree,
+    fixture.oldHead,
+  ]);
+  const worktreeDigest = discoveryWorktreeDigest(worktree);
+  const leaseFile = `.ephemeral/pr-432-${worktreeDigest}-lease.json`;
+  await writeFile(
+    path.join(fixture.repository.physicalRepository, leaseFile),
+    `${JSON.stringify(
+      abortedCommandLease(leaseFile, worktree, worktreeDigest),
+      null,
+      2,
+    )}\n`,
+  );
+}
+
+function setTerminalAdvanceEnv(primaryRoot: string, headSha: string): void {
+  Object.assign(process.env, {
+    REPOSITORY: "owner/repo",
+    PR_NUMBER: "432",
+    PRIMARY_REPOSITORY_ROOT: primaryRoot,
+    HEAD_SHA: headSha,
+    BASE_REF: "main",
+    HEAD_REF: "topic",
+    UPDATED_AT: "2026-07-31T00:00:00Z",
+    ALLOW_TERMINAL_ADVANCE: "yes",
+  });
 }
 
 function postedCommandLease({
