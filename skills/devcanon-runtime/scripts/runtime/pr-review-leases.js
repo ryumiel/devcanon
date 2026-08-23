@@ -408,6 +408,10 @@ async function terminalAdvanceCandidate(identity, discovery, commonGitDirectory,
             lease.worktree_digest !== digestPath(candidate.worktree_path)) {
             return null;
         }
+        await validateReferencedArtifacts(lease, candidate.worktree_path, {
+            validateResultAuthority: true,
+            policy: "validate-stored-lease",
+        });
         const oldHead = (await execFileAsync("git", [
             "-C",
             candidate.worktree_path,

@@ -959,6 +959,10 @@ async function terminalAdvanceCandidate(
     ) {
       return null;
     }
+    await validateReferencedArtifacts(lease, candidate.worktree_path, {
+      validateResultAuthority: true,
+      policy: "validate-stored-lease",
+    });
     const oldHead = (
       await execFileAsync("git", [
         "-C",
