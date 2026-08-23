@@ -806,13 +806,47 @@ async function sessionCreateTerminalAdvance({
       );
     }
 
-    await execFileAsync("git", [
-      "-C",
-      candidate.worktreePath,
-      "checkout",
-      "--detach",
-      headSha,
-    ]);
+    try {
+      await execFileAsync("git", [
+        "-C",
+        candidate.worktreePath,
+        "checkout",
+        "--detach",
+        headSha,
+      ]);
+    } catch {
+      const observed: ObservedArtifact[] = ["reservation"];
+      try {
+        if (await pathExists(candidate.worktreePath)) {
+          observed.push("worktree");
+        }
+        registration = await verifyCreatedSessionWorktree(
+          identity.primaryRoot,
+          candidate.worktreePath,
+          commonGitDirectory,
+          headSha,
+        );
+        if (registration !== null) {
+          observed.push("registration");
+        }
+        if (
+          (await pathExists(
+            path.join(identity.primaryRoot, candidate.leaseFile),
+          )) &&
+          (await pathExists(path.join(identity.primaryRoot, archive)))
+        ) {
+          observed.push("lease");
+        }
+      } catch {
+        // The closed manual-cleanup result still preserves the known reservation.
+      }
+      return terminalAdvanceManualCleanup(
+        reservation,
+        registration,
+        null,
+        observed,
+      );
+    }
     advanced = true;
     registration = await verifyCreatedSessionWorktree(
       identity.primaryRoot,
@@ -871,6 +905,12 @@ async function sessionCreateTerminalAdvance({
         leaseSha256,
         registration,
       })) ||
+      !(await directSessionLeaseMatches(
+        identity.primaryRoot,
+        archive,
+        candidate.leaseBytes,
+        sha256Text(candidate.leaseBytes),
+      )) ||
       !(await removeOwnedReservation(
         identity.primaryRoot,
         reservationFile,
