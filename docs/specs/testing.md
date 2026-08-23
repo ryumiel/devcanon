@@ -11,8 +11,9 @@ manual, or main-only test lane. Hosted Ubuntu CI runs the four existing Vitest
 projects as parallel required legs, each with a 75-second runtime budget. The
 focused Windows PR-review lane runs its 54 actual lifecycle, lease, manifest,
 and source-immutability behaviors; its Ubuntu unit contract proves that exact
-lane selection. Each test job—including checkout, setup, dependency
-installation, and cleanup—has a three-minute hard limit.
+lane selection. A separate focused Windows setup lane proves native CLI
+registration. Each test job—including checkout, setup, dependency installation,
+and cleanup—has a three-minute hard limit.
 
 Each Ubuntu test command receives `SIGTERM` when its 75-second budget expires
 and `SIGKILL` five seconds later if it has not exited, so a trapped or ignored
@@ -59,15 +60,16 @@ and PR-review success with a failure or cleanup path.
 - sync in symlink mode where supported
 - diff
 - doctor
-- focused macOS/Linux `setup:cli` coverage in an isolated pnpm environment:
-  repeated registration, then the exact isolated global-bin `devcanon`
-  executable proves `--version` and `--help`
+- focused `setup:cli` coverage in an isolated platform-global environment:
+  pnpm on macOS/Linux/WSL and npm on native Windows, with repeated registration
+  followed by the exact isolated `devcanon` executable proving `--version` and
+  `--help`
 
 The setup integration test owns observable CLI-registration proof. It uses an
 isolated global location so an operator-global executable cannot satisfy the
 test, and subprocess failures propagate without a repair path. It does not
-assert pnpm's internal layout or Windows shim behavior; Windows setup and
-verification are deferred.
+assert package-manager internals beyond locating the executable in the
+configured isolated global directory.
 
 ---
 

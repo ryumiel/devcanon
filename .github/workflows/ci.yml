@@ -164,6 +164,10 @@ jobs:
             os: windows-latest
             test-command: pnpm run test:ci:windows:pr-review
             timeout_minutes: 3
+          - name: Windows CLI setup
+            os: windows-latest
+            test-command: pnpm run test:ci:windows:setup
+            timeout_minutes: 3
     steps:
       - uses: actions/checkout@v6
 
