@@ -77,11 +77,26 @@ return through review discovery or a fresh approval path before posting.
 ## Session creation boundary
 
 `session-create` is private transaction state around a fresh LC-01 write, not
-an LC-01 field, transition, or cleanup authority. The runtime alone may create
-its direct-child reservation, canonical detached worktree, and initial
-no-clobber lease. Its `manual-cleanup` outcome preserves invocation evidence
-only; it grants no lifecycle cleanup, stale-reclaim, or alternate-owner
-deletion authority. LC-18 remains outside this command.
+an LC-01 field, transition, or cleanup authority. Its default is unchanged:
+the runtime alone may create its direct-child reservation, canonical detached
+worktree, and initial no-clobber lease. With exact optional
+`ALLOW_TERMINAL_ADVANCE=yes`, it may perform LC-18 only for one present,
+registered, clean, managed canonical `posted` or `aborted` lease at a different
+provider-verified head. It revalidates and reserves, archives the exact old
+terminal bytes, advances that same detached worktree path, publishes a fresh
+`created` lease, clears all prior artifact, validation, presentation, terminal,
+failure, GitHub, and cleanup authority, removes only unchanged old
+lease-owned direct-child artifacts absent from the target tree, verifies the
+fresh session, then removes the reservation. No other opt-in value is valid.
+Its `manual-cleanup` outcome preserves invocation evidence only; it grants no
+lifecycle cleanup, stale-reclaim, or alternate-owner deletion authority.
+
+Before head advancement, any eligibility, inspection, lease/archive, or
+reservation refusal preserves the old head, lease, registration, and artifacts.
+After advancement, no rollback is claimed: any incomplete archive/publication,
+artifact-removal, final verification, or reservation removal returns the
+existing `manual-cleanup` result with `rollback-incomplete`, retains the
+reservation and observable evidence, and grants no continuation.
 
 ### Operating model and guarantees
 

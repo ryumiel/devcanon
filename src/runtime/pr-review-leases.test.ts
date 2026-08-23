@@ -117,6 +117,7 @@ const managedEnvKeys = [
   "VALIDATED_PAYLOAD_FILE",
   "EXPECTED_STATE",
   "ALLOW_POLICY_OVERRIDE",
+  "ALLOW_TERMINAL_ADVANCE",
   "PR_REVIEW_DIR",
   "PR_REVIEW_MANIFEST_HELPER_SCRIPT",
   "PR_REVIEW_LEASE_HELPER_SCRIPT",
@@ -1175,6 +1176,147 @@ describe("pr-review lease command validation", () => {
         path.join(repository.physicalRepository, session.lease_file),
       ),
     ).toBe(session.lease_sha256);
+  });
+
+  it("reuses the canonical terminal worktree at a provider-verified new head when explicitly opted in", async () => {
+    const repository = await commandHarness.createReviewRepository();
+    const canonical = path.join(
+      repository.physicalRepository,
+      ".worktrees",
+      "pr-432-review",
+    );
+    await mkdir(path.dirname(canonical), { recursive: true });
+    const { stdout: oldHeadOutput } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    const oldHead = oldHeadOutput.trim();
+    await writeFile(
+      path.join(repository.physicalRepository, ".git", "info", "exclude"),
+      ".ephemeral/\n",
+    );
+    await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "worktree",
+      "add",
+      "--detach",
+      canonical,
+      oldHead,
+    ]);
+    const worktreeDigest = discoveryWorktreeDigest(canonical);
+    const leaseFile = `.ephemeral/pr-432-${worktreeDigest}-lease.json`;
+    const oldLease = abortedCommandLease(leaseFile, canonical, worktreeDigest);
+    const handoffFile = ".ephemeral/pr-432-retained-handoff.json";
+    oldLease.artifacts.handoff_file = handoffFile;
+    const oldLeaseBytes = `${JSON.stringify(oldLease, null, 2)}\n`;
+    await mkdir(path.join(repository.physicalRepository, ".ephemeral"), {
+      recursive: true,
+    });
+    await writeFile(
+      path.join(repository.physicalRepository, leaseFile),
+      oldLeaseBytes,
+    );
+    await mkdir(path.join(canonical, ".ephemeral"), { recursive: true });
+    await writeFile(
+      path.join(canonical, handoffFile),
+      `${JSON.stringify({ repository: "owner/repo", pr_number: 432, base_ref: "main", head_ref: "topic" })}\n`,
+    );
+    await writeFile(
+      path.join(repository.physicalRepository, "next.txt"),
+      "next\n",
+    );
+    await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "add",
+      "next.txt",
+    ]);
+    await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "commit",
+      "-m",
+      "next head",
+    ]);
+    const { stdout: newHeadOutput } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    const newHead = newHeadOutput.trim();
+    process.chdir(repository.physicalRepository);
+    Object.assign(process.env, {
+      REPOSITORY: "owner/repo",
+      PR_NUMBER: "432",
+      PRIMARY_REPOSITORY_ROOT: repository.physicalRepository,
+      HEAD_SHA: newHead,
+      BASE_REF: "main",
+      HEAD_REF: "topic",
+      UPDATED_AT: "2026-07-31T00:00:00Z",
+    });
+    const defaultResult = await runPrReviewLeasesCommand(["session-create"]);
+    expect(JSON.parse(defaultResult.stdout)).toMatchObject({
+      outcome: "conflict",
+      reason: "discovery-not-create",
+    });
+    const { stdout: retainedHeadOutput } = await execFileAsync("git", [
+      "-C",
+      canonical,
+      "rev-parse",
+      "HEAD",
+    ]);
+    expect(retainedHeadOutput.trim()).toBe(oldHead);
+    process.env.ALLOW_TERMINAL_ADVANCE = "yes";
+
+    const result = await runPrReviewLeasesCommand(["session-create"]);
+
+    expect(result.exitCode, `${result.stdout}${result.stderr}`).toBe(0);
+    const created = JSON.parse(result.stdout) as {
+      canonical_worktree_path: string;
+      immutable_head: string;
+      lease_file: string;
+    };
+    expect(created.canonical_worktree_path).toBe(canonical);
+    expect(created.immutable_head).toBe(newHead);
+    expect(
+      await readLease(repository.physicalRepository, leaseFile),
+    ).toMatchObject({
+      state: "created",
+      artifacts: {
+        handoff_file: null,
+        result_file: null,
+        approved_review_file: null,
+        validated_payload_file: null,
+      },
+      terminal: { finished_at: null, reason: null },
+      failure: { phase: null, reason: null, recoverability: null },
+    });
+    await expect(
+      readFile(path.join(canonical, handoffFile), "utf8"),
+    ).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    await expect(
+      readFile(
+        path.join(
+          repository.physicalRepository,
+          `.ephemeral/pr-432-${worktreeDigest}-20260611T000100-aborted-archived-lease.json`,
+        ),
+        "utf8",
+      ),
+    ).resolves.toBe(oldLeaseBytes);
+    await expect(
+      lstat(
+        path.join(
+          repository.physicalRepository,
+          ".ephemeral/pr-432-session-create-reservation.json",
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("preserves the published lease when final verification sees a resumed dirty session", async () => {

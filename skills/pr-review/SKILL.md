@@ -98,6 +98,19 @@ validate through the existing lifecycle flow;
 or lifecycle owner. Discovery is read-only: it never creates, removes, or
 updates worktrees, leases, or artifacts.
 
+When discovery shows exactly one present, registered, clean, managed canonical
+`posted` or `aborted` candidate whose checked-out head differs from the
+provider-verified `HEAD_SHA`, present both heads and offer exactly two choices:
+**keep and stop**, or **advance and create**. Keep stops here: do not invoke
+`inspect-worktree`, `session-create`, cleanup, or Git mutation. Advance is an
+explicit operator choice. First invoke the existing `inspect-worktree` with
+the exact repository, PR, canonical worktree, and lease identity; any refusal
+stops. Only after a successful inspection, invoke the existing transaction
+with `ALLOW_TERMINAL_ADVANCE=yes` and the provider-bound creation inputs.
+Never call `cleanup-worktree` or run Git checkout in this skill. The helper
+alone advances the same detached canonical path and returns the ordinary
+`session-create` result; continue only from its `success` identity.
+
 For an eligible fresh `create` with no `reentry` candidate, invoke the
 runtime-owned transaction instead of separately adding a worktree and writing
 LC-01. Set the provider-bound
@@ -109,6 +122,10 @@ created session; follow the existing discovery or LC-18 operator route. A
 this skill authority to delete a reservation, worktree, registration, or lease.
 `lifecycle-reentry-required` specifically means use the existing LC-18 route;
 this transaction makes no mutation for that case.
+
+The terminal-advance opt-in does not change ordinary `session-create`: omit
+`ALLOW_TERMINAL_ADVANCE` for the default fresh LC-01 route, whose conflicts and
+continuations remain unchanged.
 
 ```sh
 git fetch origin <base-ref>
