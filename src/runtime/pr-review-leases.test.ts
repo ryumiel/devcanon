@@ -1800,6 +1800,35 @@ describe("pr-review lease command validation", () => {
           ),
         ),
       ).rejects.toMatchObject({ code: "ENOENT" });
+
+      const actualFs =
+        await vi.importActual<typeof import("node:fs/promises")>(
+          "node:fs/promises",
+        );
+      vi.mocked(fsPromises.rm).mockImplementationOnce(async (...args) => {
+        await actualFs.rm(...args);
+        throw Object.assign(new Error("reservation disappeared"), {
+          code: "ENOENT",
+        });
+      });
+
+      const missingReservation = await runPrReviewLeasesCommand([
+        "session-create",
+      ]);
+
+      expect(JSON.parse(missingReservation.stdout)).toMatchObject({
+        outcome: "manual-cleanup",
+        reason: "rollback-incomplete",
+        observed_artifacts: [],
+      });
+      await expect(
+        lstat(
+          path.join(
+            fixture.repository.physicalRepository,
+            ".ephemeral/pr-432-session-create-reservation.json",
+          ),
+        ),
+      ).rejects.toMatchObject({ code: "ENOENT" });
     } finally {
       process.chdir(originalCwd);
       await rm(fixture.repository.tempRoot, { recursive: true, force: true });

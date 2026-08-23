@@ -415,9 +415,14 @@ async function sessionCreateTerminalAdvance({ identity, headSha, baseRef, headRe
     }
 }
 async function terminalAdvancePreAdvanceResult(primaryRoot, reservationFile, reservation, reservationBytes) {
-    return (await removeOwnedReservation(primaryRoot, reservationFile, reservation, reservationBytes))
-        ? sessionCreateConflict("discovery-not-create", [])
-        : sessionCreateManualCleanup("rollback-incomplete", reservation, null, null, ["reservation"]);
+    if (await removeOwnedReservation(primaryRoot, reservationFile, reservation, reservationBytes)) {
+        return sessionCreateConflict("discovery-not-create", []);
+    }
+    const observed = [];
+    if (await pathExists(path.join(primaryRoot, reservationFile))) {
+        observed.push("reservation");
+    }
+    return sessionCreateManualCleanup("rollback-incomplete", reservation, null, null, observed);
 }
 function terminalAdvanceManualCleanup(reservation, registration, leaseSha256, observed) {
     return sessionCreateManualCleanup("rollback-incomplete", reservation, registration, leaseSha256, observed);

@@ -112,7 +112,10 @@ stops. Only after a successful inspection, invoke the existing transaction
 with `ALLOW_TERMINAL_ADVANCE=yes` and the provider-bound creation inputs.
 Never call `cleanup-worktree` or run Git checkout in this skill. The helper
 alone advances the same detached canonical path and returns the ordinary
-`session-create` result; continue only from its `success` identity.
+`session-create` result; continue only from its `success` identity. A
+lease-owned direct-child artifact tracked at the old head is an ineligible
+advance: the helper returns `conflict: discovery-not-create` before archive
+creation or checkout and preserves the old head and evidence.
 
 For an eligible fresh `create` with no `reentry` candidate, invoke the
 runtime-owned transaction instead of separately adding a worktree and writing

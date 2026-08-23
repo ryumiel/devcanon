@@ -973,20 +973,27 @@ async function terminalAdvancePreAdvanceResult(
   reservation: SessionCreateReservation,
   reservationBytes: string,
 ): Promise<RuntimeCommandOutcome> {
-  return (await removeOwnedReservation(
-    primaryRoot,
-    reservationFile,
+  if (
+    await removeOwnedReservation(
+      primaryRoot,
+      reservationFile,
+      reservation,
+      reservationBytes,
+    )
+  ) {
+    return sessionCreateConflict("discovery-not-create", []);
+  }
+  const observed: ObservedArtifact[] = [];
+  if (await pathExists(path.join(primaryRoot, reservationFile))) {
+    observed.push("reservation");
+  }
+  return sessionCreateManualCleanup(
+    "rollback-incomplete",
     reservation,
-    reservationBytes,
-  ))
-    ? sessionCreateConflict("discovery-not-create", [])
-    : sessionCreateManualCleanup(
-        "rollback-incomplete",
-        reservation,
-        null,
-        null,
-        ["reservation"],
-      );
+    null,
+    null,
+    observed,
+  );
 }
 
 function terminalAdvanceManualCleanup(

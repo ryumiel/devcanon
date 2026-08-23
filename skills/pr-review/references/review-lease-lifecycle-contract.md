@@ -94,10 +94,14 @@ lifecycle cleanup, stale-reclaim, or alternate-owner deletion authority.
 
 Before head advancement, any eligibility, inspection, lease/archive, or
 reservation refusal preserves the old head, lease, registration, and artifacts.
-After advancement, no rollback is claimed: any incomplete archive/publication,
-artifact-removal, final verification, or reservation removal returns the
-existing `manual-cleanup` result with `rollback-incomplete`, retains the
-reservation and observable evidence, and grants no continuation.
+This includes a lease-owned direct-child artifact tracked at the old head,
+which returns `conflict: discovery-not-create` before archive creation or
+checkout. After advancement, no rollback is claimed: any incomplete
+archive/publication, artifact-removal, final verification, or reservation
+removal returns the existing `manual-cleanup` result with
+`rollback-incomplete`, preserves any still-present invocation-owned reservation
+and observable evidence, reports current observed artifacts truthfully, and
+grants no continuation.
 
 ### Operating model and guarantees
 
@@ -126,10 +130,12 @@ the platform boundary in `docs/specs/platform.md`. Its guarantees are closed:
   reclamation.
 - **SC-07 — Opted terminal advance:** with exact opt-in, only the eligible
   terminal candidate may reuse its verified detached canonical worktree. Its
-  validated terminal bytes are archived before advancement; a fresh LC-18
+  validated terminal bytes are archived before advancement; a tracked
+  old-head artifact refuses before that archive or checkout. A fresh LC-18
   lease has cleared authority and old owned artifacts are preflighted before
-  removal. Any post-advance incompleteness retains the reservation and
-  evidence through the existing `manual-cleanup: rollback-incomplete` result.
+  removal. Any post-advance incompleteness preserves still-present owned
+  evidence and reports it through the existing
+  `manual-cleanup: rollback-incomplete` result.
 
 The source-owned command contract remains closed. Required inputs are
 `REPOSITORY`, `PR_NUMBER`, `PRIMARY_REPOSITORY_ROOT`, `HEAD_SHA`, `BASE_REF`,
