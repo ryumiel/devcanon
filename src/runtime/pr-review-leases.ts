@@ -830,10 +830,7 @@ async function sessionCreateTerminalAdvance({
           observed.push("registration");
         }
         if (
-          (await pathExists(
-            path.join(identity.primaryRoot, candidate.leaseFile),
-          )) &&
-          (await pathExists(path.join(identity.primaryRoot, archive)))
+          await pathExists(path.join(identity.primaryRoot, candidate.leaseFile))
         ) {
           observed.push("lease");
         }

@@ -1873,7 +1873,10 @@ describe("pr-review lease command validation", () => {
         "hooks",
         "post-checkout",
       );
-      await writeFile(hookPath, "#!/bin/sh\nexit 1\n");
+      await writeFile(
+        hookPath,
+        `#!/bin/sh\nrm "$PRIMARY_REPOSITORY_ROOT/.ephemeral/${fixture.archiveName}"\nexit 1\n`,
+      );
       await chmod(hookPath, 0o755);
       process.chdir(fixture.repository.physicalRepository);
       setTerminalAdvanceEnv(
@@ -1910,7 +1913,7 @@ describe("pr-review lease command validation", () => {
           ),
           "utf8",
         ),
-      ).resolves.toBe(fixture.leaseBytes);
+      ).rejects.toMatchObject({ code: "ENOENT" });
       await expect(
         lstat(
           path.join(

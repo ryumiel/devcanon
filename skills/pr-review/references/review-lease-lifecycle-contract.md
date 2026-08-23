@@ -76,10 +76,10 @@ return through review discovery or a fresh approval path before posting.
 
 ## Session creation boundary
 
-`session-create` is private transaction state around a fresh LC-01 write, not
-an LC-01 field, transition, or cleanup authority. Its default is unchanged:
-the runtime alone may create its direct-child reservation, canonical detached
-worktree, and initial no-clobber lease. With exact optional
+`session-create` is private transaction state around session creation, not an
+LC-01 field, transition, or cleanup authority. Its default is unchanged: the
+runtime alone may create its direct-child reservation, canonical detached
+worktree, and initial no-clobber fresh LC-01 lease. With exact optional
 `ALLOW_TERMINAL_ADVANCE=yes`, it may perform LC-18 only for one present,
 registered, clean, managed canonical `posted` or `aborted` lease at a different
 provider-verified head. It revalidates and reserves, archives the exact old
@@ -87,7 +87,8 @@ terminal bytes, advances that same detached worktree path, publishes a fresh
 `created` lease, clears all prior artifact, validation, presentation, terminal,
 failure, GitHub, and cleanup authority, removes only unchanged old
 lease-owned direct-child artifacts absent from the target tree, verifies the
-fresh session, then removes the reservation. No other opt-in value is valid.
+fresh session, then removes the reservation. This is the closed LC-18 exception;
+no other opt-in value is valid.
 Its `manual-cleanup` outcome preserves invocation evidence only; it grants no
 lifecycle cleanup, stale-reclaim, or alternate-owner deletion authority.
 

@@ -351,8 +351,7 @@ async function sessionCreateTerminalAdvance({ identity, headSha, baseRef, headRe
                 if (registration !== null) {
                     observed.push("registration");
                 }
-                if ((await pathExists(path.join(identity.primaryRoot, candidate.leaseFile))) &&
-                    (await pathExists(path.join(identity.primaryRoot, archive)))) {
+                if (await pathExists(path.join(identity.primaryRoot, candidate.leaseFile))) {
                     observed.push("lease");
                 }
             }
