@@ -404,9 +404,15 @@ async function sessionCreateTerminalAdvance({ identity, headSha, baseRef, headRe
             leaseSha256,
             registration,
         })) ||
-            !(await directSessionLeaseMatches(identity.primaryRoot, archive, candidate.leaseBytes, sha256Text(candidate.leaseBytes))) ||
-            !(await removeOwnedReservation(identity.primaryRoot, reservationFile, reservation, reservationBytes))) {
+            !(await directSessionLeaseMatches(identity.primaryRoot, archive, candidate.leaseBytes, sha256Text(candidate.leaseBytes)))) {
             return terminalAdvanceManualCleanup(reservation, registration, leaseSha256, observed);
+        }
+        if (!(await removeOwnedReservation(identity.primaryRoot, reservationFile, reservation, reservationBytes))) {
+            const currentObserved = observed.filter((artifact) => artifact !== "reservation");
+            if (await pathExists(path.join(identity.primaryRoot, reservationFile))) {
+                currentObserved.unshift("reservation");
+            }
+            return terminalAdvanceManualCleanup(reservation, registration, leaseSha256, currentObserved);
         }
         return sessionCreateSuccess(identity, commonGitDirectory, candidate.worktreePath, headSha, candidate.leaseFile, leaseSha256);
     }

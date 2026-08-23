@@ -934,12 +934,6 @@ async function sessionCreateTerminalAdvance({
         archive,
         candidate.leaseBytes,
         sha256Text(candidate.leaseBytes),
-      )) ||
-      !(await removeOwnedReservation(
-        identity.primaryRoot,
-        reservationFile,
-        reservation,
-        reservationBytes,
       ))
     ) {
       return terminalAdvanceManualCleanup(
@@ -947,6 +941,27 @@ async function sessionCreateTerminalAdvance({
         registration,
         leaseSha256,
         observed,
+      );
+    }
+    if (
+      !(await removeOwnedReservation(
+        identity.primaryRoot,
+        reservationFile,
+        reservation,
+        reservationBytes,
+      ))
+    ) {
+      const currentObserved: ObservedArtifact[] = observed.filter(
+        (artifact) => artifact !== "reservation",
+      );
+      if (await pathExists(path.join(identity.primaryRoot, reservationFile))) {
+        currentObserved.unshift("reservation");
+      }
+      return terminalAdvanceManualCleanup(
+        reservation,
+        registration,
+        leaseSha256,
+        currentObserved,
       );
     }
     return sessionCreateSuccess(

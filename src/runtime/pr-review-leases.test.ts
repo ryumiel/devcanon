@@ -1999,6 +1999,70 @@ describe("pr-review lease command validation", () => {
     }
   });
 
+  it("does not report a reservation removed during final cleanup", async () => {
+    const fixture = await makeTerminalAdvanceRefusalFixture({
+      canonical: true,
+    });
+    const reservationPath = path.join(
+      fixture.repository.physicalRepository,
+      ".ephemeral/pr-432-session-create-reservation.json",
+    );
+    const actualFs =
+      await vi.importActual<typeof import("node:fs/promises")>(
+        "node:fs/promises",
+      );
+    const mockedRm = vi.mocked(fsPromises.rm);
+    try {
+      mockedRm.mockImplementation(async (...args) => {
+        if (args[0] === reservationPath) {
+          await actualFs.rm(...args);
+          throw Object.assign(new Error("reservation disappeared"), {
+            code: "ENOENT",
+          });
+        }
+        return await actualFs.rm(...args);
+      });
+      process.chdir(fixture.repository.physicalRepository);
+      setTerminalAdvanceEnv(
+        fixture.repository.physicalRepository,
+        fixture.newHead,
+      );
+
+      const result = await runPrReviewLeasesCommand(["session-create"]);
+
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        outcome: "manual-cleanup",
+        reason: "rollback-incomplete",
+        immutable_head: fixture.newHead,
+        lease_sha256: expect.any(String),
+        observed_artifacts: ["worktree", "registration", "lease"],
+      });
+      await expect(
+        execFileAsync("git", ["-C", fixture.worktree, "rev-parse", "HEAD"]),
+      ).resolves.toMatchObject({ stdout: `${fixture.newHead}\n` });
+      await expect(readFile(fixture.leasePath, "utf8")).resolves.toContain(
+        '"state": "created"',
+      );
+      await expect(
+        readFile(
+          path.join(
+            fixture.repository.physicalRepository,
+            ".ephemeral",
+            fixture.archiveName,
+          ),
+          "utf8",
+        ),
+      ).resolves.toBe(fixture.leaseBytes);
+      await expect(lstat(reservationPath)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      mockedRm.mockImplementation(actualFs.rm);
+      process.chdir(originalCwd);
+      await rm(fixture.repository.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("reports complete evidence when checkout advances then a hook fails", async () => {
     const fixture = await makeTerminalAdvanceRefusalFixture({
       canonical: true,
