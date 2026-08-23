@@ -991,15 +991,9 @@ async function snapshotTerminalArtifacts(
   lease: PrReviewLease,
   worktreePath: string,
 ): Promise<TerminalArtifactSnapshot[]> {
-  const files = new Set([
-    lease.artifacts.handoff_file,
-    lease.artifacts.result_file,
-    lease.artifacts.approved_review_file,
-    lease.artifacts.validated_payload_file,
-  ]);
+  const files = await collectOwnedEphemeralArtifacts(lease, worktreePath);
   const snapshots: TerminalArtifactSnapshot[] = [];
   for (const file of files) {
-    if (file === null) continue;
     validateDirectChild("terminal artifact", file);
     const target = path.join(worktreePath, file);
     const before = await lstat(target);

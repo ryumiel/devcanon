@@ -99,8 +99,10 @@ or lifecycle owner. Discovery is read-only: it never creates, removes, or
 updates worktrees, leases, or artifacts.
 
 When discovery shows exactly one present, registered, clean, managed canonical
-`posted` or `aborted` candidate whose checked-out head differs from the
-provider-verified `HEAD_SHA`, present both heads and offer exactly two choices:
+`posted` or `aborted` candidate, read its old head without mutation using
+`git -C <canonical-worktree> rev-parse HEAD`, then compare it with the
+provider-verified `HEAD_SHA`. When they differ, present both heads and offer
+exactly two choices:
 **keep and stop**, or **advance and create**. Keep stops here: do not invoke
 `inspect-worktree`, `session-create`, cleanup, or Git mutation. Advance is an
 explicit operator choice. First invoke the existing `inspect-worktree` with

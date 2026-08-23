@@ -1319,6 +1319,227 @@ describe("pr-review lease command validation", () => {
     ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
+  it("advances a complete posted artifact family without retaining unmanaged evidence", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-terminal-advance-posted-",
+      true,
+    );
+    const approvedReviewFile = `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`;
+    const validatedPayloadFile = await writeValidatedPayloadArtifact(
+      workspace.worktree,
+      workspace.reviewHead,
+    );
+    const reviewPayloadFile = `.ephemeral/review-topic-${workspace.reviewHead}-review-payload.json`;
+
+    try {
+      await writeFile(
+        path.join(workspace.physicalPrimary, ".git", "info", "exclude"),
+        ".ephemeral/\n",
+      );
+      await execFileAsync("git", [
+        "-C",
+        workspace.worktree,
+        "checkout",
+        "--detach",
+        workspace.reviewHead,
+      ]);
+      await writeApprovedReviewArtifact(
+        workspace.worktree,
+        approvedReviewFile,
+        workspace.reviewHead,
+      );
+      await writeFile(
+        path.join(workspace.worktree, reviewPayloadFile),
+        `${JSON.stringify(reviewPayload(workspace.reviewHead))}\n`,
+      );
+      const posted = postedCommandLease({
+        leaseFile: workspace.leaseFile,
+        worktreePath: workspace.physicalWorktree,
+        worktreeDigest: workspace.worktreeDigest,
+        resultFile: workspace.resultFile,
+        resultSha256: workspace.resultSha256,
+        approvedReviewFile,
+        validatedPayloadFile,
+      });
+      const oldLeaseBytes = `${JSON.stringify(posted, null, 2)}\n`;
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        oldLeaseBytes,
+      );
+      await writeFile(path.join(workspace.primary, "next.txt"), "next\n");
+      await execFileAsync("git", [
+        "-C",
+        workspace.physicalPrimary,
+        "add",
+        "next.txt",
+      ]);
+      await execFileAsync("git", [
+        "-C",
+        workspace.physicalPrimary,
+        "commit",
+        "-m",
+        "next head",
+      ]);
+      const { stdout: newHeadOutput } = await execFileAsync("git", [
+        "-C",
+        workspace.physicalPrimary,
+        "rev-parse",
+        "HEAD",
+      ]);
+      const newHead = newHeadOutput.trim();
+      process.chdir(workspace.physicalPrimary);
+      setReadStatusEnv(workspace);
+      Object.assign(process.env, {
+        HEAD_SHA: newHead,
+        BASE_REF: "main",
+        HEAD_REF: "topic",
+        UPDATED_AT: "2026-07-31T00:00:00Z",
+        ALLOW_TERMINAL_ADVANCE: "yes",
+      });
+
+      expect(await discoverPrReviewSession()).toMatchObject({
+        disposition: "cleanup-required",
+        active: [{ classification: "terminal", state: "posted" }],
+      });
+
+      const result = await runPrReviewLeasesCommand(["session-create"]);
+
+      expect(result.exitCode, `${result.stdout}${result.stderr}`).toBe(0);
+      await expect(
+        readdir(path.join(workspace.worktree, ".ephemeral")),
+      ).resolves.toEqual([]);
+      await expect(
+        readFile(
+          path.join(
+            workspace.primary,
+            `.ephemeral/pr-432-${workspace.worktreeDigest}-20260611T000300-posted-archived-lease.json`,
+          ),
+          "utf8",
+        ),
+      ).resolves.toBe(oldLeaseBytes);
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("retains changed terminal artifacts and the reservation after head advancement", async () => {
+    const repository = await commandHarness.createReviewRepository();
+    const canonical = path.join(
+      repository.physicalRepository,
+      ".worktrees",
+      "pr-432-review",
+    );
+    await mkdir(path.dirname(canonical), { recursive: true });
+    const { stdout: oldHeadOutput } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    const oldHead = oldHeadOutput.trim();
+    await writeFile(
+      path.join(repository.physicalRepository, ".git", "info", "exclude"),
+      ".ephemeral/\n",
+    );
+    await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "worktree",
+      "add",
+      "--detach",
+      canonical,
+      oldHead,
+    ]);
+    const worktreeDigest = discoveryWorktreeDigest(canonical);
+    const leaseFile = `.ephemeral/pr-432-${worktreeDigest}-lease.json`;
+    const handoffFile = ".ephemeral/pr-432-retained-handoff.json";
+    const oldLease = abortedCommandLease(leaseFile, canonical, worktreeDigest);
+    oldLease.artifacts.handoff_file = handoffFile;
+    await mkdir(path.join(repository.physicalRepository, ".ephemeral"), {
+      recursive: true,
+    });
+    await writeFile(
+      path.join(repository.physicalRepository, leaseFile),
+      `${JSON.stringify(oldLease, null, 2)}\n`,
+    );
+    await mkdir(path.join(canonical, ".ephemeral"), { recursive: true });
+    await writeFile(
+      path.join(canonical, handoffFile),
+      `${JSON.stringify({ repository: "owner/repo", pr_number: 432, base_ref: "main", head_ref: "topic" })}\n`,
+    );
+    await writeFile(
+      path.join(repository.physicalRepository, "next.txt"),
+      "next\n",
+    );
+    await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "add",
+      "next.txt",
+    ]);
+    await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "commit",
+      "-m",
+      "next head",
+    ]);
+    const { stdout: newHeadOutput } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    const newHead = newHeadOutput.trim();
+    const hookPath = path.join(
+      repository.physicalRepository,
+      ".git",
+      "hooks",
+      "post-checkout",
+    );
+    await writeFile(
+      hookPath,
+      [
+        "#!/bin/sh",
+        'worktree_root="$(git rev-parse --show-toplevel)"',
+        `printf '%s\\n' changed >"$worktree_root/${handoffFile}"`,
+        "",
+      ].join("\n"),
+    );
+    await chmod(hookPath, 0o755);
+    process.chdir(repository.physicalRepository);
+    Object.assign(process.env, {
+      REPOSITORY: "owner/repo",
+      PR_NUMBER: "432",
+      PRIMARY_REPOSITORY_ROOT: repository.physicalRepository,
+      HEAD_SHA: newHead,
+      BASE_REF: "main",
+      HEAD_REF: "topic",
+      UPDATED_AT: "2026-07-31T00:00:00Z",
+      ALLOW_TERMINAL_ADVANCE: "yes",
+    });
+
+    const result = await runPrReviewLeasesCommand(["session-create"]);
+
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      outcome: "manual-cleanup",
+      reason: "rollback-incomplete",
+      immutable_head: newHead,
+    });
+    await expect(
+      readFile(path.join(canonical, handoffFile), "utf8"),
+    ).resolves.toBe("changed\n");
+    await expect(
+      lstat(
+        path.join(
+          repository.physicalRepository,
+          ".ephemeral/pr-432-session-create-reservation.json",
+        ),
+      ),
+    ).resolves.toMatchObject({ isFile: expect.any(Function) });
+  });
+
   it("preserves the published lease when final verification sees a resumed dirty session", async () => {
     const repository = await commandHarness.createReviewRepository();
     const { stdout: headOutput } = await execFileAsync("git", [
