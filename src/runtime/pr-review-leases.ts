@@ -3,7 +3,6 @@ import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import {
   access,
-  copyFile,
   link,
   lstat,
   mkdir,
@@ -12,6 +11,7 @@ import {
   readdir,
   realpath,
   rm,
+  writeFile,
 } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -139,6 +139,21 @@ interface SessionCreateReservation {
   immutable_head: string;
   lease_file: string;
   expected_lease_sha256: string;
+}
+
+interface TerminalAdvanceCandidate {
+  lease: PrReviewLease;
+  leaseBytes: string;
+  worktreePath: string;
+  leaseFile: string;
+  oldHead: string;
+}
+
+interface TerminalArtifactSnapshot {
+  file: string;
+  bytes: Buffer;
+  dev: number;
+  ino: number;
 }
 
 export interface PrReviewLease {
@@ -303,10 +318,21 @@ async function sessionCreatePreflight(): Promise<RuntimeCommandOutcome> {
   }
   const updatedAt = requiredEnv("UPDATED_AT");
   validateTimestamp("UPDATED_AT", updatedAt);
+  const allowTerminalAdvance = optionalTerminalAdvance();
   await assertPrimaryGitBinding(identity.primaryRoot);
   await assertGitCommit(identity.primaryRoot, headSha);
 
   const discovery = await discoverReviewSession();
+  if (allowTerminalAdvance) {
+    return await sessionCreateTerminalAdvance({
+      identity,
+      headSha,
+      baseRef,
+      headRef,
+      updatedAt,
+      discovery,
+    });
+  }
   if (hasLifecycleReentry(discovery)) {
     return sessionCreateConflict("lifecycle-reentry-required", []);
   }
@@ -607,6 +633,566 @@ async function sessionCreatePreflight(): Promise<RuntimeCommandOutcome> {
   }
 }
 
+function optionalTerminalAdvance(): boolean {
+  const value = process.env.ALLOW_TERMINAL_ADVANCE;
+  if (value === undefined) return false;
+  if (value !== "yes") {
+    throw new PrReviewLeaseError(
+      "ALLOW_TERMINAL_ADVANCE must be yes when supplied",
+    );
+  }
+  return true;
+}
+
+async function sessionCreateTerminalAdvance({
+  identity,
+  headSha,
+  baseRef,
+  headRef,
+  updatedAt,
+  discovery,
+}: {
+  identity: DiscoveryIdentity;
+  headSha: string;
+  baseRef: string;
+  headRef: string;
+  updatedAt: string;
+  discovery: PrReviewSessionDiscovery;
+}): Promise<RuntimeCommandOutcome> {
+  const commonGitDirectory = await gitDirectory(
+    identity.primaryRoot,
+    "--git-common-dir",
+  );
+  const candidate = await terminalAdvanceCandidate(
+    identity,
+    discovery,
+    commonGitDirectory,
+    headSha,
+  );
+  if (candidate === null) {
+    return sessionCreateConflict("discovery-not-create", []);
+  }
+
+  const worktreeDigest = digestPath(candidate.worktreePath);
+  const lease = reducePrReviewLease(
+    candidate.lease,
+    {
+      repository: identity.repository,
+      prNumber: identity.prNumber,
+      worktreePath: candidate.worktreePath,
+      worktreeDigest,
+      leaseFile: candidate.leaseFile,
+    },
+    {
+      state: "created",
+      baseRef,
+      headRef,
+      createdAt: updatedAt,
+      updatedAt,
+    },
+  );
+  validateLeaseShape(lease);
+  const leaseBytes = `${JSON.stringify(lease, null, 2)}\n`;
+  const leaseSha256 = sha256Text(leaseBytes);
+  const reservation: SessionCreateReservation = {
+    schema: "pr-review/session-create-reservation/v1",
+    invocation_token: randomUUID(),
+    repository: identity.repository,
+    pr_number: identity.prNumber,
+    primary_repository_root: identity.primaryRoot,
+    common_git_directory: commonGitDirectory,
+    canonical_worktree_path: candidate.worktreePath,
+    immutable_head: headSha,
+    lease_file: candidate.leaseFile,
+    expected_lease_sha256: leaseSha256,
+  };
+  const reservationFile = `.ephemeral/pr-${identity.prNumber}-session-create-reservation.json`;
+  const reservationBytes = `${JSON.stringify(reservation)}\n`;
+  const reservationState = await acquireSessionCreateReservation(
+    identity.primaryRoot,
+    reservationFile,
+    reservation,
+    reservationBytes,
+  );
+  if (reservationState === "contended") {
+    return sessionCreateConflict("reservation-contended", ["reservation"]);
+  }
+  if (reservationState !== "acquired") {
+    return sessionCreateManualCleanup(
+      "reservation-unverifiable",
+      reservation,
+      null,
+      null,
+      ["reservation"],
+    );
+  }
+
+  let registration: RegistrationIdentity | null = null;
+  const observed: ObservedArtifact[] = ["reservation"];
+  let published = false;
+  try {
+    const revalidated = await terminalAdvanceCandidate(
+      identity,
+      await discoverReviewSession(),
+      commonGitDirectory,
+      headSha,
+    );
+    if (
+      revalidated === null ||
+      revalidated.leaseFile !== candidate.leaseFile ||
+      revalidated.leaseBytes !== candidate.leaseBytes ||
+      revalidated.oldHead !== candidate.oldHead
+    ) {
+      return await terminalAdvancePreAdvanceResult(
+        identity.primaryRoot,
+        reservationFile,
+        reservation,
+        reservationBytes,
+      );
+    }
+    let snapshots: TerminalArtifactSnapshot[];
+    try {
+      snapshots = await snapshotTerminalArtifacts(
+        candidate.lease,
+        candidate.worktreePath,
+      );
+    } catch {
+      return await terminalAdvancePreAdvanceResult(
+        identity.primaryRoot,
+        reservationFile,
+        reservation,
+        reservationBytes,
+      );
+    }
+    if (
+      !(await reservationMatches(
+        path.join(identity.primaryRoot, reservationFile),
+        reservation,
+        reservationBytes,
+      )) ||
+      !(await directSessionLeaseMatches(
+        identity.primaryRoot,
+        candidate.leaseFile,
+        candidate.leaseBytes,
+        sha256Text(candidate.leaseBytes),
+      ))
+    ) {
+      return await terminalAdvancePreAdvanceResult(
+        identity.primaryRoot,
+        reservationFile,
+        reservation,
+        reservationBytes,
+      );
+    }
+
+    const archive = terminalArchivePath(candidate.lease, identity.prNumber);
+    try {
+      await assertWritableDirectChild(
+        identity.primaryRoot,
+        archive,
+        "archived lease",
+      );
+      await writeTerminalArchive(
+        path.join(identity.primaryRoot, candidate.leaseFile),
+        path.join(identity.primaryRoot, archive),
+        Buffer.from(candidate.leaseBytes, "utf8"),
+      );
+    } catch {
+      return await terminalAdvancePreAdvanceResult(
+        identity.primaryRoot,
+        reservationFile,
+        reservation,
+        reservationBytes,
+      );
+    }
+
+    try {
+      await execFileAsync("git", [
+        "-C",
+        candidate.worktreePath,
+        "checkout",
+        "--no-overwrite-ignore",
+        "--detach",
+        headSha,
+      ]);
+    } catch {
+      observed.length = 0;
+      try {
+        if (
+          await pathExists(path.join(identity.primaryRoot, reservationFile))
+        ) {
+          observed.push("reservation");
+        }
+        if (await pathExists(candidate.worktreePath)) {
+          observed.push("worktree");
+        }
+        registration = await verifyCreatedSessionWorktree(
+          identity.primaryRoot,
+          candidate.worktreePath,
+          commonGitDirectory,
+          headSha,
+        );
+        if (registration !== null) {
+          observed.push("registration");
+        }
+        if (
+          await pathExists(path.join(identity.primaryRoot, candidate.leaseFile))
+        ) {
+          observed.push("lease");
+        }
+      } catch {
+        // Keep only evidence successfully observed before inspection failed.
+      }
+      return terminalAdvanceManualCleanup(
+        reservation,
+        registration,
+        null,
+        observed,
+      );
+    }
+    observed.length = 0;
+    if (await pathExists(path.join(identity.primaryRoot, reservationFile))) {
+      observed.push("reservation");
+    }
+    if (await pathExists(candidate.worktreePath)) {
+      observed.push("worktree");
+    }
+    registration = await verifyCreatedSessionWorktree(
+      identity.primaryRoot,
+      candidate.worktreePath,
+      commonGitDirectory,
+      headSha,
+    );
+    if (registration !== null) {
+      observed.push("registration");
+    }
+    if (
+      await pathExists(path.join(identity.primaryRoot, candidate.leaseFile))
+    ) {
+      observed.push("lease");
+    }
+    if (registration === null) {
+      return terminalAdvanceManualCleanup(reservation, null, null, observed);
+    }
+    await assertWritableDirectChild(
+      identity.primaryRoot,
+      candidate.leaseFile,
+      "lease",
+    );
+    const [leaseOwned, archiveOwned, reservationOwned] = await Promise.all([
+      directSessionLeaseMatches(
+        identity.primaryRoot,
+        candidate.leaseFile,
+        candidate.leaseBytes,
+        sha256Text(candidate.leaseBytes),
+      ),
+      directSessionLeaseMatches(
+        identity.primaryRoot,
+        archive,
+        candidate.leaseBytes,
+        sha256Text(candidate.leaseBytes),
+      ),
+      reservationMatches(
+        path.join(identity.primaryRoot, reservationFile),
+        reservation,
+        reservationBytes,
+      ),
+    ]);
+    if (!leaseOwned || !archiveOwned || !reservationOwned) {
+      return terminalAdvanceManualCleanup(
+        reservation,
+        registration,
+        null,
+        observed,
+      );
+    }
+    await writeTextAtomically(
+      path.join(identity.primaryRoot, candidate.leaseFile),
+      leaseBytes,
+    );
+    published = true;
+    if (!(await removeTerminalArtifacts(candidate.worktreePath, snapshots))) {
+      return terminalAdvanceManualCleanup(
+        reservation,
+        registration,
+        leaseSha256,
+        observed,
+      );
+    }
+    if (
+      !(await verifySessionCreateFinalState({
+        identity,
+        commonGitDirectory,
+        headSha,
+        lease,
+        leaseBytes,
+        leaseSha256,
+        registration,
+      })) ||
+      !(await directSessionLeaseMatches(
+        identity.primaryRoot,
+        archive,
+        candidate.leaseBytes,
+        sha256Text(candidate.leaseBytes),
+      ))
+    ) {
+      return terminalAdvanceManualCleanup(
+        reservation,
+        registration,
+        leaseSha256,
+        observed,
+      );
+    }
+    if (
+      !(await removeOwnedReservation(
+        identity.primaryRoot,
+        reservationFile,
+        reservation,
+        reservationBytes,
+      ))
+    ) {
+      const currentObserved: ObservedArtifact[] = observed.filter(
+        (artifact) => artifact !== "reservation",
+      );
+      if (await pathExists(path.join(identity.primaryRoot, reservationFile))) {
+        currentObserved.unshift("reservation");
+      }
+      return terminalAdvanceManualCleanup(
+        reservation,
+        registration,
+        leaseSha256,
+        currentObserved,
+      );
+    }
+    return sessionCreateSuccess(
+      identity,
+      commonGitDirectory,
+      candidate.worktreePath,
+      headSha,
+      candidate.leaseFile,
+      leaseSha256,
+    );
+  } catch {
+    return terminalAdvanceManualCleanup(
+      reservation,
+      registration,
+      published ? leaseSha256 : null,
+      observed,
+    );
+  }
+}
+
+async function terminalAdvancePreAdvanceResult(
+  primaryRoot: string,
+  reservationFile: string,
+  reservation: SessionCreateReservation,
+  reservationBytes: string,
+): Promise<RuntimeCommandOutcome> {
+  if (
+    await removeOwnedReservation(
+      primaryRoot,
+      reservationFile,
+      reservation,
+      reservationBytes,
+    )
+  ) {
+    return sessionCreateConflict("discovery-not-create", []);
+  }
+  const observed: ObservedArtifact[] = [];
+  if (await pathExists(path.join(primaryRoot, reservationFile))) {
+    observed.push("reservation");
+  }
+  return sessionCreateManualCleanup(
+    "rollback-incomplete",
+    reservation,
+    null,
+    null,
+    observed,
+  );
+}
+
+function terminalAdvanceManualCleanup(
+  reservation: SessionCreateReservation,
+  registration: RegistrationIdentity | null,
+  leaseSha256: string | null,
+  observed: ObservedArtifact[],
+): RuntimeCommandOutcome {
+  return sessionCreateManualCleanup(
+    "rollback-incomplete",
+    reservation,
+    registration,
+    leaseSha256,
+    observed,
+  );
+}
+
+async function terminalAdvanceCandidate(
+  identity: DiscoveryIdentity,
+  discovery: PrReviewSessionDiscovery,
+  commonGitDirectory: string,
+  headSha: string,
+): Promise<TerminalAdvanceCandidate | null> {
+  if (discovery.active.length !== 1) return null;
+  const candidate = discovery.active[0];
+  if (
+    candidate === undefined ||
+    candidate.classification !== "terminal" ||
+    (candidate.state !== "posted" && candidate.state !== "aborted") ||
+    candidate.worktree_path === null ||
+    candidate.worktree_dirty !== false ||
+    candidate.unmanaged_ephemeral_artifacts !== false ||
+    normalizeComparablePath(candidate.worktree_path) !==
+      normalizeComparablePath(discovery.canonical_worktree_path)
+  ) {
+    return null;
+  }
+  const leasePath = path.join(identity.primaryRoot, candidate.lease_file);
+  try {
+    const leaseBytes = await readFile(leasePath, "utf8");
+    const lease = JSON.parse(leaseBytes) as PrReviewLease;
+    validateLeaseShape(lease);
+    if (
+      lease.state !== candidate.state ||
+      lease.lease_file !== candidate.lease_file ||
+      lease.worktree_path !== candidate.worktree_path ||
+      lease.worktree_digest !== digestPath(candidate.worktree_path)
+    ) {
+      return null;
+    }
+    await validateReferencedArtifacts(lease, candidate.worktree_path, {
+      validateResultAuthority: true,
+      policy: "validate-stored-lease",
+    });
+    const oldHead = (
+      await execFileAsync("git", [
+        "-C",
+        candidate.worktree_path,
+        "rev-parse",
+        "HEAD",
+      ])
+    ).stdout.trim();
+    if (!SHA_RE.test(oldHead) || oldHead === headSha) return null;
+    const registration = await verifyCreatedSessionWorktree(
+      identity.primaryRoot,
+      candidate.worktree_path,
+      commonGitDirectory,
+      oldHead,
+    );
+    if (registration === null) return null;
+    return {
+      lease,
+      leaseBytes,
+      worktreePath: candidate.worktree_path,
+      leaseFile: candidate.lease_file,
+      oldHead,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function snapshotTerminalArtifacts(
+  lease: PrReviewLease,
+  worktreePath: string,
+): Promise<TerminalArtifactSnapshot[]> {
+  const files = await collectOwnedEphemeralArtifacts(lease, worktreePath);
+  const snapshots: TerminalArtifactSnapshot[] = [];
+  for (const file of files) {
+    validateDirectChild("terminal artifact", file);
+    let tracked = false;
+    try {
+      await execFileAsync("git", [
+        "-C",
+        worktreePath,
+        "ls-files",
+        "--error-unmatch",
+        "--",
+        file,
+      ]);
+      tracked = true;
+    } catch (err) {
+      if ((err as { code?: unknown }).code !== 1) throw err;
+    }
+    if (tracked) {
+      throw new PrReviewLeaseError("terminal artifact is tracked");
+    }
+    const target = path.join(worktreePath, file);
+    const before = await lstat(target);
+    if (!before.isFile() || before.isSymbolicLink()) {
+      throw new PrReviewLeaseError(
+        "terminal artifact missing or not a regular file",
+      );
+    }
+    const bytes = await readFile(target);
+    const after = await lstat(target);
+    if (
+      !after.isFile() ||
+      after.isSymbolicLink() ||
+      before.dev !== after.dev ||
+      before.ino !== after.ino
+    ) {
+      throw new PrReviewLeaseError("terminal artifact identity changed");
+    }
+    snapshots.push({ file, bytes, dev: before.dev, ino: before.ino });
+  }
+  return snapshots;
+}
+
+async function removeTerminalArtifacts(
+  worktreePath: string,
+  snapshots: readonly TerminalArtifactSnapshot[],
+): Promise<boolean> {
+  if (!(await terminalArtifactsMatchSnapshots(worktreePath, snapshots))) {
+    return false;
+  }
+  for (const snapshot of snapshots) {
+    try {
+      const target = path.join(worktreePath, snapshot.file);
+      await rm(target);
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
+
+async function terminalArtifactsMatchSnapshots(
+  worktreePath: string,
+  snapshots: readonly TerminalArtifactSnapshot[],
+): Promise<boolean> {
+  for (const snapshot of snapshots) {
+    try {
+      await execFileAsync("git", [
+        "-C",
+        worktreePath,
+        "ls-files",
+        "--error-unmatch",
+        "--",
+        snapshot.file,
+      ]);
+      return false;
+    } catch (err) {
+      if ((err as { code?: unknown }).code !== 1) return false;
+    }
+    try {
+      const target = path.join(worktreePath, snapshot.file);
+      const before = await lstat(target);
+      if (
+        !before.isFile() ||
+        before.isSymbolicLink() ||
+        before.dev !== snapshot.dev ||
+        before.ino !== snapshot.ino ||
+        !(await readFile(target)).equals(snapshot.bytes)
+      ) {
+        return false;
+      }
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
+
 async function assertPrimaryGitBinding(primaryRoot: string): Promise<void> {
   const { stdout } = await execFileAsync("git", [
     "-C",
@@ -637,13 +1223,16 @@ async function assertGitCommit(
   immutableHead: string,
 ): Promise<void> {
   try {
-    await execFileAsync("git", [
+    const { stdout } = await execFileAsync("git", [
       "-C",
       primaryRoot,
       "cat-file",
-      "-e",
-      `${immutableHead}^{commit}`,
+      "-t",
+      immutableHead,
     ]);
+    if (stdout.trim() !== "commit") {
+      throw new PrReviewLeaseError("HEAD_SHA must name an available commit");
+    }
   } catch {
     throw new PrReviewLeaseError("HEAD_SHA must name an available commit");
   }
@@ -1790,18 +2379,17 @@ async function writeLease(
 async function writeTerminalArchive(
   target: string,
   archive: string,
+  content?: Buffer,
 ): Promise<void> {
+  const expected = content ?? (await readFile(target));
   try {
-    await copyFile(target, archive, constants.COPYFILE_EXCL);
+    await writeFile(archive, expected, { flag: "wx" });
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== "EEXIST") {
       throw err;
     }
-    const [existing, active] = await Promise.all([
-      readFile(archive),
-      readFile(target),
-    ]);
-    if (!existing.equals(active)) {
+    const existing = await readFile(archive);
+    if (!existing.equals(expected)) {
       throw new PrReviewLeaseError("archived lease collision");
     }
   }

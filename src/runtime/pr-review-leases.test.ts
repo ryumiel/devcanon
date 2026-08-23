@@ -117,6 +117,7 @@ const managedEnvKeys = [
   "VALIDATED_PAYLOAD_FILE",
   "EXPECTED_STATE",
   "ALLOW_POLICY_OVERRIDE",
+  "ALLOW_TERMINAL_ADVANCE",
   "PR_REVIEW_DIR",
   "PR_REVIEW_MANIFEST_HELPER_SCRIPT",
   "PR_REVIEW_LEASE_HELPER_SCRIPT",
@@ -1175,6 +1176,957 @@ describe("pr-review lease command validation", () => {
         path.join(repository.physicalRepository, session.lease_file),
       ),
     ).toBe(session.lease_sha256);
+  });
+
+  it("leaves retained terminals unchanged without exact terminal-advance opt-in", async () => {
+    const fixture = await makeTerminalAdvanceRefusalFixture({
+      canonical: true,
+    });
+    try {
+      process.chdir(fixture.repository.physicalRepository);
+      setTerminalAdvanceEnv(
+        fixture.repository.physicalRepository,
+        fixture.newHead,
+      );
+      Reflect.deleteProperty(process.env, "ALLOW_TERMINAL_ADVANCE");
+      await expectTerminalAdvanceUnchanged(
+        fixture,
+        await runPrReviewLeasesCommand(["session-create"]),
+      );
+      process.env.ALLOW_TERMINAL_ADVANCE = "true";
+      await expectTerminalAdvanceUnchanged(
+        fixture,
+        await runPrReviewLeasesCommand(["session-create"]),
+        "ALLOW_TERMINAL_ADVANCE must be yes when supplied",
+      );
+    } finally {
+      process.chdir(originalCwd);
+      await rm(fixture.repository.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("advances a complete posted artifact family without retaining unmanaged evidence", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "pr-review-terminal-advance-posted-",
+      true,
+    );
+    const approvedReviewFile = `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`;
+    const validatedPayloadFile = await writeValidatedPayloadArtifact(
+      workspace.worktree,
+      workspace.reviewHead,
+    );
+    const reviewPayloadFile = `.ephemeral/review-topic-${workspace.reviewHead}-review-payload.json`;
+
+    try {
+      await writeFile(
+        path.join(workspace.physicalPrimary, ".git", "info", "exclude"),
+        ".ephemeral/\n",
+      );
+      await execFileAsync("git", [
+        "-C",
+        workspace.worktree,
+        "checkout",
+        "--detach",
+        workspace.reviewHead,
+      ]);
+      await writeResultArtifact(
+        workspace.worktree,
+        workspace.physicalWorktree,
+        workspace.resultFile,
+        workspace.reviewHead,
+        "preview-current",
+        true,
+        "detached",
+      );
+      await Promise.all(
+        [
+          workspace.findingsFile,
+          workspace.findingsFile.replace(
+            "-findings.json",
+            "-review-context-input.json",
+          ),
+          workspace.findingsFile.replace(
+            "-findings.json",
+            "-review-context.md",
+          ),
+        ].map((file) => rm(path.join(workspace.worktree, file))),
+      );
+      const resultSha256 = await sha256File(
+        path.join(workspace.worktree, workspace.resultFile),
+      );
+      await writeApprovedReviewArtifact(
+        workspace.worktree,
+        approvedReviewFile,
+        workspace.reviewHead,
+      );
+      await writeFile(
+        path.join(workspace.worktree, reviewPayloadFile),
+        `${JSON.stringify(reviewPayload(workspace.reviewHead))}\n`,
+      );
+      const posted = postedCommandLease({
+        leaseFile: workspace.leaseFile,
+        worktreePath: workspace.physicalWorktree,
+        worktreeDigest: workspace.worktreeDigest,
+        resultFile: workspace.resultFile,
+        resultSha256,
+        approvedReviewFile,
+        validatedPayloadFile,
+      });
+      const oldLeaseBytes = `${JSON.stringify(posted, null, 2)}\n`;
+      await writeFile(
+        path.join(workspace.primary, workspace.leaseFile),
+        oldLeaseBytes,
+      );
+      await writeFile(path.join(workspace.primary, "next.txt"), "next\n");
+      await execFileAsync("git", [
+        "-C",
+        workspace.physicalPrimary,
+        "add",
+        "next.txt",
+      ]);
+      await execFileAsync("git", [
+        "-C",
+        workspace.physicalPrimary,
+        "commit",
+        "-m",
+        "next head",
+      ]);
+      const { stdout: newHeadOutput } = await execFileAsync("git", [
+        "-C",
+        workspace.physicalPrimary,
+        "rev-parse",
+        "HEAD",
+      ]);
+      const newHead = newHeadOutput.trim();
+      process.chdir(workspace.physicalPrimary);
+      setReadStatusEnv(workspace);
+      Object.assign(process.env, {
+        HEAD_SHA: newHead,
+        BASE_REF: "main",
+        HEAD_REF: "topic",
+        UPDATED_AT: "2026-07-31T00:00:00Z",
+        ALLOW_TERMINAL_ADVANCE: "yes",
+      });
+
+      const discovery = await discoverPrReviewSession();
+      expect(discovery).toMatchObject({
+        disposition: "cleanup-required",
+        canonical_worktree_present: true,
+        active: [
+          {
+            lease_file: workspace.leaseFile,
+            worktree_path: workspace.physicalWorktree,
+            classification: "terminal",
+            state: "posted",
+            worktree_dirty: false,
+            unmanaged_ephemeral_artifacts: false,
+          },
+        ],
+      });
+      const validation = await runPrReviewLeasesCommand(["validate"]);
+      expect(validation.exitCode, validation.stderr).toBe(0);
+
+      const result = await runPrReviewLeasesCommand(["session-create"]);
+
+      expect(result.exitCode, `${result.stdout}${result.stderr}`).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        outcome: "success",
+        canonical_worktree_path: workspace.physicalWorktree,
+        immutable_head: newHead,
+        lease_file: workspace.leaseFile,
+      });
+      expect(await readLease(workspace.primary, workspace.leaseFile)).toEqual({
+        schema: "pr-review/lease/v1",
+        repository: "owner/repo",
+        pr_number: 432,
+        state: "created",
+        base_ref: "main",
+        head_ref: "topic",
+        worktree_path: workspace.physicalWorktree,
+        worktree_digest: workspace.worktreeDigest,
+        lease_file: workspace.leaseFile,
+        created_at: "2026-07-31T00:00:00Z",
+        updated_at: "2026-07-31T00:00:00Z",
+        artifacts: {
+          handoff_file: null,
+          result_file: null,
+          approved_review_file: null,
+          validated_payload_file: null,
+        },
+        validation: {
+          result_manifest: { status: null, validated_at: null, sha256: null },
+        },
+        presentation: { presented_at: null, status: null },
+        terminal: { finished_at: null, reason: null },
+        failure: { phase: null, reason: null, recoverability: null },
+        github: {
+          github_post_attempted: false,
+          github_post_result: "not-attempted",
+          github_posted_at: null,
+        },
+      });
+      await expect(
+        readdir(path.join(workspace.worktree, ".ephemeral")),
+      ).resolves.toEqual([]);
+      await expect(
+        execFileAsync("git", ["-C", workspace.worktree, "rev-parse", "HEAD"]),
+      ).resolves.toMatchObject({ stdout: `${newHead}\n` });
+      await expect(
+        readFile(
+          path.join(
+            workspace.primary,
+            `.ephemeral/pr-432-${workspace.worktreeDigest}-20260611T000300-posted-archived-lease.json`,
+          ),
+          "utf8",
+        ),
+      ).resolves.toBe(oldLeaseBytes);
+      await expect(
+        lstat(
+          path.join(
+            workspace.primary,
+            ".ephemeral/pr-432-session-create-reservation.json",
+          ),
+        ),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("retains changed terminal artifacts and the reservation after head advancement", async () => {
+    const repository = await commandHarness.createReviewRepository();
+    const canonical = path.join(
+      repository.physicalRepository,
+      ".worktrees",
+      "pr-432-review",
+    );
+    await mkdir(path.dirname(canonical), { recursive: true });
+    const { stdout: oldHeadOutput } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    const oldHead = oldHeadOutput.trim();
+    await writeFile(
+      path.join(repository.physicalRepository, ".git", "info", "exclude"),
+      ".ephemeral/\n",
+    );
+    await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "worktree",
+      "add",
+      "--detach",
+      canonical,
+      oldHead,
+    ]);
+    const worktreeDigest = discoveryWorktreeDigest(canonical);
+    const leaseFile = `.ephemeral/pr-432-${worktreeDigest}-lease.json`;
+    const handoffFile = ".ephemeral/pr-432-retained-handoff.json";
+    const oldLease = abortedCommandLease(leaseFile, canonical, worktreeDigest);
+    oldLease.artifacts.handoff_file = handoffFile;
+    await mkdir(path.join(repository.physicalRepository, ".ephemeral"), {
+      recursive: true,
+    });
+    await writeFile(
+      path.join(repository.physicalRepository, leaseFile),
+      `${JSON.stringify(oldLease, null, 2)}\n`,
+    );
+    await mkdir(path.join(canonical, ".ephemeral"), { recursive: true });
+    await writeFile(
+      path.join(canonical, handoffFile),
+      `${JSON.stringify({ repository: "owner/repo", pr_number: 432, base_ref: "main", head_ref: "topic" })}\n`,
+    );
+    await writeFile(
+      path.join(repository.physicalRepository, "next.txt"),
+      "next\n",
+    );
+    await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "add",
+      "next.txt",
+    ]);
+    await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "commit",
+      "-m",
+      "next head",
+    ]);
+    const { stdout: newHeadOutput } = await execFileAsync("git", [
+      "-C",
+      repository.physicalRepository,
+      "rev-parse",
+      "HEAD",
+    ]);
+    const newHead = newHeadOutput.trim();
+    const hookPath = path.join(
+      repository.physicalRepository,
+      ".git",
+      "hooks",
+      "post-checkout",
+    );
+    await writeFile(
+      hookPath,
+      [
+        "#!/bin/sh",
+        'worktree_root="$(git rev-parse --show-toplevel)"',
+        `printf '%s\\n' changed >"$worktree_root/${handoffFile}"`,
+        "",
+      ].join("\n"),
+    );
+    await chmod(hookPath, 0o755);
+    process.chdir(repository.physicalRepository);
+    Object.assign(process.env, {
+      REPOSITORY: "owner/repo",
+      PR_NUMBER: "432",
+      PRIMARY_REPOSITORY_ROOT: repository.physicalRepository,
+      HEAD_SHA: newHead,
+      BASE_REF: "main",
+      HEAD_REF: "topic",
+      UPDATED_AT: "2026-07-31T00:00:00Z",
+      ALLOW_TERMINAL_ADVANCE: "yes",
+    });
+
+    const result = await runPrReviewLeasesCommand(["session-create"]);
+
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      outcome: "manual-cleanup",
+      reason: "rollback-incomplete",
+      immutable_head: newHead,
+    });
+    await expect(
+      readFile(path.join(canonical, handoffFile), "utf8"),
+    ).resolves.toBe("changed\n");
+    await expect(
+      lstat(
+        path.join(
+          repository.physicalRepository,
+          ".ephemeral/pr-432-session-create-reservation.json",
+        ),
+      ),
+    ).resolves.toMatchObject({ isFile: expect.any(Function) });
+  });
+
+  it.each([
+    "same-head",
+    "dirty",
+    "unmanaged",
+    "ambiguous",
+    "noncanonical",
+    "invalid-terminal-lease",
+    "invalid-referenced-evidence",
+    "unregistered",
+    "unavailable-target-commit",
+    "annotated-tag",
+  ] as const)(
+    "refuses opted terminal advancement before mutation: %s",
+    async (kind) => {
+      const fixture = await makeTerminalAdvanceRefusalFixture({
+        canonical: kind !== "noncanonical",
+      });
+      try {
+        let expectedLeaseBytes = fixture.leaseBytes;
+        let targetHead = fixture.newHead;
+        if (kind === "same-head") {
+          targetHead = fixture.oldHead;
+        }
+        if (kind === "dirty") {
+          await writeFile(path.join(fixture.worktree, "dirty.txt"), "dirty\n");
+        }
+        if (kind === "unmanaged") {
+          await writeFile(
+            path.join(fixture.worktree, ".ephemeral", "unmanaged.json"),
+            "{}\n",
+          );
+        }
+        if (kind === "ambiguous") {
+          await addAmbiguousTerminalCandidate(fixture);
+        }
+        if (kind === "invalid-terminal-lease") {
+          expectedLeaseBytes = "{invalid terminal lease}\n";
+          await writeFile(fixture.leasePath, expectedLeaseBytes);
+        }
+        if (kind === "invalid-referenced-evidence") {
+          fixture.handoffBytes = `${JSON.stringify({
+            repository: "other/repo",
+            pr_number: 432,
+            base_ref: "main",
+            head_ref: "topic",
+          })}\n`;
+          await writeFile(
+            path.join(fixture.worktree, fixture.handoffFile),
+            fixture.handoffBytes,
+          );
+        }
+        if (kind === "unregistered") {
+          await execFileAsync("git", [
+            "-C",
+            fixture.repository.physicalRepository,
+            "worktree",
+            "remove",
+            "-f",
+            fixture.worktree,
+          ]);
+          await mkdir(fixture.worktree, { recursive: true });
+        }
+        if (kind === "unavailable-target-commit") {
+          targetHead = "b".repeat(40);
+        }
+        if (kind === "annotated-tag") {
+          await execFileAsync("git", [
+            "-C",
+            fixture.repository.physicalRepository,
+            "tag",
+            "-a",
+            "terminal-advance-target",
+            "-m",
+            "annotated target",
+            fixture.newHead,
+          ]);
+          const { stdout } = await execFileAsync("git", [
+            "-C",
+            fixture.repository.physicalRepository,
+            "rev-parse",
+            "terminal-advance-target^{tag}",
+          ]);
+          targetHead = stdout.trim();
+        }
+        process.chdir(fixture.repository.physicalRepository);
+        setTerminalAdvanceEnv(
+          fixture.repository.physicalRepository,
+          targetHead,
+        );
+
+        const result = await runPrReviewLeasesCommand(["session-create"]);
+
+        await expectTerminalAdvanceUnchanged(
+          fixture,
+          result,
+          kind === "unavailable-target-commit" || kind === "annotated-tag"
+            ? "HEAD_SHA must name an available commit"
+            : undefined,
+          expectedLeaseBytes,
+          kind !== "unregistered",
+        );
+      } finally {
+        process.chdir(originalCwd);
+        await rm(fixture.repository.tempRoot, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("preserves every terminal artifact when a late target collision is detected", async () => {
+    const fixture = await makeTerminalAdvanceRefusalFixture({
+      canonical: true,
+    });
+    const scopeDecisionFile = ".ephemeral/pr-432-retained-scope.json";
+    const priorThreadsFile = ".ephemeral/pr-432-retained-prior.json";
+    const providerEvidenceFile = ".ephemeral/pr-432-retained-provider.json";
+    const scopeDecisionBytes = "retained scope\n";
+    const priorThreadsBytes = "retained prior threads\n";
+    const providerEvidenceBytes = "target-tracked collision\n";
+    const handoffBytes = `${JSON.stringify({
+      repository: "owner/repo",
+      pr_number: 432,
+      base_ref: "main",
+      head_ref: "topic",
+      artifacts: {
+        scope_decision_file: scopeDecisionFile,
+        prior_threads_file: priorThreadsFile,
+        provider_scope_evidence_file: providerEvidenceFile,
+      },
+    })}\n`;
+    try {
+      const lease = JSON.parse(
+        await readFile(fixture.leasePath, "utf8"),
+      ) as PrReviewLease;
+      const leaseBytes = `${JSON.stringify(lease, null, 2)}\n`;
+      await writeFile(fixture.leasePath, leaseBytes);
+      await writeFile(
+        path.join(fixture.worktree, fixture.handoffFile),
+        handoffBytes,
+      );
+      await writeFile(
+        path.join(fixture.worktree, scopeDecisionFile),
+        scopeDecisionBytes,
+      );
+      await writeFile(
+        path.join(fixture.worktree, priorThreadsFile),
+        priorThreadsBytes,
+      );
+      await writeFile(
+        path.join(fixture.worktree, providerEvidenceFile),
+        "old provider evidence\n",
+      );
+      await writeFile(
+        path.join(fixture.repository.physicalRepository, providerEvidenceFile),
+        providerEvidenceBytes,
+      );
+      await execFileAsync("git", [
+        "-C",
+        fixture.repository.physicalRepository,
+        "add",
+        "-f",
+        providerEvidenceFile,
+      ]);
+      await execFileAsync("git", [
+        "-C",
+        fixture.repository.physicalRepository,
+        "commit",
+        "-m",
+        "track late terminal artifact collision",
+      ]);
+      const { stdout: targetHeadOutput } = await execFileAsync("git", [
+        "-C",
+        fixture.repository.physicalRepository,
+        "rev-parse",
+        "HEAD",
+      ]);
+      const targetHead = targetHeadOutput.trim();
+      process.chdir(fixture.repository.physicalRepository);
+      setTerminalAdvanceEnv(fixture.repository.physicalRepository, targetHead);
+
+      const result = await runPrReviewLeasesCommand(["session-create"]);
+
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        outcome: "manual-cleanup",
+        reason: "rollback-incomplete",
+        immutable_head: targetHead,
+      });
+      await expect(
+        readFile(path.join(fixture.worktree, fixture.handoffFile), "utf8"),
+      ).resolves.toBe(handoffBytes);
+      await expect(
+        readFile(path.join(fixture.worktree, scopeDecisionFile), "utf8"),
+      ).resolves.toBe(scopeDecisionBytes);
+      await expect(
+        readFile(path.join(fixture.worktree, priorThreadsFile), "utf8"),
+      ).resolves.toBe(priorThreadsBytes);
+      await expect(
+        readFile(path.join(fixture.worktree, providerEvidenceFile), "utf8"),
+      ).resolves.toBe("old provider evidence\n");
+      await expect(
+        execFileAsync("git", ["-C", fixture.worktree, "rev-parse", "HEAD"]),
+      ).resolves.toMatchObject({ stdout: `${fixture.oldHead}\n` });
+      await expect(
+        readFile(
+          path.join(
+            fixture.repository.physicalRepository,
+            ".ephemeral",
+            fixture.archiveName,
+          ),
+          "utf8",
+        ),
+      ).resolves.toBe(leaseBytes);
+      await expect(
+        lstat(
+          path.join(
+            fixture.repository.physicalRepository,
+            ".ephemeral/pr-432-session-create-reservation.json",
+          ),
+        ),
+      ).resolves.toMatchObject({ isFile: expect.any(Function) });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(fixture.repository.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses a terminal artifact tracked at the old head before checkout", async () => {
+    const fixture = await makeTerminalAdvanceRefusalFixture({
+      canonical: true,
+    });
+    try {
+      await execFileAsync("git", [
+        "-C",
+        fixture.worktree,
+        "add",
+        "-f",
+        fixture.handoffFile,
+      ]);
+      await execFileAsync("git", [
+        "-C",
+        fixture.worktree,
+        "commit",
+        "-m",
+        "track retained handoff",
+      ]);
+      const { stdout: trackedOldHeadOutput } = await execFileAsync("git", [
+        "-C",
+        fixture.worktree,
+        "rev-parse",
+        "HEAD",
+      ]);
+      const trackedOldHead = trackedOldHeadOutput.trim();
+      process.chdir(fixture.repository.physicalRepository);
+      setTerminalAdvanceEnv(
+        fixture.repository.physicalRepository,
+        fixture.newHead,
+      );
+
+      const result = await runPrReviewLeasesCommand(["session-create"]);
+
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        outcome: "conflict",
+        reason: "discovery-not-create",
+      });
+      await expect(
+        execFileAsync("git", ["-C", fixture.worktree, "rev-parse", "HEAD"]),
+      ).resolves.toMatchObject({ stdout: `${trackedOldHead}\n` });
+      await expect(readFile(fixture.leasePath, "utf8")).resolves.toBe(
+        fixture.leaseBytes,
+      );
+      await expect(
+        readFile(path.join(fixture.worktree, fixture.handoffFile), "utf8"),
+      ).resolves.toBe(fixture.handoffBytes);
+      await expect(
+        lstat(
+          path.join(
+            fixture.repository.physicalRepository,
+            ".ephemeral",
+            fixture.archiveName,
+          ),
+        ),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(
+        lstat(
+          path.join(
+            fixture.repository.physicalRepository,
+            ".ephemeral/pr-432-session-create-reservation.json",
+          ),
+        ),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+
+      const actualFs =
+        await vi.importActual<typeof import("node:fs/promises")>(
+          "node:fs/promises",
+        );
+      vi.mocked(fsPromises.rm).mockImplementationOnce(async (...args) => {
+        await actualFs.rm(...args);
+        throw Object.assign(new Error("reservation disappeared"), {
+          code: "ENOENT",
+        });
+      });
+
+      const missingReservation = await runPrReviewLeasesCommand([
+        "session-create",
+      ]);
+
+      expect(JSON.parse(missingReservation.stdout)).toMatchObject({
+        outcome: "manual-cleanup",
+        reason: "rollback-incomplete",
+        observed_artifacts: [],
+      });
+      await expect(
+        lstat(
+          path.join(
+            fixture.repository.physicalRepository,
+            ".ephemeral/pr-432-session-create-reservation.json",
+          ),
+        ),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(fixture.repository.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it.each(["changes-lease", "deletes-lease", "deletes-reservation"] as const)(
+    "reports actual evidence when a checkout hook %s",
+    async (operation) => {
+      const fixture = await makeTerminalAdvanceRefusalFixture({
+        canonical: true,
+      });
+      const driftedLeaseBytes = "checkout-hook drift\\n";
+      const leaseFile = path.relative(
+        fixture.repository.physicalRepository,
+        fixture.leasePath,
+      );
+      try {
+        const hookPath = path.join(
+          fixture.repository.physicalRepository,
+          ".git",
+          "hooks",
+          "post-checkout",
+        );
+        const hookCommand =
+          operation === "changes-lease"
+            ? `printf '%s' ${JSON.stringify(driftedLeaseBytes)} >\"$PRIMARY_REPOSITORY_ROOT/${leaseFile}\"`
+            : operation === "deletes-lease"
+              ? `rm \"$PRIMARY_REPOSITORY_ROOT/${leaseFile}\"`
+              : 'rm "$PRIMARY_REPOSITORY_ROOT/.ephemeral/pr-432-session-create-reservation.json"';
+        await writeFile(hookPath, ["#!/bin/sh", hookCommand, ""].join("\n"));
+        await chmod(hookPath, 0o755);
+        process.chdir(fixture.repository.physicalRepository);
+        setTerminalAdvanceEnv(
+          fixture.repository.physicalRepository,
+          fixture.newHead,
+        );
+
+        const result = await runPrReviewLeasesCommand(["session-create"]);
+
+        expect(JSON.parse(result.stdout)).toMatchObject({
+          outcome: "manual-cleanup",
+          reason: "rollback-incomplete",
+          immutable_head: fixture.newHead,
+          observed_artifacts:
+            operation === "changes-lease"
+              ? ["reservation", "worktree", "registration", "lease"]
+              : operation === "deletes-lease"
+                ? ["reservation", "worktree", "registration"]
+                : ["worktree", "registration", "lease"],
+        });
+        if (operation === "changes-lease") {
+          await expect(readFile(fixture.leasePath, "utf8")).resolves.toBe(
+            driftedLeaseBytes,
+          );
+        } else if (operation === "deletes-lease") {
+          await expect(lstat(fixture.leasePath)).rejects.toMatchObject({
+            code: "ENOENT",
+          });
+        } else {
+          await expect(readFile(fixture.leasePath, "utf8")).resolves.toBe(
+            fixture.leaseBytes,
+          );
+        }
+        await expect(
+          readFile(
+            path.join(
+              fixture.repository.physicalRepository,
+              ".ephemeral",
+              fixture.archiveName,
+            ),
+            "utf8",
+          ),
+        ).resolves.toBe(fixture.leaseBytes);
+        await expect(
+          readFile(path.join(fixture.worktree, fixture.handoffFile), "utf8"),
+        ).resolves.toBe(fixture.handoffBytes);
+        const reservationPath = path.join(
+          fixture.repository.physicalRepository,
+          ".ephemeral/pr-432-session-create-reservation.json",
+        );
+        if (operation === "deletes-reservation") {
+          await expect(lstat(reservationPath)).rejects.toMatchObject({
+            code: "ENOENT",
+          });
+        } else {
+          await expect(lstat(reservationPath)).resolves.toMatchObject({
+            isFile: expect.any(Function),
+          });
+        }
+      } finally {
+        process.chdir(originalCwd);
+        await rm(fixture.repository.tempRoot, {
+          recursive: true,
+          force: true,
+        });
+      }
+    },
+  );
+
+  it("preserves checkout-hook archive drift after head advancement", async () => {
+    const fixture = await makeTerminalAdvanceRefusalFixture({
+      canonical: true,
+    });
+    const driftedArchiveBytes = "checkout-hook archive drift\\n";
+    try {
+      const hookPath = path.join(
+        fixture.repository.physicalRepository,
+        ".git",
+        "hooks",
+        "post-checkout",
+      );
+      await writeFile(
+        hookPath,
+        [
+          "#!/bin/sh",
+          `printf '%s' ${JSON.stringify(driftedArchiveBytes)} >\"$PRIMARY_REPOSITORY_ROOT/.ephemeral/${fixture.archiveName}\"`,
+          "",
+        ].join("\n"),
+      );
+      await chmod(hookPath, 0o755);
+      process.chdir(fixture.repository.physicalRepository);
+      setTerminalAdvanceEnv(
+        fixture.repository.physicalRepository,
+        fixture.newHead,
+      );
+
+      const result = await runPrReviewLeasesCommand(["session-create"]);
+
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        outcome: "manual-cleanup",
+        reason: "rollback-incomplete",
+        immutable_head: fixture.newHead,
+        observed_artifacts: [
+          "reservation",
+          "worktree",
+          "registration",
+          "lease",
+        ],
+      });
+      await expect(
+        readFile(
+          path.join(
+            fixture.repository.physicalRepository,
+            ".ephemeral",
+            fixture.archiveName,
+          ),
+          "utf8",
+        ),
+      ).resolves.toBe(driftedArchiveBytes);
+      await expect(readFile(fixture.leasePath, "utf8")).resolves.toBe(
+        fixture.leaseBytes,
+      );
+      await expect(
+        readFile(path.join(fixture.worktree, fixture.handoffFile), "utf8"),
+      ).resolves.toBe(fixture.handoffBytes);
+      await expect(
+        lstat(
+          path.join(
+            fixture.repository.physicalRepository,
+            ".ephemeral/pr-432-session-create-reservation.json",
+          ),
+        ),
+      ).resolves.toMatchObject({ isFile: expect.any(Function) });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(fixture.repository.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("does not report a reservation removed during final cleanup", async () => {
+    const fixture = await makeTerminalAdvanceRefusalFixture({
+      canonical: true,
+    });
+    const reservationPath = path.join(
+      fixture.repository.physicalRepository,
+      ".ephemeral/pr-432-session-create-reservation.json",
+    );
+    const actualFs =
+      await vi.importActual<typeof import("node:fs/promises")>(
+        "node:fs/promises",
+      );
+    const mockedRm = vi.mocked(fsPromises.rm);
+    try {
+      mockedRm.mockImplementation(async (...args) => {
+        if (args[0] === reservationPath) {
+          await actualFs.rm(...args);
+          throw Object.assign(new Error("reservation disappeared"), {
+            code: "ENOENT",
+          });
+        }
+        return await actualFs.rm(...args);
+      });
+      process.chdir(fixture.repository.physicalRepository);
+      setTerminalAdvanceEnv(
+        fixture.repository.physicalRepository,
+        fixture.newHead,
+      );
+
+      const result = await runPrReviewLeasesCommand(["session-create"]);
+
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        outcome: "manual-cleanup",
+        reason: "rollback-incomplete",
+        immutable_head: fixture.newHead,
+        lease_sha256: expect.any(String),
+        observed_artifacts: ["worktree", "registration", "lease"],
+      });
+      await expect(
+        execFileAsync("git", ["-C", fixture.worktree, "rev-parse", "HEAD"]),
+      ).resolves.toMatchObject({ stdout: `${fixture.newHead}\n` });
+      await expect(readFile(fixture.leasePath, "utf8")).resolves.toContain(
+        '"state": "created"',
+      );
+      await expect(
+        readFile(
+          path.join(
+            fixture.repository.physicalRepository,
+            ".ephemeral",
+            fixture.archiveName,
+          ),
+          "utf8",
+        ),
+      ).resolves.toBe(fixture.leaseBytes);
+      await expect(lstat(reservationPath)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      mockedRm.mockImplementation(actualFs.rm);
+      process.chdir(originalCwd);
+      await rm(fixture.repository.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("reports complete evidence when checkout advances then a hook fails", async () => {
+    const fixture = await makeTerminalAdvanceRefusalFixture({
+      canonical: true,
+    });
+    try {
+      const hookPath = path.join(
+        fixture.repository.physicalRepository,
+        ".git",
+        "hooks",
+        "post-checkout",
+      );
+      await writeFile(
+        hookPath,
+        `#!/bin/sh\nrm "$PRIMARY_REPOSITORY_ROOT/.ephemeral/${fixture.archiveName}"\nexit 1\n`,
+      );
+      await chmod(hookPath, 0o755);
+      process.chdir(fixture.repository.physicalRepository);
+      setTerminalAdvanceEnv(
+        fixture.repository.physicalRepository,
+        fixture.newHead,
+      );
+
+      const result = await runPrReviewLeasesCommand(["session-create"]);
+
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        outcome: "manual-cleanup",
+        reason: "rollback-incomplete",
+        immutable_head: fixture.newHead,
+        registration_identity: { worktree_path: fixture.worktree },
+        observed_artifacts: [
+          "reservation",
+          "worktree",
+          "registration",
+          "lease",
+        ],
+      });
+      await expect(
+        execFileAsync("git", ["-C", fixture.worktree, "rev-parse", "HEAD"]),
+      ).resolves.toMatchObject({ stdout: `${fixture.newHead}\n` });
+      await expect(readFile(fixture.leasePath, "utf8")).resolves.toBe(
+        fixture.leaseBytes,
+      );
+      await expect(
+        readFile(
+          path.join(
+            fixture.repository.physicalRepository,
+            ".ephemeral",
+            fixture.archiveName,
+          ),
+          "utf8",
+        ),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(
+        lstat(
+          path.join(
+            fixture.repository.physicalRepository,
+            ".ephemeral/pr-432-session-create-reservation.json",
+          ),
+        ),
+      ).resolves.toMatchObject({ isFile: expect.any(Function) });
+    } finally {
+      process.chdir(originalCwd);
+      await rm(fixture.repository.tempRoot, { recursive: true, force: true });
+    }
   });
 
   it("preserves the published lease when final verification sees a resumed dirty session", async () => {
@@ -6316,6 +7268,187 @@ function abortedCommandLease(
   };
 }
 
+interface TerminalAdvanceRefusalFixture {
+  repository: Awaited<ReturnType<typeof commandHarness.createReviewRepository>>;
+  worktree: string;
+  oldHead: string;
+  newHead: string;
+  leasePath: string;
+  leaseBytes: string;
+  archiveName: string;
+  handoffFile: string;
+  handoffBytes: string;
+}
+
+async function makeTerminalAdvanceRefusalFixture({
+  canonical,
+}: {
+  canonical: boolean;
+}): Promise<TerminalAdvanceRefusalFixture> {
+  const repository = await commandHarness.createReviewRepository();
+  const worktree = canonical
+    ? path.join(repository.physicalRepository, ".worktrees", "pr-432-review")
+    : path.join(repository.tempRoot, "noncanonical-review");
+  await mkdir(path.dirname(worktree), { recursive: true });
+  const { stdout: oldHeadOutput } = await execFileAsync("git", [
+    "-C",
+    repository.physicalRepository,
+    "rev-parse",
+    "HEAD",
+  ]);
+  const oldHead = oldHeadOutput.trim();
+  await writeFile(
+    path.join(repository.physicalRepository, ".git", "info", "exclude"),
+    ".ephemeral/\n",
+  );
+  await execFileAsync("git", [
+    "-C",
+    repository.physicalRepository,
+    "worktree",
+    "add",
+    "--detach",
+    worktree,
+    oldHead,
+  ]);
+  const physicalWorktree = await realpath(worktree);
+  await mkdir(path.join(physicalWorktree, ".ephemeral"), { recursive: true });
+  const worktreeDigest = discoveryWorktreeDigest(physicalWorktree);
+  const leaseFile = `.ephemeral/pr-432-${worktreeDigest}-lease.json`;
+  const handoffFile = ".ephemeral/pr-432-retained-handoff.json";
+  const lease = abortedCommandLease(
+    leaseFile,
+    physicalWorktree,
+    worktreeDigest,
+  );
+  lease.artifacts.handoff_file = handoffFile;
+  const leaseBytes = `${JSON.stringify(lease, null, 2)}\n`;
+  const handoffBytes = `${JSON.stringify({ repository: "owner/repo", pr_number: 432, base_ref: "main", head_ref: "topic" })}\n`;
+  await writeFile(
+    path.join(repository.physicalRepository, leaseFile),
+    leaseBytes,
+  );
+  await writeFile(path.join(physicalWorktree, handoffFile), handoffBytes);
+  await writeFile(
+    path.join(repository.physicalRepository, "next.txt"),
+    "next\n",
+  );
+  await execFileAsync("git", [
+    "-C",
+    repository.physicalRepository,
+    "add",
+    "next.txt",
+  ]);
+  await execFileAsync("git", [
+    "-C",
+    repository.physicalRepository,
+    "commit",
+    "-m",
+    "next head",
+  ]);
+  const { stdout: newHeadOutput } = await execFileAsync("git", [
+    "-C",
+    repository.physicalRepository,
+    "rev-parse",
+    "HEAD",
+  ]);
+  return {
+    repository,
+    worktree: physicalWorktree,
+    oldHead,
+    newHead: newHeadOutput.trim(),
+    leasePath: path.join(repository.physicalRepository, leaseFile),
+    leaseBytes,
+    archiveName: `pr-432-${worktreeDigest}-20260611T000100-aborted-archived-lease.json`,
+    handoffFile,
+    handoffBytes,
+  };
+}
+
+async function addAmbiguousTerminalCandidate(
+  fixture: TerminalAdvanceRefusalFixture,
+): Promise<void> {
+  const worktree = path.join(fixture.repository.tempRoot, "second-review");
+  await execFileAsync("git", [
+    "-C",
+    fixture.repository.physicalRepository,
+    "worktree",
+    "add",
+    "--detach",
+    worktree,
+    fixture.oldHead,
+  ]);
+  const worktreeDigest = discoveryWorktreeDigest(worktree);
+  const leaseFile = `.ephemeral/pr-432-${worktreeDigest}-lease.json`;
+  await writeFile(
+    path.join(fixture.repository.physicalRepository, leaseFile),
+    `${JSON.stringify(
+      abortedCommandLease(leaseFile, worktree, worktreeDigest),
+      null,
+      2,
+    )}\n`,
+  );
+}
+
+function setTerminalAdvanceEnv(primaryRoot: string, headSha: string): void {
+  Object.assign(process.env, {
+    REPOSITORY: "owner/repo",
+    PR_NUMBER: "432",
+    PRIMARY_REPOSITORY_ROOT: primaryRoot,
+    HEAD_SHA: headSha,
+    BASE_REF: "main",
+    HEAD_REF: "topic",
+    UPDATED_AT: "2026-07-31T00:00:00Z",
+    ALLOW_TERMINAL_ADVANCE: "yes",
+  });
+}
+
+async function expectTerminalAdvanceUnchanged(
+  fixture: TerminalAdvanceRefusalFixture,
+  result: Awaited<ReturnType<typeof runPrReviewLeasesCommand>>,
+  error?: string,
+  expectedLeaseBytes = fixture.leaseBytes,
+  registered = true,
+): Promise<void> {
+  if (error !== undefined) {
+    expect(result).toEqual({ exitCode: 1, stdout: "", stderr: `${error}\n` });
+  } else {
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      outcome: "conflict",
+      reason: "discovery-not-create",
+    });
+  }
+  await expect(readFile(fixture.leasePath, "utf8")).resolves.toBe(
+    expectedLeaseBytes,
+  );
+  await expect(
+    readdir(path.join(fixture.repository.physicalRepository, ".ephemeral")),
+  ).resolves.not.toContain(fixture.archiveName);
+  await expect(
+    lstat(
+      path.join(
+        fixture.repository.physicalRepository,
+        ".ephemeral/pr-432-session-create-reservation.json",
+      ),
+    ),
+  ).rejects.toMatchObject({ code: "ENOENT" });
+  if (!registered) return;
+  const [{ stdout: head }, { stdout: registrations }] = await Promise.all([
+    execFileAsync("git", ["-C", fixture.worktree, "rev-parse", "HEAD"]),
+    execFileAsync("git", [
+      "-C",
+      fixture.repository.physicalRepository,
+      "worktree",
+      "list",
+      "--porcelain",
+    ]),
+  ]);
+  expect(head.trim()).toBe(fixture.oldHead);
+  expect(registrations).toContain(`worktree ${fixture.worktree}\n`);
+  await expect(
+    readFile(path.join(fixture.worktree, fixture.handoffFile), "utf8"),
+  ).resolves.toBe(fixture.handoffBytes);
+}
+
 function postedCommandLease({
   leaseFile,
   worktreePath,
@@ -6475,9 +7608,10 @@ async function writeResultArtifact(
     | "preview-current"
     | "edited" = "preview-current",
   includeSharedContext = false,
+  findingsBranch = "review-topic",
 ): Promise<{ findingsFile: string }> {
   const handoffFile = `.ephemeral/pr-432-${reviewHead}-handoff.json`;
-  const findingsFile = `.ephemeral/review-topic-${reviewHead}-findings.json`;
+  const findingsFile = `.ephemeral/${findingsBranch}-${reviewHead}-findings.json`;
   const reviewBodyFile = `.ephemeral/pr-432-${reviewHead}-review-body.md`;
   const scopeDecisionFile = ".ephemeral/review-topic-scope-decision.json";
   const providerScopeEvidenceFile = `.ephemeral/review-topic-${reviewHead}-provider-scope-evidence.json`;

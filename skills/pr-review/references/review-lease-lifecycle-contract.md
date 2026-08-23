@@ -76,12 +76,32 @@ return through review discovery or a fresh approval path before posting.
 
 ## Session creation boundary
 
-`session-create` is private transaction state around a fresh LC-01 write, not
-an LC-01 field, transition, or cleanup authority. The runtime alone may create
-its direct-child reservation, canonical detached worktree, and initial
-no-clobber lease. Its `manual-cleanup` outcome preserves invocation evidence
-only; it grants no lifecycle cleanup, stale-reclaim, or alternate-owner
-deletion authority. LC-18 remains outside this command.
+`session-create` is private transaction state around session creation, not an
+LC-01 field, transition, or cleanup authority. Its default is unchanged: the
+runtime alone may create its direct-child reservation, canonical detached
+worktree, and initial no-clobber fresh LC-01 lease. With exact optional
+`ALLOW_TERMINAL_ADVANCE=yes`, it may perform LC-18 only for one present,
+registered, clean, managed canonical `posted` or `aborted` lease at a different
+provider-verified head. It revalidates and reserves, archives the exact old
+terminal bytes, advances that same detached worktree path, publishes a fresh
+`created` lease, clears all prior artifact, validation, presentation, terminal,
+failure, GitHub, and cleanup authority, removes only unchanged old
+lease-owned direct-child artifacts absent from the target tree, verifies the
+fresh session, then removes the reservation. This is the closed LC-18 exception;
+no other opt-in value is valid.
+Its `manual-cleanup` outcome preserves invocation evidence only; it grants no
+lifecycle cleanup, stale-reclaim, or alternate-owner deletion authority.
+
+Before head advancement, any eligibility, inspection, lease/archive, or
+reservation refusal preserves the old head, lease, registration, and artifacts.
+This includes a lease-owned direct-child artifact tracked at the old head,
+which returns `conflict: discovery-not-create` before archive creation or
+checkout. After advancement, no rollback is claimed: any incomplete
+archive/publication, artifact-removal, final verification, or reservation
+removal returns the existing `manual-cleanup` result with
+`rollback-incomplete`, preserves any still-present invocation-owned reservation
+and observable evidence, reports current observed artifacts truthfully, and
+grants no continuation.
 
 ### Operating model and guarantees
 
@@ -91,14 +111,14 @@ the platform boundary in `docs/specs/platform.md`. Its guarantees are closed:
 - **SC-01 — Exclusive reservation:** one direct-child reservation is acquired
   exclusively and verified before worktree mutation. Existing or unverifiable
   reservation evidence is preserved and never reclaimed by age or inference.
-- **SC-02 — Canonical worktree:** the transaction creates and verifies one
-  canonical detached worktree at the immutable provider head before lease
-  publication.
-- **SC-03 — No-clobber LC-01 publication:** the exact fresh LC-01 bytes are
-  published without overwriting an existing lease. Successful publication is
-  the transaction commit boundary; later failures preserve the discoverable
-  lease.
-- **SC-04 — Final verification:** success is returned only after worktree,
+- **SC-02 — Default canonical worktree:** the default fresh LC-01 route
+  creates and verifies one canonical detached worktree at the immutable
+  provider head before lease publication.
+- **SC-03 — Default no-clobber LC-01 publication:** the default fresh route
+  publishes the exact LC-01 bytes without overwriting an existing lease.
+  Successful publication is its transaction commit boundary; later failures
+  preserve the discoverable lease.
+- **SC-04 — Final verification:** either successful route returns only after worktree,
   registration, repository, head, lease, and discovery identity verify as one
   session.
 - **SC-05 — Invocation-owned recovery:** before the commit boundary, complete
@@ -108,6 +128,14 @@ the platform boundary in `docs/specs/platform.md`. Its guarantees are closed:
 - **SC-06 — Crash retention:** evidence retained by a crash or incomplete
   recovery blocks later creation. The transaction performs no automatic stale
   reclamation.
+- **SC-07 — Opted terminal advance:** with exact opt-in, only the eligible
+  terminal candidate may reuse its verified detached canonical worktree. Its
+  validated terminal bytes are archived before advancement; a tracked
+  old-head artifact refuses before that archive or checkout. A fresh LC-18
+  lease has cleared authority and old owned artifacts are preflighted before
+  removal. Any post-advance incompleteness preserves still-present owned
+  evidence and reports it through the existing
+  `manual-cleanup: rollback-incomplete` result.
 
 The source-owned command contract remains closed. Required inputs are
 `REPOSITORY`, `PR_NUMBER`, `PRIMARY_REPOSITORY_ROOT`, `HEAD_SHA`, `BASE_REF`,
