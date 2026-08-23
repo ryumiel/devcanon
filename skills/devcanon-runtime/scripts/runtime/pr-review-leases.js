@@ -303,7 +303,7 @@ async function sessionCreateTerminalAdvance({ identity, headSha, baseRef, headRe
         return sessionCreateManualCleanup("reservation-unverifiable", reservation, null, null, ["reservation"]);
     }
     let registration = null;
-    let advanced = false;
+    const observed = ["reservation"];
     let published = false;
     try {
         const revalidated = await terminalAdvanceCandidate(identity, await discoverReviewSession(), commonGitDirectory, headSha);
@@ -337,12 +337,12 @@ async function sessionCreateTerminalAdvance({ identity, headSha, baseRef, headRe
                 "-C",
                 candidate.worktreePath,
                 "checkout",
+                "--no-overwrite-ignore",
                 "--detach",
                 headSha,
             ]);
         }
         catch {
-            const observed = ["reservation"];
             try {
                 if (await pathExists(candidate.worktreePath)) {
                     observed.push("worktree");
@@ -360,29 +360,30 @@ async function sessionCreateTerminalAdvance({ identity, headSha, baseRef, headRe
             }
             return terminalAdvanceManualCleanup(reservation, registration, null, observed);
         }
-        advanced = true;
+        if (await pathExists(candidate.worktreePath)) {
+            observed.push("worktree");
+        }
         registration = await verifyCreatedSessionWorktree(identity.primaryRoot, candidate.worktreePath, commonGitDirectory, headSha);
+        if (registration !== null) {
+            observed.push("registration");
+        }
+        if (await pathExists(path.join(identity.primaryRoot, candidate.leaseFile))) {
+            observed.push("lease");
+        }
         if (registration === null) {
-            return terminalAdvanceManualCleanup(reservation, null, null, [
-                "reservation",
-                "worktree",
-                "registration",
-                "lease",
-            ]);
+            return terminalAdvanceManualCleanup(reservation, null, null, observed);
         }
         await assertWritableDirectChild(identity.primaryRoot, candidate.leaseFile, "lease");
         if (!(await directSessionLeaseMatches(identity.primaryRoot, candidate.leaseFile, candidate.leaseBytes, sha256Text(candidate.leaseBytes)))) {
-            return terminalAdvanceManualCleanup(reservation, registration, null, [
-                "reservation",
-                "worktree",
-                "registration",
-                "lease",
-            ]);
+            return terminalAdvanceManualCleanup(reservation, registration, null, observed);
+        }
+        if (!(await directSessionLeaseMatches(identity.primaryRoot, archive, candidate.leaseBytes, sha256Text(candidate.leaseBytes)))) {
+            return terminalAdvanceManualCleanup(reservation, registration, null, observed);
         }
         await writeTextAtomically(path.join(identity.primaryRoot, candidate.leaseFile), leaseBytes);
         published = true;
         if (!(await removeTerminalArtifacts(candidate.worktreePath, snapshots))) {
-            return terminalAdvanceManualCleanup(reservation, registration, leaseSha256, ["reservation", "worktree", "registration", "lease"]);
+            return terminalAdvanceManualCleanup(reservation, registration, leaseSha256, observed);
         }
         if (!(await verifySessionCreateFinalState({
             identity,
@@ -395,14 +396,12 @@ async function sessionCreateTerminalAdvance({ identity, headSha, baseRef, headRe
         })) ||
             !(await directSessionLeaseMatches(identity.primaryRoot, archive, candidate.leaseBytes, sha256Text(candidate.leaseBytes))) ||
             !(await removeOwnedReservation(identity.primaryRoot, reservationFile, reservation, reservationBytes))) {
-            return terminalAdvanceManualCleanup(reservation, registration, leaseSha256, ["reservation", "worktree", "registration", "lease"]);
+            return terminalAdvanceManualCleanup(reservation, registration, leaseSha256, observed);
         }
         return sessionCreateSuccess(identity, commonGitDirectory, candidate.worktreePath, headSha, candidate.leaseFile, leaseSha256);
     }
     catch {
-        return terminalAdvanceManualCleanup(reservation, registration, published ? leaseSha256 : null, advanced
-            ? ["reservation", "worktree", "registration", "lease"]
-            : ["reservation"]);
+        return terminalAdvanceManualCleanup(reservation, registration, published ? leaseSha256 : null, observed);
     }
 }
 async function terminalAdvancePreAdvanceResult(primaryRoot, reservationFile, reservation, reservationBytes) {
