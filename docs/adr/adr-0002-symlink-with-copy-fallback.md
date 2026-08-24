@@ -14,6 +14,9 @@ the source library into user home directories (`~/.claude/`, `~/.codex/`,
 - cross-platform support (macOS, Linux, Windows)
 - safe coexistence with unmanaged files in target directories
 
+Codex requires user-defined role TOML files to be regular files and rejects
+symlinked role files.
+
 ## Decision
 
 Default requested install mode is `symlink`. Symlinks point from the install
