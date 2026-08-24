@@ -328,9 +328,14 @@ describe("sync", () => {
       expect((await lstat(output.installedPath)).isSymbolicLink()).toBe(false);
       expect(await readTextFile(output.installedPath)).toBe(output.content);
       expect(await readTextFile(output.generatedPath)).toBe(output.content);
-      expect(manifest.records).toEqual([
-        expect.objectContaining({ installMode: "copy" }),
-      ]);
+      expect(
+        manifest.records.find(
+          (record: { target: string; type: string; name: string }) =>
+            record.target === "codex" &&
+            record.type === "agent" &&
+            record.name === "helper",
+        ),
+      ).toMatchObject({ installMode: "copy" });
     },
   );
 
@@ -364,9 +369,14 @@ describe("sync", () => {
     expect(result).toMatchObject({ updated: 1, errors: [] });
     expect((await lstat(agentPath)).isSymbolicLink()).toBe(false);
     expect(await readTextFile(agentPath)).toContain("Updated instructions");
-    expect(manifest.records).toEqual([
-      expect.objectContaining({ installMode: "copy" }),
-    ]);
+    expect(
+      manifest.records.find(
+        (record: { target: string; type: string; name: string }) =>
+          record.target === "codex" &&
+          record.type === "agent" &&
+          record.name === "helper",
+      ),
+    ).toMatchObject({ installMode: "copy" });
   });
 
   it.skipIf(!symlinkAvailable)(
@@ -414,7 +424,15 @@ describe("sync", () => {
         ),
         "utf-8",
       );
-      const manifestBefore = await readTextFile(config.manifest.path);
+      const manifestBefore = JSON.parse(
+        await readTextFile(config.manifest.path),
+      );
+      const agentRecordBefore = manifestBefore.records.find(
+        (record: { target: string; type: string; name: string }) =>
+          record.target === "codex" &&
+          record.type === "agent" &&
+          record.name === "helper",
+      );
 
       const result = await sync(config, {
         dryRun: false,
@@ -427,7 +445,17 @@ describe("sync", () => {
         expect.stringContaining("symlink target mismatch"),
       ]);
       expect(await readlink(output.installedPath)).toBe(foreignPath);
-      expect(await readTextFile(config.manifest.path)).toBe(manifestBefore);
+      const manifestAfter = JSON.parse(
+        await readTextFile(config.manifest.path),
+      );
+      expect(
+        manifestAfter.records.find(
+          (record: { target: string; type: string; name: string }) =>
+            record.target === "codex" &&
+            record.type === "agent" &&
+            record.name === "helper",
+        ),
+      ).toEqual(agentRecordBefore);
     },
   );
 

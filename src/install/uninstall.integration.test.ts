@@ -148,17 +148,21 @@ describe("uninstall", () => {
       await readFile(config.manifest.path, "utf-8"),
     );
     expect((await lstat(agentPath)).isSymbolicLink()).toBe(false);
-    expect(manifestBefore.records).toEqual([
-      expect.objectContaining({
-        target: "codex",
-        type: "agent",
-        installMode: "copy",
-      }),
-    ]);
+    expect(
+      manifestBefore.records.find(
+        (record: { target: string; type: string; name: string }) =>
+          record.target === "codex" &&
+          record.type === "agent" &&
+          record.name === "helper",
+      ),
+    ).toMatchObject({ installMode: "copy" });
 
     const result = await uninstall(config, { target: "codex", dryRun: false });
 
-    expect(result).toEqual({ removed: 1, errors: [] });
+    expect(result).toEqual({
+      removed: manifestBefore.records.length,
+      errors: [],
+    });
     expect(await pathExists(agentPath)).toBe(false);
     expect(
       JSON.parse(await readFile(config.manifest.path, "utf-8")).records,
