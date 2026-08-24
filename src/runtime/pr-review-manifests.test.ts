@@ -452,6 +452,7 @@ describe("pr-review Phase 5 audit summary renderer", () => {
       expect(result.exitCode, result.stderr).toBe(0);
       expect(result.stdout).toContain("## Phase 5 Artifact Audit Summary");
       expect(result.stdout).toContain("### Review scope");
+      expect(result.stdout).toContain("Repository and PR: `owner/repo#432`");
       expect(result.stdout).toContain("Base/head refs: `main` -> `topic`");
       expect(result.stdout).toContain(
         `Active diff range: \`${workspace.baseSha}..${workspace.headSha}\``,
@@ -466,15 +467,22 @@ describe("pr-review Phase 5 audit summary renderer", () => {
       expect(result.stdout).toContain(
         `Finding counts: \`${findings.length}\` active, \`${carryForward.length}\` carry-forward`,
       );
-      expect(result.stdout).toContain("Result artifacts:");
-      expect(result.stdout).toContain("Validation status: result `valid`");
-      expect(result.stdout).toContain("lease result digest");
+      expect(result.stdout).toContain(
+        `Result artifacts: handoff \`.ephemeral/pr-432-${workspace.headSha}-handoff.json\`, scope \`.ephemeral/topic-${workspace.headSha}-scope-decision.json\`, prior threads \`none\`, review body \`${workspace.reviewBodyFile}\`, context \`none\`, rendered preview \`.ephemeral/topic-${workspace.headSha}-review-preview.md\``,
+      );
+      expect(result.stdout).toContain(
+        `Validation status: result \`valid\`; findings validated \`true\`; scope validated \`true\`; lease result digest \`${workspace.resultSha256}\`; lease validated at \`2026-06-11T00:02:00Z\``,
+      );
       expect(result.stdout).toContain("### Presentation and lifecycle");
-      expect(result.stdout).toContain("Lease/worktree status: lease `gated`");
-      expect(result.stdout).toContain("dirty `true`");
+      expect(result.stdout).toContain(
+        "Presentation status: result `preview-current`; lease `preview-current`; presented at `2026-06-11T00:02:00Z`",
+      );
+      expect(result.stdout).toContain(
+        `Lease/worktree status: lease \`gated\`; worktree \`${workspace.physicalWorktree}\`; digest \`${workspace.worktreeDigest}\`; exists \`true\`; registered \`true\`; dirty \`true\`; identity match \`true\``,
+      );
       expect(result.stdout).toContain("### Cleanup");
       expect(result.stdout).toContain(
-        "Cleanup note: lease-gated cleanup pending",
+        "Cleanup note: lease-gated cleanup pending; cleanup not attempted in Phase 5.",
       );
       expect(result.stdout).not.toContain("Reviewed head SHA:");
       expect(result.stdout).not.toContain("Findings file:");
