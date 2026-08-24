@@ -10,7 +10,7 @@ Managed outputs (skills and rendered agent files) need to be installed from
 the source library into user home directories (`~/.claude/`, `~/.codex/`,
 `~/.agents/`). The install mechanism must handle:
 
-- live updates when source files change
+- live updates when linked generated outputs change
 - cross-platform support (macOS, Linux, Windows)
 - safe coexistence with unmanaged files in target directories
 
@@ -35,7 +35,7 @@ outputs.
   for symlinked outputs without re-copying.
 - Copied outputs, including Codex user agent roles, require `sync` after
   generated-output changes to propagate updates.
-- On Windows, copied fallback outputs likewise require `sync` after source
+- On Windows, copied fallback outputs likewise require `sync` after linked
   generated-output changes.
 - The manifest tracks the actual install mode per output so the tool can clean
   up or update each managed file.
