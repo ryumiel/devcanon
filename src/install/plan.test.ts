@@ -93,6 +93,44 @@ describe("computePlan", () => {
     expect(actions[0].kind).toBe("skip-up-to-date");
   });
 
+  it("outputs update when a managed Codex agent mode differs from its effective mode", async () => {
+    mockedPathExists.mockResolvedValue(true);
+    const output = makeOutput({
+      target: "codex",
+      generatedPath: "/gen/codex/agents/test-agent.toml",
+      installedPath: "/installed/test-agent.toml",
+      contentHash: "same-hash",
+    });
+    const manifest = makeManifest([
+      {
+        target: "codex",
+        type: "agent",
+        sourcePath: output.sourcePath,
+        generatedPath: output.generatedPath,
+        installedPath: output.installedPath,
+        installMode: "symlink",
+        contentHash: "same-hash",
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+
+    const actions = await computePlan(
+      [output],
+      manifest,
+      "overwrite-managed",
+      false,
+      false,
+      undefined,
+      { claude: "symlink", codex: "symlink" },
+    );
+
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toMatchObject({
+      kind: "update",
+      reason: "Install mode changed since last sync.",
+    });
+  });
+
   it("outputs update when hash differs from manifest", async () => {
     mockedPathExists.mockResolvedValue(true);
     const output = makeOutput({ contentHash: "new-hash" });

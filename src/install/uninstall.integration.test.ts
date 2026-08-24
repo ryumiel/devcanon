@@ -127,6 +127,42 @@ describe("uninstall", () => {
     ).toBe(agentSourceContent);
   });
 
+  it("removes a copied Codex agent using its recorded copy identity", async () => {
+    const config = makeResolvedConfig(tempDir, {
+      claude: { enabled: false },
+      codex: { installMode: "symlink" },
+    });
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    await createAgentFixture(
+      config.library.agentsDir,
+      "helper",
+      makeAgentYaml("helper"),
+    );
+
+    await sync(config, { dryRun: false, force: false, strict: false });
+    const agentPath = path.join(config.targets.codex.agentsHome, "helper.toml");
+    const manifestBefore = JSON.parse(
+      await readFile(config.manifest.path, "utf-8"),
+    );
+    expect((await lstat(agentPath)).isSymbolicLink()).toBe(false);
+    expect(manifestBefore.records).toEqual([
+      expect.objectContaining({
+        target: "codex",
+        type: "agent",
+        installMode: "copy",
+      }),
+    ]);
+
+    const result = await uninstall(config, { target: "codex", dryRun: false });
+
+    expect(result).toEqual({ removed: 1, errors: [] });
+    expect(await pathExists(agentPath)).toBe(false);
+    expect(
+      JSON.parse(await readFile(config.manifest.path, "utf-8")).records,
+    ).toEqual([]);
+  });
+
   it("dry-run prints the plan and makes no changes", async () => {
     const config = makeResolvedConfig(tempDir);
     await mkdir(config.library.skillsDir, { recursive: true });
