@@ -25,6 +25,10 @@ import {
 import { PrReviewCommandHarness } from "../__test-helpers__/pr-review-command-harness.js";
 
 const originalCwd = process.cwd();
+const reviewArtifactsHelper = path.join(
+  originalCwd,
+  "skills/play-review/scripts/review-artifacts.sh",
+);
 const managedEnvKeys = [
   "REPOSITORY",
   "PR_NUMBER",
@@ -419,7 +423,29 @@ describe("pr-review Phase 5 audit summary renderer", () => {
         carryForward,
       );
       setSummaryEnv(workspace);
+      process.env.PLAY_REVIEW_HELPER = reviewArtifactsHelper;
       process.chdir(workspace.tempRoot);
+
+      const preview = await commandHarness.run(
+        "bash",
+        [reviewArtifactsHelper, "render-review-preview"],
+        {
+          cwd: workspace.worktree,
+          env: {
+            ...process.env,
+            HEAD_SHA: workspace.headSha,
+            FINDINGS_FILE: workspace.findingsFile,
+            REVIEW_SURFACE: "pr-review",
+            REVIEW_BODY_FILE: workspace.reviewBodyFile,
+          },
+        },
+      );
+
+      expect(preview.stdout).toContain("# Review Preview");
+      if (findings.length + carryForward.length > 0) {
+        expect(preview.stdout).toContain("- **Path:** README.md");
+        expect(preview.stdout).toContain("baseline");
+      }
 
       const result = await runManifestCommand(["render-phase5-audit-summary"]);
 
@@ -2262,8 +2288,8 @@ function auditFinding(id: string, title: string): Record<string, unknown> {
   return {
     id,
     title,
-    path: "src/review-target.ts",
-    line: 4,
+    path: "README.md",
+    line: 1,
     start_line: null,
     severity: "Blocking",
     category: "Tests",
