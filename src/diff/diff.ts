@@ -1,4 +1,4 @@
-import { realpath } from "node:fs/promises";
+import { lstat, realpath } from "node:fs/promises";
 import { createTwoFilesPatch } from "diff";
 import type { ResolvedConfig } from "../config/schema.js";
 import {
@@ -6,6 +6,7 @@ import {
   normalizeManifestIdentity,
 } from "../install/manifest-identity.js";
 import { loadManifestWithSnapshot } from "../install/manifest.js";
+import { resolveEffectiveInstallMode } from "../install/mode.js";
 import type { DiffResult } from "../models/types.js";
 import { renderAll } from "../render/pipeline.js";
 import { UserError } from "../utils/errors.js";
@@ -56,7 +57,12 @@ export async function diffAll(
   for (const output of outputs) {
     if (output.type === "agent") {
       results.push(
-        await diffAgentFile(output.content, output, manifest.records),
+        await diffAgentFile(
+          output.content,
+          output,
+          manifest.records,
+          config.targets[output.target].installMode,
+        ),
       );
     } else if (output.type === "skill") {
       // For skills, just check if installed and hash matches
@@ -187,7 +193,9 @@ async function diffAgentFile(
     type: string;
     name?: string;
     installedPath: string;
+    installMode: "symlink" | "copy";
   }>,
+  requestedMode: "symlink" | "copy",
 ): Promise<DiffResult> {
   const exists = await pathExists(output.installedPath);
   if (!exists) {
@@ -213,6 +221,29 @@ async function diffAgentFile(
       installedPath: output.installedPath,
       diff: null,
     };
+  }
+
+  const expectedMode = resolveEffectiveInstallMode(
+    output.target as "claude" | "codex",
+    output.type as "skill" | "agent",
+    requestedMode,
+  );
+  if (
+    output.target === "codex" &&
+    output.type === "agent" &&
+    expectedMode === "copy"
+  ) {
+    const installedStat = await lstat(output.installedPath);
+    if (record.installMode !== expectedMode || !installedStat.isFile()) {
+      return {
+        status: "changed",
+        target: "codex",
+        type: "agent",
+        name: output.name,
+        installedPath: output.installedPath,
+        diff: "Managed Codex agent must be installed as a regular file in copy mode.",
+      };
+    }
   }
 
   let resolvedPath: string;

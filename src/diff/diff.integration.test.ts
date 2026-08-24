@@ -357,6 +357,152 @@ describe("diffAll integration", () => {
     expect(result?.diff).toBeNull();
   });
 
+  it.skipIf(!symlinkAvailable)(
+    "reports a content-equivalent managed Codex agent symlink as changed",
+    async () => {
+      await createAgentFixture(
+        config.library.agentsDir,
+        "test-agent",
+        makeAgentYaml("test-agent", { description: "A test agent" }),
+      );
+
+      const { outputs } = await renderAll(config, false, false, "codex");
+      const codexAgent = outputs.find(
+        (output) =>
+          output.target === "codex" &&
+          output.type === "agent" &&
+          output.name === "test-agent",
+      );
+      expect(codexAgent).toBeDefined();
+      if (!codexAgent || codexAgent.type !== "agent") {
+        throw new Error(
+          "internal: expected rendered Codex agent for 'test-agent'",
+        );
+      }
+
+      const targetPath = path.join(tempDir, "codex-agent-target.toml");
+      await writeFile(targetPath, codexAgent.content, "utf-8");
+      await symlink(targetPath, codexAgent.installedPath, "file");
+      await writeAgentManifest(codexAgent);
+
+      const results = await diffAll(config, "codex");
+      const result = results.find(
+        (entry) =>
+          entry.target === "codex" &&
+          entry.type === "agent" &&
+          entry.name === "test-agent",
+      );
+      expect(result?.status).toBe("changed");
+      expect(result?.diff).toContain("regular file");
+    },
+  );
+
+  it("reports a managed Codex agent with a non-copy record as changed", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "test-agent",
+      makeAgentYaml("test-agent", { description: "A test agent" }),
+    );
+
+    const { outputs } = await renderAll(config, false, false, "codex");
+    const codexAgent = outputs.find(
+      (output) =>
+        output.target === "codex" &&
+        output.type === "agent" &&
+        output.name === "test-agent",
+    );
+    expect(codexAgent).toBeDefined();
+    if (!codexAgent || codexAgent.type !== "agent") {
+      throw new Error(
+        "internal: expected rendered Codex agent for 'test-agent'",
+      );
+    }
+
+    await writeFile(codexAgent.installedPath, codexAgent.content, "utf-8");
+    await writeAgentManifest(codexAgent, { installMode: "symlink" });
+
+    const results = await diffAll(config, "codex");
+    const result = results.find(
+      (entry) =>
+        entry.target === "codex" &&
+        entry.type === "agent" &&
+        entry.name === "test-agent",
+    );
+    expect(result?.status).toBe("changed");
+    expect(result?.diff).toContain("copy mode");
+  });
+
+  it("keeps a matching regular copied Codex agent up-to-date", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "test-agent",
+      makeAgentYaml("test-agent", { description: "A test agent" }),
+    );
+
+    const { outputs } = await renderAll(config, false, false, "codex");
+    const codexAgent = outputs.find(
+      (output) =>
+        output.target === "codex" &&
+        output.type === "agent" &&
+        output.name === "test-agent",
+    );
+    expect(codexAgent).toBeDefined();
+    if (!codexAgent || codexAgent.type !== "agent") {
+      throw new Error(
+        "internal: expected rendered Codex agent for 'test-agent'",
+      );
+    }
+
+    await writeFile(codexAgent.installedPath, codexAgent.content, "utf-8");
+    await writeAgentManifest(codexAgent);
+
+    const results = await diffAll(config, "codex");
+    const result = results.find(
+      (entry) =>
+        entry.target === "codex" &&
+        entry.type === "agent" &&
+        entry.name === "test-agent",
+    );
+    expect(result?.status).toBe("up-to-date");
+    expect(result?.diff).toBeNull();
+  });
+
+  it("keeps content differences for regular copied Codex agents", async () => {
+    await createAgentFixture(
+      config.library.agentsDir,
+      "test-agent",
+      makeAgentYaml("test-agent", { description: "A test agent" }),
+    );
+
+    const { outputs } = await renderAll(config, false, false, "codex");
+    const codexAgent = outputs.find(
+      (output) =>
+        output.target === "codex" &&
+        output.type === "agent" &&
+        output.name === "test-agent",
+    );
+    expect(codexAgent).toBeDefined();
+    if (!codexAgent || codexAgent.type !== "agent") {
+      throw new Error(
+        "internal: expected rendered Codex agent for 'test-agent'",
+      );
+    }
+
+    await writeFile(codexAgent.installedPath, "outdated = true\n", "utf-8");
+    await writeAgentManifest(codexAgent);
+
+    const results = await diffAll(config, "codex");
+    const result = results.find(
+      (entry) =>
+        entry.target === "codex" &&
+        entry.type === "agent" &&
+        entry.name === "test-agent",
+    );
+    expect(result?.status).toBe("changed");
+    expect(result?.diff).toContain("---");
+    expect(result?.diff).toContain("+++");
+  });
+
   it("reports agent as changed with unified diff when installed content differs", async () => {
     await createAgentFixture(
       config.library.agentsDir,
