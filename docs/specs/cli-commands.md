@@ -243,7 +243,7 @@ Behavior:
 - Manifest-driven: only paths recorded in `manifest.json` are removed.
 - Source files under `skills/` and `agents/` are never touched.
 - Uninstall is source-independent and does not validate the fixed passive
-  runtime support bundle.
+  runtime support bundle from the source library.
 - `--target` filters by Claude or Codex; default is all targets.
 - `--dry-run` previews the plan without filesystem or manifest writes.
 - An accepted or recovered-clean empty manifest (or empty filtered set) prints

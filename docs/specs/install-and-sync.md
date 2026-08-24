@@ -208,7 +208,7 @@ unchanged unless another check independently reports an error.
 
 After its accepted manifest identity checks, `diff` validates the fixed passive
 runtime support bundle through its read-only source-driven render projection.
-`uninstall` remains source-independent and does not validate that bundle.
+`uninstall` remains source-independent and does not validate the source bundle.
 
 ### Managed component collisions
 
@@ -386,7 +386,7 @@ manifest. The command is symmetric to `sync` for tool retirement and
 target wipes.
 
 Uninstall is source-independent: it does not validate or otherwise read the
-fixed passive runtime support bundle.
+fixed passive runtime support bundle from the source library.
 
 Behavior:
 

@@ -141,7 +141,7 @@ validates the fixed passive runtime support bundle before non-dry manifest
 recovery, normalization or binding, rendering, or installed-output mutation.
 `diff` likewise inspects the manifest before its read-only source-driven render
 validates the bundle. `uninstall` remains source-independent and does not
-validate the bundle.
+validate the source bundle.
 
 ## Node.js Runtime Requirement
 
