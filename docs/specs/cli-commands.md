@@ -96,7 +96,7 @@ devcanon validate
 Current behavior:
 
 - after config validation, the fixed passive runtime bundle is validated before
-  declaration-bearing source skills; it is reported separately and is not
+  declaration-bearing source skills; it is validated separately and is not
   included in the source-skill count
 - version 1 config fails with a dedicated migration diagnostic; version 2
   `modelTiers` fails with a dedicated `capabilityProfiles` replacement
