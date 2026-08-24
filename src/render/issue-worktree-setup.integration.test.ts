@@ -11,7 +11,7 @@ import { pathExists } from "../utils/fs.js";
 import { renderAll } from "./pipeline.js";
 
 describe("issue-worktree-setup render packaging", () => {
-  it("mirrors the setup-worktree helper scripts byte-for-byte", async () => {
+  it("normalizes only the setup-worktree shell helper's CRLF pairs", async () => {
     const rootDir = await createTempDir();
     try {
       const repoRoot = process.cwd();
@@ -80,7 +80,9 @@ describe("issue-worktree-setup render packaging", () => {
 
           expect(await pathExists(generatedScriptPath)).toBe(true);
           expect(await readFile(generatedScriptPath, "utf-8")).toBe(
-            sourceScript,
+            scriptName.endsWith(".sh")
+              ? sourceScript.replaceAll("\r\n", "\n")
+              : sourceScript,
           );
         }
       }
