@@ -81,7 +81,7 @@ not require the installed `devcanon` CLI.
 - Failure behavior becomes directly testable with isolated fixtures.
 - Skill bundles remain self-contained under the existing render and sync model.
 - Shared utility extraction is governed by ADR-0024 for helpers that opt into
-  the shared support skill runtime.
+  the passive runtime support bundle.
 - Play review artifact validation has one named support-skill owner rather than
   duplicated PR-review and branch-review script policy.
 - The architecture overview remains unchanged for this decision because the
