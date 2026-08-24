@@ -51,7 +51,7 @@ describe("validateAction", () => {
     });
 
     await expect(validateAction({}, makeCommand())).rejects.toThrow(
-      /support skill is missing/i,
+      /passive runtime support bundle devcanon-runtime is missing/i,
     );
   });
 

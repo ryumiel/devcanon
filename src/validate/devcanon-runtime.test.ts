@@ -81,7 +81,7 @@ describe("devcanon-runtime source validation", () => {
 
     await expect(renderAll(config, true)).rejects.toThrow(UserError);
     await expect(renderAll(config, true)).rejects.toThrow(
-      /support skill is incomplete/i,
+      /passive runtime support bundle devcanon-runtime is incomplete/i,
     );
     expect(await pathExists(sentinel)).toBe(true);
   });
@@ -101,7 +101,7 @@ describe("devcanon-runtime source validation", () => {
 
     await expect(renderAll(config, true)).rejects.toThrow(UserError);
     await expect(renderAll(config, true)).rejects.toThrow(
-      /support skill is incomplete/i,
+      /passive runtime support bundle devcanon-runtime is incomplete/i,
     );
     expect(await pathExists(sentinel)).toBe(true);
   });

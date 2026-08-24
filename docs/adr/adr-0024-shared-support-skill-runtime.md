@@ -133,6 +133,16 @@ state. Content hashes remain install-plan evidence that managed runtime files
 match the rendered source; they are not a substitute for command-level
 compatibility checks.
 
+## Source Validation and Command Ordering
+
+Sync begins with pure manifest inspection. An invalid dry sync retains the
+manifest-error result and does not validate the runtime. Every other sync
+validates the fixed passive runtime support bundle before non-dry manifest
+recovery, normalization or binding, rendering, or installed-output mutation.
+`diff` likewise inspects the manifest before its read-only source-driven render
+validates the bundle. `uninstall` remains source-independent and does not
+validate the bundle.
+
 ## Node.js Runtime Requirement
 
 Runtime-backed helpers may require Node.js, matching DevCanon's supported Node

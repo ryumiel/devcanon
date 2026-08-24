@@ -206,6 +206,10 @@ mutate, and invalid or residual-lock state fails actionably with exit 1.
 warning path rather than a healthy result; its overall exit behavior remains
 unchanged unless another check independently reports an error.
 
+After its accepted manifest identity checks, `diff` validates the fixed passive
+runtime support bundle through its read-only source-driven render projection.
+`uninstall` remains source-independent and does not validate that bundle.
+
 ### Managed component collisions
 
 An invocation first inspects purely. For a non-dry invalid manifest, explicit
@@ -267,22 +271,25 @@ backups or manifest churn.
 
 1. load config
 2. inspect the manifest purely
-3. for invalid state, stop dry sync without recovery; non-dry sync performs
-   explicit recovery, and only recovered-clean state continues. Every
-   pre-I5-unrecovered or recovered-cleanup-degraded result stops before each
-   later effect.
-4. normalize and classify accepted state, apply foreign-record policy,
+3. for an invalid dry manifest, stop with the manifest error before runtime
+   validation. Every other sync validates the fixed passive runtime support
+   bundle before non-dry recovery, normalization or binding, rendering, or an
+   install mutation.
+4. for a non-dry invalid manifest, perform explicit recovery; only
+   recovered-clean state continues. Every pre-I5-unrecovered or
+   recovered-cleanup-degraded result stops before each later effect.
+5. normalize and classify accepted state, apply foreign-record policy,
    reconcile authorized foreign records record-only, and project selected
    outputs plus the renderer-owned mutation inventory read-only
-5. partition accepted records and selected outputs into active/passive scope;
+6. partition accepted records and selected outputs into active/passive scope;
    reject component-aware managed and manifest-control collisions and every
    reconciled-away foreign overlap with a selected renderer mutation entry
-6. perform any required legacy binding or save
-7. validate source and perform writable render
-8. construct, print, and execute the install plan with reconciliation
+7. perform any required legacy binding or save
+8. perform writable render
+9. construct, print, and execute the install plan with reconciliation
    protection as applicable
-9. perform the final manifest save
-10. print summary
+10. perform the final manifest save
+11. print summary
 
 ---
 
@@ -377,6 +384,9 @@ If multiple targets are requested and one fails:
 `devcanon uninstall` removes managed outputs recorded in the
 manifest. The command is symmetric to `sync` for tool retirement and
 target wipes.
+
+Uninstall is source-independent: it does not validate or otherwise read the
+fixed passive runtime support bundle.
 
 Behavior:
 

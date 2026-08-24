@@ -149,7 +149,7 @@ export async function validateBundledDevcanonRuntime(
 
 function runtimeSourceMissingError(runtimeDir: string): UserError {
   return new UserError(
-    `Bundled ${DEVCANON_RUNTIME_SKILL_NAME} support skill is missing.`,
+    `Fixed passive runtime support bundle ${DEVCANON_RUNTIME_SKILL_NAME} is missing.`,
     runtimeDir,
     "Reinstall DevCanon or run from a complete source checkout.",
   );
@@ -160,7 +160,7 @@ function runtimeSourceIncompleteError(
   relativePath: string,
 ): UserError {
   return new UserError(
-    `Bundled ${DEVCANON_RUNTIME_SKILL_NAME} support skill is incomplete.`,
+    `Fixed passive runtime support bundle ${DEVCANON_RUNTIME_SKILL_NAME} is incomplete.`,
     path.join(runtimeDir, relativePath),
     `Reinstall DevCanon or restore ${relativePath} in the bundled support runtime.`,
   );
@@ -206,7 +206,7 @@ async function requireRuntimeContract(
     }
   } catch (err) {
     throw new UserError(
-      `Bundled ${DEVCANON_RUNTIME_SKILL_NAME} support skill contract check failed.`,
+      `Fixed passive runtime support bundle ${DEVCANON_RUNTIME_SKILL_NAME} contract check failed.`,
       filePath,
       `Reinstall DevCanon or restore the bundled ${DEVCANON_RUNTIME_SKILL_NAME} runtime payload. ${(err as Error).message}`,
     );
@@ -231,7 +231,7 @@ async function requireRuntimeModuleSurface(runtimeDir: string): Promise<void> {
     }
   } catch (err) {
     throw new UserError(
-      `Bundled ${DEVCANON_RUNTIME_SKILL_NAME} support skill module surface check failed.`,
+      `Fixed passive runtime support bundle ${DEVCANON_RUNTIME_SKILL_NAME} module surface check failed.`,
       indexEntrypoint,
       `Reinstall DevCanon or restore the bundled ${DEVCANON_RUNTIME_SKILL_NAME} runtime payload. ${(err as Error).message}`,
     );

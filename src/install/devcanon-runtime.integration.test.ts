@@ -151,7 +151,9 @@ describe("devcanon-runtime sync", () => {
       });
 
       expect(secondResult.errors).toEqual([
-        expect.stringContaining("support skill is incomplete"),
+        expect.stringContaining(
+          "passive runtime support bundle devcanon-runtime is incomplete",
+        ),
       ]);
       expect(secondResult.updated).toBe(0);
       expect((await stat(installedScript)).mode & 0o111).toBe(0);
@@ -197,7 +199,9 @@ describe("devcanon-runtime sync", () => {
           mode: "copy",
         }),
       ).rejects.toMatchObject({
-        message: expect.stringContaining("support skill is incomplete"),
+        message: expect.stringContaining(
+          "passive runtime support bundle devcanon-runtime is incomplete",
+        ),
       });
       expect((await stat(installedScript)).mode & 0o111).not.toBe(0);
     },
@@ -308,7 +312,9 @@ describe("devcanon-runtime sync", () => {
           mode: "copy",
         }),
       ).rejects.toMatchObject({
-        message: expect.stringContaining("support skill is incomplete"),
+        message: expect.stringContaining(
+          "passive runtime support bundle devcanon-runtime is incomplete",
+        ),
       });
       expect(testLogger.infos).toEqual([]);
     },

@@ -241,15 +241,19 @@ Source files    │
 ```
 
 The ordering is intentionally broad: load config -> inspect the manifest
-purely -> for eligible non-dry `sync` or `uninstall`, perform explicit invalid
+purely -> an invalid dry `sync` stops with its manifest error before runtime
+validation -> every other `sync` validates the fixed passive runtime support
+bundle -> for eligible non-dry `sync` or `uninstall`, perform explicit invalid
 state recovery -> normalize and classify accepted identity -> apply ownership
 and foreign-record policy -> reconcile authorized foreign records record-only
 -> partition records and selected outputs into active and passive scope ->
 validate shared component-aware managed-path collisions -> perform any allowed
 legacy binding or save -> perform writable render -> construct, print, and
-execute the plan or removal -> make the final manifest save. This is a topology
-summary, not an executable algorithm; the linked owners define the exact
-conditions and outcomes.
+execute the plan or removal -> make the final manifest save. `diff` inspects
+and then validates the runtime through its read-only render projection;
+`uninstall` remains source-independent. This is a topology summary, not an
+executable algorithm; the linked owners define the exact conditions and
+outcomes.
 
 ---
 

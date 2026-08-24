@@ -199,11 +199,13 @@ the exact sibling-lock path and requires the operator to establish inactivity
 before manual correction or removal. A lock already removed receives no lock
 removal instruction. These ordered secondary actions do not replace the
 primary failure, and every unrecovered result exits 1.
-`sync --dry-run` never recovers or mutates; invalid or residual-lock state exits
-1 before planning installation work.
+`sync` first inspects the manifest purely. An invalid `sync --dry-run` retains
+that manifest-error precedence and exits before fixed-runtime validation. Every
+other sync validates the fixed passive runtime support bundle before non-dry
+recovery, normalization or binding, rendering, or install mutation.
 
-`sync` first inspects purely. For a non-dry invalid manifest, explicit recovery
-disposition follows, and only recovered-clean state may continue. It then
+For a non-dry invalid manifest, explicit recovery disposition follows, and only
+recovered-clean state may continue. Sync then
 normalizes and classifies accepted state; applies ownership disposition and
 foreign-record policy; reconciles authorized foreign records record-only;
 partitions accepted records and selected outputs into active/passive scope; and
@@ -235,6 +237,8 @@ Behavior:
 
 - Manifest-driven: only paths recorded in `manifest.json` are removed.
 - Source files under `skills/` and `agents/` are never touched.
+- Uninstall is source-independent and does not validate the fixed passive
+  runtime support bundle.
 - `--target` filters by Claude or Codex; default is all targets.
 - `--dry-run` previews the plan without filesystem or manifest writes.
 - An accepted or recovered-clean empty manifest (or empty filtered set) prints
@@ -286,9 +290,11 @@ Reports:
 Changed agent files use a line-based patch. Skill-directory changes are
 reported as status summaries.
 
-`diff` performs manifest inspection only. It never recovers or mutates the
-manifest, and invalid or residual-lock state fails actionably with exit 1
-before reporting differences.
+`diff` performs pure manifest inspection and, after its accepted manifest
+identity checks, validates the fixed passive runtime support bundle through its
+source-driven render projection. It never recovers or mutates the manifest, and
+invalid or residual-lock state fails actionably with exit 1 before runtime
+validation or reporting differences.
 
 ---
 

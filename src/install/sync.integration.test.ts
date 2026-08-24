@@ -524,7 +524,9 @@ describe("sync", () => {
     await expect(
       sync(config, { dryRun: false, force: false, strict: false }),
     ).rejects.toMatchObject({
-      message: expect.stringContaining("support skill is incomplete"),
+      message: expect.stringContaining(
+        "passive runtime support bundle devcanon-runtime is incomplete",
+      ),
     });
 
     expect(await readTextFile(config.manifest.path)).toBe(invalidBytes);

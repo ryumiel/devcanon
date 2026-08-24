@@ -66,8 +66,8 @@ packaging diagnostics, and must fail before validation when the executable
 support validator is missing.
 
 This exception did not create a general cross-skill runtime utility layer when
-this decision was accepted. ADR-0024 later accepts a support-only shared skill
-runtime for helpers whose complexity or reuse exceeds the owning skill
+this decision was accepted. ADR-0024 later accepts a fixed passive runtime
+support bundle for helpers whose complexity or reuse exceeds the owning skill
 `scripts/` boundary. The support validator may become runtime-backed under that
 decision only if it preserves the same support-skill command surface and does
 not require the installed `devcanon` CLI.
