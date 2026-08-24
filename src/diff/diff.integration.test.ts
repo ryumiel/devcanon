@@ -836,6 +836,62 @@ describe("diffAll integration", () => {
     expect(result?.diff).toBeNull();
   });
 
+  it("keeps an exact managed Codex skill up-to-date by manifest hash", async () => {
+    await createSkillFixture(config.library.skillsDir, "test-skill");
+
+    const { outputs } = await renderAll(config, false, false, "codex");
+    const skillOutput = outputs.find(
+      (output) =>
+        output.target === "codex" &&
+        output.type === "skill" &&
+        output.name === "test-skill",
+    );
+    expect(skillOutput).toBeDefined();
+    if (!skillOutput || skillOutput.type !== "skill") {
+      throw new Error(
+        "internal: expected rendered Codex skill for 'test-skill'",
+      );
+    }
+
+    await mkdir(skillOutput.installedPath, { recursive: true });
+    await writeFile(
+      path.join(skillOutput.installedPath, "SKILL.md"),
+      "# test-skill\n\nA test skill.\n",
+      "utf-8",
+    );
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            target: "codex",
+            type: "skill",
+            sourcePath: skillOutput.sourcePath,
+            generatedPath: null,
+            installedPath: skillOutput.installedPath,
+            installMode: "copy",
+            contentHash: skillOutput.contentHash,
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { config },
+      ),
+      "utf-8",
+    );
+
+    const results = await diffAll(config, "codex");
+    const result = results.find(
+      (entry) =>
+        entry.target === "codex" &&
+        entry.type === "skill" &&
+        entry.name === "test-skill",
+    );
+    expect(result).toBeDefined();
+    expect(result?.status).toBe("up-to-date");
+    expect(result?.diff).toBeNull();
+  });
+
   it("reports skill as changed when hash differs from manifest record", async () => {
     await createSkillFixture(config.library.skillsDir, "test-skill");
 
