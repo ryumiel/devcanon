@@ -282,10 +282,17 @@ backups or manifest churn.
 
 ---
 
-## Default Install Mode
+## Requested and Effective Install Modes
 
-- default: `symlink`
-- Windows fallback: `copy`
+Configuration and `sync --mode` select a **requested** install mode. The
+default requested mode is `symlink`; an explicit request may also select
+`copy`. The effective mode is the materialization mode for an individual
+output.
+
+Codex agent roles always have effective mode `copy`, regardless of the
+requested mode. Codex skills and all Claude outputs retain their requested
+mode. Eligible symlink outputs on Windows may still fall back to an actual
+`copy` installation. This installation rule does not change generated output.
 
 ---
 
@@ -336,9 +343,21 @@ Identity failures skip the destructive update or removal, report an actionable
 error, and keep the manifest record intact. Force overwrite behavior does not
 turn a managed-output identity failure into an unmanaged overwrite.
 
-When a symlink install falls back to copy, the manifest records the actual copy
-install mode. Later updates verify the existing copied output as a copy before
-attempting the requested replacement mode again.
+The manifest records the actual install mode. When a symlink install falls
+back to copy, it therefore records `copy`; later updates verify that existing
+output as a copy before attempting the requested replacement mode again.
+
+A managed Codex agent role historically recorded as a symlink is migrated on
+the next sync. The plan schedules an update for its effective-mode mismatch
+even when its content is unchanged, then verifies the existing symlink against
+the historical manifest record before replacing it. A successful migration
+materializes a regular copied file and records actual mode `copy`. Identity
+verification failure leaves the managed output and manifest record intact.
+
+`diff` reports a managed Codex agent role as changed when its recorded mode is
+not `copy` or its installed path is not a regular copied file, even if its
+resolved content matches the generated output. Once migrated, later updates
+and uninstall use the recorded copy-mode identity.
 
 Copy-mode skill identity preserves symlink spelling for new copies. Legacy
 copies whose mirrored relative symlink targets were rewritten to absolute paths

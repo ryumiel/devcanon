@@ -93,6 +93,11 @@ fileArtifacts:
 - relative paths are resolved relative to the config file directory
 - `~` must be expanded
 - target-specific settings override defaults
+- `defaults.installMode` and target `installMode` values are requested modes;
+  install/sync resolves the effective mode for each output. Codex agent roles
+  always materialize as `copy`, so an explicit `symlink` request cannot
+  override that constraint. Codex skills and Claude outputs retain the
+  requested mode.
 - `targets.codex.skillDisplayNameSuffix`, when present, is a raw namespace value
   appended to generated Codex skill UI display names in `(<value>)` form
 - unknown top-level config fields produce warnings in normal mode and errors in
@@ -249,8 +254,9 @@ See [Skills](skills.md) for the full list of allowed keys per block.
 
 - source layout: `skills/`, `agents/`, `generated/`
 - agent format: YAML
-- install mode: symlink by default
-- Windows fallback: copy
+- requested install mode: symlink by default
+- Windows fallback: copy for eligible symlink outputs
+- Codex agent roles: effective copy mode
 - ownership: manifest
 - overwrite policy: overwrite managed only
 - shared skill source, native generated agents

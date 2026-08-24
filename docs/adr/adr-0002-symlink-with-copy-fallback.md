@@ -16,22 +16,29 @@ the source library into user home directories (`~/.claude/`, `~/.codex/`,
 
 ## Decision
 
-Default install mode is `symlink`. Symlinks point from the install path back
-to the source, so changes to source files are immediately reflected without
-re-syncing.
+Default requested install mode is `symlink`. Symlinks point from the install
+path back to the source, so changes to source files are immediately reflected
+without re-syncing.
 
 On Windows, where symlinks may require Developer Mode or elevated privileges,
-the tool falls back to `copy` mode. Copy mode can also be selected explicitly
-via config or CLI flag.
+eligible symlink outputs fall back to `copy` mode. Copy mode can also be
+requested explicitly via config or CLI flag.
+
+Codex user agent roles are a narrow effective-mode exception: they always
+materialize as regular copied files, regardless of the requested mode. This
+constraint does not change requested-mode behavior for Codex skills or Claude
+outputs.
 
 ## Consequences
 
-- On macOS/Linux, source edits are instantly live in Claude Code and Codex
-  without running `sync` again.
-- On Windows, users must re-run `sync` after source changes to propagate
-  updates.
-- The manifest must track install mode per output so the tool knows how to
-  clean up or update each managed file.
+- On macOS/Linux, source edits are instantly live for symlinked outputs without
+  running `sync` again.
+- Copied outputs, including Codex user agent roles, require `sync` after
+  source changes to propagate updates.
+- On Windows, copied fallback outputs likewise require `sync` after source
+  changes.
+- The manifest tracks the actual install mode per output so the tool can clean
+  up or update each managed file.
 - Symlink detection logic must handle broken symlinks during cleanup.
 
 ## Alternatives considered
