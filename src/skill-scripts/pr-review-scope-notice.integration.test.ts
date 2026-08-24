@@ -52,14 +52,14 @@ async function runScopeNotice(
   );
 
   try {
+    const env = { ...process.env };
+    env.REVIEW_SCOPE_DECISION_FILE = undefined;
+    if (artifact !== undefined) {
+      env.REVIEW_SCOPE_DECISION_FILE = artifact;
+    }
     const { stdout, stderr } = await execFileAsync("bash", [script], {
       cwd: root,
-      env: {
-        ...process.env,
-        ...(artifact === undefined
-          ? {}
-          : { REVIEW_SCOPE_DECISION_FILE: artifact }),
-      },
+      env,
     });
     return { status: 0, stdout, stderr };
   } catch (error) {
@@ -104,7 +104,7 @@ describe("pr-review Phase 4 scope notice", () => {
 
       expect(result).toEqual({
         status: 0,
-        stdout: `PR review scope: mode=${expectedMode}; selection=${selection}; changed_files=${changedFiles.length + 1}; continuing.\nPLAY_REVIEW_CONTINUATION\n`,
+        stdout: `PR review scope: mode=${expectedMode}, selection=${selection}, selected files=${changedFiles.length + 1}. Review is continuing.\nPLAY_REVIEW_CONTINUATION\n`,
         stderr: "",
       });
       expect(result.stdout).not.toContain(hostileFile);

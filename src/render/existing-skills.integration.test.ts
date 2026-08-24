@@ -231,7 +231,7 @@ describe("shipped skill rendering", () => {
     );
     const { outputs } = await renderAll(config, false, true);
     const scopeNotice =
-      "PR review scope: mode=${scope.mode}; selection=${selection}; changed_files=${scope.changed_files.length}; continuing.";
+      "PR review scope: mode=${scope.mode}, selection=${selection}, selected files=${scope.changed_files.length}. Review is continuing.";
 
     for (const target of TARGETS) {
       const { body } = parseFrontmatter(

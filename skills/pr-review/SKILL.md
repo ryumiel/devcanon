@@ -596,7 +596,7 @@ if (
 }
 const selection = scope.is_followup_narrow ? "narrow" : "full";
 process.stdout.write(
-  `PR review scope: mode=${scope.mode}; selection=${selection}; changed_files=${scope.changed_files.length}; continuing.\n`,
+  `PR review scope: mode=${scope.mode}, selection=${selection}, selected files=${scope.changed_files.length}. Review is continuing.\n`,
 );
 NODE
 }
