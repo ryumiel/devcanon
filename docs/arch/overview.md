@@ -132,7 +132,7 @@ authority for a named external mutation.
 The pre-migration runtime has no source-immutability command group or seven
 workflow shims. Under the ADR-0027 post-migration architecture, the packaged
 passive `devcanon-runtime` bundle owns the deterministic capture, verify, and
-and cleanup mechanics
+cleanup mechanics
 for the minimum source-immutable guard. The existing runtime entrypoint and
 compatibility contract remain the only runtime-version boundary. Acceptance
 requires thin adapters under `issue-priming-workflow`, `play-agent-dispatch`,
