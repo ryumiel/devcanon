@@ -395,40 +395,68 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     expect(toOperationalPathText("C:\\repo")).toBe("C:/repo");
   });
 
-  it("renders all mandatory audit families from the worktree and read-only lease status", async () => {
-    const workspace = await makeManifestWorkspace(
-      "pr-review-manifest-summary-",
-    );
-    setSummaryEnv(workspace);
-    process.chdir(workspace.tempRoot);
+  it.each([
+    { name: "zero findings", findings: [], carryForward: [] },
+    {
+      name: "one active finding",
+      findings: [{ id: "F1", title: "Finding" }],
+      carryForward: [],
+    },
+    {
+      name: "multiple active and carry-forward findings",
+      findings: [
+        { id: "F1", title: "First finding" },
+        { id: "F2", title: "Second finding" },
+      ],
+      carryForward: [{ id: "CF1", title: "Carry-forward finding" }],
+    },
+  ])(
+    "renders dense mandatory audit families for $name without preview-owned identities",
+    async ({ findings, carryForward }) => {
+      const workspace = await makeManifestWorkspace(
+        "pr-review-manifest-summary-",
+        findings,
+        carryForward,
+      );
+      setSummaryEnv(workspace);
+      process.chdir(workspace.tempRoot);
 
-    const result = await runManifestCommand(["render-phase5-audit-summary"]);
+      const result = await runManifestCommand(["render-phase5-audit-summary"]);
 
-    expect(result.exitCode, result.stderr).toBe(0);
-    expect(result.stdout).toContain("## Phase 5 Artifact Audit Summary");
-    expect(result.stdout).toContain(
-      `Reviewed head SHA: \`${workspace.headSha}\``,
-    );
-    expect(result.stdout).toContain("Base/head refs: `main` -> `topic`");
-    expect(result.stdout).toContain(
-      `Active diff range: \`${workspace.baseSha}..${workspace.headSha}\``,
-    );
-    expect(result.stdout).toContain(
-      `Full PR diff range: \`${workspace.baseSha}..${workspace.headSha}\``,
-    );
-    expect(result.stdout).toContain(
-      `Result manifest: \`${workspace.resultFile}\``,
-    );
-    expect(result.stdout).toContain(`Findings: \`${workspace.findingsFile}\``);
-    expect(result.stdout).toContain("Result artifacts:");
-    expect(result.stdout).toContain("Validation status: result `valid`");
-    expect(result.stdout).toContain("lease result digest");
-    expect(result.stdout).toContain("Lease/worktree status: lease `gated`");
-    expect(result.stdout).toContain("dirty `true`");
-    expect(result.stdout).toContain(
-      "Cleanup note: lease-gated cleanup pending",
-    );
-  });
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(result.stdout).toContain("## Phase 5 Artifact Audit Summary");
+      expect(result.stdout).toContain("### Review scope");
+      expect(result.stdout).toContain("Base/head refs: `main` -> `topic`");
+      expect(result.stdout).toContain(
+        `Active diff range: \`${workspace.baseSha}..${workspace.headSha}\``,
+      );
+      expect(result.stdout).toContain(
+        `Full PR diff range: \`${workspace.baseSha}..${workspace.headSha}\``,
+      );
+      expect(result.stdout).toContain("### Validated artifacts");
+      expect(result.stdout).toContain(
+        `Result manifest: \`${workspace.resultFile}\``,
+      );
+      expect(result.stdout).toContain(
+        `Finding counts: \`${findings.length}\` active, \`${carryForward.length}\` carry-forward`,
+      );
+      expect(result.stdout).toContain("Result artifacts:");
+      expect(result.stdout).toContain("Validation status: result `valid`");
+      expect(result.stdout).toContain("lease result digest");
+      expect(result.stdout).toContain("### Presentation and lifecycle");
+      expect(result.stdout).toContain("Lease/worktree status: lease `gated`");
+      expect(result.stdout).toContain("dirty `true`");
+      expect(result.stdout).toContain("### Cleanup");
+      expect(result.stdout).toContain(
+        "Cleanup note: lease-gated cleanup pending",
+      );
+      expect(result.stdout).not.toContain("Reviewed head SHA:");
+      expect(result.stdout).not.toContain("Findings file:");
+      expect(result.stdout).not.toContain(
+        `Findings: \`${workspace.findingsFile}\``,
+      );
+    },
+  );
 
   it("uses one fresh scope authority context per Phase 5 audit", async () => {
     const workspace = await makeManifestWorkspace(
@@ -2009,6 +2037,8 @@ async function runManifestCommandWithStdin(
 
 async function makeManifestWorkspace(
   _prefix: string,
+  findings: Array<Record<string, unknown>> = [{ id: "F1", title: "Finding" }],
+  carryForward: Array<Record<string, unknown>> = [],
 ): Promise<ManifestWorkspace> {
   const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
     await commandHarness.createRegisteredReviewWorkspace();
@@ -2060,8 +2090,8 @@ async function makeManifestWorkspace(
 
   await writeJson(worktree, findingsFile, {
     schema: "play-review/findings/v2",
-    findings: [{ id: "F1", title: "Finding" }],
-    carry_forward: [],
+    findings,
+    carry_forward: carryForward,
   });
   await writeFile(path.join(worktree, reviewBodyFile), "Review body.\n");
   await writeFile(path.join(worktree, previewFile), "Rendered preview.\n");
