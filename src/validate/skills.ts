@@ -38,6 +38,7 @@ export const KNOWN_SUBDIRS = [
   "references",
   "scripts",
 ] as const;
+export const DEVCANON_RUNTIME_SKILL_NAME = "devcanon-runtime";
 const RAW_CLAUDE_ALIASES = ["sonnet", "opus", "haiku"] as const;
 const TARGET_PATH_TOKENS = [".claude/", ".codex/", ".agents/"] as const;
 
@@ -88,6 +89,7 @@ export async function loadAndValidateSkills(
     if (!entry.isDirectory()) continue;
 
     const name = entry.name;
+    if (name === DEVCANON_RUNTIME_SKILL_NAME) continue;
     const dirPath = path.join(skillsDir, name);
 
     if (!FILESYSTEM_SAFE.test(name)) {

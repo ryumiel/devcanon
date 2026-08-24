@@ -12,7 +12,7 @@ fi
 
 [ -x "$runtime_resolver" ] ||
   {
-    echo "devcanon-runtime support skill missing for play-validate-review-artifacts" >&2
+    echo "devcanon-runtime passive runtime bundle missing for play-validate-review-artifacts" >&2
     exit 1
   }
 

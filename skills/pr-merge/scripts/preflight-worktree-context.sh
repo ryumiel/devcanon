@@ -24,7 +24,7 @@ if [ -n "${DEVCANON_RUNTIME_DIR:-}" ]; then
 fi
 
 [ -x "$runtime_resolver" ] ||
-  fail "devcanon-runtime support skill missing for pr-merge preflight"
+  fail "devcanon-runtime passive runtime bundle missing for pr-merge preflight"
 
 runtime_entrypoint="$("$runtime_resolver" resolve-entrypoint --from "$script_path" --entrypoint "scripts/devcanon-runtime.sh")"
 exec "$runtime_entrypoint" runtime pr-merge-worktree preflight

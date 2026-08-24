@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   canCreateSymlinks,
   cleanupTempDir,
+  copyDevcanonRuntimeFixture,
   createAgentFixture,
   createSkillFixture,
   createTempDir,
@@ -137,6 +138,7 @@ describe("diffAll integration", () => {
 
     // Ensure required directories exist
     await mkdir(config.library.skillsDir, { recursive: true });
+    await copyDevcanonRuntimeFixture(config.library.skillsDir);
     await mkdir(config.library.agentsDir, { recursive: true });
     await mkdir(config.library.generatedDir, { recursive: true });
     await mkdir(config.targets.claude.agentsHome, { recursive: true });

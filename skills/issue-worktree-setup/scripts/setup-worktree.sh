@@ -16,7 +16,7 @@ if [ -n "${DEVCANON_RUNTIME_DIR:-}" ]; then
 fi
 
 [ -x "$runtime_resolver" ] ||
-  fail "devcanon-runtime support skill missing for issue-worktree-setup"
+  fail "devcanon-runtime passive runtime bundle missing for issue-worktree-setup"
 
 runtime_entrypoint="$("$runtime_resolver" resolve-entrypoint --from "$script_path" --entrypoint "scripts/devcanon-runtime.sh")"
 exec "$runtime_entrypoint" runtime issue-worktree-setup "$@"

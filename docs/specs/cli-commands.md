@@ -39,17 +39,19 @@ Creates:
 - config file
 - source directories
 - sample skill
-- packaged `skills/devcanon-runtime/` support skill
+- packaged `skills/devcanon-runtime/` passive runtime support bundle
 - sample agent
 
-Runtime support skill behavior:
+Passive runtime support bundle behavior:
 
-- fresh libraries receive the packaged runtime support skill at
+- fresh libraries receive the fixed passive runtime support bundle at
   `skills/devcanon-runtime/`
+- the bundle contains only its validated `scripts/` payload, with no
+  `SKILL.md` or Codex invocation sidecar
 - an existing matching `skills/devcanon-runtime/` path is preserved
 - an existing non-matching `skills/devcanon-runtime/` path causes `init` to
   fail with repair guidance; DevCanon does not overwrite the existing support
-  runtime path
+  runtime bundle path
 - generated outputs remain disposable render results, not authoritative source
   files
 
@@ -83,7 +85,9 @@ Scaffold behavior:
 
 ## `validate`
 
-Validate config, skills, and agents.
+Validate config, the fixed passive runtime bundle, declaration-bearing skills,
+and agents. The passive runtime bundle is not included in the source-skill
+count.
 
 ```bash
 devcanon validate
@@ -91,6 +95,9 @@ devcanon validate
 
 Current behavior:
 
+- after config validation, the fixed passive runtime bundle is validated before
+  declaration-bearing source skills; it is validated separately and is not
+  included in the source-skill count
 - version 1 config fails with a dedicated migration diagnostic; version 2
   `modelTiers` fails with a dedicated `capabilityProfiles` replacement
   diagnostic before ordinary schema validation
@@ -197,11 +204,13 @@ the exact sibling-lock path and requires the operator to establish inactivity
 before manual correction or removal. A lock already removed receives no lock
 removal instruction. These ordered secondary actions do not replace the
 primary failure, and every unrecovered result exits 1.
-`sync --dry-run` never recovers or mutates; invalid or residual-lock state exits
-1 before planning installation work.
+`sync` first inspects the manifest purely. An invalid `sync --dry-run` retains
+that manifest-error precedence and exits before fixed-runtime validation. Every
+other sync validates the fixed passive runtime support bundle before non-dry
+recovery, normalization or binding, rendering, or install mutation.
 
-`sync` first inspects purely. For a non-dry invalid manifest, explicit recovery
-disposition follows, and only recovered-clean state may continue. It then
+For a non-dry invalid manifest, explicit recovery disposition follows, and only
+recovered-clean state may continue. Sync then
 normalizes and classifies accepted state; applies ownership disposition and
 foreign-record policy; reconciles authorized foreign records record-only;
 partitions accepted records and selected outputs into active/passive scope; and
@@ -233,6 +242,8 @@ Behavior:
 
 - Manifest-driven: only paths recorded in `manifest.json` are removed.
 - Source files under `skills/` and `agents/` are never touched.
+- Uninstall is source-independent and does not validate the fixed passive
+  runtime support bundle from the source library.
 - `--target` filters by Claude or Codex; default is all targets.
 - `--dry-run` previews the plan without filesystem or manifest writes.
 - An accepted or recovered-clean empty manifest (or empty filtered set) prints
@@ -284,9 +295,11 @@ Reports:
 Changed agent files use a line-based patch. Skill-directory changes are
 reported as status summaries.
 
-`diff` performs manifest inspection only. It never recovers or mutates the
-manifest, and invalid or residual-lock state fails actionably with exit 1
-before reporting differences.
+`diff` performs pure manifest inspection and, after its accepted manifest
+identity checks, validates the fixed passive runtime support bundle through its
+source-driven render projection. It never recovers or mutates the manifest, and
+invalid or residual-lock state fails actionably with exit 1 before runtime
+validation or reporting differences.
 
 ---
 

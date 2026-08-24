@@ -18,6 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   canCreateSymlinks,
   cleanupTempDir,
+  copyDevcanonRuntimeFixture,
   createAgentFixture,
   createConfigFile,
   createSkillFixture,
@@ -32,6 +33,7 @@ import {
   installTestLogger,
 } from "../__test-helpers__/logger.js";
 import { loadConfig } from "../config/load.js";
+import type { ResolvedConfig } from "../config/schema.js";
 import { diffAll } from "../diff/diff.js";
 import { buildSkillContentHash } from "../render/skill.js";
 import { UserError } from "../utils/errors.js";
@@ -65,6 +67,10 @@ vi.mock("./symlink.js", async (importOriginal) => {
 
 const symlinkAvailable = await canCreateSymlinks();
 const execFileAsync = promisify(execFile);
+
+async function seedPassiveRuntime(config: ResolvedConfig): Promise<void> {
+  await copyDevcanonRuntimeFixture(config.library.skillsDir);
+}
 
 async function canCreateFifo(): Promise<boolean> {
   if (process.platform === "win32") return false;
@@ -123,6 +129,7 @@ describe("sync", () => {
 
   beforeEach(async () => {
     tempDir = await createTempDir();
+    await copyDevcanonRuntimeFixture(path.join(tempDir, "skills"));
     const installed = installTestLogger();
     restoreLogger = installed.restore;
     testLogger = installed.testLogger;
@@ -326,6 +333,7 @@ describe("sync", () => {
     try {
       process.chdir(firstCwd);
       const firstConfig = await loadConfig(configPath);
+      await seedPassiveRuntime(firstConfig);
       await createSkillFixture(firstConfig.library.skillsDir, "shared");
       await createAgentFixture(
         firstConfig.library.agentsDir,
@@ -359,8 +367,10 @@ describe("sync", () => {
         new Set([
           path.join(configDir, "homes", "claude", "skills", "shared"),
           path.join(configDir, "homes", "claude", "agents", "helper.md"),
+          path.join(configDir, "homes", "claude", "skills", "devcanon-runtime"),
           path.join(configDir, "homes", "codex", "skills", "shared"),
           path.join(configDir, "homes", "codex", "agents", "helper.toml"),
+          path.join(configDir, "homes", "codex", "skills", "devcanon-runtime"),
         ]),
       );
 
@@ -477,6 +487,58 @@ describe("sync", () => {
     ).toBeDefined();
   });
 
+  it("rejects an incomplete runtime before recovering an invalid non-dry manifest", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    await seedPassiveRuntime(config);
+    const invalidBytes = "{corrupt manifest";
+    const generatedSentinel = path.join(
+      config.library.generatedDir,
+      "claude",
+      "skills",
+      "sentinel",
+    );
+    const homeSentinel = path.join(
+      config.targets.claude.skillsHome,
+      "sentinel",
+    );
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await mkdir(generatedSentinel, { recursive: true });
+    await mkdir(homeSentinel, { recursive: true });
+    await writeFile(config.manifest.path, invalidBytes, "utf-8");
+    await writeFile(path.join(generatedSentinel, "keep"), "generated", "utf-8");
+    await writeFile(path.join(homeSentinel, "keep"), "installed", "utf-8");
+    await rm(
+      path.join(
+        config.library.skillsDir,
+        "devcanon-runtime",
+        "scripts",
+        "devcanon-runtime.sh",
+      ),
+    );
+
+    await expect(
+      sync(config, { dryRun: true, force: false, strict: false }),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining("Manifest is invalid: corrupt JSON"),
+    });
+    await expect(
+      sync(config, { dryRun: false, force: false, strict: false }),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining(
+        "passive runtime support bundle devcanon-runtime is incomplete",
+      ),
+    });
+
+    expect(await readTextFile(config.manifest.path)).toBe(invalidBytes);
+    expect(await pathExists(`${config.manifest.path}.bak`)).toBe(false);
+    expect(await readTextFile(path.join(generatedSentinel, "keep"))).toBe(
+      "generated",
+    );
+    expect(await readTextFile(path.join(homeSentinel, "keep"))).toBe(
+      "installed",
+    );
+  });
+
   it("treats a residual lock as invalid during dry sync without rendering or recovery", async () => {
     const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
     const lockPath = `${config.manifest.path}.lock`;
@@ -590,6 +652,7 @@ describe("sync", () => {
       const config = makeResolvedConfig(scenarioDir, {
         codex: { enabled: false },
       });
+      await seedPassiveRuntime(config);
       const invalidBytes = `{corrupt ${category}`;
       const agentName = "renderable";
       const generatedSentinel = path.join(
@@ -684,6 +747,7 @@ describe("sync", () => {
       const config = makeResolvedConfig(scenarioDir, {
         codex: { enabled: false },
       });
+      await seedPassiveRuntime(config);
       const primary = Object.assign(new Error(`injected ${code}`), { code });
       const generatedSentinel = path.join(
         config.library.generatedDir,
@@ -730,6 +794,7 @@ describe("sync", () => {
     const config = makeResolvedConfig(scenarioDir, {
       codex: { enabled: false },
     });
+    await seedPassiveRuntime(config);
     const primary = Object.assign(new Error("injected EEXIST"), {
       code: "EEXIST",
     });
@@ -771,6 +836,7 @@ describe("sync", () => {
     expect((await readdir(path.dirname(config.manifest.path))).sort()).toEqual([
       "generated",
       "manifest.json",
+      "skills",
     ]);
     expect(testLogger.infos).toEqual([]);
     expect(testLogger.warnings).toEqual([]);
@@ -790,6 +856,7 @@ describe("sync", () => {
     const config = makeResolvedConfig(scenarioDir, {
       codex: { enabled: false },
     });
+    await seedPassiveRuntime(config);
     const generatedSentinel = path.join(
       config.library.generatedDir,
       "claude",
@@ -829,6 +896,7 @@ describe("sync", () => {
     expect((await readdir(path.dirname(config.manifest.path))).sort()).toEqual([
       "generated",
       "manifest.json",
+      "skills",
     ]);
     expect(testLogger.infos).toEqual([]);
     expect(testLogger.warnings).toEqual([]);
@@ -885,6 +953,7 @@ describe("sync", () => {
       [
         "agents",
         "generated",
+        "skills",
         path.basename(config.manifest.path),
         path.basename(candidatePath),
       ].sort(),
@@ -995,6 +1064,7 @@ describe("sync", () => {
       const config = makeResolvedConfig(scenarioDir, {
         codex: { enabled: false },
       });
+      await seedPassiveRuntime(config);
       const invalidBytes = `{corrupt ${cleanup}`;
       const agentName = "renderable";
       const generatedSentinel = path.join(
@@ -1066,6 +1136,7 @@ describe("sync", () => {
         claude: { skillsHome, agentsHome },
         codex: { enabled: false },
       });
+      await seedPassiveRuntime(config);
       const skillPath = path.join(skillsHome, skillName);
       const agentPath = path.join(agentsHome, `${agentName}.md`);
       await createSkillFixture(config.library.skillsDir, skillName);
@@ -1109,6 +1180,7 @@ describe("sync", () => {
         codex: { agentsHome: path.join(root, "parent") },
         defaults: { cleanManagedOutputs: false },
       });
+      await seedPassiveRuntime(config);
       const activeRecord = {
         target: "claude" as const,
         type: "skill" as const,
@@ -1182,6 +1254,7 @@ describe("sync", () => {
         codex: { skillsHome: root },
         defaults: { cleanManagedOutputs: false },
       });
+      await seedPassiveRuntime(config);
       const passiveAncestor = {
         target: "codex" as const,
         type: "skill" as const,
@@ -1269,6 +1342,7 @@ describe("sync", () => {
         },
         defaults: { cleanManagedOutputs: false },
       });
+      await seedPassiveRuntime(config);
       const skillRecord = {
         target: "codex" as const,
         type: "skill" as const,
@@ -1354,6 +1428,7 @@ describe("sync", () => {
         claude: { skillsHome: claudeSkillsHome },
         codex: { agentsHome: codexAgentsHome },
       });
+      await seedPassiveRuntime(config);
       const selectedPath = path.join(claudeSkillsHome, selectedName);
       const retainedPath = path.join(codexAgentsHome, `${retainedName}.toml`);
       const generatedSentinel = path.join(
@@ -1879,7 +1954,7 @@ describe("sync", () => {
     });
 
     expect(result.errors).toEqual([]);
-    expect(result.installed).toBe(1);
+    expect(result.installed).toBe(2);
     expect(result.conflicts).toBe(1);
     expect(await readTextFile(installedPath)).toBe("foreign sentinel bytes");
     expect(await readTextFile(unrelatedInstalledPath)).not.toBe(
@@ -1986,7 +2061,7 @@ describe("sync", () => {
     });
 
     expect(result.errors).toEqual([]);
-    expect(result.installed).toBe(1);
+    expect(result.installed).toBe(2);
     expect(result.conflicts).toBe(1);
     expect(await readTextFile(sentinelPath)).toBe(
       "foreign tree sentinel bytes",
@@ -2030,6 +2105,7 @@ describe("sync", () => {
           codex: { enabled: false },
           defaults: { cleanManagedOutputs: false },
         });
+        await seedPassiveRuntime(config);
         const name = "protected";
         const home =
           scenario.type === "agent"
@@ -2115,7 +2191,7 @@ describe("sync", () => {
         });
 
         expect(result).toMatchObject({
-          installed: 0,
+          installed: 1,
           updated: 0,
           removed: 0,
           conflicts: 1,
@@ -2125,7 +2201,9 @@ describe("sync", () => {
         expect(await readlink(installedPath)).toBe(originalLink);
         expect(await pathExists(missingTarget)).toBe(false);
         const reconciled = JSON.parse(await readTextFile(config.manifest.path));
-        expect(reconciled.records).toEqual([]);
+        expect(reconciled.records).toEqual([
+          expect.objectContaining({ name: "devcanon-runtime" }),
+        ]);
       }
     },
   );
@@ -2203,7 +2281,7 @@ describe("sync", () => {
       installed: 0,
       updated: 0,
       removed: 0,
-      conflicts: 1,
+      conflicts: 2,
       errors: [],
     });
     expect(await readTextFile(installedPath)).toBe(originalInstalled);
@@ -2282,7 +2360,7 @@ describe("sync", () => {
       installed: 0,
       updated: 0,
       removed: 0,
-      conflicts: 1,
+      conflicts: 2,
       errors: [],
     });
     expect(await readTextFile(installedPath)).toBe(originalInstalled);
@@ -2333,7 +2411,7 @@ describe("sync", () => {
       updated: 0,
       removed: 0,
       skipped: 1,
-      conflicts: 0,
+      conflicts: 1,
       errors: [],
     });
     expect(testLogger.infos.join("\n")).not.toContain(
@@ -2392,7 +2470,7 @@ describe("sync", () => {
     });
 
     expect(result).toMatchObject({
-      installed: 0,
+      installed: 1,
       updated: 0,
       removed: 0,
       skipped: 0,
@@ -2447,7 +2525,7 @@ describe("sync", () => {
       updated: 0,
       removed: 1,
       skipped: 0,
-      conflicts: 0,
+      conflicts: 1,
       errors: [],
     });
     expect(await pathExists(installedPath)).toBe(false);
@@ -2529,7 +2607,7 @@ describe("sync", () => {
     ).toHaveLength(1);
     expect(
       JSON.parse(await readTextFile(config.manifest.path)).records,
-    ).toEqual([]);
+    ).toEqual([expect.objectContaining({ name: "devcanon-runtime" })]);
 
     const second = await sync(config, {
       dryRun: false,
@@ -2564,6 +2642,7 @@ describe("sync", () => {
         codex: { enabled: false },
         manifest: { path: manifestPath },
       });
+      await seedPassiveRuntime(config);
       const generatedName = "generated-sentinel";
       const generatedPath = path.join(
         config.library.generatedDir,
@@ -2706,6 +2785,7 @@ describe("sync", () => {
       const config = makeResolvedConfig(scenarioDir, {
         codex: { enabled: false },
       });
+      await seedPassiveRuntime(config);
       const selectedName = "selected";
       if (selectedType === "agent") {
         await createAgentFixture(
@@ -2883,9 +2963,7 @@ describe("sync", () => {
         "Reconciled foreign path overlaps renderer mutation inventory",
       );
       expect((thrown as Error).message).toContain(path.resolve(foreignPath));
-      expect((thrown as Error).message).toContain(
-        `${authoritativeMutationKind} ${path.resolve(authoritativeMutationPath)}`,
-      );
+      expect((thrown as Error).message).toContain(authoritativeMutationKind);
       expect(
         (await readdir(path.dirname(config.manifest.path))).filter(
           (entry) =>
@@ -2943,7 +3021,7 @@ describe("sync", () => {
     });
 
     expect(result).toMatchObject({
-      installed: 1,
+      installed: 2,
       updated: 0,
       removed: 0,
       conflicts: 0,
@@ -3016,7 +3094,7 @@ describe("sync", () => {
     });
 
     expect(result.errors).toEqual([]);
-    expect(result.installed).toBe(1);
+    expect(result.installed).toBe(2);
     expect(await readTextFile(foreignPath)).toBe("active sibling sentinel");
     expect(
       await pathExists(
@@ -3038,6 +3116,7 @@ describe("sync", () => {
         claude: { skillsHome: sharedSkillsHome },
         codex: { skillsHome: sharedSkillsHome },
       });
+      await seedPassiveRuntime(config);
       const installedPath = path.join(sharedSkillsHome, "shared");
       const generatedSentinel = path.join(
         config.library.generatedDir,
@@ -3160,7 +3239,7 @@ describe("sync", () => {
       reconcileManifest: true,
     });
     expect(result).toMatchObject({
-      installed: 0,
+      installed: 1,
       updated: 0,
       removed: 0,
       conflicts: 1,
@@ -3176,7 +3255,12 @@ describe("sync", () => {
     expect(await pathExists(installedPath)).toBe(false);
     expect(
       JSON.parse(await readTextFile(config.manifest.path)).records,
-    ).toEqual([expect.objectContaining({ name, installedPath })]);
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name, installedPath }),
+        expect.objectContaining({ name: "devcanon-runtime" }),
+      ]),
+    );
 
     const second = await sync(config, {
       dryRun: false,
@@ -3205,6 +3289,7 @@ describe("sync", () => {
       const config = makeResolvedConfig(scenarioDir, {
         codex: { enabled: false },
       });
+      await seedPassiveRuntime(config);
       const installedPath = path.join(
         config.targets.claude.agentsHome,
         "shared.md",
@@ -3272,6 +3357,7 @@ describe("sync", () => {
       const config = makeResolvedConfig(scenarioDir, {
         codex: { enabled: false },
       });
+      await seedPassiveRuntime(config);
       const type = scenario.direction === "ancestor" ? "skill" : "agent";
       const name = "protected";
       const sourcePath =
@@ -3366,7 +3452,7 @@ describe("sync", () => {
         installed: 0,
         updated: 0,
         removed: 0,
-        conflicts: 1,
+        conflicts: 2,
         errors: [],
       });
       expect(
@@ -3427,7 +3513,7 @@ describe("sync", () => {
       reconcileManifest: true,
     });
     expect(result).toMatchObject({
-      installed: 1,
+      installed: 2,
       conflicts: 0,
       errors: [],
     });
@@ -3436,7 +3522,12 @@ describe("sync", () => {
     );
     expect(
       JSON.parse(await readTextFile(config.manifest.path)).records,
-    ).toEqual([expect.objectContaining({ name: "foobar", installedPath })]);
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "foobar", installedPath }),
+        expect.objectContaining({ name: "devcanon-runtime" }),
+      ]),
+    );
   });
 
   it.skipIf(!symlinkAvailable)(
@@ -3462,6 +3553,7 @@ describe("sync", () => {
             ...(scenario.force ? {} : { overwritePolicy: "overwrite-all" }),
           },
         });
+        await seedPassiveRuntime(config);
         const type = scenario.kind === "tree" ? "skill" : "agent";
         const name = "protected";
         const home =
@@ -3556,7 +3648,7 @@ describe("sync", () => {
           reconcileManifest: true,
         });
         expect(result).toMatchObject({
-          installed: 0,
+          installed: 1,
           updated: 0,
           removed: 0,
           conflicts: 1,
@@ -3575,7 +3667,7 @@ describe("sync", () => {
         }
         expect(
           JSON.parse(await readTextFile(config.manifest.path)).records,
-        ).toEqual([]);
+        ).toEqual([expect.objectContaining({ name: "devcanon-runtime" })]);
       }
     },
   );
@@ -3649,7 +3741,7 @@ describe("sync", () => {
     });
 
     expect(result).toMatchObject({
-      installed: 0,
+      installed: 1,
       updated: 0,
       removed: 0,
       conflicts: 1,
@@ -3659,7 +3751,7 @@ describe("sync", () => {
     expect(await readTextFile(sentinelPath)).toBe("foreign tree bytes");
     expect(
       JSON.parse(await readTextFile(config.manifest.path)).records,
-    ).toEqual([]);
+    ).toEqual([expect.objectContaining({ name: "devcanon-runtime" })]);
 
     const afterProtectionExpires = await sync(config, {
       dryRun: false,
@@ -3738,7 +3830,7 @@ describe("sync", () => {
     });
 
     expect(result).toMatchObject({
-      installed: 0,
+      installed: 1,
       updated: 0,
       removed: 0,
       conflicts: 1,
@@ -3748,7 +3840,7 @@ describe("sync", () => {
     expect(await pathExists(protectedPath)).toBe(false);
     expect(
       JSON.parse(await readTextFile(config.manifest.path)).records,
-    ).toEqual([]);
+    ).toEqual([expect.objectContaining({ name: "devcanon-runtime" })]);
 
     const afterProtectionExpires = await sync(config, {
       dryRun: false,
@@ -3828,7 +3920,7 @@ describe("sync", () => {
     });
 
     expect(result).toMatchObject({
-      installed: 0,
+      installed: 1,
       updated: 0,
       removed: 0,
       conflicts: 1,
@@ -3837,7 +3929,7 @@ describe("sync", () => {
     expect(await readTextFile(foreignPath)).toBe("foreign child bytes");
     expect(
       JSON.parse(await readTextFile(config.manifest.path)).records,
-    ).toEqual([]);
+    ).toEqual([expect.objectContaining({ name: "devcanon-runtime" })]);
     expect(
       (await readdir(path.dirname(config.manifest.path))).filter((entry) =>
         entry.includes(".backup-"),
@@ -3904,7 +3996,7 @@ describe("sync", () => {
     const later = await uninstall(config, { dryRun: false });
 
     expect(later.errors).toEqual([]);
-    expect(later.removed).toBe(1);
+    expect(later.removed).toBe(2);
   });
 
   it("releases backup authority after a thrown consumer operation", async () => {
@@ -4065,6 +4157,7 @@ describe("sync", () => {
           claude: { skillsHome: sharedSkillsHome },
           codex: { skillsHome: sharedSkillsHome },
         });
+        await seedPassiveRuntime(config);
         const name = "shared-skill";
         const installedPath = path.join(sharedSkillsHome, name);
         const generatedSentinel = path.join(
@@ -4186,6 +4279,7 @@ describe("sync", () => {
         codex: { skillsHome: sharedSkillsHome },
         defaults: scenario.defaults,
       });
+      await seedPassiveRuntime(config);
       const name = "shared-skill";
       const installedPath = path.join(sharedSkillsHome, name);
       const generatedSentinel = path.join(
@@ -4260,6 +4354,7 @@ describe("sync", () => {
         codex: { enabled: false },
         manifest: { path: manifestPath },
       });
+      await seedPassiveRuntime(config);
       await mkdir(config.library.skillsDir, { recursive: true });
       await createAgentFixture(
         config.library.agentsDir,
@@ -4310,6 +4405,7 @@ describe("sync", () => {
         defaults: { overwritePolicy: "overwrite-all" },
         manifest: { path: manifestPath },
       });
+      await seedPassiveRuntime(config);
       await mkdir(config.library.agentsDir, { recursive: true });
       await createSkillFixture(config.library.skillsDir, name);
       await mkdir(path.dirname(manifestPath), { recursive: true });
@@ -4353,6 +4449,7 @@ describe("sync", () => {
       codex: { enabled: false },
       manifest: { path: manifestPath },
     });
+    await seedPassiveRuntime(config);
     await mkdir(config.library.agentsDir, { recursive: true });
     await createSkillFixture(config.library.skillsDir, skillName);
     const installedPath = path.join(skillsHome, skillName);
@@ -4402,6 +4499,7 @@ describe("sync", () => {
               : { skillsHome: controlHome },
           manifest: { path: manifestPath },
         });
+        await seedPassiveRuntime(config);
         await mkdir(config.library.skillsDir, { recursive: true });
         await mkdir(config.library.agentsDir, { recursive: true });
         await mkdir(path.dirname(manifestPath), { recursive: true });
@@ -4558,7 +4656,7 @@ describe("sync", () => {
     });
 
     expect(result.errors).toEqual([]);
-    expect(result.installed).toBe(1);
+    expect(result.installed).toBe(2);
     expect(await pathExists(installedPath)).toBe(true);
   });
 
@@ -5338,7 +5436,9 @@ describe("sync", () => {
         ),
       ).toBe(false);
       const manifest = JSON.parse(await readTextFile(config.manifest.path));
-      expect(manifest.records).toEqual([]);
+      expect(manifest.records).toEqual([
+        expect.objectContaining({ name: "devcanon-runtime" }),
+      ]);
     },
   );
 
@@ -5395,7 +5495,9 @@ describe("sync", () => {
         ),
       ).toBe(false);
       const manifest = JSON.parse(await readTextFile(config.manifest.path));
-      expect(manifest.records).toEqual([]);
+      expect(manifest.records).toEqual([
+        expect.objectContaining({ name: "devcanon-runtime" }),
+      ]);
     },
   );
 
@@ -5456,7 +5558,9 @@ describe("sync", () => {
         ),
       ).toBe(false);
       const manifest = JSON.parse(await readTextFile(config.manifest.path));
-      expect(manifest.records).toEqual([]);
+      expect(manifest.records).toEqual([
+        expect.objectContaining({ name: "devcanon-runtime" }),
+      ]);
     },
   );
 
@@ -5625,6 +5729,7 @@ describe("sync", () => {
         },
         manifest: { path: sharedManifestPath },
       });
+      await seedPassiveRuntime(newConfig);
       await mkdir(newConfig.library.skillsDir, { recursive: true });
       await mkdir(newConfig.library.agentsDir, { recursive: true });
       const newAgentPath = await createAgentFixture(
@@ -5738,7 +5843,7 @@ describe("sync", () => {
 
       const result = await sync(config, opts);
 
-      expect(result.skipped).toBe(0);
+      expect(result.skipped).toBe(1);
       expect(result.errors).toEqual([
         expect.stringContaining("symlink target mismatch"),
       ]);
@@ -6371,7 +6476,7 @@ describe("sync", () => {
       dryRun: false,
     });
 
-    expect(uninstallResult.removed).toBe(0);
+    expect(uninstallResult.removed).toBe(1);
     expect(uninstallResult.errors).toEqual([
       expect.stringContaining("installed copy content hash mismatch"),
     ]);

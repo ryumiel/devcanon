@@ -66,8 +66,8 @@ packaging diagnostics, and must fail before validation when the executable
 support validator is missing.
 
 This exception did not create a general cross-skill runtime utility layer when
-this decision was accepted. ADR-0024 later accepts a support-only shared skill
-runtime for helpers whose complexity or reuse exceeds the owning skill
+this decision was accepted. ADR-0024 later accepts a fixed passive runtime
+support bundle for helpers whose complexity or reuse exceeds the owning skill
 `scripts/` boundary. The support validator may become runtime-backed under that
 decision only if it preserves the same support-skill command surface and does
 not require the installed `devcanon` CLI.
@@ -81,7 +81,7 @@ not require the installed `devcanon` CLI.
 - Failure behavior becomes directly testable with isolated fixtures.
 - Skill bundles remain self-contained under the existing render and sync model.
 - Shared utility extraction is governed by ADR-0024 for helpers that opt into
-  the shared support skill runtime.
+  the passive runtime support bundle.
 - Play review artifact validation has one named support-skill owner rather than
   duplicated PR-review and branch-review script policy.
 - The architecture overview remains unchanged for this decision because the

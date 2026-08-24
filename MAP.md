@@ -53,7 +53,7 @@ Quick navigation index for the DevCanon repository.
 - Where is the agent schema spec? -> [`docs/specs/agents.md`](docs/specs/agents.md)
 - Where is the exact six-role semantic catalog and role envelope defined? ->
   [`docs/specs/agents.md`](docs/specs/agents.md#semantic-role-catalog)
-- Where are the mutation vocabulary, 33-skill inventory, and D1-D18
+- Where are the mutation vocabulary, 32-skill inventory, and D1-D18
   direct-child routes defined? ->
   [`docs/guidelines/agent-routing-and-mutation-policy.md`](docs/guidelines/agent-routing-and-mutation-policy.md)
 - Where is the target mapping spec? -> [`docs/specs/target-mapping.md`](docs/specs/target-mapping.md)
@@ -101,7 +101,7 @@ Quick navigation index for the DevCanon repository.
 - Where is the historical play-planning implementer executability gate
   rationale recorded? ->
   [`docs/adr/adr-0023-play-planning-implementer-executability-gate.md`](docs/adr/adr-0023-play-planning-implementer-executability-gate.md)
-- Where is the shared support skill runtime decision recorded? ->
+- Where is the shared passive runtime support bundle decision recorded? ->
   [`docs/adr/adr-0024-shared-support-skill-runtime.md`](docs/adr/adr-0024-shared-support-skill-runtime.md)
 - Where is the historical Codex model tier selection evidence recorded? ->
   [`docs/adr/adr-0025-codex-model-tier-selection.md`](docs/adr/adr-0025-codex-model-tier-selection.md)

@@ -56,7 +56,8 @@ projects.
 - Keep durable repo docs separate from live tracker state, PR review state, and
   agent-local execution artifacts.
 - Treat generated preview output and installed managed output as derived from
-  source; source skill and agent files remain authoritative.
+  source; source skill directories with `SKILL.md`, agent files, and the fixed
+  passive runtime bundle remain authoritative for their respective contracts.
 
 ## New Project Setup
 
@@ -170,8 +171,8 @@ writes managed outputs into user-wide target homes.
 Generated preview output and installed managed output are disposable and should
 not be edited as authoritative source. Generated preview output under
 `generated/` stays ignored and untracked; regenerate it locally when inspection
-is useful, but keep commits on source, renderer, tests, and tracked packaged
-support files such as `skills/devcanon-runtime/scripts/runtime/`. Before
+is useful, but keep commits on source, renderer, tests, and the fixed passive
+runtime payload such as `skills/devcanon-runtime/scripts/runtime/`. Before
 deciding whether generated output should be ignored, regenerated, reviewed, or
 committed, use the
 [target mapping generated output rules](../specs/target-mapping.md#generated-output-rules)
@@ -191,8 +192,8 @@ New project checklist:
 - [ ] The project has chosen an external issue tracker.
 - [ ] Contract authority is identified before any `contracts/` path is added.
 - [ ] Conditional-profile paths are created only when their triggers exist.
-- [ ] DevCanon source skills or agent roles are validated, rendered, and synced
-      only when the project uses DevCanon.
+- [ ] DevCanon source skills, agent roles, and passive runtime bundle are
+      validated, rendered, and synced only when the project uses DevCanon.
 
 Existing project checklist:
 

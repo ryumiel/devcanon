@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   cleanupTempDir,
+  copyDevcanonRuntimeFixture,
   createTempDir,
   makeResolvedConfig,
 } from "../__test-helpers__/fixtures.js";
@@ -62,6 +63,7 @@ describe("issue-worktree-setup render packaging", () => {
         },
       });
       await mkdir(config.library.agentsDir, { recursive: true });
+      await copyDevcanonRuntimeFixture(config.library.skillsDir);
 
       await renderAll(config, true, false);
 

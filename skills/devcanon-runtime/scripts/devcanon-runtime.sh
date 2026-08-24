@@ -95,7 +95,7 @@ resolve_entrypoint() {
       printf '%s\n' "$override_entrypoint"
       return 0
     fi
-    runtime_error "devcanon-runtime entrypoint missing: $override_entrypoint. DEVCANON_RUNTIME_DIR must point to a packaged devcanon-runtime skill directory containing executable runtime files."
+    runtime_error "devcanon-runtime entrypoint missing: $override_entrypoint. DEVCANON_RUNTIME_DIR must point to a packaged devcanon-runtime passive runtime bundle directory containing executable runtime files."
   fi
 
   local adapter_dir
@@ -116,7 +116,7 @@ resolve_entrypoint() {
     fi
   fi
 
-  runtime_error "devcanon-runtime entrypoint missing: $logical_skills_root/devcanon-runtime/$entrypoint. Ensure generated previews or installed skill homes include the sibling devcanon-runtime support skill, rerun devcanon render/sync, or set DEVCANON_RUNTIME_DIR for tests."
+  runtime_error "devcanon-runtime entrypoint missing: $logical_skills_root/devcanon-runtime/$entrypoint. Ensure generated previews or installed skill homes include the sibling devcanon-runtime passive runtime bundle, rerun devcanon render/sync, or set DEVCANON_RUNTIME_DIR for tests."
 }
 
 run_typed_runtime() {

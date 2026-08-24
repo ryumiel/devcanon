@@ -272,7 +272,7 @@ describe("shipped skill rendering", () => {
     const { outputs, skills } = await renderAll(config, false, true);
     const skillOutputs = outputs.filter((output) => output.type === "skill");
 
-    expect(skillOutputs).toHaveLength(skills.length * TARGETS.length);
+    expect(skillOutputs).toHaveLength((skills.length + 1) * TARGETS.length);
 
     for (const skill of skills) {
       for (const target of TARGETS) {
