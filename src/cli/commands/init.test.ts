@@ -51,7 +51,7 @@ describe("initAction", () => {
       await pathExists(
         path.join(tempDir, "skills", "devcanon-runtime", "SKILL.md"),
       ),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       await pathExists(
         path.join(
@@ -204,7 +204,7 @@ describe("initAction", () => {
     },
   );
 
-  it("renders and installs the seeded runtime as a sibling support skill", async () => {
+  it("renders the seeded runtime without treating it as an installable skill", async () => {
     await initAction();
 
     const config = withTemporaryInstallHomes(
@@ -214,14 +214,11 @@ describe("initAction", () => {
 
     const renderResult = await renderAll(config, false);
     expect(
-      renderResult.outputs
-        .filter(
-          (output) =>
-            output.type === "skill" && output.name === "devcanon-runtime",
-        )
-        .map((output) => output.target)
-        .sort(),
-    ).toEqual(["claude", "codex"]);
+      renderResult.outputs.some(
+        (output) =>
+          output.type === "skill" && output.name === "devcanon-runtime",
+      ),
+    ).toBe(false);
 
     const syncResult = await sync(config, {
       dryRun: false,
@@ -234,17 +231,9 @@ describe("initAction", () => {
     expect(
       await pathExists(
         path.join(
-          config.targets.codex.skillsHome,
-          "devcanon-runtime",
-          "scripts",
-          "devcanon-runtime.sh",
-        ),
-      ),
-    ).toBe(true);
-    expect(
-      await pathExists(
-        path.join(
-          config.targets.claude.skillsHome,
+          config.library.generatedDir,
+          "codex",
+          "skills",
           "devcanon-runtime",
           "scripts",
           "devcanon-runtime.sh",
@@ -286,7 +275,11 @@ describe("initAction", () => {
       initAction({ runtimeSourceDir: incompleteRuntimeDir }),
     ).rejects.toMatchObject({
       message: "Bundled devcanon-runtime support skill is incomplete.",
-      filePath: path.join(incompleteRuntimeDir, "SKILL.md"),
+      filePath: path.join(
+        incompleteRuntimeDir,
+        "scripts",
+        "devcanon-runtime.sh",
+      ),
     } satisfies Partial<UserError>);
     expect(await pathExists(path.join(tempDir, "devcanon.config.yaml"))).toBe(
       false,

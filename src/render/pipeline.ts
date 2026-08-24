@@ -14,12 +14,20 @@ import { UserError } from "../utils/errors.js";
 import { ensureDir, readdir, writeTextFile } from "../utils/fs.js";
 import { loadAndValidateAgents } from "../validate/agents.js";
 import {
+  devcanonRuntimeDir,
+  validateDevcanonRuntime,
+} from "../validate/devcanon-runtime.js";
+import {
   KNOWN_SUBDIRS,
   collectActiveModelPlaceholderErrors,
   loadAndValidateSkills,
 } from "../validate/skills.js";
 import { renderClaudeAgent } from "./claude.js";
 import { renderCodexAgent } from "./codex.js";
+import {
+  renderDevcanonRuntimeForTarget,
+  writeRenderedDevcanonRuntime,
+} from "./devcanon-runtime.js";
 import { renderSkillForTarget } from "./skill.js";
 
 export interface RenderResult<
@@ -65,6 +73,8 @@ export async function renderAll(
   strict = false,
   targetFilter?: "claude" | "codex",
 ): Promise<RenderResult> {
+  const runtimeDir = devcanonRuntimeDir(config.library.skillsDir);
+  await validateDevcanonRuntime(runtimeDir);
   const skills = await loadAndValidateSkills(config.library.skillsDir);
   const agents = await loadAndValidateAgents(config.library.agentsDir, skills, {
     strict,
@@ -79,6 +89,7 @@ export async function renderAll(
     writeToGenerated,
     targetFilter,
     cleanStaleGenerated: true,
+    runtimeDir,
   });
 }
 
@@ -96,6 +107,7 @@ interface RenderLoadedInternalOptions<
   TAgents extends readonly LoadedAgent[],
 > extends RenderLoadedOptions<TSkills, TAgents> {
   cleanStaleGenerated: boolean;
+  runtimeDir?: string;
 }
 
 async function renderLoadedInternal<
@@ -109,6 +121,7 @@ async function renderLoadedInternal<
   writeToGenerated = false,
   cleanStaleGenerated = false,
   targetFilter,
+  runtimeDir,
 }: RenderLoadedInternalOptions<TSkills, TAgents>): Promise<
   RenderResult<TSkills, TAgents>
 > {
@@ -130,6 +143,7 @@ async function renderLoadedInternal<
     rendered: RenderedSkill;
     extraFiles: Map<string, string>;
   }> = [];
+  const runtimeWrites: RenderedSkill[] = [];
 
   for (const target of targets) {
     if (!config.targets[target].enabled) continue;
@@ -156,6 +170,16 @@ async function renderLoadedInternal<
       outputs.push(rendered);
       skillWrites.push({ skill, rendered, extraFiles });
     }
+
+    if (runtimeDir) {
+      const rendered = await renderDevcanonRuntimeForTarget(
+        runtimeDir,
+        target,
+        config,
+      );
+      assertRenderedOutputPath(config, rendered);
+      runtimeWrites.push(rendered);
+    }
   }
 
   for (const output of outputs) {
@@ -163,7 +187,7 @@ async function renderLoadedInternal<
   }
   const mutationInventory = buildMutationInventory(
     config,
-    outputs,
+    [...outputs, ...runtimeWrites],
     targets,
     targetFilter,
     cleanStaleGenerated,
@@ -204,6 +228,17 @@ async function renderLoadedInternal<
           { recursive: true, verbatimSymlinks: true },
         );
       }
+    }
+    for (const runtime of runtimeWrites) {
+      await assertNoSymlinkPathComponents(
+        config.library.generatedDir,
+        runtime.generatedPath,
+        "devcanon-runtime generated directory",
+      );
+      await writeRenderedDevcanonRuntime(
+        runtime.sourcePath,
+        runtime.generatedPath,
+      );
     }
   }
 
@@ -261,7 +296,7 @@ async function renderLoadedInternal<
 
     // Remove stale per-target skill directories
     const currentSkillGeneratedDirs = new Set(
-      outputs
+      [...outputs, ...runtimeWrites]
         .filter((o): o is RenderedSkill => o.type === "skill")
         .map((o) => o.generatedPath),
     );

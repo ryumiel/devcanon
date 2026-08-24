@@ -1,5 +1,7 @@
+import { cpSync, mkdirSync } from "node:fs";
 import {
   chmod,
+  cp,
   mkdir,
   mkdtemp,
   rm,
@@ -9,6 +11,7 @@ import {
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { stringify as yamlStringify } from "yaml";
 import type { ManifestBoundary, ResolvedConfig } from "../config/schema.js";
 import type { LoadedAgent } from "../models/types.js";
@@ -29,6 +32,10 @@ export const CANONICAL_CAPABILITY_PROFILES = {
     codex: "gpt-5.6-sol",
   },
 };
+const DEV_CANON_RUNTIME_SOURCE_DIR = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../skills/devcanon-runtime",
+);
 
 export function makeConfigYaml(
   overrides: Record<string, unknown> = {},
@@ -82,6 +89,16 @@ export async function createSkillFixture(
     await mkdir(path.join(skillDir, sub), { recursive: true });
   }
   return skillDir;
+}
+
+export async function copyDevcanonRuntimeFixture(
+  skillsDir: string,
+): Promise<void> {
+  await cp(
+    DEV_CANON_RUNTIME_SOURCE_DIR,
+    path.join(skillsDir, "devcanon-runtime"),
+    { recursive: true },
+  );
 }
 
 export async function createAgentFixture(
@@ -147,7 +164,7 @@ export function makeResolvedConfig(
 ): ResolvedConfig {
   // Defaults to "copy" installMode for test safety — avoids symlink permission
   // issues on Windows CI. Tests that need symlink behavior override explicitly.
-  return {
+  const config: ResolvedConfig = {
     configDir: overrides.configDir ?? tempDir,
     library: {
       skillsDir: path.join(tempDir, "skills"),
@@ -191,6 +208,15 @@ export function makeResolvedConfig(
       frontier: { ...CANONICAL_CAPABILITY_PROFILES.frontier },
     },
   };
+  if (overrides.library?.skillsDir === undefined) {
+    mkdirSync(config.library.skillsDir, { recursive: true });
+    cpSync(
+      DEV_CANON_RUNTIME_SOURCE_DIR,
+      path.join(config.library.skillsDir, "devcanon-runtime"),
+      { recursive: true, force: true },
+    );
+  }
+  return config;
 }
 
 const DEFAULT_MANIFEST_BOUNDARY: ManifestBoundary = {

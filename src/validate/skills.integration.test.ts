@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   CANONICAL_CAPABILITY_PROFILES,
   cleanupTempDir,
+  copyDevcanonRuntimeFixture,
   createSkillFixture,
   createTempDir,
 } from "../__test-helpers__/fixtures.js";
@@ -56,6 +57,16 @@ describe("loadAndValidateSkills", () => {
 
   afterEach(async () => {
     await cleanupTempDir(tempDir);
+  });
+
+  it("excludes the fixed support runtime from ordinary loaded skills", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await copyDevcanonRuntimeFixture(skillsDir);
+    await createSkillFixture(skillsDir, "ordinary-skill");
+
+    const result = await loadAndValidateSkills(skillsDir);
+
+    expect(result.map((skill) => skill.name)).toEqual(["ordinary-skill"]);
   });
 
   function createRecordingLogger(): {

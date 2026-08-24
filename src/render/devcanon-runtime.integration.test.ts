@@ -1,25 +1,18 @@
-import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   cleanupTempDir,
+  copyDevcanonRuntimeFixture,
   createSkillFixture,
   createTempDir,
   makeResolvedConfig,
 } from "../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../__test-helpers__/logger.js";
 import type { ResolvedConfig } from "../config/schema.js";
-import type { RenderedSkill } from "../models/types.js";
 import { pathExists } from "../utils/fs.js";
+import { renderDevcanonRuntimeForTarget } from "./devcanon-runtime.js";
 import { renderAll } from "./pipeline.js";
-
-async function copyRuntimeFixture(skillsDir: string): Promise<void> {
-  await cp(
-    path.resolve("skills/devcanon-runtime"),
-    path.join(skillsDir, "devcanon-runtime"),
-    { recursive: true },
-  );
-}
 
 describe("devcanon-runtime rendering", () => {
   let tempDir: string;
@@ -40,8 +33,8 @@ describe("devcanon-runtime rendering", () => {
     await cleanupTempDir(tempDir);
   });
 
-  it("renders the support runtime beside consumer skills without user-facing invocation metadata", async () => {
-    await copyRuntimeFixture(config.library.skillsDir);
+  it("renders the support runtime beside consumer skills as support files only", async () => {
+    await copyDevcanonRuntimeFixture(config.library.skillsDir);
     await createSkillFixture(config.library.skillsDir, "consumer-skill");
 
     await renderAll(config, true);
@@ -70,18 +63,12 @@ describe("devcanon-runtime rendering", () => {
     expect(await pathExists(codexConsumerDir)).toBe(true);
     expect(path.dirname(codexRuntimeDir)).toBe(path.dirname(codexConsumerDir));
 
-    const claudeSkill = await readFile(
-      path.join(claudeRuntimeDir, "SKILL.md"),
-      "utf-8",
+    expect(await pathExists(path.join(claudeRuntimeDir, "SKILL.md"))).toBe(
+      false,
     );
-    expect(claudeSkill).toContain("user-invocable: false");
-    expect(claudeSkill).toContain("disable-model-invocation: true");
-
-    const codexSidecar = await readFile(
-      path.join(codexRuntimeDir, "agents", "openai.yaml"),
-      "utf-8",
-    );
-    expect(codexSidecar).toContain("allow_implicit_invocation: false");
+    expect(
+      await pathExists(path.join(codexRuntimeDir, "agents", "openai.yaml")),
+    ).toBe(false);
     const runtimeScriptPath = path.join(
       codexRuntimeDir,
       "scripts",
@@ -90,6 +77,18 @@ describe("devcanon-runtime rendering", () => {
     expect(await pathExists(runtimeScriptPath)).toBe(true);
     expect(await readFile(runtimeScriptPath, "utf-8")).toContain(
       "resolve-entrypoint",
+    );
+    expect((await stat(runtimeScriptPath)).mode & 0o777).toBe(
+      (
+        await stat(
+          path.join(
+            config.library.skillsDir,
+            "devcanon-runtime",
+            "scripts",
+            "devcanon-runtime.sh",
+          ),
+        )
+      ).mode & 0o777,
     );
 
     for (const runtimeModule of [
@@ -120,16 +119,14 @@ describe("devcanon-runtime rendering", () => {
   });
 
   it("includes runtime files in rendered content hashes", async () => {
-    await copyRuntimeFixture(config.library.skillsDir);
+    await copyDevcanonRuntimeFixture(config.library.skillsDir);
 
-    const first = await renderAll(config, false);
-    const firstRuntime = first.outputs.find(
-      (output): output is RenderedSkill =>
-        output.type === "skill" &&
-        output.target === "codex" &&
-        output.name === "devcanon-runtime",
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    const firstRuntime = await renderDevcanonRuntimeForTarget(
+      runtimeDir,
+      "codex",
+      config,
     );
-    expect(firstRuntime).toBeDefined();
 
     await writeFile(
       path.join(
@@ -142,14 +139,11 @@ describe("devcanon-runtime rendering", () => {
       "utf-8",
     );
 
-    const second = await renderAll(config, false);
-    const secondRuntime = second.outputs.find(
-      (output): output is RenderedSkill =>
-        output.type === "skill" &&
-        output.target === "codex" &&
-        output.name === "devcanon-runtime",
+    const secondRuntime = await renderDevcanonRuntimeForTarget(
+      runtimeDir,
+      "codex",
+      config,
     );
-    expect(secondRuntime).toBeDefined();
-    expect(secondRuntime?.contentHash).not.toBe(firstRuntime?.contentHash);
+    expect(secondRuntime.contentHash).not.toBe(firstRuntime.contentHash);
   });
 });

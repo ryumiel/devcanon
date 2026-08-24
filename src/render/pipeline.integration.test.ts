@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   canCreateSymlinks,
   cleanupTempDir,
+  copyDevcanonRuntimeFixture,
   createAgentFixture,
   createSkillFixture,
   createTempDir,
@@ -38,6 +39,7 @@ describe("renderAll", () => {
     // Create skills and agents directories expected by makeResolvedConfig
     await mkdir(config.library.skillsDir, { recursive: true });
     await mkdir(config.library.agentsDir, { recursive: true });
+    await copyDevcanonRuntimeFixture(config.library.skillsDir);
   });
 
   afterEach(async () => {
@@ -45,7 +47,7 @@ describe("renderAll", () => {
     await cleanupTempDir(tempDir);
   });
 
-  it("produces 4 outputs for 1 agent + 1 skill with both targets enabled", async () => {
+  it("preserves ordinary outputs beside the passive runtime projection", async () => {
     await createSkillFixture(config.library.skillsDir, "my-skill");
     await createAgentFixture(
       config.library.agentsDir,
@@ -187,7 +189,7 @@ describe("renderAll", () => {
     }
   });
 
-  it("returns empty outputs when no skills and no agents exist", async () => {
+  it("keeps ordinary output results empty when only the passive runtime exists", async () => {
     const result = await renderAll(config, false);
 
     expect(result.outputs).toEqual([]);
@@ -224,6 +226,18 @@ describe("renderAll", () => {
           config.library.generatedDir,
           "claude",
           "skills",
+          "devcanon-runtime",
+        ),
+        target: "claude",
+        type: "skill",
+        name: "devcanon-runtime",
+      },
+      {
+        kind: "selected-output",
+        path: path.resolve(
+          config.library.generatedDir,
+          "claude",
+          "skills",
           "inventory-skill",
         ),
         target: "claude",
@@ -241,6 +255,18 @@ describe("renderAll", () => {
         target: "codex",
         type: "agent",
         name: "inventory-agent",
+      },
+      {
+        kind: "selected-output",
+        path: path.resolve(
+          config.library.generatedDir,
+          "codex",
+          "skills",
+          "devcanon-runtime",
+        ),
+        target: "codex",
+        type: "skill",
+        name: "devcanon-runtime",
       },
       {
         kind: "selected-output",
@@ -330,11 +356,23 @@ describe("renderAll", () => {
     }
   });
 
-  it("projects cleanup roots for empty selected sources and excludes passive targets", async () => {
+  it("projects the passive runtime mutation before cleanup roots for an otherwise empty source", async () => {
     const result = await renderAll(config, false, false, "claude");
 
     expect(result.outputs).toEqual([]);
     expect(result.mutationInventory).toEqual([
+      {
+        kind: "selected-output",
+        path: path.resolve(
+          config.library.generatedDir,
+          "claude",
+          "skills",
+          "devcanon-runtime",
+        ),
+        target: "claude",
+        type: "skill",
+        name: "devcanon-runtime",
+      },
       {
         kind: "stale-cleanup-root",
         path: path.resolve(config.library.generatedDir, "claude", "agents"),
@@ -384,10 +422,12 @@ describe("renderAll", () => {
       "selected-output:claude:agent:a-agent",
       "selected-output:claude:agent:z-agent",
       "selected-output:claude:skill:a-skill",
+      "selected-output:claude:skill:devcanon-runtime",
       "selected-output:claude:skill:z-skill",
       "selected-output:codex:agent:a-agent",
       "selected-output:codex:agent:z-agent",
       "selected-output:codex:skill:a-skill",
+      "selected-output:codex:skill:devcanon-runtime",
       "selected-output:codex:skill:z-skill",
       "stale-cleanup-root:claude:agent",
       "stale-cleanup-root:codex:agent",
@@ -1281,6 +1321,7 @@ describe("renderLoaded", () => {
     restore = installed.restore;
     await mkdir(config.library.skillsDir, { recursive: true });
     await mkdir(config.library.agentsDir, { recursive: true });
+    await copyDevcanonRuntimeFixture(config.library.skillsDir);
   });
 
   afterEach(async () => {
