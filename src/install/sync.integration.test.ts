@@ -33,6 +33,7 @@ import {
   installTestLogger,
 } from "../__test-helpers__/logger.js";
 import { loadConfig } from "../config/load.js";
+import type { ResolvedConfig } from "../config/schema.js";
 import { diffAll } from "../diff/diff.js";
 import { buildSkillContentHash } from "../render/skill.js";
 import { UserError } from "../utils/errors.js";
@@ -66,6 +67,10 @@ vi.mock("./symlink.js", async (importOriginal) => {
 
 const symlinkAvailable = await canCreateSymlinks();
 const execFileAsync = promisify(execFile);
+
+async function seedPassiveRuntime(config: ResolvedConfig): Promise<void> {
+  await copyDevcanonRuntimeFixture(config.library.skillsDir);
+}
 
 async function canCreateFifo(): Promise<boolean> {
   if (process.platform === "win32") return false;
@@ -328,6 +333,7 @@ describe("sync", () => {
     try {
       process.chdir(firstCwd);
       const firstConfig = await loadConfig(configPath);
+      await seedPassiveRuntime(firstConfig);
       await createSkillFixture(firstConfig.library.skillsDir, "shared");
       await createAgentFixture(
         firstConfig.library.agentsDir,
@@ -1068,6 +1074,7 @@ describe("sync", () => {
         claude: { skillsHome, agentsHome },
         codex: { enabled: false },
       });
+      await seedPassiveRuntime(config);
       const skillPath = path.join(skillsHome, skillName);
       const agentPath = path.join(agentsHome, `${agentName}.md`);
       await createSkillFixture(config.library.skillsDir, skillName);
@@ -1111,6 +1118,7 @@ describe("sync", () => {
         codex: { agentsHome: path.join(root, "parent") },
         defaults: { cleanManagedOutputs: false },
       });
+      await seedPassiveRuntime(config);
       const activeRecord = {
         target: "claude" as const,
         type: "skill" as const,
@@ -1184,6 +1192,7 @@ describe("sync", () => {
         codex: { skillsHome: root },
         defaults: { cleanManagedOutputs: false },
       });
+      await seedPassiveRuntime(config);
       const passiveAncestor = {
         target: "codex" as const,
         type: "skill" as const,
@@ -1271,6 +1280,7 @@ describe("sync", () => {
         },
         defaults: { cleanManagedOutputs: false },
       });
+      await seedPassiveRuntime(config);
       const skillRecord = {
         target: "codex" as const,
         type: "skill" as const,
@@ -1356,6 +1366,7 @@ describe("sync", () => {
         claude: { skillsHome: claudeSkillsHome },
         codex: { agentsHome: codexAgentsHome },
       });
+      await seedPassiveRuntime(config);
       const selectedPath = path.join(claudeSkillsHome, selectedName);
       const retainedPath = path.join(codexAgentsHome, `${retainedName}.toml`);
       const generatedSentinel = path.join(
@@ -2032,6 +2043,7 @@ describe("sync", () => {
           codex: { enabled: false },
           defaults: { cleanManagedOutputs: false },
         });
+        await seedPassiveRuntime(config);
         const name = "protected";
         const home =
           scenario.type === "agent"
@@ -2708,6 +2720,7 @@ describe("sync", () => {
       const config = makeResolvedConfig(scenarioDir, {
         codex: { enabled: false },
       });
+      await seedPassiveRuntime(config);
       const selectedName = "selected";
       if (selectedType === "agent") {
         await createAgentFixture(
@@ -3040,6 +3053,7 @@ describe("sync", () => {
         claude: { skillsHome: sharedSkillsHome },
         codex: { skillsHome: sharedSkillsHome },
       });
+      await seedPassiveRuntime(config);
       const installedPath = path.join(sharedSkillsHome, "shared");
       const generatedSentinel = path.join(
         config.library.generatedDir,
@@ -3274,6 +3288,7 @@ describe("sync", () => {
       const config = makeResolvedConfig(scenarioDir, {
         codex: { enabled: false },
       });
+      await seedPassiveRuntime(config);
       const type = scenario.direction === "ancestor" ? "skill" : "agent";
       const name = "protected";
       const sourcePath =
@@ -3464,6 +3479,7 @@ describe("sync", () => {
             ...(scenario.force ? {} : { overwritePolicy: "overwrite-all" }),
           },
         });
+        await seedPassiveRuntime(config);
         const type = scenario.kind === "tree" ? "skill" : "agent";
         const name = "protected";
         const home =
@@ -4067,6 +4083,7 @@ describe("sync", () => {
           claude: { skillsHome: sharedSkillsHome },
           codex: { skillsHome: sharedSkillsHome },
         });
+        await seedPassiveRuntime(config);
         const name = "shared-skill";
         const installedPath = path.join(sharedSkillsHome, name);
         const generatedSentinel = path.join(
@@ -4188,6 +4205,7 @@ describe("sync", () => {
         codex: { skillsHome: sharedSkillsHome },
         defaults: scenario.defaults,
       });
+      await seedPassiveRuntime(config);
       const name = "shared-skill";
       const installedPath = path.join(sharedSkillsHome, name);
       const generatedSentinel = path.join(
@@ -4262,6 +4280,7 @@ describe("sync", () => {
         codex: { enabled: false },
         manifest: { path: manifestPath },
       });
+      await seedPassiveRuntime(config);
       await mkdir(config.library.skillsDir, { recursive: true });
       await createAgentFixture(
         config.library.agentsDir,
@@ -4312,6 +4331,7 @@ describe("sync", () => {
         defaults: { overwritePolicy: "overwrite-all" },
         manifest: { path: manifestPath },
       });
+      await seedPassiveRuntime(config);
       await mkdir(config.library.agentsDir, { recursive: true });
       await createSkillFixture(config.library.skillsDir, name);
       await mkdir(path.dirname(manifestPath), { recursive: true });
@@ -4355,6 +4375,7 @@ describe("sync", () => {
       codex: { enabled: false },
       manifest: { path: manifestPath },
     });
+    await seedPassiveRuntime(config);
     await mkdir(config.library.agentsDir, { recursive: true });
     await createSkillFixture(config.library.skillsDir, skillName);
     const installedPath = path.join(skillsHome, skillName);
@@ -4404,6 +4425,7 @@ describe("sync", () => {
               : { skillsHome: controlHome },
           manifest: { path: manifestPath },
         });
+        await seedPassiveRuntime(config);
         await mkdir(config.library.skillsDir, { recursive: true });
         await mkdir(config.library.agentsDir, { recursive: true });
         await mkdir(path.dirname(manifestPath), { recursive: true });
@@ -5627,6 +5649,7 @@ describe("sync", () => {
         },
         manifest: { path: sharedManifestPath },
       });
+      await seedPassiveRuntime(newConfig);
       await mkdir(newConfig.library.skillsDir, { recursive: true });
       await mkdir(newConfig.library.agentsDir, { recursive: true });
       const newAgentPath = await createAgentFixture(
