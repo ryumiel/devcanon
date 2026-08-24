@@ -85,7 +85,9 @@ Scaffold behavior:
 
 ## `validate`
 
-Validate config, skills, and agents.
+Validate config, the fixed passive runtime bundle, declaration-bearing skills,
+and agents. The passive runtime bundle is not included in the source-skill
+count.
 
 ```bash
 devcanon validate
@@ -93,6 +95,9 @@ devcanon validate
 
 Current behavior:
 
+- after config validation, the fixed passive runtime bundle is validated before
+  declaration-bearing source skills; it is reported separately and is not
+  included in the source-skill count
 - version 1 config fails with a dedicated migration diagnostic; version 2
   `modelTiers` fails with a dedicated `capabilityProfiles` replacement
   diagnostic before ordinary schema validation
