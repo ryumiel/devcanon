@@ -227,11 +227,11 @@ export async function sync(
       config.defaults.overwritePolicy,
       options.force,
       config.defaults.cleanManagedOutputs,
-      options.target,
       {
         claude: options.mode ?? config.targets.claude.installMode,
         codex: options.mode ?? config.targets.codex.installMode,
       },
+      options.target,
     );
     const plan = protectReconciledForeignPaths(
       plannedActions,
