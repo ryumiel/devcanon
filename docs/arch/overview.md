@@ -338,15 +338,17 @@ normalization derives it from their target-native destination during binding.
 
 ## Install Modes
 
-| Requested mode | Effective materialization                                                                                                                 | When used                                                                  |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `symlink`      | Symlink from the install path to the source directory (skills) or generated file (agents), except Codex agent roles materialize as copies | Default requested mode; eligible outputs may use the Windows copy fallback |
-| `copy`         | Full copy from generated output to install path                                                                                           | Explicit requested mode                                                    |
+| Requested mode | Effective mode                                                                                                | When used                                                                  |
+| -------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `symlink`      | `symlink`, except Codex agent roles resolve to `copy`; skill symlinks link the per-target generated directory | Default requested mode; eligible outputs may use the Windows copy fallback |
+| `copy`         | `copy`                                                                                                        | Explicit requested mode                                                    |
 
 Codex agent roles are the narrow exception: their effective and actual mode is
 `copy` for either requested mode. Codex skills and Claude outputs retain the
-requested mode. The manifest records the actual mode. This table summarizes
-install behavior only; it does not change the module topology above.
+requested mode as the effective mode. An eligible effective `symlink` may fall
+back to actual `copy` on Windows; the manifest records the actual mode. This
+table summarizes install behavior only; it does not change the module topology
+above.
 
 ### Overwrite Policy
 

@@ -45,20 +45,22 @@ Supported in v1:
 - `claude`
 - `codex`
 
-### Requested Install Mode
+### Install Mode
 
-The configured or CLI-selected mode requested for installed managed outputs:
+The configured or CLI-selected **requested** mode for installed managed
+outputs:
 
 - `symlink`
 - `copy`
 
-### Effective Install Mode
-
-The per-output mode actually used for materialization. Codex agent roles have
-effective mode `copy` regardless of the requested mode; Codex skills and all
-Claude outputs retain the requested mode. The manifest records the actual
-installed mode. See [Install and sync](install-and-sync.md) for migration and
-identity behavior.
+The **effective** mode is the per-output policy resolution of the requested
+mode before a platform fallback or materialization attempt. Codex agent roles
+resolve to effective mode `copy`; all other outputs resolve to the requested
+mode. Eligible outputs with effective mode `symlink` may fall back to actual
+mode `copy` on Windows. Codex agent roles therefore have actual mode `copy`
+after successful installation, while the manifest records the actual installed
+mode. See
+[Install and sync](install-and-sync.md) for migration and identity behavior.
 
 ### Generated Output
 

@@ -17,8 +17,8 @@ the source library into user home directories (`~/.claude/`, `~/.codex/`,
 ## Decision
 
 Default requested install mode is `symlink`. Symlinks point from the install
-path back to the source, so changes to source files are immediately reflected
-without re-syncing.
+path to generated outputs, so updates to linked generated outputs are
+immediately reflected without re-copying.
 
 On Windows, where symlinks may require Developer Mode or elevated privileges,
 eligible symlink outputs fall back to `copy` mode. Copy mode can also be
@@ -31,19 +31,20 @@ outputs.
 
 ## Consequences
 
-- On macOS/Linux, source edits are instantly live for symlinked outputs without
-  running `sync` again.
+- On macOS/Linux, updates to linked generated outputs are instantly reflected
+  for symlinked outputs without re-copying.
 - Copied outputs, including Codex user agent roles, require `sync` after
-  source changes to propagate updates.
+  generated-output changes to propagate updates.
 - On Windows, copied fallback outputs likewise require `sync` after source
-  changes.
+  generated-output changes.
 - The manifest tracks the actual install mode per output so the tool can clean
   up or update each managed file.
 - Symlink detection logic must handle broken symlinks during cleanup.
 
 ## Alternatives considered
 
-- **Copy-only:** simpler but requires re-sync after every source change.
+- **Copy-only:** simpler but requires re-sync after every generated-output
+  update.
   Rejected as the default because it adds friction to the primary workflow.
 - **Hardlinks:** would work for files but not directories. Rejected because
   skills are directories with multiple files.

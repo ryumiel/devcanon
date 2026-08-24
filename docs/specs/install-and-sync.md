@@ -282,17 +282,18 @@ backups or manifest churn.
 
 ---
 
-## Requested and Effective Install Modes
+## Default Install Mode
 
 Configuration and `sync --mode` select a **requested** install mode. The
 default requested mode is `symlink`; an explicit request may also select
-`copy`. The effective mode is the materialization mode for an individual
-output.
+`copy`. The effective mode is the per-output policy resolution of that request
+before a platform fallback or materialization attempt.
 
-Codex agent roles always have effective mode `copy`, regardless of the
-requested mode. Codex skills and all Claude outputs retain their requested
-mode. Eligible symlink outputs on Windows may still fall back to an actual
-`copy` installation. This installation rule does not change generated output.
+Codex agent roles always resolve to effective mode `copy`, regardless of the
+requested mode. Codex skills and all Claude outputs resolve to their requested
+mode. Eligible outputs with effective mode `symlink` on Windows may still fall
+back to an actual `copy` installation. The manifest records this actual mode.
+This installation rule does not change generated output.
 
 ---
 
