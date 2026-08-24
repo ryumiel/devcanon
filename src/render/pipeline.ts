@@ -18,6 +18,7 @@ import {
   validateDevcanonRuntime,
 } from "../validate/devcanon-runtime.js";
 import {
+  DEVCANON_RUNTIME_SKILL_NAME,
   KNOWN_SUBDIRS,
   collectActiveModelPlaceholderErrors,
   loadAndValidateSkills,
@@ -193,13 +194,17 @@ async function renderLoadedInternal<
     targetFilter,
     cleanStaleGenerated,
   );
-  const staleCleanupPlan =
-    writeToGenerated && cleanStaleGenerated
-      ? await planStaleGeneratedCleanup(config, mutationInventory, outputs)
-      : EMPTY_STALE_GENERATED_CLEANUP_PLAN;
+  let staleCleanupPlan = EMPTY_STALE_GENERATED_CLEANUP_PLAN;
 
   if (writeToGenerated) {
     await preflightGeneratedMutations(config, mutationInventory);
+    if (cleanStaleGenerated) {
+      staleCleanupPlan = await planStaleGeneratedCleanup(
+        config,
+        mutationInventory,
+        outputs,
+      );
+    }
     for (const { skill, rendered, extraFiles } of skillWrites) {
       await assertNoSymlinkPathComponents(
         config.library.generatedDir,
@@ -351,6 +356,29 @@ async function preflightGeneratedMutations(
       config.library.generatedDir,
       mutation.path,
       `Generated ${mutation.type} path for "${mutation.target}"`,
+    );
+    if (mutation.kind === "selected-output") {
+      await assertSelectedOutputLeafType(mutation);
+    }
+  }
+}
+
+async function assertSelectedOutputLeafType(
+  mutation: Extract<RenderMutation, { kind: "selected-output" }>,
+): Promise<void> {
+  let stat: Stats;
+  try {
+    stat = await lstat(mutation.path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw error;
+  }
+  const expectedType = mutation.type === "agent" ? "regular file" : "directory";
+  const valid = mutation.type === "agent" ? stat.isFile() : stat.isDirectory();
+  if (!valid) {
+    throw new UserError(
+      `Generated ${mutation.type} output must be absent or a ${expectedType}: ${mutation.path}`,
+      mutation.path,
     );
   }
 }
@@ -544,9 +572,9 @@ function validateLoadedSkillReference(
   skill: LoadedSkill,
   names: Set<string>,
 ): void {
-  if (skill.name === "devcanon-runtime") {
+  if (skill.name === DEVCANON_RUNTIME_SKILL_NAME) {
     throw new UserError(
-      'Loaded skill "devcanon-runtime" is reserved for passive runtime projection.',
+      `Loaded skill "${DEVCANON_RUNTIME_SKILL_NAME}" is reserved for passive runtime projection.`,
     );
   }
   const result = SkillSourceSchema.safeParse(skill.source);

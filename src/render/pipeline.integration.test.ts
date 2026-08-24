@@ -21,7 +21,10 @@ import type { RenderedAgent } from "../models/types.js";
 import { UserError } from "../utils/errors.js";
 import { pathExists } from "../utils/fs.js";
 import { loadAndValidateAgents } from "../validate/agents.js";
-import { loadAndValidateSkills } from "../validate/skills.js";
+import {
+  DEVCANON_RUNTIME_SKILL_NAME,
+  loadAndValidateSkills,
+} from "../validate/skills.js";
 import { renderAll, renderLoaded } from "./pipeline.js";
 
 const symlinkAvailable = await canCreateSymlinks();
@@ -846,6 +849,36 @@ describe("renderAll", () => {
     expect(await pathExists(staleClaudePath)).toBe(false);
   });
 
+  it("preflights selected agent destination types before replacing earlier skills", async () => {
+    await createSkillFixture(config.library.skillsDir, "first-skill");
+    await createAgentFixture(
+      config.library.agentsDir,
+      "later-agent",
+      makeAgentYaml("later-agent"),
+    );
+    const skillSentinel = path.join(
+      config.library.generatedDir,
+      "claude",
+      "skills",
+      "first-skill",
+      "sentinel.txt",
+    );
+    const invalidAgentDestination = path.join(
+      config.library.generatedDir,
+      "claude",
+      "agents",
+      "later-agent.md",
+    );
+    await mkdir(path.dirname(skillSentinel), { recursive: true });
+    await writeFile(skillSentinel, "unchanged\n", "utf-8");
+    await mkdir(invalidAgentDestination, { recursive: true });
+
+    await expect(renderAll(config, true, false, "claude")).rejects.toThrow(
+      /must be absent or a regular file/i,
+    );
+    expect(await readFile(skillSentinel, "utf-8")).toBe("unchanged\n");
+  });
+
   it.skipIf(!symlinkAvailable)(
     "preflights stale cleanup entries before writing selected outputs",
     async () => {
@@ -1445,6 +1478,30 @@ describe("renderLoaded", () => {
     expect(generatedSkillContent).toContain("A test skill.");
     expect(generatedSkillContent).not.toContain("Mutated source");
     expect(generatedSkillContent).not.toContain("# changed");
+  });
+
+  it("rejects a forged passive runtime in ordinary loaded skills", async () => {
+    await createSkillFixture(config.library.skillsDir, "ordinary-skill");
+    const [ordinarySkill] = await loadAndValidateSkills(
+      config.library.skillsDir,
+    );
+    const forgedRuntime = {
+      ...ordinarySkill,
+      name: DEVCANON_RUNTIME_SKILL_NAME,
+      source: {
+        ...ordinarySkill.source,
+        name: DEVCANON_RUNTIME_SKILL_NAME,
+      },
+    };
+
+    await expect(
+      renderLoaded({
+        config,
+        skills: [forgedRuntime],
+        validatedSkills: [forgedRuntime],
+        agents: [],
+      }),
+    ).rejects.toThrow(/reserved for passive runtime projection/i);
   });
 
   it("finishes the complete inventory before replacing the first writable skill", async () => {

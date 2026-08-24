@@ -176,7 +176,7 @@ describe("devcanon-runtime rendering", () => {
     },
   );
 
-  it("frames passive runtime records with their paths", async () => {
+  it("frames passive runtime records against naive concatenation collisions", async () => {
     await copyDevcanonRuntimeFixture(config.library.skillsDir);
     const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
     const firstPath = path.join(
@@ -191,18 +191,18 @@ describe("devcanon-runtime rendering", () => {
       "runtime",
       "command.js",
     );
+    await Promise.all([
+      writeFile(firstPath, "alpha", "utf-8"),
+      writeFile(secondPath, "beta", "utf-8"),
+    ]);
     const first = await renderDevcanonRuntimeForTarget(
       runtimeDir,
       "codex",
       config,
     );
-    const [firstBytes, secondBytes] = await Promise.all([
-      readFile(firstPath),
-      readFile(secondPath),
-    ]);
     await Promise.all([
-      writeFile(firstPath, secondBytes),
-      writeFile(secondPath, firstBytes),
+      writeFile(firstPath, "alphab", "utf-8"),
+      writeFile(secondPath, "eta", "utf-8"),
     ]);
 
     const second = await renderDevcanonRuntimeForTarget(

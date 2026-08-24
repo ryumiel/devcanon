@@ -11,6 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { copyDevcanonRuntimeFixture } from "../__test-helpers__/fixtures.js";
 import {
   inspectManifest,
   recoverInvalidManifest,
@@ -60,6 +61,7 @@ describe("CLI entrypoint", () => {
       const codexAgentsHome = path.join(tempDir, "home", "codex", "agents");
       const codexSkillsHome = path.join(tempDir, "home", "codex", "skills");
       await mkdir(agentsDir, { recursive: true });
+      await copyDevcanonRuntimeFixture(path.join(tempDir, "skills"));
       await writeFile(
         path.join(agentsDir, "helper.yaml"),
         "name: helper\ndescription: helper\ninstructions: help\nskills: []\n",
