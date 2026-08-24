@@ -399,16 +399,16 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     { name: "zero findings", findings: [], carryForward: [] },
     {
       name: "one active finding",
-      findings: [{ id: "F1", title: "Finding" }],
+      findings: [auditFinding("F1", "Finding")],
       carryForward: [],
     },
     {
       name: "multiple active and carry-forward findings",
       findings: [
-        { id: "F1", title: "First finding" },
-        { id: "F2", title: "Second finding" },
+        auditFinding("F1", "First finding"),
+        auditFinding("F2", "Second finding"),
       ],
-      carryForward: [{ id: "CF1", title: "Carry-forward finding" }],
+      carryForward: [auditFinding("CF1", "Carry-forward finding")],
     },
   ])(
     "renders dense mandatory audit families for $name without preview-owned identities",
@@ -2037,7 +2037,7 @@ async function runManifestCommandWithStdin(
 
 async function makeManifestWorkspace(
   _prefix: string,
-  findings: Array<Record<string, unknown>> = [{ id: "F1", title: "Finding" }],
+  findings: Array<Record<string, unknown>> = [auditFinding("F1", "Finding")],
   carryForward: Array<Record<string, unknown>> = [],
 ): Promise<ManifestWorkspace> {
   const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
@@ -2092,6 +2092,7 @@ async function makeManifestWorkspace(
     schema: "play-review/findings/v2",
     findings,
     carry_forward: carryForward,
+    incomplete_topical_routes: [],
   });
   await writeFile(path.join(worktree, reviewBodyFile), "Review body.\n");
   await writeFile(path.join(worktree, previewFile), "Rendered preview.\n");
@@ -2253,6 +2254,25 @@ function setSummaryEnv(workspace: ManifestWorkspace): void {
   process.env.LEASE_FILE = workspace.leaseFile;
   process.env.PR_REVIEW_DIR = workspace.prReviewDir;
   process.env.PLAY_REVIEW_HELPER = workspace.playReviewHelper;
+}
+
+function auditFinding(id: string, title: string): Record<string, unknown> {
+  const why = `${title} requires review.`;
+  const recommendation = "Address the reviewed behavior.";
+  return {
+    id,
+    title,
+    path: "src/review-target.ts",
+    line: 4,
+    start_line: null,
+    severity: "Blocking",
+    category: "Tests",
+    critic: "VALID",
+    anchor: "natural",
+    why,
+    recommendation,
+    body: `**Blocking | Tests** — ${why}\n\n**Recommendation:** ${recommendation}`,
+  };
 }
 
 function validStatus(workspace: ManifestWorkspace): Record<string, unknown> {
