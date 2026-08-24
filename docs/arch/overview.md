@@ -130,8 +130,8 @@ authority for a named external mutation.
 ### Source-Immutability Runtime Boundary
 
 The pre-migration runtime has no source-immutability command group or seven
-workflow shims. Under the ADR-0027 post-migration architecture, packaged
-the passive `devcanon-runtime` bundle owns the deterministic capture, verify,
+workflow shims. Under the ADR-0027 post-migration architecture, the packaged
+passive `devcanon-runtime` bundle owns the deterministic capture, verify, and
 and cleanup mechanics
 for the minimum source-immutable guard. The existing runtime entrypoint and
 compatibility contract remain the only runtime-version boundary. Acceptance
