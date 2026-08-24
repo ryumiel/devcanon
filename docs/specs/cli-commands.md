@@ -39,17 +39,19 @@ Creates:
 - config file
 - source directories
 - sample skill
-- packaged `skills/devcanon-runtime/` support skill
+- packaged `skills/devcanon-runtime/` passive runtime support bundle
 - sample agent
 
-Runtime support skill behavior:
+Passive runtime support bundle behavior:
 
-- fresh libraries receive the packaged runtime support skill at
+- fresh libraries receive the fixed passive runtime support bundle at
   `skills/devcanon-runtime/`
+- the bundle contains only its validated `scripts/` payload, with no
+  `SKILL.md` or Codex invocation sidecar
 - an existing matching `skills/devcanon-runtime/` path is preserved
 - an existing non-matching `skills/devcanon-runtime/` path causes `init` to
   fail with repair guidance; DevCanon does not overwrite the existing support
-  runtime path
+  runtime bundle path
 - generated outputs remain disposable render results, not authoritative source
   files
 

@@ -20,7 +20,7 @@ owns the decision rationale, bounded runtime gate, and deferrals.
 - [Agent Authoring Guide](agent-authoring-guide.md) - when to create agent
   roles instead of skills, and how to promote prompt templates.
 - [Agent Routing and Mutation Policy](agent-routing-and-mutation-policy.md) -
-  closed mutation vocabulary plus the complete 33-skill and D1-D18
+  closed mutation vocabulary plus the complete 32-skill and D1-D18
   direct-child route inventories.
 - [AFDS Setup and Migration](afds-setup-and-migration.md) - how new and
   existing projects can adopt AFDS entry points, navigation, tracker

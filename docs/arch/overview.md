@@ -24,7 +24,7 @@ src/
 ├─ render/     Deterministic rendering to Claude (.md) and Codex (.toml)
 ├─ install/    Sync orchestration, install plan, manifest, copy/symlink modes
 ├─ diff/       Diff between generated outputs and installed managed outputs
-├─ runtime/    Shared typed helper foundation for packaged skill runtime code
+├─ runtime/    Shared typed helper foundation for the packaged passive runtime
 └─ utils/      Filesystem helpers, path resolution, hashing, CLI output,
                naming validation
 ```
@@ -49,7 +49,7 @@ utils -> (none)
 `cli/` has the broadest dependency fan-out. `utils/` is the only internal leaf
 module.
 `runtime/` is also isolated from CLI/render/install workflow authority; it owns
-only deterministic helper mechanics used by packaged support skill entrypoints.
+only deterministic helper mechanics used by packaged passive runtime entrypoints.
 
 Some current dependencies are intentionally documented as implementation state,
 not as a claim that the dependency direction is ideal:
@@ -131,7 +131,8 @@ authority for a named external mutation.
 
 The pre-migration runtime has no source-immutability command group or seven
 workflow shims. Under the ADR-0027 post-migration architecture, packaged
-`devcanon-runtime` owns the deterministic capture, verify, and cleanup mechanics
+the passive `devcanon-runtime` bundle owns the deterministic capture, verify,
+and cleanup mechanics
 for the minimum source-immutable guard. The existing runtime entrypoint and
 compatibility contract remain the only runtime-version boundary. Acceptance
 requires thin adapters under `issue-priming-workflow`, `play-agent-dispatch`,

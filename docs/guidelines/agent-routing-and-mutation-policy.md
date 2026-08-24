@@ -70,7 +70,6 @@ child role.
 | Skill                              | Demand / stance         | Source authority | External authority | Material override / owner note                                              |
 | ---------------------------------- | ----------------------- | ---------------- | ------------------ | --------------------------------------------------------------------------- |
 | `branch-review`                    | inherited / adversarial | source-mutable   | none               | Mutable only in explicit fix mode                                           |
-| `devcanon-runtime`                 | mechanical / normal     | source-mutable   | none               | Caller-bounded deterministic local mechanics                                |
 | `doc-gardening`                    | synthesis / adversarial | source-mutable   | none               | Audit immutable; selected fixes mutable                                     |
 | `git-workspace-cleanup`            | mechanical / normal     | source-mutable   | none               | Destructive local Git only after approval                                   |
 | `github-issue-priming`             | inherited / normal      | source-mutable   | external-mutable   | Worktree setup plus required auto-workflow handoff; downstream owns effects |
@@ -288,5 +287,5 @@ workflow may still return its ordinary recoverable failure or `BLOCKED` state.
 - [Code review guideline](code-review-guideline.md)
 - [ADR-0013: Path-Based Phase-Artifact Handoff](../adr/adr-0013-path-based-phase-artifact-handoff.md)
 - [ADR-0016: Single-Task Auto Final-Review Carve-Out](../adr/adr-0016-single-task-auto-final-review-carve-out.md)
-- [ADR-0024: Shared Support Skill Runtime](../adr/adr-0024-shared-support-skill-runtime.md)
+- [ADR-0024: Shared Passive Runtime Support Bundle](../adr/adr-0024-shared-support-skill-runtime.md)
 - [ADR-0026: Replace Model Tiers with Capability Profiles](../adr/adr-0026-capability-profiles.md)
