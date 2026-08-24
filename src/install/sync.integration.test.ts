@@ -10,6 +10,7 @@ import {
   rm,
   stat,
   symlink,
+  utimes,
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
@@ -6561,6 +6562,33 @@ describe("sync", () => {
         record.installedPath === claudeAgentPath,
     );
     expect(claudeAgentRecord.installMode).toBe("copy");
+
+    const stableInstalledTime = new Date("2000-01-01T00:00:00.000Z");
+    await utimes(claudeAgentPath, stableInstalledTime, stableInstalledTime);
+    const manifestBeforeUnchangedSync = await readTextFile(
+      config.manifest.path,
+    );
+    const installedBeforeUnchangedSync = await readTextFile(claudeAgentPath);
+    const installedStatBeforeUnchangedSync = await lstat(claudeAgentPath);
+
+    const unchanged = await sync(config, {
+      target: "claude",
+      dryRun: false,
+      force: false,
+      strict: false,
+    });
+
+    expect(unchanged.updated).toBe(0);
+    expect(unchanged.errors).toEqual([]);
+    expect(await readTextFile(config.manifest.path)).toBe(
+      manifestBeforeUnchangedSync,
+    );
+    expect(await readTextFile(claudeAgentPath)).toBe(
+      installedBeforeUnchangedSync,
+    );
+    expect((await lstat(claudeAgentPath)).mtimeMs).toBe(
+      installedStatBeforeUnchangedSync.mtimeMs,
+    );
 
     await writeFile(
       path.join(config.library.agentsDir, "a1.yaml"),

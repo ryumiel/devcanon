@@ -60,7 +60,11 @@ export async function computePlan(
           output.type,
           requestedInstallModes[output.target],
         );
-        if (record.installMode !== effectiveInstallMode) {
+        if (
+          output.target === "codex" &&
+          output.type === "agent" &&
+          record.installMode !== effectiveInstallMode
+        ) {
           actions.push({
             kind: "update",
             target: output.target,
