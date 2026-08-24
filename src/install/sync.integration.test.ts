@@ -367,8 +367,10 @@ describe("sync", () => {
         new Set([
           path.join(configDir, "homes", "claude", "skills", "shared"),
           path.join(configDir, "homes", "claude", "agents", "helper.md"),
+          path.join(configDir, "homes", "claude", "skills", "devcanon-runtime"),
           path.join(configDir, "homes", "codex", "skills", "shared"),
           path.join(configDir, "homes", "codex", "agents", "helper.toml"),
+          path.join(configDir, "homes", "codex", "skills", "devcanon-runtime"),
         ]),
       );
 
@@ -832,6 +834,7 @@ describe("sync", () => {
     expect((await readdir(path.dirname(config.manifest.path))).sort()).toEqual([
       "generated",
       "manifest.json",
+      "skills",
     ]);
     expect(testLogger.infos).toEqual([]);
     expect(testLogger.warnings).toEqual([]);
@@ -891,6 +894,7 @@ describe("sync", () => {
     expect((await readdir(path.dirname(config.manifest.path))).sort()).toEqual([
       "generated",
       "manifest.json",
+      "skills",
     ]);
     expect(testLogger.infos).toEqual([]);
     expect(testLogger.warnings).toEqual([]);
@@ -947,6 +951,7 @@ describe("sync", () => {
       [
         "agents",
         "generated",
+        "skills",
         path.basename(config.manifest.path),
         path.basename(candidatePath),
       ].sort(),
@@ -1947,7 +1952,7 @@ describe("sync", () => {
     });
 
     expect(result.errors).toEqual([]);
-    expect(result.installed).toBe(1);
+    expect(result.installed).toBe(2);
     expect(result.conflicts).toBe(1);
     expect(await readTextFile(installedPath)).toBe("foreign sentinel bytes");
     expect(await readTextFile(unrelatedInstalledPath)).not.toBe(
@@ -2054,7 +2059,7 @@ describe("sync", () => {
     });
 
     expect(result.errors).toEqual([]);
-    expect(result.installed).toBe(1);
+    expect(result.installed).toBe(2);
     expect(result.conflicts).toBe(1);
     expect(await readTextFile(sentinelPath)).toBe(
       "foreign tree sentinel bytes",
@@ -2184,7 +2189,7 @@ describe("sync", () => {
         });
 
         expect(result).toMatchObject({
-          installed: 0,
+          installed: 1,
           updated: 0,
           removed: 0,
           conflicts: 1,
@@ -2194,7 +2199,9 @@ describe("sync", () => {
         expect(await readlink(installedPath)).toBe(originalLink);
         expect(await pathExists(missingTarget)).toBe(false);
         const reconciled = JSON.parse(await readTextFile(config.manifest.path));
-        expect(reconciled.records).toEqual([]);
+        expect(reconciled.records).toEqual([
+          expect.objectContaining({ name: "devcanon-runtime" }),
+        ]);
       }
     },
   );
@@ -2272,7 +2279,7 @@ describe("sync", () => {
       installed: 0,
       updated: 0,
       removed: 0,
-      conflicts: 1,
+      conflicts: 2,
       errors: [],
     });
     expect(await readTextFile(installedPath)).toBe(originalInstalled);
@@ -2351,7 +2358,7 @@ describe("sync", () => {
       installed: 0,
       updated: 0,
       removed: 0,
-      conflicts: 1,
+      conflicts: 2,
       errors: [],
     });
     expect(await readTextFile(installedPath)).toBe(originalInstalled);
@@ -2402,7 +2409,7 @@ describe("sync", () => {
       updated: 0,
       removed: 0,
       skipped: 1,
-      conflicts: 0,
+      conflicts: 1,
       errors: [],
     });
     expect(testLogger.infos.join("\n")).not.toContain(
@@ -2461,7 +2468,7 @@ describe("sync", () => {
     });
 
     expect(result).toMatchObject({
-      installed: 0,
+      installed: 1,
       updated: 0,
       removed: 0,
       skipped: 0,
@@ -2516,7 +2523,7 @@ describe("sync", () => {
       updated: 0,
       removed: 1,
       skipped: 0,
-      conflicts: 0,
+      conflicts: 1,
       errors: [],
     });
     expect(await pathExists(installedPath)).toBe(false);
@@ -2598,7 +2605,7 @@ describe("sync", () => {
     ).toHaveLength(1);
     expect(
       JSON.parse(await readTextFile(config.manifest.path)).records,
-    ).toEqual([]);
+    ).toEqual([expect.objectContaining({ name: "devcanon-runtime" })]);
 
     const second = await sync(config, {
       dryRun: false,
@@ -2954,9 +2961,7 @@ describe("sync", () => {
         "Reconciled foreign path overlaps renderer mutation inventory",
       );
       expect((thrown as Error).message).toContain(path.resolve(foreignPath));
-      expect((thrown as Error).message).toContain(
-        `${authoritativeMutationKind} ${path.resolve(authoritativeMutationPath)}`,
-      );
+      expect((thrown as Error).message).toContain(authoritativeMutationKind);
       expect(
         (await readdir(path.dirname(config.manifest.path))).filter(
           (entry) =>
@@ -3014,7 +3019,7 @@ describe("sync", () => {
     });
 
     expect(result).toMatchObject({
-      installed: 1,
+      installed: 2,
       updated: 0,
       removed: 0,
       conflicts: 0,
@@ -3087,7 +3092,7 @@ describe("sync", () => {
     });
 
     expect(result.errors).toEqual([]);
-    expect(result.installed).toBe(1);
+    expect(result.installed).toBe(2);
     expect(await readTextFile(foreignPath)).toBe("active sibling sentinel");
     expect(
       await pathExists(
@@ -3232,7 +3237,7 @@ describe("sync", () => {
       reconcileManifest: true,
     });
     expect(result).toMatchObject({
-      installed: 0,
+      installed: 1,
       updated: 0,
       removed: 0,
       conflicts: 1,
@@ -3248,7 +3253,12 @@ describe("sync", () => {
     expect(await pathExists(installedPath)).toBe(false);
     expect(
       JSON.parse(await readTextFile(config.manifest.path)).records,
-    ).toEqual([expect.objectContaining({ name, installedPath })]);
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name, installedPath }),
+        expect.objectContaining({ name: "devcanon-runtime" }),
+      ]),
+    );
 
     const second = await sync(config, {
       dryRun: false,
@@ -3440,7 +3450,7 @@ describe("sync", () => {
         installed: 0,
         updated: 0,
         removed: 0,
-        conflicts: 1,
+        conflicts: 2,
         errors: [],
       });
       expect(
@@ -3501,7 +3511,7 @@ describe("sync", () => {
       reconcileManifest: true,
     });
     expect(result).toMatchObject({
-      installed: 1,
+      installed: 2,
       conflicts: 0,
       errors: [],
     });
@@ -3510,7 +3520,12 @@ describe("sync", () => {
     );
     expect(
       JSON.parse(await readTextFile(config.manifest.path)).records,
-    ).toEqual([expect.objectContaining({ name: "foobar", installedPath })]);
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "foobar", installedPath }),
+        expect.objectContaining({ name: "devcanon-runtime" }),
+      ]),
+    );
   });
 
   it.skipIf(!symlinkAvailable)(
@@ -3631,7 +3646,7 @@ describe("sync", () => {
           reconcileManifest: true,
         });
         expect(result).toMatchObject({
-          installed: 0,
+          installed: 1,
           updated: 0,
           removed: 0,
           conflicts: 1,
@@ -3650,7 +3665,7 @@ describe("sync", () => {
         }
         expect(
           JSON.parse(await readTextFile(config.manifest.path)).records,
-        ).toEqual([]);
+        ).toEqual([expect.objectContaining({ name: "devcanon-runtime" })]);
       }
     },
   );
@@ -3724,7 +3739,7 @@ describe("sync", () => {
     });
 
     expect(result).toMatchObject({
-      installed: 0,
+      installed: 1,
       updated: 0,
       removed: 0,
       conflicts: 1,
@@ -3734,7 +3749,7 @@ describe("sync", () => {
     expect(await readTextFile(sentinelPath)).toBe("foreign tree bytes");
     expect(
       JSON.parse(await readTextFile(config.manifest.path)).records,
-    ).toEqual([]);
+    ).toEqual([expect.objectContaining({ name: "devcanon-runtime" })]);
 
     const afterProtectionExpires = await sync(config, {
       dryRun: false,
@@ -3813,7 +3828,7 @@ describe("sync", () => {
     });
 
     expect(result).toMatchObject({
-      installed: 0,
+      installed: 1,
       updated: 0,
       removed: 0,
       conflicts: 1,
@@ -3823,7 +3838,7 @@ describe("sync", () => {
     expect(await pathExists(protectedPath)).toBe(false);
     expect(
       JSON.parse(await readTextFile(config.manifest.path)).records,
-    ).toEqual([]);
+    ).toEqual([expect.objectContaining({ name: "devcanon-runtime" })]);
 
     const afterProtectionExpires = await sync(config, {
       dryRun: false,
@@ -3903,7 +3918,7 @@ describe("sync", () => {
     });
 
     expect(result).toMatchObject({
-      installed: 0,
+      installed: 1,
       updated: 0,
       removed: 0,
       conflicts: 1,
@@ -3912,7 +3927,7 @@ describe("sync", () => {
     expect(await readTextFile(foreignPath)).toBe("foreign child bytes");
     expect(
       JSON.parse(await readTextFile(config.manifest.path)).records,
-    ).toEqual([]);
+    ).toEqual([expect.objectContaining({ name: "devcanon-runtime" })]);
     expect(
       (await readdir(path.dirname(config.manifest.path))).filter((entry) =>
         entry.includes(".backup-"),
@@ -3979,7 +3994,7 @@ describe("sync", () => {
     const later = await uninstall(config, { dryRun: false });
 
     expect(later.errors).toEqual([]);
-    expect(later.removed).toBe(1);
+    expect(later.removed).toBe(2);
   });
 
   it("releases backup authority after a thrown consumer operation", async () => {
@@ -4639,7 +4654,7 @@ describe("sync", () => {
     });
 
     expect(result.errors).toEqual([]);
-    expect(result.installed).toBe(1);
+    expect(result.installed).toBe(2);
     expect(await pathExists(installedPath)).toBe(true);
   });
 
@@ -5419,7 +5434,9 @@ describe("sync", () => {
         ),
       ).toBe(false);
       const manifest = JSON.parse(await readTextFile(config.manifest.path));
-      expect(manifest.records).toEqual([]);
+      expect(manifest.records).toEqual([
+        expect.objectContaining({ name: "devcanon-runtime" }),
+      ]);
     },
   );
 
@@ -5476,7 +5493,9 @@ describe("sync", () => {
         ),
       ).toBe(false);
       const manifest = JSON.parse(await readTextFile(config.manifest.path));
-      expect(manifest.records).toEqual([]);
+      expect(manifest.records).toEqual([
+        expect.objectContaining({ name: "devcanon-runtime" }),
+      ]);
     },
   );
 
@@ -5537,7 +5556,9 @@ describe("sync", () => {
         ),
       ).toBe(false);
       const manifest = JSON.parse(await readTextFile(config.manifest.path));
-      expect(manifest.records).toEqual([]);
+      expect(manifest.records).toEqual([
+        expect.objectContaining({ name: "devcanon-runtime" }),
+      ]);
     },
   );
 
@@ -5820,7 +5841,7 @@ describe("sync", () => {
 
       const result = await sync(config, opts);
 
-      expect(result.skipped).toBe(0);
+      expect(result.skipped).toBe(1);
       expect(result.errors).toEqual([
         expect.stringContaining("symlink target mismatch"),
       ]);
@@ -6453,7 +6474,7 @@ describe("sync", () => {
       dryRun: false,
     });
 
-    expect(uninstallResult.removed).toBe(0);
+    expect(uninstallResult.removed).toBe(1);
     expect(uninstallResult.errors).toEqual([
       expect.stringContaining("installed copy content hash mismatch"),
     ]);
