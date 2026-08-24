@@ -355,10 +355,10 @@ the historical manifest record before replacing it. A successful migration
 materializes a regular copied file and records actual mode `copy`. Identity
 verification failure leaves the managed output and manifest record intact.
 
-`diff` reports a managed Codex agent role as changed when its recorded mode is
-not `copy` or its installed path is not a regular copied file, even if its
-resolved content matches the generated output. Once migrated, later updates
-and uninstall use the recorded copy-mode identity.
+When its installed path resolves, `diff` reports a managed Codex agent role as
+changed when its recorded mode is not `copy` or its installed path is not a
+regular copied file, even if its resolved content matches the generated output.
+Once migrated, later updates and uninstall use the recorded copy-mode identity.
 
 Copy-mode skill identity preserves symlink spelling for new copies. Legacy
 copies whose mirrored relative symlink targets were rewritten to absolute paths
