@@ -21,7 +21,7 @@ import {
 } from "../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../__test-helpers__/logger.js";
 import type { TestLoggerResult } from "../__test-helpers__/logger.js";
-import type { ResolvedConfig } from "../config/schema.js";
+import type { InstallMode, ResolvedConfig } from "../config/schema.js";
 import { pathExists } from "../utils/fs.js";
 import { sync } from "./sync.js";
 import { uninstall } from "./uninstall.js";
@@ -469,7 +469,7 @@ describe("devcanon-runtime sync", () => {
     },
   );
 
-  it.each(["copy", ...(symlinkAvailable ? ["symlink"] : [])] as const)(
+  it.each(["copy", ...(symlinkAvailable ? ["symlink"] : [])] as InstallMode[])(
     "uninstalls a source-absent runtime in %s mode",
     async (mode) => {
       const config = makeResolvedConfig(tempDir, {
