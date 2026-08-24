@@ -39,7 +39,7 @@ function resolveRuntimeDir(scriptPath) {
       return overrideDir;
     }
     fail(
-      `devcanon-runtime JS entrypoint missing: ${overrideEntrypoint}. DEVCANON_RUNTIME_DIR must point to a packaged devcanon-runtime skill directory containing runtime files.`,
+      `devcanon-runtime JS entrypoint missing: ${overrideEntrypoint}. DEVCANON_RUNTIME_DIR must point to a packaged devcanon-runtime passive runtime bundle directory containing runtime files.`,
     );
   }
 
@@ -63,7 +63,7 @@ function resolveRuntimeDir(scriptPath) {
   }
 
   fail(
-    `devcanon-runtime JS entrypoint missing: ${candidateEntrypoint}. Ensure generated previews or installed skill homes include the sibling devcanon-runtime support skill, rerun devcanon render/sync, or set DEVCANON_RUNTIME_DIR for tests.`,
+    `devcanon-runtime JS entrypoint missing: ${candidateEntrypoint}. Ensure generated previews or installed skill homes include the sibling devcanon-runtime passive runtime bundle, rerun devcanon render/sync, or set DEVCANON_RUNTIME_DIR for tests.`,
   );
 }
 
