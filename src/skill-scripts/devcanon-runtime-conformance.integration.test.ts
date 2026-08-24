@@ -139,7 +139,7 @@ describe("devcanon-runtime conformance harness", () => {
         ]),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining(
-          "Ensure generated previews or installed skill homes include the sibling devcanon-runtime support skill",
+          "Ensure generated previews or installed skill homes include the sibling devcanon-runtime passive runtime bundle",
         ),
       });
     } finally {

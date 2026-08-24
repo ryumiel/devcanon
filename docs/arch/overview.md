@@ -24,7 +24,7 @@ src/
 ├─ render/     Deterministic rendering to Claude (.md) and Codex (.toml)
 ├─ install/    Sync orchestration, install plan, manifest, copy/symlink modes
 ├─ diff/       Diff between generated outputs and installed managed outputs
-├─ runtime/    Shared typed helper foundation for packaged skill runtime code
+├─ runtime/    Shared typed helper foundation for the packaged passive runtime
 └─ utils/      Filesystem helpers, path resolution, hashing, CLI output,
                naming validation
 ```
@@ -49,7 +49,7 @@ utils -> (none)
 `cli/` has the broadest dependency fan-out. `utils/` is the only internal leaf
 module.
 `runtime/` is also isolated from CLI/render/install workflow authority; it owns
-only deterministic helper mechanics used by packaged support skill entrypoints.
+only deterministic helper mechanics used by packaged passive runtime entrypoints.
 
 Some current dependencies are intentionally documented as implementation state,
 not as a claim that the dependency direction is ideal:
@@ -130,8 +130,9 @@ authority for a named external mutation.
 ### Source-Immutability Runtime Boundary
 
 The pre-migration runtime has no source-immutability command group or seven
-workflow shims. Under the ADR-0027 post-migration architecture, packaged
-`devcanon-runtime` owns the deterministic capture, verify, and cleanup mechanics
+workflow shims. Under the ADR-0027 post-migration architecture, the packaged
+passive `devcanon-runtime` bundle owns the deterministic capture, verify, and
+cleanup mechanics
 for the minimum source-immutable guard. The existing runtime entrypoint and
 compatibility contract remain the only runtime-version boundary. Acceptance
 requires thin adapters under `issue-priming-workflow`, `play-agent-dispatch`,
@@ -240,15 +241,19 @@ Source files    │
 ```
 
 The ordering is intentionally broad: load config -> inspect the manifest
-purely -> for eligible non-dry `sync` or `uninstall`, perform explicit invalid
+purely -> an invalid dry `sync` stops with its manifest error before runtime
+validation -> every other `sync` validates the fixed passive runtime support
+bundle -> for eligible non-dry `sync` or `uninstall`, perform explicit invalid
 state recovery -> normalize and classify accepted identity -> apply ownership
 and foreign-record policy -> reconcile authorized foreign records record-only
 -> partition records and selected outputs into active and passive scope ->
 validate shared component-aware managed-path collisions -> perform any allowed
 legacy binding or save -> perform writable render -> construct, print, and
-execute the plan or removal -> make the final manifest save. This is a topology
-summary, not an executable algorithm; the linked owners define the exact
-conditions and outcomes.
+execute the plan or removal -> make the final manifest save. `diff` inspects
+and then validates the runtime through its read-only render projection;
+`uninstall` remains source-independent. This is a topology summary, not an
+executable algorithm; the linked owners define the exact conditions and
+outcomes.
 
 ---
 

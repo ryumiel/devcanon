@@ -506,7 +506,7 @@ resolution recommendation.
 - `docs/specs/overview.md` lists this spec in the behavior spec index.
 - Existing PRD, roadmap, and guideline references no longer describe this spec
   as future-only once this file exists.
-- Focused contract checks prove the policy contains exactly 33 source skills
+- Focused contract checks prove the policy contains exactly 32 source skills
   and D1-D18 exactly once, and that every normative route matches its source
   anchor.
 - Guard tests exercise the valid baseline/handoff lifecycle and reject tracked

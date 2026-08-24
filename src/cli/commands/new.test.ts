@@ -5,6 +5,7 @@ import { parse as parseYaml } from "yaml";
 import {
   CANONICAL_CAPABILITY_PROFILES,
   cleanupTempDir,
+  copyDevcanonRuntimeFixture,
   createConfigFile,
   createTempDir,
   makeConfigYaml,
@@ -74,6 +75,7 @@ describe("newAgentAction", () => {
     );
 
     const config = await loadConfig(configPath);
+    await copyDevcanonRuntimeFixture(config.library.skillsDir);
     const result = await renderAll(config, false);
 
     const claudeAgent = result.outputs.find(

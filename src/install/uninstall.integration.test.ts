@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   canCreateSymlinks,
   cleanupTempDir,
+  copyDevcanonRuntimeFixture,
   createAgentFixture,
   createSkillFixture,
   createTempDir,
@@ -46,6 +47,7 @@ describe("uninstall", () => {
 
   beforeEach(async () => {
     tempDir = await createTempDir();
+    await copyDevcanonRuntimeFixture(path.join(tempDir, "skills"));
     const installed = installTestLogger();
     restoreLogger = installed.restore;
     testLogger = installed.testLogger;
@@ -1659,6 +1661,7 @@ describe("uninstall", () => {
         "home",
         path.basename(config.manifest.path),
         path.basename(candidatePath),
+        "skills",
       ].sort(),
     );
   });
@@ -1784,6 +1787,7 @@ describe("uninstall", () => {
         path.basename(config.manifest.path),
         path.basename(candidatePath),
         path.basename(lockPath),
+        "skills",
       ].sort(),
     );
   });
@@ -1857,18 +1861,35 @@ describe("uninstall", () => {
       "helper.md",
     );
     await writeFile(claudeAgentPath, "tampered installed content", "utf-8");
-    const manifestBefore = await readFile(config.manifest.path, "utf-8");
 
     const result = await uninstall(config, { target: "claude", dryRun: false });
 
-    expect(result.removed).toBe(0);
+    expect(result.removed).toBe(1);
     expect(result.errors).toEqual([
       expect.stringContaining("installed copy content hash mismatch"),
     ]);
     expect(await readFile(claudeAgentPath, "utf-8")).toBe(
       "tampered installed content",
     );
-    expect(await readFile(config.manifest.path, "utf-8")).toBe(manifestBefore);
+    const manifestAfter = JSON.parse(
+      await readFile(config.manifest.path, "utf-8"),
+    );
+    expect(manifestAfter.records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "helper",
+          installedPath: claudeAgentPath,
+        }),
+      ]),
+    );
+    expect(manifestAfter.records).toEqual(
+      expect.not.arrayContaining([
+        expect.objectContaining({
+          target: "claude",
+          name: "devcanon-runtime",
+        }),
+      ]),
+    );
   });
 
   it("skips uninstall removal when copied skill directory content no longer matches the manifest", async () => {
@@ -1897,11 +1918,10 @@ describe("uninstall", () => {
       "tampered helper\n",
       "utf-8",
     );
-    const manifestBefore = await readFile(config.manifest.path, "utf-8");
 
     const result = await uninstall(config, { target: "claude", dryRun: false });
 
-    expect(result.removed).toBe(0);
+    expect(result.removed).toBe(1);
     expect(result.errors).toEqual([
       expect.stringContaining("installed copy content hash mismatch"),
     ]);
@@ -1911,7 +1931,25 @@ describe("uninstall", () => {
         "utf-8",
       ),
     ).toBe("tampered helper\n");
-    expect(await readFile(config.manifest.path, "utf-8")).toBe(manifestBefore);
+    const manifestAfter = JSON.parse(
+      await readFile(config.manifest.path, "utf-8"),
+    );
+    expect(manifestAfter.records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "skill-a",
+          installedPath: claudeSkillPath,
+        }),
+      ]),
+    );
+    expect(manifestAfter.records).toEqual(
+      expect.not.arrayContaining([
+        expect.objectContaining({
+          target: "claude",
+          name: "devcanon-runtime",
+        }),
+      ]),
+    );
   });
 
   it("reports copy identity failure when installed skill kind changes before uninstall", async () => {
@@ -1927,17 +1965,34 @@ describe("uninstall", () => {
     );
     await rm(claudeSkillPath, { recursive: true });
     await writeFile(claudeSkillPath, "not a directory", "utf-8");
-    const manifestBefore = await readFile(config.manifest.path, "utf-8");
 
     const result = await uninstall(config, { target: "claude", dryRun: false });
 
-    expect(result.removed).toBe(0);
+    expect(result.removed).toBe(1);
     expect(result.errors).toEqual([
       expect.stringContaining("Managed output identity failure"),
     ]);
     expect(result.errors[0]).toContain("installed skill is not a directory");
     expect(await readFile(claudeSkillPath, "utf-8")).toBe("not a directory");
-    expect(await readFile(config.manifest.path, "utf-8")).toBe(manifestBefore);
+    const manifestAfter = JSON.parse(
+      await readFile(config.manifest.path, "utf-8"),
+    );
+    expect(manifestAfter.records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "skill-a",
+          installedPath: claudeSkillPath,
+        }),
+      ]),
+    );
+    expect(manifestAfter.records).toEqual(
+      expect.not.arrayContaining([
+        expect.objectContaining({
+          target: "claude",
+          name: "devcanon-runtime",
+        }),
+      ]),
+    );
   });
 
   it.skipIf(!symlinkAvailable)(
@@ -1984,7 +2039,7 @@ describe("uninstall", () => {
         dryRun: false,
       });
 
-      expect(result.removed).toBe(1);
+      expect(result.removed).toBe(2);
       expect(result.errors).toEqual([]);
       expect(await pathExists(claudeSkillPath)).toBe(false);
       const manifest = JSON.parse(
@@ -2022,20 +2077,35 @@ describe("uninstall", () => {
       await writeFile(foreignTarget, "foreign", "utf-8");
       await rm(installedLink);
       await symlink(foreignTarget, installedLink, "file");
-      const manifestBefore = await readFile(config.manifest.path, "utf-8");
 
       const result = await uninstall(config, {
         target: "claude",
         dryRun: false,
       });
 
-      expect(result.removed).toBe(0);
+      expect(result.removed).toBe(1);
       expect(result.errors).toEqual([
         expect.stringContaining("installed copy content hash mismatch"),
       ]);
       expect(await readlink(installedLink)).toBe(foreignTarget);
-      expect(await readFile(config.manifest.path, "utf-8")).toBe(
-        manifestBefore,
+      const manifestAfter = JSON.parse(
+        await readFile(config.manifest.path, "utf-8"),
+      );
+      expect(manifestAfter.records).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: "skill-a",
+            installedPath: claudeSkillPath,
+          }),
+        ]),
+      );
+      expect(manifestAfter.records).toEqual(
+        expect.not.arrayContaining([
+          expect.objectContaining({
+            target: "claude",
+            name: "devcanon-runtime",
+          }),
+        ]),
       );
     },
   );
@@ -2067,7 +2137,7 @@ describe("uninstall", () => {
         dryRun: false,
       });
 
-      expect(result.removed).toBe(1);
+      expect(result.removed).toBe(2);
       expect(result.errors).toEqual([]);
       const manifest = JSON.parse(
         await readFile(config.manifest.path, "utf-8"),
@@ -2121,7 +2191,7 @@ describe("uninstall", () => {
         dryRun: false,
       });
 
-      expect(result.removed).toBe(1);
+      expect(result.removed).toBe(2);
       expect(result.errors).toEqual([]);
       const manifest = JSON.parse(
         await readFile(config.manifest.path, "utf-8"),
@@ -2149,7 +2219,7 @@ describe("uninstall", () => {
 
     const result = await uninstall(config, { target: "claude", dryRun: false });
 
-    expect(result.removed).toBe(1);
+    expect(result.removed).toBe(2);
     expect(result.errors).toEqual([]);
     const manifest = JSON.parse(await readFile(config.manifest.path, "utf-8"));
     expect(manifest.records).toEqual([]);
@@ -2263,20 +2333,35 @@ describe("uninstall", () => {
       await mkdir(path.dirname(foreignTarget), { recursive: true });
       await writeFile(foreignTarget, "foreign", "utf-8");
       await symlink(foreignTarget, claudeAgentPath, "file");
-      const manifestBefore = await readFile(config.manifest.path, "utf-8");
 
       const result = await uninstall(config, {
         target: "claude",
         dryRun: false,
       });
 
-      expect(result.removed).toBe(0);
+      expect(result.removed).toBe(1);
       expect(result.errors).toEqual([
         expect.stringContaining("symlink target mismatch"),
       ]);
       expect(await readlink(claudeAgentPath)).toBe(foreignTarget);
-      expect(await readFile(config.manifest.path, "utf-8")).toBe(
-        manifestBefore,
+      const manifestAfter = JSON.parse(
+        await readFile(config.manifest.path, "utf-8"),
+      );
+      expect(manifestAfter.records).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: "helper",
+            installedPath: claudeAgentPath,
+          }),
+        ]),
+      );
+      expect(manifestAfter.records).toEqual(
+        expect.not.arrayContaining([
+          expect.objectContaining({
+            target: "claude",
+            name: "devcanon-runtime",
+          }),
+        ]),
       );
     },
   );

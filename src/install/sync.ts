@@ -11,6 +11,10 @@ import { type RenderMutation, renderAll } from "../render/pipeline.js";
 import { UserError } from "../utils/errors.js";
 import { ensureDir } from "../utils/fs.js";
 import { getLogger } from "../utils/output.js";
+import {
+  devcanonRuntimeDir,
+  validateDevcanonRuntime,
+} from "../validate/devcanon-runtime.js";
 import { copyDirectory, copyFile } from "./copy.js";
 import { verifyManagedOutputIdentity } from "./identity.js";
 import {
@@ -69,9 +73,23 @@ export async function sync(
     errors: [],
   };
 
+  // Inspect before any source validation so an invalid dry manifest retains
+  // its established observationally-pure precedence. For every other run,
+  // the fixed passive runtime must be complete before recovery or binding can
+  // mutate manifest state.
+  const inspection = await inspectManifest(config.manifest.path);
+  if (inspection.status === "invalid" && options.dryRun) {
+    throw new UserError(
+      inspection.message,
+      config.manifest.path,
+      dryInvalidManifestHint(inspection.message, config.manifest.path),
+    );
+  }
+  await validateDevcanonRuntime(devcanonRuntimeDir(config.library.skillsDir));
+
   // A manifest must be accepted before rendering can create generated output
   // or an install action can touch a configured home.
-  const loaded = await loadManifestForSync(config, options);
+  const loaded = await loadManifestForSync(config, options, inspection);
   let normalized: ReturnType<typeof normalizeManifestIdentity>;
   try {
     normalized = normalizeManifestIdentity(loaded.manifest, config);
@@ -465,8 +483,8 @@ function assertReconciledForeignGeneratedMutationReservations(
 async function loadManifestForSync(
   config: ResolvedConfig,
   options: SyncOptions,
+  inspection: Awaited<ReturnType<typeof inspectManifest>>,
 ): Promise<LoadedManifest> {
-  const inspection = await inspectManifest(config.manifest.path);
   if (inspection.status !== "invalid") {
     return { manifest: inspection.manifest, snapshot: inspection.snapshot };
   }

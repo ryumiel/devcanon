@@ -1,4 +1,4 @@
-import { readdir } from "node:fs/promises";
+import { lstat, readdir } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import {
   readAgentRoutingPolicyOwner,
@@ -208,10 +208,21 @@ describe("agent routing and mutation policy owner", () => {
     const [owner, sourceSkills] = await Promise.all([
       readAgentRoutingPolicyOwner(OWNER_PATH),
       readdir("skills", { withFileTypes: true }).then((entries) =>
-        entries
-          .filter((entry) => entry.isDirectory())
-          .map((entry) => entry.name)
-          .sort(),
+        Promise.all(
+          entries
+            .filter((entry) => entry.isDirectory())
+            .map(async (entry) => {
+              try {
+                return (await lstat(`skills/${entry.name}/SKILL.md`)).isFile()
+                  ? entry.name
+                  : null;
+              } catch {
+                return null;
+              }
+            }),
+        ).then((names) =>
+          names.filter((name): name is string => name !== null).sort(),
+        ),
       ),
     ]);
 

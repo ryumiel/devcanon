@@ -89,12 +89,14 @@ change intentionally affects rendered Claude or Codex skill output. Review the
 authoritative source or runtime change first, then regenerate or run the
 relevant check locally when generated output needs inspection.
 
-Source skills, source agent definitions, source runtime TypeScript, renderer
-code, tests, and the install manifest remain authoritative for their
-respective contracts. Packaged runtime JavaScript under
-`skills/devcanon-runtime/scripts/runtime/` is derived support output that stays
-tracked because installed skill bundles need version-aligned helper files,
-while `src/runtime/` owns the deterministic runtime behavior.
+Source skill directories with `SKILL.md`, source agent definitions, source
+runtime TypeScript, renderer code, tests, and the install manifest remain
+authoritative for their respective contracts. The fixed passive runtime bundle
+under `skills/devcanon-runtime/` is a scripts-only source payload, not a source
+skill or generated invocation surface. Its packaged JavaScript under
+`scripts/runtime/` is derived support output that stays tracked because
+installed skill bundles need version-aligned helper files, while `src/runtime/`
+owns the deterministic runtime behavior.
 
 Do not hand-edit generated preview files to change behavior. If generated
 preview drift appears in a worktree, regenerate from source or fix the

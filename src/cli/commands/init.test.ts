@@ -44,14 +44,14 @@ describe("initAction", () => {
     await cleanupTempDir(tempDir);
   });
 
-  it("seeds the packaged runtime support skill into fresh libraries", async () => {
+  it("seeds the packaged passive runtime bundle into fresh libraries", async () => {
     await initAction();
 
     expect(
       await pathExists(
         path.join(tempDir, "skills", "devcanon-runtime", "SKILL.md"),
       ),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       await pathExists(
         path.join(
@@ -137,7 +137,7 @@ describe("initAction", () => {
     ).toBe(false);
   });
 
-  it("preserves an existing matching runtime support skill path", async () => {
+  it("preserves an existing matching passive runtime bundle path", async () => {
     await mkdir(path.join(tempDir, "skills"), { recursive: true });
     await copyBundledRuntimeTo(
       path.join(originalCwd, "skills", "devcanon-runtime"),
@@ -151,7 +151,7 @@ describe("initAction", () => {
     );
   });
 
-  it("fails with repair guidance rather than overwriting a modified runtime support skill", async () => {
+  it("fails with repair guidance rather than overwriting a modified passive runtime bundle", async () => {
     const customRuntimeSkill = path.join(tempDir, "skills", "devcanon-runtime");
     await mkdir(customRuntimeSkill, { recursive: true });
     await writeFile(
@@ -204,7 +204,7 @@ describe("initAction", () => {
     },
   );
 
-  it("renders and installs the seeded runtime as a sibling support skill", async () => {
+  it("renders the seeded runtime without treating it as an installable skill", async () => {
     await initAction();
 
     const config = withTemporaryInstallHomes(
@@ -234,17 +234,9 @@ describe("initAction", () => {
     expect(
       await pathExists(
         path.join(
-          config.targets.codex.skillsHome,
-          "devcanon-runtime",
-          "scripts",
-          "devcanon-runtime.sh",
-        ),
-      ),
-    ).toBe(true);
-    expect(
-      await pathExists(
-        path.join(
-          config.targets.claude.skillsHome,
+          config.library.generatedDir,
+          "codex",
+          "skills",
           "devcanon-runtime",
           "scripts",
           "devcanon-runtime.sh",
@@ -264,7 +256,8 @@ describe("initAction", () => {
     await expect(
       initAction({ runtimeSourceDir: missingRuntimeDir }),
     ).rejects.toMatchObject({
-      message: "Bundled devcanon-runtime support skill is missing.",
+      message:
+        "Fixed passive runtime support bundle devcanon-runtime is missing.",
       filePath: missingRuntimeDir,
     } satisfies Partial<UserError>);
     expect(await pathExists(path.join(tempDir, "devcanon.config.yaml"))).toBe(
@@ -285,8 +278,13 @@ describe("initAction", () => {
     await expect(
       initAction({ runtimeSourceDir: incompleteRuntimeDir }),
     ).rejects.toMatchObject({
-      message: "Bundled devcanon-runtime support skill is incomplete.",
-      filePath: path.join(incompleteRuntimeDir, "SKILL.md"),
+      message:
+        "Fixed passive runtime support bundle devcanon-runtime is incomplete.",
+      filePath: path.join(
+        incompleteRuntimeDir,
+        "scripts",
+        "devcanon-runtime.sh",
+      ),
     } satisfies Partial<UserError>);
     expect(await pathExists(path.join(tempDir, "devcanon.config.yaml"))).toBe(
       false,
@@ -316,7 +314,8 @@ describe("initAction", () => {
     await expect(
       initAction({ runtimeSourceDir: brokenRuntimeDir }),
     ).rejects.toMatchObject({
-      message: "Bundled devcanon-runtime support skill contract check failed.",
+      message:
+        "Fixed passive runtime support bundle devcanon-runtime contract check failed.",
       filePath: path.join(brokenRuntimeDir, "scripts", "runtime", "cli.js"),
     } satisfies Partial<UserError>);
     expect(await pathExists(path.join(tempDir, "devcanon.config.yaml"))).toBe(
@@ -355,7 +354,7 @@ describe("initAction", () => {
         initAction({ runtimeSourceDir: brokenRuntimeDir }),
       ).rejects.toMatchObject({
         message:
-          "Bundled devcanon-runtime support skill contract check failed.",
+          "Fixed passive runtime support bundle devcanon-runtime contract check failed.",
         filePath: path.join(brokenRuntimeDir, "scripts", "devcanon-runtime.sh"),
       } satisfies Partial<UserError>);
       expect(await pathExists(path.join(tempDir, "devcanon.config.yaml"))).toBe(
@@ -394,7 +393,7 @@ describe("initAction", () => {
         initAction({ runtimeSourceDir: brokenRuntimeDir }),
       ).rejects.toMatchObject({
         message:
-          "Bundled devcanon-runtime support skill contract check failed.",
+          "Fixed passive runtime support bundle devcanon-runtime contract check failed.",
         filePath: path.join(brokenRuntimeDir, "scripts", "devcanon-runtime.sh"),
       } satisfies Partial<UserError>);
       expect(await pathExists(path.join(tempDir, "devcanon.config.yaml"))).toBe(
@@ -422,7 +421,8 @@ describe("initAction", () => {
     await expect(
       initAction({ runtimeSourceDir: brokenRuntimeDir }),
     ).rejects.toMatchObject({
-      message: "Bundled devcanon-runtime support skill is incomplete.",
+      message:
+        "Fixed passive runtime support bundle devcanon-runtime is incomplete.",
       filePath: path.join(brokenRuntimeDir, "scripts", "runtime", "schema.js"),
     } satisfies Partial<UserError>);
     expect(await pathExists(path.join(tempDir, "devcanon.config.yaml"))).toBe(
@@ -456,7 +456,8 @@ describe("initAction", () => {
     await expect(
       initAction({ runtimeSourceDir: incompleteRuntimeDir }),
     ).rejects.toMatchObject({
-      message: "Bundled devcanon-runtime support skill is incomplete.",
+      message:
+        "Fixed passive runtime support bundle devcanon-runtime is incomplete.",
       filePath: path.join(
         incompleteRuntimeDir,
         "scripts",

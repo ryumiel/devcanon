@@ -52,7 +52,7 @@ describe("devcanon-runtime typed entrypoint", () => {
     });
   });
 
-  it("runs from a copied support skill bundle without the repository package.json", async () => {
+  it("runs from a copied passive runtime bundle without the repository package.json", async () => {
     const tempDir = await createTempDir();
     try {
       await cp(
@@ -90,7 +90,7 @@ describe("devcanon-runtime typed entrypoint", () => {
     }
   });
 
-  it("packages every shared runtime helper module in the copied support skill bundle", async () => {
+  it("packages every shared runtime helper module in the copied passive runtime bundle", async () => {
     const tempDir = await createTempDir();
     try {
       await cp(

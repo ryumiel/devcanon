@@ -24,8 +24,8 @@ The sibling script
 `skills/play-validate-review-artifacts/scripts/review-artifacts.sh` exposes the
 shared deterministic validation command surface for review artifacts consumed
 by Play review surfaces. It forwards those commands to the packaged
-`devcanon-runtime` typed runtime, whose authority is limited to executable
-mechanics for review-artifact contracts, including schema checks, Git-derived
+`devcanon-runtime` passive runtime support bundle, whose authority is limited
+to executable mechanics for review-artifact contracts, including schema checks, Git-derived
 artifact facts, scope range invariants, follow-up SHA usability, changed-file
 and language-hint derivation, escalation reasons, diff-anchor validation, and
 approved-review payload equivalence. It also owns deterministic validation and
@@ -233,8 +233,8 @@ exact bounded shape produced by `play-subagent-execution`: `present: true`,
 `proof_obligations.invalid_families_fail` fields. Any missing, extra, stale, or
 malformed content rejects the artifact.
 
-The validator is runtime-backed through the packaged `devcanon-runtime` support
-skill. It may require Node.js through that packaged support runtime, but it must
+The validator is runtime-backed through the packaged `devcanon-runtime` passive
+runtime support bundle. It may require Node.js through that bundle, but it must
 not require the installed `devcanon` CLI solely to validate review artifacts.
 
 ## Failure Contract

@@ -86,7 +86,7 @@ describe("play-validate-review-artifacts helper", () => {
       runWrapper(root, script, ["validate-risk-signals"]),
     ).rejects.toMatchObject({
       stderr: expect.stringContaining(
-        "devcanon-runtime support skill missing for play-validate-review-artifacts",
+        "devcanon-runtime passive runtime bundle missing for play-validate-review-artifacts",
       ),
     });
   });

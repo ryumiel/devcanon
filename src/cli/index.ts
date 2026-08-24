@@ -63,7 +63,9 @@ newCmd
 // validate
 program
   .command("validate")
-  .description("Validate config, skills, and agents")
+  .description(
+    "Validate config, the passive runtime bundle, skills, and agents",
+  )
   .option("--strict", "treat warnings as errors")
   .action(validateAction);
 

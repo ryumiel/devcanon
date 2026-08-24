@@ -160,7 +160,7 @@ resolve_runtime() {
   if [ -n "${DEVCANON_RUNTIME_DIR:-}" ]; then
     logical_candidate="$DEVCANON_RUNTIME_DIR/scripts/devcanon-runtime.sh"
     [ -f "$logical_candidate" ] && [ -x "$logical_candidate" ] ||
-      fail "devcanon-runtime support skill missing"
+      fail "devcanon-runtime passive runtime bundle missing"
     printf '%s\n' "$logical_candidate"
     return
   fi
@@ -178,7 +178,7 @@ resolve_runtime() {
     return
   fi
 
-  fail "devcanon-runtime support skill missing"
+  fail "devcanon-runtime passive runtime bundle missing"
 }
 
 validate_provider_scope_capture_path() {

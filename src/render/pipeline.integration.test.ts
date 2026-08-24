@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   canCreateSymlinks,
   cleanupTempDir,
+  copyDevcanonRuntimeFixture,
   createAgentFixture,
   createSkillFixture,
   createTempDir,
@@ -20,7 +21,10 @@ import type { RenderedAgent } from "../models/types.js";
 import { UserError } from "../utils/errors.js";
 import { pathExists } from "../utils/fs.js";
 import { loadAndValidateAgents } from "../validate/agents.js";
-import { loadAndValidateSkills } from "../validate/skills.js";
+import {
+  DEVCANON_RUNTIME_SKILL_NAME,
+  loadAndValidateSkills,
+} from "../validate/skills.js";
 import { renderAll, renderLoaded } from "./pipeline.js";
 
 const symlinkAvailable = await canCreateSymlinks();
@@ -38,6 +42,7 @@ describe("renderAll", () => {
     // Create skills and agents directories expected by makeResolvedConfig
     await mkdir(config.library.skillsDir, { recursive: true });
     await mkdir(config.library.agentsDir, { recursive: true });
+    await copyDevcanonRuntimeFixture(config.library.skillsDir);
   });
 
   afterEach(async () => {
@@ -45,7 +50,7 @@ describe("renderAll", () => {
     await cleanupTempDir(tempDir);
   });
 
-  it("produces 4 outputs for 1 agent + 1 skill with both targets enabled", async () => {
+  it("preserves ordinary outputs beside the passive runtime projection", async () => {
     await createSkillFixture(config.library.skillsDir, "my-skill");
     await createAgentFixture(
       config.library.agentsDir,
@@ -55,12 +60,14 @@ describe("renderAll", () => {
 
     const result = await renderAll(config, false);
 
-    expect(result.outputs).toHaveLength(4);
+    expect(result.outputs).toHaveLength(6);
     const types = result.outputs.map((o) => `${o.target}:${o.type}`).sort();
     expect(types).toEqual([
       "claude:agent",
       "claude:skill",
+      "claude:skill",
       "codex:agent",
+      "codex:skill",
       "codex:skill",
     ]);
   });
@@ -97,6 +104,8 @@ describe("renderAll", () => {
     expect(result.outputs.map((output) => output.name).sort()).toEqual([
       "actual-agent",
       "actual-agent",
+      "devcanon-runtime",
+      "devcanon-runtime",
     ]);
   });
 
@@ -124,7 +133,7 @@ describe("renderAll", () => {
 
     const result = await renderAll(config, false, false, "claude");
 
-    expect(result.outputs).toHaveLength(2);
+    expect(result.outputs).toHaveLength(3);
     expect(result.outputs.every((o) => o.target === "claude")).toBe(true);
   });
 
@@ -187,10 +196,13 @@ describe("renderAll", () => {
     }
   });
 
-  it("returns empty outputs when no skills and no agents exist", async () => {
+  it("keeps ordinary output results empty when only the passive runtime exists", async () => {
     const result = await renderAll(config, false);
 
-    expect(result.outputs).toEqual([]);
+    expect(result.outputs.map((output) => output.name)).toEqual([
+      "devcanon-runtime",
+      "devcanon-runtime",
+    ]);
     expect(result.skills).toEqual([]);
     expect(result.agents).toEqual([]);
   });
@@ -224,6 +236,18 @@ describe("renderAll", () => {
           config.library.generatedDir,
           "claude",
           "skills",
+          "devcanon-runtime",
+        ),
+        target: "claude",
+        type: "skill",
+        name: "devcanon-runtime",
+      },
+      {
+        kind: "selected-output",
+        path: path.resolve(
+          config.library.generatedDir,
+          "claude",
+          "skills",
           "inventory-skill",
         ),
         target: "claude",
@@ -241,6 +265,18 @@ describe("renderAll", () => {
         target: "codex",
         type: "agent",
         name: "inventory-agent",
+      },
+      {
+        kind: "selected-output",
+        path: path.resolve(
+          config.library.generatedDir,
+          "codex",
+          "skills",
+          "devcanon-runtime",
+        ),
+        target: "codex",
+        type: "skill",
+        name: "devcanon-runtime",
       },
       {
         kind: "selected-output",
@@ -330,11 +366,25 @@ describe("renderAll", () => {
     }
   });
 
-  it("projects cleanup roots for empty selected sources and excludes passive targets", async () => {
+  it("projects the passive runtime mutation before cleanup roots for an otherwise empty source", async () => {
     const result = await renderAll(config, false, false, "claude");
 
-    expect(result.outputs).toEqual([]);
+    expect(result.outputs.map((output) => output.name)).toEqual([
+      "devcanon-runtime",
+    ]);
     expect(result.mutationInventory).toEqual([
+      {
+        kind: "selected-output",
+        path: path.resolve(
+          config.library.generatedDir,
+          "claude",
+          "skills",
+          "devcanon-runtime",
+        ),
+        target: "claude",
+        type: "skill",
+        name: "devcanon-runtime",
+      },
       {
         kind: "stale-cleanup-root",
         path: path.resolve(config.library.generatedDir, "claude", "agents"),
@@ -384,10 +434,12 @@ describe("renderAll", () => {
       "selected-output:claude:agent:a-agent",
       "selected-output:claude:agent:z-agent",
       "selected-output:claude:skill:a-skill",
+      "selected-output:claude:skill:devcanon-runtime",
       "selected-output:claude:skill:z-skill",
       "selected-output:codex:agent:a-agent",
       "selected-output:codex:agent:z-agent",
       "selected-output:codex:skill:a-skill",
+      "selected-output:codex:skill:devcanon-runtime",
       "selected-output:codex:skill:z-skill",
       "stale-cleanup-root:claude:agent",
       "stale-cleanup-root:codex:agent",
@@ -726,7 +778,7 @@ describe("renderAll", () => {
       const result = await renderAll(config, false);
 
       const skillOutputs = result.outputs.filter((o) => o.type === "skill");
-      expect(skillOutputs).toHaveLength(4);
+      expect(skillOutputs).toHaveLength(6);
 
       const aClaude = skillOutputs.find(
         (o) => o.target === "claude" && o.name === "skill-a",
@@ -796,6 +848,67 @@ describe("renderAll", () => {
 
     expect(await pathExists(staleClaudePath)).toBe(false);
   });
+
+  it("preflights selected agent destination types before replacing earlier skills", async () => {
+    await createSkillFixture(config.library.skillsDir, "first-skill");
+    await createAgentFixture(
+      config.library.agentsDir,
+      "later-agent",
+      makeAgentYaml("later-agent"),
+    );
+    const skillSentinel = path.join(
+      config.library.generatedDir,
+      "claude",
+      "skills",
+      "first-skill",
+      "sentinel.txt",
+    );
+    const invalidAgentDestination = path.join(
+      config.library.generatedDir,
+      "claude",
+      "agents",
+      "later-agent.md",
+    );
+    await mkdir(path.dirname(skillSentinel), { recursive: true });
+    await writeFile(skillSentinel, "unchanged\n", "utf-8");
+    await mkdir(invalidAgentDestination, { recursive: true });
+
+    await expect(renderAll(config, true, false, "claude")).rejects.toThrow(
+      /must be absent or a regular file/i,
+    );
+    expect(await readFile(skillSentinel, "utf-8")).toBe("unchanged\n");
+  });
+
+  it.skipIf(!symlinkAvailable)(
+    "preflights stale cleanup entries before writing selected outputs",
+    async () => {
+      await createSkillFixture(config.library.skillsDir, "safe-skill");
+      const generatedSkillPath = path.join(
+        config.library.generatedDir,
+        "claude",
+        "skills",
+        "safe-skill",
+      );
+      const externalPath = path.join(tempDir, "external-stale-runtime");
+      await mkdir(externalPath, { recursive: true });
+      await mkdir(path.dirname(generatedSkillPath), { recursive: true });
+      await symlink(
+        externalPath,
+        path.join(
+          config.library.generatedDir,
+          "claude",
+          "skills",
+          "stale-skill",
+        ),
+        "dir",
+      );
+
+      await expect(renderAll(config, true, false, "claude")).rejects.toThrow(
+        UserError,
+      );
+      expect(await pathExists(generatedSkillPath)).toBe(false);
+    },
+  );
 
   it("writes per-target SKILL.md without a managed header", async () => {
     await createSkillFixture(
@@ -1281,6 +1394,7 @@ describe("renderLoaded", () => {
     restore = installed.restore;
     await mkdir(config.library.skillsDir, { recursive: true });
     await mkdir(config.library.agentsDir, { recursive: true });
+    await copyDevcanonRuntimeFixture(config.library.skillsDir);
   });
 
   afterEach(async () => {
@@ -1364,6 +1478,30 @@ describe("renderLoaded", () => {
     expect(generatedSkillContent).toContain("A test skill.");
     expect(generatedSkillContent).not.toContain("Mutated source");
     expect(generatedSkillContent).not.toContain("# changed");
+  });
+
+  it("rejects a forged passive runtime in ordinary loaded skills", async () => {
+    await createSkillFixture(config.library.skillsDir, "ordinary-skill");
+    const [ordinarySkill] = await loadAndValidateSkills(
+      config.library.skillsDir,
+    );
+    const forgedRuntime = {
+      ...ordinarySkill,
+      name: DEVCANON_RUNTIME_SKILL_NAME,
+      source: {
+        ...ordinarySkill.source,
+        name: DEVCANON_RUNTIME_SKILL_NAME,
+      },
+    };
+
+    await expect(
+      renderLoaded({
+        config,
+        skills: [forgedRuntime],
+        validatedSkills: [forgedRuntime],
+        agents: [],
+      }),
+    ).rejects.toThrow(/reserved for passive runtime projection/i);
   });
 
   it("finishes the complete inventory before replacing the first writable skill", async () => {

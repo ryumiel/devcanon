@@ -252,7 +252,7 @@ decision's implementation:
 - [ADR-0013: Path-Based Phase-Artifact Handoff](adr-0013-path-based-phase-artifact-handoff.md)
 - [ADR-0016: Single-Task Auto Final-Review Carve-Out](adr-0016-single-task-auto-final-review-carve-out.md)
 - [ADR-0019: Script Authority for Deterministic Skill Mechanics](adr-0019-script-authority-for-deterministic-skill-mechanics.md)
-- [ADR-0024: Shared Support Skill Runtime](adr-0024-shared-support-skill-runtime.md)
+- [ADR-0024: Shared Passive Runtime Support Bundle](adr-0024-shared-support-skill-runtime.md)
 - [ADR-0025: Select Named GPT-5.6 Codex Tiers](adr-0025-codex-model-tier-selection.md)
 - [ADR-0026: Replace Model Tiers with Capability Profiles](adr-0026-capability-profiles.md)
 - [Shared subagent lifecycle procedure](../../skills/subagent-lifecycle/SKILL.md)
