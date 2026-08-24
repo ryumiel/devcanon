@@ -1,4 +1,3 @@
-import { cpSync, mkdirSync } from "node:fs";
 import {
   chmod,
   cp,
@@ -208,14 +207,6 @@ export function makeResolvedConfig(
       frontier: { ...CANONICAL_CAPABILITY_PROFILES.frontier },
     },
   };
-  if (overrides.library?.skillsDir === undefined) {
-    mkdirSync(config.library.skillsDir, { recursive: true });
-    cpSync(
-      DEV_CANON_RUNTIME_SOURCE_DIR,
-      path.join(config.library.skillsDir, "devcanon-runtime"),
-      { recursive: true, force: true },
-    );
-  }
   return config;
 }
 

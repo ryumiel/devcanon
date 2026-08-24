@@ -1,10 +1,10 @@
 import { execFile } from "node:child_process";
-import { lstat } from "node:fs/promises";
+import { lstat, readdir } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { UserError } from "../utils/errors.js";
-import { isDirectory, pathOrSymlinkExists } from "../utils/fs.js";
+import { pathOrSymlinkExists } from "../utils/fs.js";
 import { DEVCANON_RUNTIME_SKILL_NAME } from "./skills.js";
 
 export const RUNTIME_ENTRYPOINT = path.join("scripts", "devcanon-runtime.sh");
@@ -13,16 +13,25 @@ const RUNTIME_JS_ENTRYPOINT = path.join(RUNTIME_JS_DIR, "cli.js");
 const RUNTIME_JS_INDEX = path.join(RUNTIME_JS_DIR, "index.js");
 const REQUIRED_RUNTIME_JS_FILES = [
   "artifacts.js",
+  "bootstrap-cli.js",
+  "bootstrap.js",
+  "cleanup-git.js",
   "cli.js",
   "command.js",
+  "git-diff-parser.js",
+  "git-workspace-cleanup.js",
   "git.js",
   "index.js",
   "issue-worktree-setup.js",
   "paths.js",
+  "play-review-shared-context.js",
+  "pr-merge-worktree.js",
   "pr-review-leases.js",
   "pr-review-manifests.js",
+  "pr-review-result-validation.js",
   "review-artifacts.js",
   "schema.js",
+  "source-immutability.js",
 ] as const;
 export const REQUIRED_RUNTIME_FILES = [
   RUNTIME_ENTRYPOINT,
@@ -40,8 +49,13 @@ export function devcanonRuntimeDir(skillsDir: string): string {
 export async function validateDevcanonRuntime(
   runtimeDir: string,
 ): Promise<void> {
-  if (!(await isDirectory(runtimeDir)))
+  try {
+    if (!(await lstat(runtimeDir)).isDirectory()) {
+      throw runtimeSourceMissingError(runtimeDir);
+    }
+  } catch {
     throw runtimeSourceMissingError(runtimeDir);
+  }
 
   for (const forbiddenPath of [
     "SKILL.md",
@@ -61,9 +75,49 @@ export async function validateDevcanonRuntime(
     }
   }
 
+  await requireRealDirectory(
+    path.join(runtimeDir, "scripts"),
+    runtimeDir,
+    "scripts",
+  );
+  await requireRealDirectory(
+    path.join(runtimeDir, RUNTIME_JS_DIR),
+    runtimeDir,
+    RUNTIME_JS_DIR,
+  );
+  await validateRuntimeTree(path.join(runtimeDir, "scripts"), runtimeDir);
+
   const entrypoint = path.join(runtimeDir, RUNTIME_ENTRYPOINT);
   if (!(await hasExecutableBit(entrypoint))) {
     throw runtimeSourceIncompleteError(runtimeDir, RUNTIME_ENTRYPOINT);
+  }
+}
+
+async function requireRealDirectory(
+  directory: string,
+  runtimeDir: string,
+  relativePath: string,
+): Promise<void> {
+  try {
+    if (!(await lstat(directory)).isDirectory()) {
+      throw runtimeSourceIncompleteError(runtimeDir, relativePath);
+    }
+  } catch {
+    throw runtimeSourceIncompleteError(runtimeDir, relativePath);
+  }
+}
+
+async function validateRuntimeTree(
+  directory: string,
+  runtimeDir: string,
+): Promise<void> {
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const entryPath = path.join(directory, entry.name);
+    const relativePath = path.relative(runtimeDir, entryPath);
+    if (entry.isSymbolicLink() || !(entry.isDirectory() || entry.isFile())) {
+      throw runtimeSourceIncompleteError(runtimeDir, relativePath);
+    }
+    if (entry.isDirectory()) await validateRuntimeTree(entryPath, runtimeDir);
   }
 }
 

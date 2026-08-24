@@ -57,12 +57,14 @@ describe("renderAll", () => {
 
     const result = await renderAll(config, false);
 
-    expect(result.outputs).toHaveLength(4);
+    expect(result.outputs).toHaveLength(6);
     const types = result.outputs.map((o) => `${o.target}:${o.type}`).sort();
     expect(types).toEqual([
       "claude:agent",
       "claude:skill",
+      "claude:skill",
       "codex:agent",
+      "codex:skill",
       "codex:skill",
     ]);
   });
@@ -99,6 +101,8 @@ describe("renderAll", () => {
     expect(result.outputs.map((output) => output.name).sort()).toEqual([
       "actual-agent",
       "actual-agent",
+      "devcanon-runtime",
+      "devcanon-runtime",
     ]);
   });
 
@@ -126,7 +130,7 @@ describe("renderAll", () => {
 
     const result = await renderAll(config, false, false, "claude");
 
-    expect(result.outputs).toHaveLength(2);
+    expect(result.outputs).toHaveLength(3);
     expect(result.outputs.every((o) => o.target === "claude")).toBe(true);
   });
 
@@ -192,7 +196,10 @@ describe("renderAll", () => {
   it("keeps ordinary output results empty when only the passive runtime exists", async () => {
     const result = await renderAll(config, false);
 
-    expect(result.outputs).toEqual([]);
+    expect(result.outputs.map((output) => output.name)).toEqual([
+      "devcanon-runtime",
+      "devcanon-runtime",
+    ]);
     expect(result.skills).toEqual([]);
     expect(result.agents).toEqual([]);
   });
@@ -359,7 +366,9 @@ describe("renderAll", () => {
   it("projects the passive runtime mutation before cleanup roots for an otherwise empty source", async () => {
     const result = await renderAll(config, false, false, "claude");
 
-    expect(result.outputs).toEqual([]);
+    expect(result.outputs.map((output) => output.name)).toEqual([
+      "devcanon-runtime",
+    ]);
     expect(result.mutationInventory).toEqual([
       {
         kind: "selected-output",
@@ -766,7 +775,7 @@ describe("renderAll", () => {
       const result = await renderAll(config, false);
 
       const skillOutputs = result.outputs.filter((o) => o.type === "skill");
-      expect(skillOutputs).toHaveLength(4);
+      expect(skillOutputs).toHaveLength(6);
 
       const aClaude = skillOutputs.find(
         (o) => o.target === "claude" && o.name === "skill-a",

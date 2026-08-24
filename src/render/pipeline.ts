@@ -179,6 +179,7 @@ async function renderLoadedInternal<
       );
       assertRenderedOutputPath(config, rendered);
       runtimeWrites.push(rendered);
+      outputs.push(rendered);
     }
   }
 
@@ -187,13 +188,14 @@ async function renderLoadedInternal<
   }
   const mutationInventory = buildMutationInventory(
     config,
-    [...outputs, ...runtimeWrites],
+    outputs,
     targets,
     targetFilter,
     cleanStaleGenerated,
   );
 
   if (writeToGenerated) {
+    await preflightGeneratedMutations(config, mutationInventory);
     for (const { skill, rendered, extraFiles } of skillWrites) {
       await assertNoSymlinkPathComponents(
         config.library.generatedDir,
@@ -296,7 +298,7 @@ async function renderLoadedInternal<
 
     // Remove stale per-target skill directories
     const currentSkillGeneratedDirs = new Set(
-      [...outputs, ...runtimeWrites]
+      outputs
         .filter((o): o is RenderedSkill => o.type === "skill")
         .map((o) => o.generatedPath),
     );
@@ -332,6 +334,19 @@ async function renderLoadedInternal<
   }
 
   return { outputs, skills, agents, mutationInventory };
+}
+
+async function preflightGeneratedMutations(
+  config: ResolvedConfig,
+  mutations: readonly RenderMutation[],
+): Promise<void> {
+  for (const mutation of mutations) {
+    await assertNoSymlinkPathComponents(
+      config.library.generatedDir,
+      mutation.path,
+      `Generated ${mutation.type} path for "${mutation.target}"`,
+    );
+  }
 }
 
 function buildMutationInventory(
@@ -523,6 +538,11 @@ function validateLoadedSkillReference(
   skill: LoadedSkill,
   names: Set<string>,
 ): void {
+  if (skill.name === "devcanon-runtime") {
+    throw new UserError(
+      'Loaded skill "devcanon-runtime" is reserved for passive runtime projection.',
+    );
+  }
   const result = SkillSourceSchema.safeParse(skill.source);
   if (!result.success || skill.name !== skill.source.name) {
     throw new UserError(`Loaded skill "${skill.name}" is not validated.`);

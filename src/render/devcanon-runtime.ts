@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { cp, lstat, readFile, readdir, readlink, rm } from "node:fs/promises";
+import { cp, lstat, readFile, readdir, rm } from "node:fs/promises";
 import path from "node:path";
 import type { ResolvedConfig } from "../config/schema.js";
 import type { RenderedSkill } from "../models/types.js";
@@ -47,6 +47,8 @@ export async function writeRenderedDevcanonRuntime(
 
 async function hashRuntimePayload(runtimeDir: string): Promise<string> {
   const hash = createHash("sha256");
+  const scripts = await lstat(path.join(runtimeDir, "scripts"));
+  hashRuntimeField(hash, "directory", "scripts", String(scripts.mode));
   await hashRuntimeTree(path.join(runtimeDir, "scripts"), "scripts", hash);
   return hash.digest("hex");
 }
@@ -65,14 +67,27 @@ async function hashRuntimeTree(
     const relativePath = path.posix.join(relativeDirectory, entry.name);
     const stat = await lstat(sourcePath);
     if (stat.isDirectory()) {
-      hash.update(`directory\0${relativePath}\0${stat.mode}\0`);
+      hashRuntimeField(hash, "directory", relativePath, String(stat.mode));
       await hashRuntimeTree(sourcePath, relativePath, hash);
     } else if (stat.isFile()) {
-      hash.update(`file\0${relativePath}\0${stat.mode}\0`);
-      hash.update(await readFile(sourcePath));
-    } else if (stat.isSymbolicLink()) {
-      hash.update(`symlink\0${relativePath}\0${stat.mode}\0`);
-      hash.update(await readlink(sourcePath));
+      hashRuntimeField(hash, "file", relativePath, String(stat.mode));
+      hashRuntimeField(hash, "bytes", relativePath, await readFile(sourcePath));
+    } else {
+      throw new Error(
+        `Unsupported devcanon-runtime payload entry: ${sourcePath}`,
+      );
     }
+  }
+}
+
+function hashRuntimeField(
+  hash: ReturnType<typeof createHash>,
+  ...fields: Array<string | Buffer>
+): void {
+  for (const field of fields) {
+    const bytes = Buffer.isBuffer(field) ? field : Buffer.from(field, "utf-8");
+    hash.update(String(bytes.length));
+    hash.update(":");
+    hash.update(bytes);
   }
 }
