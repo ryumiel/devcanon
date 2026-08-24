@@ -565,7 +565,42 @@ conversation text when the manifest is present. The `pr-review/handoff/v1`
 closed schema is the controller-to-review handoff record, but it carries no
 approval state, no lease state, and no GitHub review payload.
 
+### Scope notice
+
+After the handoff and worktree HEAD validations succeed, consume the exact
+already-bound `REVIEW_SCOPE_DECISION_FILE`. Fail before dispatch if it is
+unavailable or malformed; do not display changed-file text.
+
 ```bash
+emit_pr_review_scope_notice() {
+  : "${REVIEW_SCOPE_DECISION_FILE:?Phase 3 scope decision path missing}"
+  node - "$REVIEW_SCOPE_DECISION_FILE" <<'NODE'
+const fs = require("node:fs");
+let scope;
+try {
+  scope = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+} catch {
+  process.exit(1);
+}
+if (
+  scope === null ||
+  typeof scope !== "object" ||
+  Array.isArray(scope) ||
+  !["initial", "follow-up"].includes(scope.mode) ||
+  typeof scope.is_followup_narrow !== "boolean" ||
+  !Array.isArray(scope.changed_files) ||
+  !scope.changed_files.every((file) => typeof file === "string") ||
+  (scope.mode === "initial" && scope.is_followup_narrow)
+) {
+  process.exit(1);
+}
+const selection = scope.is_followup_narrow ? "narrow" : "full";
+process.stdout.write(
+  `PR review scope: mode=${scope.mode}, selection=${selection}, selected files=${scope.changed_files.length}. Review is continuing.\n`,
+);
+NODE
+}
+
 (
   cd "$WORKING_DIRECTORY" || exit 1
   : "${REVIEW_HANDOFF_FILE:?Phase 3 handoff manifest path missing}"
@@ -576,6 +611,7 @@ approval state, no lease state, and no GitHub review payload.
     echo "review worktree HEAD changed since handoff; refusing stale review" >&2
     exit 1
   }
+  emit_pr_review_scope_notice || exit 1
 )
 ```
 
