@@ -888,9 +888,14 @@ evidence, and worktree existence/registration where applicable. Invalid
 evidence is cleared while the failed lease is still written when identity and
 transition authority are trustworthy.
 
-Present exactly that stdout to the user as the preview, followed by the
-mandatory audit summary, plus the thread resolution list for follow-up reviews
-when applicable:
+Present the existing artifact-backed review preview stdout first. It is the
+sole presentation of the reviewed head, findings path, every finding body and
+evidence snippet, critic state, and carry-forward entry. Follow it with exactly
+that mandatory dense audit summary, which presents the validated review scope,
+artifacts and finding counts, presentation/lifecycle state, and Phase 5 cleanup
+state without repeating the preview-owned reviewed-head or findings-path
+identity. Then present the complete thread resolution list for follow-up
+reviews when applicable, before the unchanged user actions:
 
 ```
 ### Previous Threads

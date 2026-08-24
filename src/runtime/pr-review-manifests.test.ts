@@ -25,6 +25,10 @@ import {
 import { PrReviewCommandHarness } from "../__test-helpers__/pr-review-command-harness.js";
 
 const originalCwd = process.cwd();
+const reviewArtifactsHelper = path.join(
+  originalCwd,
+  "skills/play-review/scripts/review-artifacts.sh",
+);
 const managedEnvKeys = [
   "REPOSITORY",
   "PR_NUMBER",
@@ -395,40 +399,98 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     expect(toOperationalPathText("C:\\repo")).toBe("C:/repo");
   });
 
-  it("renders all mandatory audit families from the worktree and read-only lease status", async () => {
-    const workspace = await makeManifestWorkspace(
-      "pr-review-manifest-summary-",
-    );
-    setSummaryEnv(workspace);
-    process.chdir(workspace.tempRoot);
+  it.each([
+    { name: "zero findings", findings: [], carryForward: [] },
+    {
+      name: "one active finding",
+      findings: [auditFinding("F1", "Finding")],
+      carryForward: [],
+    },
+    {
+      name: "multiple active and carry-forward findings",
+      findings: [
+        auditFinding("F1", "First finding"),
+        auditFinding("F2", "Second finding"),
+      ],
+      carryForward: [auditFinding("CF1", "Carry-forward finding")],
+    },
+  ])(
+    "renders dense mandatory audit families for $name without preview-owned identities",
+    async ({ findings, carryForward }) => {
+      const workspace = await makeManifestWorkspace(
+        "pr-review-manifest-summary-",
+        findings,
+        carryForward,
+      );
+      setSummaryEnv(workspace);
+      process.env.PLAY_REVIEW_HELPER = reviewArtifactsHelper;
+      process.chdir(workspace.tempRoot);
 
-    const result = await runManifestCommand(["render-phase5-audit-summary"]);
+      const preview = await commandHarness.run(
+        "bash",
+        [reviewArtifactsHelper, "render-review-preview"],
+        {
+          cwd: workspace.worktree,
+          env: {
+            ...process.env,
+            HEAD_SHA: workspace.headSha,
+            FINDINGS_FILE: workspace.findingsFile,
+            REVIEW_SURFACE: "pr-review",
+            REVIEW_BODY_FILE: workspace.reviewBodyFile,
+          },
+        },
+      );
 
-    expect(result.exitCode, result.stderr).toBe(0);
-    expect(result.stdout).toContain("## Phase 5 Artifact Audit Summary");
-    expect(result.stdout).toContain(
-      `Reviewed head SHA: \`${workspace.headSha}\``,
-    );
-    expect(result.stdout).toContain("Base/head refs: `main` -> `topic`");
-    expect(result.stdout).toContain(
-      `Active diff range: \`${workspace.baseSha}..${workspace.headSha}\``,
-    );
-    expect(result.stdout).toContain(
-      `Full PR diff range: \`${workspace.baseSha}..${workspace.headSha}\``,
-    );
-    expect(result.stdout).toContain(
-      `Result manifest: \`${workspace.resultFile}\``,
-    );
-    expect(result.stdout).toContain(`Findings: \`${workspace.findingsFile}\``);
-    expect(result.stdout).toContain("Result artifacts:");
-    expect(result.stdout).toContain("Validation status: result `valid`");
-    expect(result.stdout).toContain("lease result digest");
-    expect(result.stdout).toContain("Lease/worktree status: lease `gated`");
-    expect(result.stdout).toContain("dirty `true`");
-    expect(result.stdout).toContain(
-      "Cleanup note: lease-gated cleanup pending",
-    );
-  });
+      expect(preview.stdout).toContain("# Review Preview");
+      if (findings.length + carryForward.length > 0) {
+        expect(preview.stdout).toContain("- **Path:** README.md");
+        expect(preview.stdout).toContain("baseline");
+      }
+
+      const result = await runManifestCommand(["render-phase5-audit-summary"]);
+
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(result.stdout).toContain("## Phase 5 Artifact Audit Summary");
+      expect(result.stdout).toContain("### Review scope");
+      expect(result.stdout).toContain("Repository and PR: `owner/repo#432`");
+      expect(result.stdout).toContain("Base/head refs: `main` -> `topic`");
+      expect(result.stdout).toContain(
+        `Active diff range: \`${workspace.baseSha}..${workspace.headSha}\``,
+      );
+      expect(result.stdout).toContain(
+        `Full PR diff range: \`${workspace.baseSha}..${workspace.headSha}\``,
+      );
+      expect(result.stdout).toContain("### Validated artifacts");
+      expect(result.stdout).toContain(
+        `Result manifest: \`${workspace.resultFile}\``,
+      );
+      expect(result.stdout).toContain(
+        `Finding counts: \`${findings.length}\` active, \`${carryForward.length}\` carry-forward`,
+      );
+      expect(result.stdout).toContain(
+        `Result artifacts: handoff \`.ephemeral/pr-432-${workspace.headSha}-handoff.json\`, scope \`.ephemeral/topic-${workspace.headSha}-scope-decision.json\`, prior threads \`none\`, review body \`${workspace.reviewBodyFile}\`, context \`none\`, rendered preview \`.ephemeral/topic-${workspace.headSha}-review-preview.md\``,
+      );
+      expect(result.stdout).toContain(
+        `Validation status: result \`valid\`; findings validated \`true\`; scope validated \`true\`; lease result digest \`${workspace.resultSha256}\`; lease validated at \`2026-06-11T00:02:00Z\``,
+      );
+      expect(result.stdout).toContain("### Presentation and lifecycle");
+      expect(result.stdout).toContain(
+        "Presentation status: result `preview-current`; lease `preview-current`; presented at `2026-06-11T00:02:00Z`",
+      );
+      expect(result.stdout).toContain(
+        `Lease/worktree status: lease \`gated\`; worktree \`${workspace.physicalWorktree}\`; digest \`${workspace.worktreeDigest}\`; exists \`true\`; registered \`true\`; dirty \`true\`; identity match \`true\``,
+      );
+      expect(result.stdout).toContain("### Cleanup");
+      expect(result.stdout).toContain(
+        "Cleanup note: lease-gated cleanup pending; cleanup not attempted in Phase 5.",
+      );
+      expect(result.stdout).not.toContain("Reviewed head SHA:");
+      expect(result.stdout).not.toContain("Findings file:");
+      expect(result.stdout).not.toContain(
+        `Findings: \`${workspace.findingsFile}\``,
+      );
+    },
+  );
 
   it("uses one fresh scope authority context per Phase 5 audit", async () => {
     const workspace = await makeManifestWorkspace(
@@ -2009,6 +2071,8 @@ async function runManifestCommandWithStdin(
 
 async function makeManifestWorkspace(
   _prefix: string,
+  findings: Array<Record<string, unknown>> = [auditFinding("F1", "Finding")],
+  carryForward: Array<Record<string, unknown>> = [],
 ): Promise<ManifestWorkspace> {
   const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
     await commandHarness.createRegisteredReviewWorkspace();
@@ -2060,8 +2124,9 @@ async function makeManifestWorkspace(
 
   await writeJson(worktree, findingsFile, {
     schema: "play-review/findings/v2",
-    findings: [{ id: "F1", title: "Finding" }],
-    carry_forward: [],
+    findings,
+    carry_forward: carryForward,
+    incomplete_topical_routes: [],
   });
   await writeFile(path.join(worktree, reviewBodyFile), "Review body.\n");
   await writeFile(path.join(worktree, previewFile), "Rendered preview.\n");
@@ -2223,6 +2288,25 @@ function setSummaryEnv(workspace: ManifestWorkspace): void {
   process.env.LEASE_FILE = workspace.leaseFile;
   process.env.PR_REVIEW_DIR = workspace.prReviewDir;
   process.env.PLAY_REVIEW_HELPER = workspace.playReviewHelper;
+}
+
+function auditFinding(id: string, title: string): Record<string, unknown> {
+  const why = `${title} requires review.`;
+  const recommendation = "Address the reviewed behavior.";
+  return {
+    id,
+    title,
+    path: "README.md",
+    line: 1,
+    start_line: null,
+    severity: "Blocking",
+    category: "Tests",
+    critic: "VALID",
+    anchor: "natural",
+    why,
+    recommendation,
+    body: `**Blocking | Tests** — ${why}\n\n**Recommendation:** ${recommendation}`,
+  };
 }
 
 function validStatus(workspace: ManifestWorkspace): Record<string, unknown> {
