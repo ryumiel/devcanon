@@ -117,6 +117,24 @@ describe("renderAll", () => {
     );
 
     const crlfResult = await renderAll(config, true);
+    for (const target of ["claude", "codex"] as const) {
+      await expect(
+        readFile(
+          path.join(
+            config.library.generatedDir,
+            target,
+            "skills",
+            "shell-skill",
+            "scripts",
+            "nested",
+            "tool.sh",
+          ),
+        ),
+      ).resolves.toStrictEqual(
+        Buffer.from("#!/usr/bin/env bash\necho shell\n", "utf-8"),
+      );
+    }
+
     await writeFile(sourceScript, "#!/usr/bin/env bash\necho shell\n", "utf-8");
     const lfResult = await renderAll(config, true);
 
