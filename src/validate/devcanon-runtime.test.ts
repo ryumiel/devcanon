@@ -1,7 +1,8 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  canCreateSymlinks,
   cleanupTempDir,
   copyDevcanonRuntimeFixture,
   createTempDir,
@@ -10,6 +11,8 @@ import {
 import { renderAll } from "../render/pipeline.js";
 import { UserError } from "../utils/errors.js";
 import { pathExists } from "../utils/fs.js";
+
+const symlinkAvailable = await canCreateSymlinks();
 
 describe("devcanon-runtime source validation", () => {
   let tempDir: string;
@@ -82,4 +85,55 @@ describe("devcanon-runtime source validation", () => {
     );
     expect(await pathExists(sentinel)).toBe(true);
   });
+
+  it("rejects an extra passive runtime payload file before generated output is mutated", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    const sentinel = path.join(
+      config.library.generatedDir,
+      "claude",
+      "skills",
+      "sentinel",
+      "marker.txt",
+    );
+    await mkdir(path.dirname(sentinel), { recursive: true });
+    await writeFile(path.join(runtimeDir, "metadata.json"), "{}\n", "utf-8");
+    await writeFile(sentinel, "unchanged\n", "utf-8");
+
+    await expect(renderAll(config, true)).rejects.toThrow(UserError);
+    await expect(renderAll(config, true)).rejects.toThrow(
+      /support skill is incomplete/i,
+    );
+    expect(await pathExists(sentinel)).toBe(true);
+  });
+
+  it.skipIf(!symlinkAvailable)(
+    "rejects a symlinked passive payload entry before generated output is mutated",
+    async () => {
+      const runtimeDir = path.join(
+        config.library.skillsDir,
+        "devcanon-runtime",
+      );
+      const entrypoint = path.join(
+        runtimeDir,
+        "scripts",
+        "devcanon-runtime.sh",
+      );
+      const externalEntrypoint = path.join(tempDir, "external-runtime.sh");
+      const sentinel = path.join(
+        config.library.generatedDir,
+        "codex",
+        "skills",
+        "sentinel",
+        "marker.txt",
+      );
+      await writeFile(externalEntrypoint, "#!/bin/sh\n", "utf-8");
+      await rm(entrypoint);
+      await symlink(externalEntrypoint, entrypoint, "file");
+      await mkdir(path.dirname(sentinel), { recursive: true });
+      await writeFile(sentinel, "unchanged\n", "utf-8");
+
+      await expect(renderAll(config, true)).rejects.toThrow(UserError);
+      expect(await pathExists(sentinel)).toBe(true);
+    },
+  );
 });

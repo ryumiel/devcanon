@@ -193,6 +193,10 @@ async function renderLoadedInternal<
     targetFilter,
     cleanStaleGenerated,
   );
+  const staleCleanupPlan =
+    writeToGenerated && cleanStaleGenerated
+      ? await planStaleGeneratedCleanup(config, mutationInventory, outputs)
+      : EMPTY_STALE_GENERATED_CLEANUP_PLAN;
 
   if (writeToGenerated) {
     await preflightGeneratedMutations(config, mutationInventory);
@@ -257,83 +261,85 @@ async function renderLoadedInternal<
         await writeTextFile(output.generatedPath, output.content);
       }
     }
-  }
-
-  if (writeToGenerated && cleanStaleGenerated) {
-    // Remove stale generated files that no longer have corresponding sources
-    const currentGeneratedPaths = new Set(
-      outputs
-        .filter((o): o is RenderedAgent => o.type === "agent")
-        .map((o) => o.generatedPath),
-    );
-
-    const agentCleanupRoots = mutationInventory.filter(
-      (entry) => entry.kind === "stale-cleanup-root" && entry.type === "agent",
-    );
-    for (const root of agentCleanupRoots) {
-      const agentsDir = root.path;
-      await assertNoSymlinkPathComponents(
-        config.library.generatedDir,
-        agentsDir,
-        `Generated agents directory for "${root.target}"`,
-      );
-      let entries: string[];
-      try {
-        entries = await readdir(agentsDir);
-      } catch {
-        continue;
-      }
-      for (const entry of entries) {
-        const filePath = path.join(agentsDir, entry);
-        await assertNoSymlinkPathComponents(
-          config.library.generatedDir,
-          filePath,
-          `Generated agent file "${entry}"`,
-        );
-        if (!currentGeneratedPaths.has(filePath)) {
-          await unlink(filePath);
-        }
-      }
-    }
-
-    // Remove stale per-target skill directories
-    const currentSkillGeneratedDirs = new Set(
-      outputs
-        .filter((o): o is RenderedSkill => o.type === "skill")
-        .map((o) => o.generatedPath),
-    );
-
-    const skillCleanupRoots = mutationInventory.filter(
-      (entry) => entry.kind === "stale-cleanup-root" && entry.type === "skill",
-    );
-    for (const root of skillCleanupRoots) {
-      const skillsGeneratedDir = root.path;
-      await assertNoSymlinkPathComponents(
-        config.library.generatedDir,
-        skillsGeneratedDir,
-        `Generated skills directory for "${root.target}"`,
-      );
-      let skillEntries: string[];
-      try {
-        skillEntries = await readdir(skillsGeneratedDir);
-      } catch {
-        continue;
-      }
-      for (const entry of skillEntries) {
-        const entryPath = path.join(skillsGeneratedDir, entry);
-        await assertNoSymlinkPathComponents(
-          config.library.generatedDir,
-          entryPath,
-          `Generated skill directory "${entry}"`,
-        );
-        if (!currentSkillGeneratedDirs.has(entryPath)) {
-          await rm(entryPath, { recursive: true, force: true });
-        }
-      }
-    }
+    await applyStaleGeneratedCleanupPlan(staleCleanupPlan);
   }
 
   return { outputs, skills, agents, mutationInventory };
+}
+
+interface StaleGeneratedCleanupPlan {
+  readonly agentFiles: readonly string[];
+  readonly skillDirectories: readonly string[];
+}
+
+const EMPTY_STALE_GENERATED_CLEANUP_PLAN: StaleGeneratedCleanupPlan =
+  Object.freeze({ agentFiles: [], skillDirectories: [] });
+
+async function planStaleGeneratedCleanup(
+  config: ResolvedConfig,
+  mutationInventory: readonly RenderMutation[],
+  outputs: readonly RenderedOutput[],
+): Promise<StaleGeneratedCleanupPlan> {
+  const currentAgentPaths = new Set(
+    outputs
+      .filter((output): output is RenderedAgent => output.type === "agent")
+      .map((output) => output.generatedPath),
+  );
+  const currentSkillPaths = new Set(
+    outputs
+      .filter((output): output is RenderedSkill => output.type === "skill")
+      .map((output) => output.generatedPath),
+  );
+  const agentFiles: string[] = [];
+  const skillDirectories: string[] = [];
+
+  for (const root of mutationInventory) {
+    if (root.kind !== "stale-cleanup-root") continue;
+    await assertNoSymlinkPathComponents(
+      config.library.generatedDir,
+      root.path,
+      `Generated ${root.type}s directory for "${root.target}"`,
+    );
+    let entries: string[];
+    try {
+      entries = await readdir(root.path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      throw error;
+    }
+    for (const entry of entries) {
+      const entryPath = path.join(root.path, entry);
+      await assertNoSymlinkPathComponents(
+        config.library.generatedDir,
+        entryPath,
+        `Generated ${root.type} cleanup entry "${entry}"`,
+      );
+      if (root.type === "agent") {
+        if (!(await lstat(entryPath)).isFile()) {
+          throw new UserError(
+            `Generated agent cleanup entry must be a regular file: ${entryPath}`,
+            entryPath,
+          );
+        }
+        if (!currentAgentPaths.has(entryPath)) agentFiles.push(entryPath);
+      } else if (!currentSkillPaths.has(entryPath)) {
+        skillDirectories.push(entryPath);
+      }
+    }
+  }
+  return Object.freeze({
+    agentFiles: Object.freeze(agentFiles),
+    skillDirectories: Object.freeze(skillDirectories),
+  });
+}
+
+async function applyStaleGeneratedCleanupPlan(
+  plan: StaleGeneratedCleanupPlan,
+): Promise<void> {
+  for (const filePath of plan.agentFiles) await unlink(filePath);
+  for (const directoryPath of plan.skillDirectories) {
+    await rm(directoryPath, { recursive: true, force: true });
+  }
 }
 
 async function preflightGeneratedMutations(

@@ -296,7 +296,7 @@ describe("devcanon-runtime sync", () => {
 
       const strayExecutable = path.join(
         config.library.skillsDir,
-        "devcanon-runtime",
+        "consumer-skill",
         "local-helper.sh",
       );
       await writeFile(strayExecutable, "#!/bin/sh\n", "utf-8");
@@ -322,8 +322,7 @@ describe("devcanon-runtime sync", () => {
 
   it("ignores regular files using mirrored skill subdirectory names", async () => {
     const config = makeResolvedConfig(tempDir);
-    await mkdir(config.library.skillsDir, { recursive: true });
-    await mkdir(config.library.agentsDir, { recursive: true });
+    await prepareRuntimeSyncFixture(config);
     await createSkillFixture(config.library.skillsDir, "file-named-scripts");
     await writeFile(
       path.join(config.library.skillsDir, "file-named-scripts", "scripts"),
@@ -360,8 +359,7 @@ describe("devcanon-runtime sync", () => {
     "ignores symlinked directories using mirrored skill subdirectory names",
     async () => {
       const config = makeResolvedConfig(tempDir);
-      await mkdir(config.library.skillsDir, { recursive: true });
-      await mkdir(config.library.agentsDir, { recursive: true });
+      await prepareRuntimeSyncFixture(config);
       const skillDir = await createSkillFixture(
         config.library.skillsDir,
         "symlinked-scripts",

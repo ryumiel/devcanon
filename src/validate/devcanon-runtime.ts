@@ -85,7 +85,7 @@ export async function validateDevcanonRuntime(
     runtimeDir,
     RUNTIME_JS_DIR,
   );
-  await validateRuntimeTree(path.join(runtimeDir, "scripts"), runtimeDir);
+  await validateExactRuntimeTree(runtimeDir);
 
   const entrypoint = path.join(runtimeDir, RUNTIME_ENTRYPOINT);
   if (!(await hasExecutableBit(entrypoint))) {
@@ -107,17 +107,35 @@ async function requireRealDirectory(
   }
 }
 
-async function validateRuntimeTree(
+async function validateExactRuntimeTree(runtimeDir: string): Promise<void> {
+  await requireExactDirectoryEntries(runtimeDir, ["scripts"], runtimeDir);
+  await requireExactDirectoryEntries(
+    path.join(runtimeDir, "scripts"),
+    ["devcanon-runtime.sh", "runtime"],
+    runtimeDir,
+  );
+  await requireExactDirectoryEntries(
+    path.join(runtimeDir, RUNTIME_JS_DIR),
+    ["package.json", ...REQUIRED_RUNTIME_JS_FILES],
+    runtimeDir,
+  );
+}
+
+async function requireExactDirectoryEntries(
   directory: string,
+  expectedEntries: readonly string[],
   runtimeDir: string,
 ): Promise<void> {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const entryPath = path.join(directory, entry.name);
     const relativePath = path.relative(runtimeDir, entryPath);
-    if (entry.isSymbolicLink() || !(entry.isDirectory() || entry.isFile())) {
+    if (
+      entry.isSymbolicLink() ||
+      !(entry.isDirectory() || entry.isFile()) ||
+      !expectedEntries.includes(entry.name)
+    ) {
       throw runtimeSourceIncompleteError(runtimeDir, relativePath);
     }
-    if (entry.isDirectory()) await validateRuntimeTree(entryPath, runtimeDir);
   }
 }
 

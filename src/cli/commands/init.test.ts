@@ -214,11 +214,14 @@ describe("initAction", () => {
 
     const renderResult = await renderAll(config, false);
     expect(
-      renderResult.outputs.some(
-        (output) =>
-          output.type === "skill" && output.name === "devcanon-runtime",
-      ),
-    ).toBe(false);
+      renderResult.outputs
+        .filter(
+          (output) =>
+            output.type === "skill" && output.name === "devcanon-runtime",
+        )
+        .map((output) => output.target)
+        .sort(),
+    ).toEqual(["claude", "codex"]);
 
     const syncResult = await sync(config, {
       dryRun: false,

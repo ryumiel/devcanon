@@ -1,7 +1,8 @@
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  canMutateExecutableMode,
   cleanupTempDir,
   copyDevcanonRuntimeFixture,
   createSkillFixture,
@@ -13,6 +14,8 @@ import type { ResolvedConfig } from "../config/schema.js";
 import { pathExists } from "../utils/fs.js";
 import { renderDevcanonRuntimeForTarget } from "./devcanon-runtime.js";
 import { renderAll } from "./pipeline.js";
+
+const executableModeMutable = await canMutateExecutableMode();
 
 describe("devcanon-runtime rendering", () => {
   let tempDir: string;
@@ -145,5 +148,68 @@ describe("devcanon-runtime rendering", () => {
       config,
     );
     expect(secondRuntime.contentHash).not.toBe(firstRuntime.contentHash);
+  });
+
+  it.skipIf(!executableModeMutable)(
+    "includes the passive runtime scripts directory mode in rendered content hashes",
+    async () => {
+      await copyDevcanonRuntimeFixture(config.library.skillsDir);
+      const runtimeDir = path.join(
+        config.library.skillsDir,
+        "devcanon-runtime",
+      );
+      const scriptsPath = path.join(runtimeDir, "scripts");
+      const before = await renderDevcanonRuntimeForTarget(
+        runtimeDir,
+        "codex",
+        config,
+      );
+
+      await chmod(scriptsPath, 0o711);
+
+      const after = await renderDevcanonRuntimeForTarget(
+        runtimeDir,
+        "codex",
+        config,
+      );
+      expect(after.contentHash).not.toBe(before.contentHash);
+    },
+  );
+
+  it("frames passive runtime records with their paths", async () => {
+    await copyDevcanonRuntimeFixture(config.library.skillsDir);
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    const firstPath = path.join(
+      runtimeDir,
+      "scripts",
+      "runtime",
+      "artifacts.js",
+    );
+    const secondPath = path.join(
+      runtimeDir,
+      "scripts",
+      "runtime",
+      "command.js",
+    );
+    const first = await renderDevcanonRuntimeForTarget(
+      runtimeDir,
+      "codex",
+      config,
+    );
+    const [firstBytes, secondBytes] = await Promise.all([
+      readFile(firstPath),
+      readFile(secondPath),
+    ]);
+    await Promise.all([
+      writeFile(firstPath, secondBytes),
+      writeFile(secondPath, firstBytes),
+    ]);
+
+    const second = await renderDevcanonRuntimeForTarget(
+      runtimeDir,
+      "codex",
+      config,
+    );
+    expect(second.contentHash).not.toBe(first.contentHash);
   });
 });

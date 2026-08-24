@@ -846,6 +846,37 @@ describe("renderAll", () => {
     expect(await pathExists(staleClaudePath)).toBe(false);
   });
 
+  it.skipIf(!symlinkAvailable)(
+    "preflights stale cleanup entries before writing selected outputs",
+    async () => {
+      await createSkillFixture(config.library.skillsDir, "safe-skill");
+      const generatedSkillPath = path.join(
+        config.library.generatedDir,
+        "claude",
+        "skills",
+        "safe-skill",
+      );
+      const externalPath = path.join(tempDir, "external-stale-runtime");
+      await mkdir(externalPath, { recursive: true });
+      await mkdir(path.dirname(generatedSkillPath), { recursive: true });
+      await symlink(
+        externalPath,
+        path.join(
+          config.library.generatedDir,
+          "claude",
+          "skills",
+          "stale-skill",
+        ),
+        "dir",
+      );
+
+      await expect(renderAll(config, true, false, "claude")).rejects.toThrow(
+        UserError,
+      );
+      expect(await pathExists(generatedSkillPath)).toBe(false);
+    },
+  );
+
   it("writes per-target SKILL.md without a managed header", async () => {
     await createSkillFixture(
       config.library.skillsDir,
