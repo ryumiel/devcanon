@@ -24,7 +24,7 @@ if [ -n "${DEVCANON_RUNTIME_DIR:-}" ]; then
 fi
 
 [ -x "$runtime_resolver" ] ||
-  fail "devcanon-runtime passive runtime bundle missing for git-workspace-cleanup"
+  fail "devcanon-runtime passive runtime bundle missing: expected sibling $skills_root/devcanon-runtime/scripts/devcanon-runtime.sh. Run devcanon render or devcanon sync to restore the generated sibling bundle; DEVCANON_RUNTIME_DIR is available as a diagnostic override."
 
 runtime_entrypoint="$("$runtime_resolver" resolve-entrypoint --from "$script_path" --entrypoint "scripts/devcanon-runtime.sh")"
 exec "$runtime_entrypoint" runtime git-workspace-cleanup "$@"

@@ -8,6 +8,33 @@ Performs the deterministic cleanup operation for a selected Git repository.
 
 Run `bash "$SKILL_DIR/scripts/git-workspace-cleanup.sh" [--repo <path>] [--dry-run|--execute] [--force-branches] [--force-dirty-worktrees]`.
 
+### Windows PowerShell to Bash
+
+Choose the route for the Bash environment you will actually use. Convert both
+the wrapper path and target repository path before invoking the helper. If the
+named converter is unavailable, stop and install or select that Bash
+environment; do not guess a POSIX path.
+
+For Git Bash or MSYS2, convert both paths with `cygpath -u`:
+
+```bash
+SKILL_DIR_POSIX="$(cygpath -u "$SKILL_DIR")"
+TARGET_REPO_POSIX="$(cygpath -u "$TARGET_REPO")"
+bash "$SKILL_DIR_POSIX/scripts/git-workspace-cleanup.sh" --repo "$TARGET_REPO_POSIX" --dry-run
+```
+
+For WSL, invoke through `wsl.exe` and convert both paths with `wslpath` inside
+that environment:
+
+```powershell
+wsl.exe bash -lc 'skill_dir="$(wslpath "$1")"; target_repo="$(wslpath "$2")"; bash "$skill_dir/scripts/git-workspace-cleanup.sh" --repo "$target_repo" --dry-run' -- $SKILL_DIR $TARGET_REPO
+```
+
+These path forms are environment-specific; do not substitute a Git Bash/MSYS2
+path into WSL or the reverse. After the required dry-run, retain the approval
+and force-flag rules from the workflow before changing `--dry-run` to
+`--execute`.
+
 ## Inputs
 
 `--repo <path>` is optional and defaults to the current directory. `--dry-run` is the default mode; `--execute` enables cleanup. `--force-branches` and `--force-dirty-worktrees` are optional execute-mode overrides. It reads no stdin.

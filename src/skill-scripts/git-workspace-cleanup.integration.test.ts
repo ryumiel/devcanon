@@ -1,5 +1,12 @@
 import { execFile } from "node:child_process";
-import { access, mkdir, realpath, rm, writeFile } from "node:fs/promises";
+import {
+  access,
+  copyFile,
+  mkdir,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
@@ -145,6 +152,55 @@ describe("git-workspace-cleanup skill helper", TEST_OPTIONS, () => {
   afterEach(async () => {
     await Promise.all(tempDirs.map((dir) => cleanupTempDir(dir)));
     tempDirs.length = 0;
+  });
+
+  it("fails before dispatch when the sibling passive runtime is missing", async () => {
+    const rootDir = await createTempDir();
+    tempDirs.push(rootDir);
+    const adapterPath = path.join(
+      rootDir,
+      "skills",
+      "git-workspace-cleanup",
+      "scripts",
+      "git-workspace-cleanup.sh",
+    );
+    await mkdir(path.dirname(adapterPath), { recursive: true });
+    await copyFile(
+      path.join(
+        process.cwd(),
+        "skills",
+        "git-workspace-cleanup",
+        "scripts",
+        "git-workspace-cleanup.sh",
+      ),
+      adapterPath,
+    );
+
+    const result = await runCommand(
+      "bash",
+      [adapterPath, "--dry-run"],
+      rootDir,
+    ).then(
+      ({ stdout, stderr }) => ({ code: 0, stdout, stderr }),
+      (
+        error: NodeJS.ErrnoException & {
+          code?: number;
+          stdout?: string;
+          stderr?: string;
+        },
+      ) => ({
+        code: typeof error.code === "number" ? error.code : 1,
+        stdout: error.stdout ?? "",
+        stderr: error.stderr ?? "",
+      }),
+    );
+
+    expect(result.code).not.toBe(0);
+    expect(result.stderr).toContain("devcanon-runtime");
+    expect(result.stderr).toContain("sibling");
+    expect(result.stderr).toContain("devcanon render");
+    expect(result.stderr).toContain("devcanon sync");
+    expect(result.stderr).toContain("DEVCANON_RUNTIME_DIR");
   });
 
   it("reports dirty linked worktrees and local-only branch commits during dry-run", async () => {

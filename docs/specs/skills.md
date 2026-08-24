@@ -238,7 +238,15 @@ A skill may also contain:
 - `scripts/`
 
 These subdirectories are mirrored per target into
-`generated/<target>/skills/<name>/` as-is.
+`generated/<target>/skills/<name>/`, subject to the generated shell-byte
+invariant below.
+
+Within a mirrored `scripts/` tree, generated regular files whose names end in
+`.sh` normalize CRLF pairs to LF. This generated-artifact guarantee applies to
+both ordinary skills and the passive `devcanon-runtime` payload. It preserves
+non-shell bytes and executable modes, skips symbolic links, and does not
+normalize shell files outside packaged `scripts/` trees or lone carriage
+returns. Rendered content hashes use these same generated shell bytes.
 
 Keep `SKILL.md` focused on the always-loaded instructions needed to
 route and execute the skill. Move non-eager material into the optional

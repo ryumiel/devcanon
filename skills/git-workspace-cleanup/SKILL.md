@@ -7,6 +7,10 @@ description: Deterministic cleanup of Git worktrees and local branches back to t
 
 Helper invocation, inputs, outputs, and refusal mechanics are owned by the adjacent [git-workspace-cleanup usage](references/git-workspace-cleanup-usage.md).
 
+When invoking this Bash helper from Windows PowerShell, use the environment-
+specific path conversion route in that usage reference before the required
+dry-run.
+
 Use this skill to return a Git repository to one primary checkout on the
 remote default branch.
 

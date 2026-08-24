@@ -5,6 +5,10 @@ import type { ResolvedConfig } from "../config/schema.js";
 import type { RenderedSkill } from "../models/types.js";
 import { ensureDir } from "../utils/fs.js";
 import { DEVCANON_RUNTIME_SKILL_NAME } from "../validate/skills.js";
+import {
+  normalizePackagedShellBytes,
+  normalizePackagedShellTree,
+} from "./packaged-shell.js";
 
 export async function renderDevcanonRuntimeForTarget(
   runtimeDir: string,
@@ -43,6 +47,7 @@ export async function writeRenderedDevcanonRuntime(
     path.join(generatedPath, "scripts"),
     { recursive: true, verbatimSymlinks: true },
   );
+  await normalizePackagedShellTree(path.join(generatedPath, "scripts"));
 }
 
 async function hashRuntimePayload(runtimeDir: string): Promise<string> {
@@ -71,7 +76,12 @@ async function hashRuntimeTree(
       await hashRuntimeTree(sourcePath, relativePath, hash);
     } else if (stat.isFile()) {
       hashRuntimeField(hash, "file", relativePath, String(stat.mode));
-      hashRuntimeField(hash, "bytes", relativePath, await readFile(sourcePath));
+      hashRuntimeField(
+        hash,
+        "bytes",
+        relativePath,
+        normalizePackagedShellBytes(relativePath, await readFile(sourcePath)),
+      );
     } else {
       throw new Error(
         `Unsupported devcanon-runtime payload entry: ${sourcePath}`,

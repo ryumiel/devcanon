@@ -29,6 +29,7 @@ import {
   renderDevcanonRuntimeForTarget,
   writeRenderedDevcanonRuntime,
 } from "./devcanon-runtime.js";
+import { normalizePackagedShellTree } from "./packaged-shell.js";
 import { renderSkillForTarget } from "./skill.js";
 
 export interface RenderResult<
@@ -233,11 +234,14 @@ async function renderLoadedInternal<
       }
       // Mirror known subdirs
       for (const sub of skill.subdirs) {
-        await cp(
-          path.join(skill.dirPath, sub),
-          path.join(rendered.generatedPath, sub),
-          { recursive: true, verbatimSymlinks: true },
-        );
+        const generatedSubdir = path.join(rendered.generatedPath, sub);
+        await cp(path.join(skill.dirPath, sub), generatedSubdir, {
+          recursive: true,
+          verbatimSymlinks: true,
+        });
+        if (sub === "scripts") {
+          await normalizePackagedShellTree(generatedSubdir);
+        }
       }
     }
     for (const runtime of runtimeWrites) {
