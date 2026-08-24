@@ -236,6 +236,9 @@ describe("CLI entrypoint", () => {
           ].join("\n"),
           "utf-8",
         );
+        if (command === "sync") {
+          await copyDevcanonRuntimeFixture(path.join(tempDir, "skills"));
+        }
         await writeFile(lockPath, "other manifest operation", "utf-8");
 
         const inspection = await inspectManifest(manifestPath);
