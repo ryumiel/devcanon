@@ -225,6 +225,46 @@ describe("shipped skill rendering", () => {
     }
   });
 
+  it("preserves the pr-review scope notice before play-review for both targets", async () => {
+    const config = await loadConfig(
+      path.join(process.cwd(), "devcanon.config.yaml"),
+    );
+    const { outputs } = await renderAll(config, false, true);
+    const scopeNotice =
+      "PR review scope: mode=${scope.mode}; selection=${selection}; changed_files=${scope.changed_files.length}; continuing.";
+
+    for (const target of TARGETS) {
+      const { body } = parseFrontmatter(
+        getSkillOutput(outputs, "pr-review", target).content,
+      );
+      const phase4 = body.indexOf("## Phase 4: Run play-review");
+      const handoffValidation = body.indexOf(
+        'bash "$PR_REVIEW_MANIFEST_HELPER" validate-handoff || exit 1',
+        phase4,
+      );
+      const headValidation = body.indexOf(
+        'echo "review worktree HEAD changed since handoff; refusing stale review" >&2',
+        handoffValidation,
+      );
+      const notice = body.indexOf(scopeNotice, phase4);
+      const noticeConsumer = body.indexOf(
+        "emit_pr_review_scope_notice || exit 1",
+        headValidation,
+      );
+      const playReview = body.indexOf(
+        "Hand off to `play-review`",
+        noticeConsumer,
+      );
+
+      expect(phase4).toBeGreaterThan(-1);
+      expect(handoffValidation).toBeGreaterThan(phase4);
+      expect(headValidation).toBeGreaterThan(handoffValidation);
+      expect(notice).toBeGreaterThan(phase4);
+      expect(noticeConsumer).toBeGreaterThan(headValidation);
+      expect(playReview).toBeGreaterThan(noticeConsumer);
+    }
+  });
+
   it("renders every validated source skill once for each enabled target", async () => {
     const config = await loadConfig(
       path.join(process.cwd(), "devcanon.config.yaml"),
