@@ -1,10 +1,16 @@
 import { lstat, readdir } from "node:fs/promises";
 import path from "node:path";
-import type { OverwritePolicy } from "../config/schema.js";
+import type { InstallMode, OverwritePolicy } from "../config/schema.js";
 import type { Manifest } from "../config/schema.js";
 import type { PlanAction, RenderedOutput } from "../models/types.js";
 import { pathExists, pathOrSymlinkExists } from "../utils/fs.js";
 import { KNOWN_SUBDIRS } from "../validate/skills.js";
+import { resolveEffectiveInstallMode } from "./mode.js";
+
+export type RequestedInstallModes = Record<
+  RenderedOutput["target"],
+  InstallMode
+>;
 
 export async function computePlan(
   outputs: RenderedOutput[],
@@ -12,6 +18,7 @@ export async function computePlan(
   overwritePolicy: OverwritePolicy,
   force: boolean,
   cleanManagedOutputs: boolean,
+  requestedInstallModes: RequestedInstallModes,
   targetFilter?: "claude" | "codex",
 ): Promise<PlanAction[]> {
   const actions: PlanAction[] = [];
@@ -48,7 +55,30 @@ export async function computePlan(
     if (record) {
       // Managed file
       if (record.contentHash === output.contentHash) {
-        if (await hasCopyModeExecutableDrift(output, record.installMode)) {
+        const effectiveInstallMode = resolveEffectiveInstallMode(
+          output.target,
+          output.type,
+          requestedInstallModes[output.target],
+        );
+        if (
+          output.target === "codex" &&
+          output.type === "agent" &&
+          record.installMode !== effectiveInstallMode
+        ) {
+          actions.push({
+            kind: "update",
+            target: output.target,
+            type: output.type,
+            name: output.name,
+            sourcePath: output.sourcePath,
+            generatedPath: output.generatedPath,
+            installedPath: output.installedPath,
+            contentHash: output.contentHash,
+            reason: "Install mode changed since last sync.",
+          });
+        } else if (
+          await hasCopyModeExecutableDrift(output, record.installMode)
+        ) {
           actions.push({
             kind: "update",
             target: output.target,

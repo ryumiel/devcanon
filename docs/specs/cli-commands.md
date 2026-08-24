@@ -174,6 +174,12 @@ Supported options:
 - `--force`
 - `--reconcile-manifest`
 
+`--mode` supplies the requested install mode. `--mode symlink` cannot override
+the Codex agent-role constraint: those roles materialize as copies. Codex
+skills and Claude outputs retain the requested mode. See
+[Install and sync](install-and-sync.md) for effective-mode and migration
+behavior.
+
 `--reconcile-manifest` is available only to reconcile an unbound legacy
 manifest that contains foreign records. It removes those foreign records from
 the manifest only; it never deletes or rewrites their installed outputs. With

@@ -33,6 +33,7 @@ import {
   releaseManifestBackupAuthority,
   saveManifest,
 } from "./manifest.js";
+import { resolveEffectiveInstallMode } from "./mode.js";
 import { computePlan } from "./plan.js";
 import { executeRemove, formatRemoveDryRunLine } from "./remove.js";
 import { createSymlink } from "./symlink.js";
@@ -244,6 +245,10 @@ export async function sync(
       config.defaults.overwritePolicy,
       options.force,
       config.defaults.cleanManagedOutputs,
+      {
+        claude: options.mode ?? config.targets.claude.installMode,
+        codex: options.mode ?? config.targets.codex.installMode,
+      },
       options.target,
     );
     const plan = protectReconciledForeignPaths(
@@ -665,8 +670,13 @@ async function executeAction(
     case "install":
     case "update":
     case "force-overwrite": {
-      const installMode: InstallMode =
+      const requestedInstallMode: InstallMode =
         options.mode ?? config.targets[action.target].installMode;
+      const installMode = resolveEffectiveInstallMode(
+        action.target,
+        action.type,
+        requestedInstallMode,
+      );
       let actualInstallMode = installMode;
 
       await ensureDir(path.dirname(action.installedPath));

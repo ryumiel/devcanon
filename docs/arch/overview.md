@@ -343,10 +343,17 @@ normalization derives it from their target-native destination during binding.
 
 ## Install Modes
 
-| Mode    | Behavior                                                                          | When used              |
-| ------- | --------------------------------------------------------------------------------- | ---------------------- |
-| symlink | Symlink from install path to source directory (skills) or generated file (agents) | Default on macOS/Linux |
-| copy    | Full copy from generated output to install path                                   | Windows fallback       |
+| Requested mode | Effective mode                                                                                                                                                               | When used                                                                  |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `symlink`      | `symlink`, except Codex agent roles resolve to `copy`; skill symlinks target individual generated skill directories and eligible agent symlinks target generated agent files | Default requested mode; eligible outputs may use the Windows copy fallback |
+| `copy`         | `copy`                                                                                                                                                                       | Explicit requested mode                                                    |
+
+Codex agent roles are the narrow exception: their effective and actual mode is
+`copy` for either requested mode. Codex skills and Claude outputs retain the
+requested mode as the effective mode. An eligible effective `symlink` may fall
+back to actual `copy` on Windows; the manifest records the actual mode. This
+table summarizes install behavior only; it does not change the module topology
+above.
 
 ### Overwrite Policy
 

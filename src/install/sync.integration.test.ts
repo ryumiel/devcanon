@@ -10,6 +10,7 @@ import {
   rm,
   stat,
   symlink,
+  utimes,
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
@@ -35,6 +36,7 @@ import {
 import { loadConfig } from "../config/load.js";
 import type { ResolvedConfig } from "../config/schema.js";
 import { diffAll } from "../diff/diff.js";
+import { renderAll } from "../render/pipeline.js";
 import { buildSkillContentHash } from "../render/skill.js";
 import { UserError } from "../utils/errors.js";
 import { pathExists, readTextFile } from "../utils/fs.js";
@@ -182,6 +184,280 @@ describe("sync", () => {
     );
     expect(await pathExists(claudeSkillPath)).toBe(true);
   });
+
+  it("installs Codex agents as copies while configured symlink mode remains in effect for Codex skills", async () => {
+    const config = makeResolvedConfig(tempDir, {
+      claude: { enabled: false },
+      codex: { installMode: "symlink" },
+    });
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    await createSkillFixture(config.library.skillsDir, "greet");
+    await createAgentFixture(
+      config.library.agentsDir,
+      "helper",
+      makeAgentYaml("helper"),
+    );
+
+    const result = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+    });
+    const agentPath = path.join(config.targets.codex.agentsHome, "helper.toml");
+    const skillPath = path.join(config.targets.codex.skillsHome, "greet");
+    const manifest = JSON.parse(await readTextFile(config.manifest.path));
+
+    expect(result.errors).toEqual([]);
+    expect((await lstat(agentPath)).isFile()).toBe(true);
+    expect((await lstat(agentPath)).isSymbolicLink()).toBe(false);
+    expect(
+      manifest.records.find(
+        (record: { target: string; type: string; name: string }) =>
+          record.target === "codex" &&
+          record.type === "agent" &&
+          record.name === "helper",
+      ),
+    ).toMatchObject({ installMode: "copy" });
+    if (symlinkAvailable) {
+      expect((await lstat(skillPath)).isSymbolicLink()).toBe(true);
+    }
+  });
+
+  it("applies an explicit symlink mode only to non-agent Codex outputs", async () => {
+    const config = makeResolvedConfig(tempDir, {
+      claude: { enabled: false },
+      codex: { installMode: "copy" },
+    });
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    await createSkillFixture(config.library.skillsDir, "greet");
+    await createAgentFixture(
+      config.library.agentsDir,
+      "helper",
+      makeAgentYaml("helper"),
+    );
+
+    const result = await sync(config, {
+      mode: "symlink",
+      dryRun: false,
+      force: false,
+      strict: false,
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(
+      (
+        await lstat(path.join(config.targets.codex.agentsHome, "helper.toml"))
+      ).isSymbolicLink(),
+    ).toBe(false);
+    if (symlinkAvailable) {
+      expect(
+        (
+          await lstat(path.join(config.targets.codex.skillsHome, "greet"))
+        ).isSymbolicLink(),
+      ).toBe(true);
+    }
+  });
+
+  it.skipIf(!symlinkAvailable)(
+    "migrates a verified managed Codex-agent symlink to a copy without changing its old target",
+    async () => {
+      const config = makeResolvedConfig(tempDir, {
+        claude: { enabled: false },
+        codex: { installMode: "symlink" },
+      });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      await createAgentFixture(
+        config.library.agentsDir,
+        "helper",
+        makeAgentYaml("helper"),
+      );
+      const { outputs } = await renderAll(config, true, false);
+      const output = outputs.find(
+        (candidate) =>
+          candidate.target === "codex" && candidate.type === "agent",
+      );
+      if (!output) throw new Error("Codex agent output missing from fixture");
+      await mkdir(path.dirname(output.installedPath), { recursive: true });
+      await symlink(output.generatedPath, output.installedPath);
+      await mkdir(path.dirname(config.manifest.path), { recursive: true });
+      await writeFile(
+        config.manifest.path,
+        makeManifestJson(
+          [
+            {
+              name: output.name,
+              target: output.target,
+              type: output.type,
+              sourcePath: output.sourcePath,
+              generatedPath: output.generatedPath,
+              installedPath: output.installedPath,
+              installMode: "symlink",
+              contentHash: output.contentHash,
+              timestamp: new Date().toISOString(),
+            },
+          ],
+          { config },
+        ),
+        "utf-8",
+      );
+      const manifestBeforeDryRun = await readTextFile(config.manifest.path);
+
+      const dryRun = await sync(config, {
+        dryRun: true,
+        force: false,
+        strict: false,
+      });
+
+      expect(dryRun).toMatchObject({ updated: 0, errors: [] });
+      expect((await lstat(output.installedPath)).isSymbolicLink()).toBe(true);
+      expect(await readTextFile(config.manifest.path)).toBe(
+        manifestBeforeDryRun,
+      );
+
+      const result = await sync(config, {
+        dryRun: false,
+        force: false,
+        strict: false,
+      });
+      const manifest = JSON.parse(await readTextFile(config.manifest.path));
+
+      expect(result).toMatchObject({ updated: 1, errors: [] });
+      expect((await lstat(output.installedPath)).isSymbolicLink()).toBe(false);
+      expect(await readTextFile(output.installedPath)).toBe(output.content);
+      expect(await readTextFile(output.generatedPath)).toBe(output.content);
+      expect(
+        manifest.records.find(
+          (record: { target: string; type: string; name: string }) =>
+            record.target === "codex" &&
+            record.type === "agent" &&
+            record.name === "helper",
+        ),
+      ).toMatchObject({ installMode: "copy" });
+    },
+  );
+
+  it("updates a copied Codex agent while retaining copy mode", async () => {
+    const config = makeResolvedConfig(tempDir, {
+      claude: { enabled: false },
+      codex: { installMode: "symlink" },
+    });
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    const agentSourcePath = await createAgentFixture(
+      config.library.agentsDir,
+      "helper",
+      makeAgentYaml("helper"),
+    );
+    await sync(config, { dryRun: false, force: false, strict: false });
+
+    await writeFile(
+      agentSourcePath,
+      makeAgentYaml("helper", { instructions: "Updated instructions" }),
+      "utf-8",
+    );
+    const result = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+    });
+    const agentPath = path.join(config.targets.codex.agentsHome, "helper.toml");
+    const manifest = JSON.parse(await readTextFile(config.manifest.path));
+
+    expect(result).toMatchObject({ updated: 1, errors: [] });
+    expect((await lstat(agentPath)).isSymbolicLink()).toBe(false);
+    expect(await readTextFile(agentPath)).toContain("Updated instructions");
+    expect(
+      manifest.records.find(
+        (record: { target: string; type: string; name: string }) =>
+          record.target === "codex" &&
+          record.type === "agent" &&
+          record.name === "helper",
+      ),
+    ).toMatchObject({ installMode: "copy" });
+  });
+
+  it.skipIf(!symlinkAvailable)(
+    "refuses to migrate a managed Codex-agent symlink with the wrong target",
+    async () => {
+      const config = makeResolvedConfig(tempDir, {
+        claude: { enabled: false },
+        codex: { installMode: "symlink" },
+      });
+      await mkdir(config.library.skillsDir, { recursive: true });
+      await mkdir(config.library.agentsDir, { recursive: true });
+      await createAgentFixture(
+        config.library.agentsDir,
+        "helper",
+        makeAgentYaml("helper"),
+      );
+      const { outputs } = await renderAll(config, true, false);
+      const output = outputs.find(
+        (candidate) =>
+          candidate.target === "codex" && candidate.type === "agent",
+      );
+      if (!output) throw new Error("Codex agent output missing from fixture");
+      const foreignPath = path.join(tempDir, "foreign.toml");
+      await writeFile(foreignPath, "foreign content", "utf-8");
+      await mkdir(path.dirname(output.installedPath), { recursive: true });
+      await symlink(foreignPath, output.installedPath);
+      await mkdir(path.dirname(config.manifest.path), { recursive: true });
+      await writeFile(
+        config.manifest.path,
+        makeManifestJson(
+          [
+            {
+              name: output.name,
+              target: output.target,
+              type: output.type,
+              sourcePath: output.sourcePath,
+              generatedPath: output.generatedPath,
+              installedPath: output.installedPath,
+              installMode: "symlink",
+              contentHash: output.contentHash,
+              timestamp: new Date().toISOString(),
+            },
+          ],
+          { config },
+        ),
+        "utf-8",
+      );
+      const manifestBefore = JSON.parse(
+        await readTextFile(config.manifest.path),
+      );
+      const agentRecordBefore = manifestBefore.records.find(
+        (record: { target: string; type: string; name: string }) =>
+          record.target === "codex" &&
+          record.type === "agent" &&
+          record.name === "helper",
+      );
+
+      const result = await sync(config, {
+        dryRun: false,
+        force: false,
+        strict: false,
+      });
+
+      expect(result.updated).toBe(0);
+      expect(result.errors).toEqual([
+        expect.stringContaining("symlink target mismatch"),
+      ]);
+      expect(await readlink(output.installedPath)).toBe(foreignPath);
+      const manifestAfter = JSON.parse(
+        await readTextFile(config.manifest.path),
+      );
+      expect(
+        manifestAfter.records.find(
+          (record: { target: string; type: string; name: string }) =>
+            record.target === "codex" &&
+            record.type === "agent" &&
+            record.name === "helper",
+        ),
+      ).toEqual(agentRecordBefore);
+    },
+  );
 
   it("preserves representative public helpers through render and copy install", async () => {
     const config = makeResolvedConfig(tempDir);
@@ -6419,6 +6695,33 @@ describe("sync", () => {
         record.installedPath === claudeAgentPath,
     );
     expect(claudeAgentRecord.installMode).toBe("copy");
+
+    const stableInstalledTime = new Date("2000-01-01T00:00:00.000Z");
+    await utimes(claudeAgentPath, stableInstalledTime, stableInstalledTime);
+    const manifestBeforeUnchangedSync = await readTextFile(
+      config.manifest.path,
+    );
+    const installedBeforeUnchangedSync = await readTextFile(claudeAgentPath);
+    const installedStatBeforeUnchangedSync = await lstat(claudeAgentPath);
+
+    const unchanged = await sync(config, {
+      target: "claude",
+      dryRun: false,
+      force: false,
+      strict: false,
+    });
+
+    expect(unchanged.updated).toBe(0);
+    expect(unchanged.errors).toEqual([]);
+    expect(await readTextFile(config.manifest.path)).toBe(
+      manifestBeforeUnchangedSync,
+    );
+    expect(await readTextFile(claudeAgentPath)).toBe(
+      installedBeforeUnchangedSync,
+    );
+    expect((await lstat(claudeAgentPath)).mtimeMs).toBe(
+      installedStatBeforeUnchangedSync.mtimeMs,
+    );
 
     await writeFile(
       path.join(config.library.agentsDir, "a1.yaml"),

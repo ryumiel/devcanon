@@ -47,10 +47,20 @@ Supported in v1:
 
 ### Install Mode
 
-Defines how installed managed outputs are written:
+The configured or CLI-selected **requested** mode for installed managed
+outputs:
 
 - `symlink`
 - `copy`
+
+The **effective** mode is the per-output policy resolution of the requested
+mode before a platform fallback or materialization attempt. Codex agent roles
+resolve to effective mode `copy`; all other outputs resolve to the requested
+mode. Eligible outputs with effective mode `symlink` may fall back to actual
+mode `copy` on Windows. Codex agent roles therefore have actual mode `copy`
+after successful installation, while the manifest records the actual installed
+mode. See
+[Install and sync](install-and-sync.md) for migration and identity behavior.
 
 ### Generated Output
 
