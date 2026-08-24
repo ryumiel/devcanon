@@ -18,8 +18,8 @@ export async function computePlan(
   overwritePolicy: OverwritePolicy,
   force: boolean,
   cleanManagedOutputs: boolean,
+  requestedInstallModes: RequestedInstallModes,
   targetFilter?: "claude" | "codex",
-  requestedInstallModes?: RequestedInstallModes,
 ): Promise<PlanAction[]> {
   const actions: PlanAction[] = [];
   const currentOutputKeys = new Set(outputs.map(outputKey));
@@ -58,7 +58,7 @@ export async function computePlan(
         const effectiveInstallMode = resolveEffectiveInstallMode(
           output.target,
           output.type,
-          requestedInstallModes?.[output.target] ?? record.installMode,
+          requestedInstallModes[output.target],
         );
         if (record.installMode !== effectiveInstallMode) {
           actions.push({

@@ -8,10 +8,14 @@ vi.mock("../utils/fs.js", () => ({
 import type { Manifest } from "../config/schema.js";
 import type { RenderedAgent } from "../models/types.js";
 import { pathExists, pathOrSymlinkExists } from "../utils/fs.js";
-import { computePlan } from "./plan.js";
+import { type RequestedInstallModes, computePlan } from "./plan.js";
 
 const mockedPathExists = vi.mocked(pathExists);
 const mockedPathOrSymlinkExists = vi.mocked(pathOrSymlinkExists);
+const requestedInstallModes = {
+  claude: "symlink",
+  codex: "symlink",
+} satisfies RequestedInstallModes;
 
 function makeOutput(overrides: Partial<RenderedAgent> = {}): RenderedAgent {
   return {
@@ -61,6 +65,7 @@ describe("computePlan", () => {
       "overwrite-managed",
       false,
       false,
+      requestedInstallModes,
     );
     expect(actions).toHaveLength(1);
     expect(actions[0].kind).toBe("install");
@@ -88,6 +93,7 @@ describe("computePlan", () => {
       "overwrite-managed",
       false,
       false,
+      requestedInstallModes,
     );
     expect(actions).toHaveLength(1);
     expect(actions[0].kind).toBe("skip-up-to-date");
@@ -120,8 +126,7 @@ describe("computePlan", () => {
       "overwrite-managed",
       false,
       false,
-      undefined,
-      { claude: "symlink", codex: "symlink" },
+      requestedInstallModes,
     );
 
     expect(actions).toHaveLength(1);
@@ -152,6 +157,7 @@ describe("computePlan", () => {
       "overwrite-managed",
       false,
       false,
+      requestedInstallModes,
     );
     expect(actions).toHaveLength(1);
     expect(actions[0].kind).toBe("update");
@@ -180,6 +186,7 @@ describe("computePlan", () => {
       "overwrite-managed",
       false,
       false,
+      requestedInstallModes,
     );
 
     expect(actions).toHaveLength(1);
@@ -199,6 +206,7 @@ describe("computePlan", () => {
       "overwrite-managed",
       false,
       false,
+      requestedInstallModes,
     );
     expect(actions).toHaveLength(1);
     expect(actions[0].kind).toBe("skip-conflict");
@@ -214,6 +222,7 @@ describe("computePlan", () => {
       "skip-existing",
       false,
       false,
+      requestedInstallModes,
     );
     expect(actions).toHaveLength(1);
     expect(actions[0].kind).toBe("skip-conflict");
@@ -229,6 +238,7 @@ describe("computePlan", () => {
       "overwrite-managed",
       true, // force
       false,
+      requestedInstallModes,
     );
     expect(actions).toHaveLength(1);
     expect(actions[0].kind).toBe("force-overwrite");
@@ -272,6 +282,7 @@ describe("computePlan", () => {
       "overwrite-managed",
       false,
       true, // cleanManagedOutputs
+      requestedInstallModes,
     );
 
     const removeActions = actions.filter((a) => a.kind === "remove");
@@ -301,6 +312,7 @@ describe("computePlan", () => {
       "overwrite-managed",
       false,
       true,
+      requestedInstallModes,
     );
 
     expect(actions).toHaveLength(1);
@@ -347,6 +359,7 @@ describe("computePlan", () => {
       "overwrite-managed",
       false,
       true, // cleanManagedOutputs
+      requestedInstallModes,
       "claude", // targetFilter
     );
 
@@ -390,6 +403,7 @@ describe("computePlan", () => {
       "overwrite-managed",
       false,
       false, // cleanManagedOutputs disabled
+      requestedInstallModes,
     );
 
     const removeActions = actions.filter((a) => a.kind === "remove");
@@ -438,6 +452,7 @@ describe("computePlan", () => {
       "overwrite-managed",
       false,
       true,
+      requestedInstallModes,
     );
 
     const removeActions = actions.filter((a) => a.kind === "remove");
@@ -467,7 +482,7 @@ describe("computePlan", () => {
         sourcePath: output.sourcePath,
         generatedPath: output.generatedPath,
         installedPath: output.installedPath,
-        installMode: "copy",
+        installMode: "symlink",
         contentHash: "claude-hash",
         timestamp: new Date().toISOString(),
       },
@@ -479,6 +494,7 @@ describe("computePlan", () => {
       "overwrite-managed",
       false,
       false,
+      requestedInstallModes,
     );
 
     expect(actions).toHaveLength(1);
