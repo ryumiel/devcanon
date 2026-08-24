@@ -49,8 +49,13 @@ export async function normalizePackagedShellTree(
       sourceBytes,
     );
     if (!normalizedBytes.equals(sourceBytes)) {
-      await writeFile(entryPath, normalizedBytes);
-      await chmod(entryPath, stat.mode & 0o777);
+      const originalMode = stat.mode & 0o777;
+      await chmod(entryPath, originalMode | 0o200);
+      try {
+        await writeFile(entryPath, normalizedBytes);
+      } finally {
+        await chmod(entryPath, originalMode);
+      }
     }
   }
 }

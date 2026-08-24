@@ -15,13 +15,11 @@ the wrapper path and target repository path before invoking the helper. If the
 named converter is unavailable, stop and install or select that Bash
 environment; do not guess a POSIX path.
 
-For Git Bash or MSYS2, convert both paths with `cygpath -u`:
+For Git Bash or MSYS2, launch that environment from PowerShell and pass both
+Windows paths as positional arguments before converting them with `cygpath -u`:
 
-```bash
-command -v cygpath >/dev/null 2>&1 || { printf '%s\n' 'cygpath is required; use Git Bash or MSYS2.' >&2; exit 1; }
-SKILL_DIR_POSIX="$(cygpath -u "$SKILL_DIR")" || exit 1
-TARGET_REPO_POSIX="$(cygpath -u "$TARGET_REPO")" || exit 1
-bash "$SKILL_DIR_POSIX/scripts/git-workspace-cleanup.sh" --repo "$TARGET_REPO_POSIX" --dry-run
+```powershell
+bash -lc 'command -v cygpath >/dev/null 2>&1 || { printf "%s\n" "cygpath is required; use Git Bash or MSYS2." >&2; exit 1; }; skill_dir="$(cygpath -u "$1")" || exit 1; target_repo="$(cygpath -u "$2")" || exit 1; bash "$skill_dir/scripts/git-workspace-cleanup.sh" --repo "$target_repo" --dry-run' -- "$SKILL_DIR" "$TARGET_REPO"
 ```
 
 For WSL, invoke through `wsl.exe` and convert both paths with `wslpath` inside
