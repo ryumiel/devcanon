@@ -485,6 +485,56 @@ describe("sync", () => {
     ).toBeDefined();
   });
 
+  it("rejects an incomplete runtime before recovering an invalid non-dry manifest", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    await seedPassiveRuntime(config);
+    const invalidBytes = "{corrupt manifest";
+    const generatedSentinel = path.join(
+      config.library.generatedDir,
+      "claude",
+      "skills",
+      "sentinel",
+    );
+    const homeSentinel = path.join(
+      config.targets.claude.skillsHome,
+      "sentinel",
+    );
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await mkdir(generatedSentinel, { recursive: true });
+    await mkdir(homeSentinel, { recursive: true });
+    await writeFile(config.manifest.path, invalidBytes, "utf-8");
+    await writeFile(path.join(generatedSentinel, "keep"), "generated", "utf-8");
+    await writeFile(path.join(homeSentinel, "keep"), "installed", "utf-8");
+    await rm(
+      path.join(
+        config.library.skillsDir,
+        "devcanon-runtime",
+        "scripts",
+        "devcanon-runtime.sh",
+      ),
+    );
+
+    await expect(
+      sync(config, { dryRun: true, force: false, strict: false }),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining("Manifest is invalid: corrupt JSON"),
+    });
+    await expect(
+      sync(config, { dryRun: false, force: false, strict: false }),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining("support skill is incomplete"),
+    });
+
+    expect(await readTextFile(config.manifest.path)).toBe(invalidBytes);
+    expect(await pathExists(`${config.manifest.path}.bak`)).toBe(false);
+    expect(await readTextFile(path.join(generatedSentinel, "keep"))).toBe(
+      "generated",
+    );
+    expect(await readTextFile(path.join(homeSentinel, "keep"))).toBe(
+      "installed",
+    );
+  });
+
   it("treats a residual lock as invalid during dry sync without rendering or recovery", async () => {
     const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
     const lockPath = `${config.manifest.path}.lock`;
@@ -598,6 +648,7 @@ describe("sync", () => {
       const config = makeResolvedConfig(scenarioDir, {
         codex: { enabled: false },
       });
+      await seedPassiveRuntime(config);
       const invalidBytes = `{corrupt ${category}`;
       const agentName = "renderable";
       const generatedSentinel = path.join(
@@ -692,6 +743,7 @@ describe("sync", () => {
       const config = makeResolvedConfig(scenarioDir, {
         codex: { enabled: false },
       });
+      await seedPassiveRuntime(config);
       const primary = Object.assign(new Error(`injected ${code}`), { code });
       const generatedSentinel = path.join(
         config.library.generatedDir,
@@ -738,6 +790,7 @@ describe("sync", () => {
     const config = makeResolvedConfig(scenarioDir, {
       codex: { enabled: false },
     });
+    await seedPassiveRuntime(config);
     const primary = Object.assign(new Error("injected EEXIST"), {
       code: "EEXIST",
     });
@@ -798,6 +851,7 @@ describe("sync", () => {
     const config = makeResolvedConfig(scenarioDir, {
       codex: { enabled: false },
     });
+    await seedPassiveRuntime(config);
     const generatedSentinel = path.join(
       config.library.generatedDir,
       "claude",
@@ -1003,6 +1057,7 @@ describe("sync", () => {
       const config = makeResolvedConfig(scenarioDir, {
         codex: { enabled: false },
       });
+      await seedPassiveRuntime(config);
       const invalidBytes = `{corrupt ${cleanup}`;
       const agentName = "renderable";
       const generatedSentinel = path.join(
@@ -2578,6 +2633,7 @@ describe("sync", () => {
         codex: { enabled: false },
         manifest: { path: manifestPath },
       });
+      await seedPassiveRuntime(config);
       const generatedName = "generated-sentinel";
       const generatedPath = path.join(
         config.library.generatedDir,
@@ -3221,6 +3277,7 @@ describe("sync", () => {
       const config = makeResolvedConfig(scenarioDir, {
         codex: { enabled: false },
       });
+      await seedPassiveRuntime(config);
       const installedPath = path.join(
         config.targets.claude.agentsHome,
         "shared.md",

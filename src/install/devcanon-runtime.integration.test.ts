@@ -24,6 +24,7 @@ import type { TestLoggerResult } from "../__test-helpers__/logger.js";
 import type { ResolvedConfig } from "../config/schema.js";
 import { pathExists } from "../utils/fs.js";
 import { sync } from "./sync.js";
+import { uninstall } from "./uninstall.js";
 
 const symlinkAvailable = await canCreateSymlinks();
 const executableModeMutable = await canMutateExecutableMode();
@@ -110,7 +111,7 @@ describe("devcanon-runtime sync", () => {
   });
 
   it.skipIf(!executableModeMutable)(
-    "repairs copy-installed runtime files when executable metadata drifts",
+    "refuses an update when a copy-installed runtime executable mode drifts",
     async () => {
       const config = makeResolvedConfig(tempDir);
       await prepareRuntimeSyncFixture(config);
@@ -149,14 +150,16 @@ describe("devcanon-runtime sync", () => {
         mode: "copy",
       });
 
-      expect(secondResult.errors).toEqual([]);
-      expect(secondResult.updated).toBeGreaterThan(0);
-      expect((await stat(installedScript)).mode & 0o111).not.toBe(0);
+      expect(secondResult.errors).toEqual([
+        expect.stringContaining("support skill is incomplete"),
+      ]);
+      expect(secondResult.updated).toBe(0);
+      expect((await stat(installedScript)).mode & 0o111).toBe(0);
     },
   );
 
   it.skipIf(!executableModeMutable)(
-    "repairs copy-installed runtime files when executable metadata is removed",
+    "blocks sync before mutation when the source runtime executable mode is removed",
     async () => {
       const config = makeResolvedConfig(tempDir);
       await prepareRuntimeSyncFixture(config);
@@ -186,16 +189,17 @@ describe("devcanon-runtime sync", () => {
       await chmod(sourceScript, 0o644);
       expect((await stat(sourceScript)).mode & 0o111).toBe(0);
 
-      const secondResult = await sync(config, {
-        dryRun: false,
-        force: false,
-        strict: false,
-        mode: "copy",
+      await expect(
+        sync(config, {
+          dryRun: false,
+          force: false,
+          strict: false,
+          mode: "copy",
+        }),
+      ).rejects.toMatchObject({
+        message: expect.stringContaining("support skill is incomplete"),
       });
-
-      expect(secondResult.errors).toEqual([]);
-      expect(secondResult.updated).toBeGreaterThan(0);
-      expect((await stat(installedScript)).mode & 0o111).toBe(0);
+      expect((await stat(installedScript)).mode & 0o111).not.toBe(0);
     },
   );
 
@@ -224,8 +228,38 @@ describe("devcanon-runtime sync", () => {
     expect(dryRunResult.errors).toEqual([]);
   });
 
+  it("refuses a manifest-owned copy when a prompt-bearing SKILL.md is added", async () => {
+    const config = makeResolvedConfig(tempDir);
+    await prepareRuntimeSyncFixture(config);
+
+    await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+      mode: "copy",
+    });
+    const installedRuntime = path.join(
+      config.targets.codex.skillsHome,
+      "devcanon-runtime",
+    );
+    const promptPath = path.join(installedRuntime, "SKILL.md");
+    await writeFile(promptPath, "---\nname: devcanon-runtime\n---\n", "utf-8");
+
+    const result = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+      mode: "copy",
+    });
+
+    expect(result.errors).toEqual([
+      expect.stringContaining("must not contain SKILL.md"),
+    ]);
+    expect(await readFile(promptPath, "utf-8")).toContain("name:");
+  });
+
   it.skipIf(!executableModeMutable)(
-    "dry-run planning uses source executable metadata instead of stale generated previews",
+    "blocks dry-run planning when source runtime executable metadata is invalid",
     async () => {
       const config = makeResolvedConfig(tempDir);
       await prepareRuntimeSyncFixture(config);
@@ -266,17 +300,17 @@ describe("devcanon-runtime sync", () => {
       expect((await stat(generatedScript)).mode & 0o111).not.toBe(0);
 
       testLogger.infos.length = 0;
-      const dryRunResult = await sync(config, {
-        dryRun: true,
-        force: false,
-        strict: false,
-        mode: "copy",
+      await expect(
+        sync(config, {
+          dryRun: true,
+          force: false,
+          strict: false,
+          mode: "copy",
+        }),
+      ).rejects.toMatchObject({
+        message: expect.stringContaining("support skill is incomplete"),
       });
-
-      expect(dryRunResult.errors).toEqual([]);
-      expect(testLogger.infos).toContain(
-        "  ~ [update] codex/skill/devcanon-runtime",
-      );
+      expect(testLogger.infos).toEqual([]);
     },
   );
 
@@ -432,6 +466,36 @@ describe("devcanon-runtime sync", () => {
           path.join(config.targets.codex.skillsHome, "consumer-skill"),
         ),
       );
+    },
+  );
+
+  it.each(["copy", ...(symlinkAvailable ? ["symlink"] : [])] as const)(
+    "uninstalls a source-absent runtime in %s mode",
+    async (mode) => {
+      const config = makeResolvedConfig(tempDir, {
+        claude: { installMode: mode },
+        codex: { installMode: mode },
+        defaults: { installMode: mode },
+      });
+      await prepareRuntimeSyncFixture(config);
+      await sync(config, { dryRun: false, force: false, strict: false, mode });
+
+      const installedRuntime = path.join(
+        config.targets.codex.skillsHome,
+        "devcanon-runtime",
+      );
+      await rm(path.join(config.library.skillsDir, "devcanon-runtime"), {
+        recursive: true,
+        force: true,
+      });
+
+      const result = await uninstall(config, {
+        target: "codex",
+        dryRun: false,
+      });
+
+      expect(result.errors).toEqual([]);
+      expect(await pathExists(installedRuntime)).toBe(false);
     },
   );
 });

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { lstat, readFile, readdir, readlink } from "node:fs/promises";
 import path from "node:path";
 import type {
@@ -8,7 +9,11 @@ import type {
 import { buildSkillContentHash } from "../render/skill.js";
 import { UserError } from "../utils/errors.js";
 import { sha256 } from "../utils/hash.js";
-import { KNOWN_SUBDIRS } from "../validate/skills.js";
+import { validateDevcanonRuntime } from "../validate/devcanon-runtime.js";
+import {
+  DEVCANON_RUNTIME_SKILL_NAME,
+  KNOWN_SUBDIRS,
+} from "../validate/skills.js";
 
 export interface ManagedOutputIdentityOptions {
   config: ResolvedConfig;
@@ -224,7 +229,9 @@ async function assertCopyIdentity(record: ManagedRecord): Promise<void> {
     actualHashes =
       record.type === "agent"
         ? [await hashInstalledAgent(record.installedPath)]
-        : await hashInstalledSkill(record);
+        : record.type === "skill" && record.name === DEVCANON_RUNTIME_SKILL_NAME
+          ? [await hashInstalledDevcanonRuntime(record.installedPath)]
+          : await hashInstalledSkill(record);
   } catch (err) {
     throw identityError(
       record,
@@ -234,6 +241,58 @@ async function assertCopyIdentity(record: ManagedRecord): Promise<void> {
 
   if (!actualHashes.includes(record.contentHash)) {
     throw identityError(record, "installed copy content hash mismatch");
+  }
+}
+
+async function hashInstalledDevcanonRuntime(
+  installedPath: string,
+): Promise<string> {
+  await validateDevcanonRuntime(installedPath);
+
+  const hash = createHash("sha256");
+  await hashInstalledRuntimeTree(
+    path.join(installedPath, "scripts"),
+    "scripts",
+    hash,
+  );
+  return hash.digest("hex");
+}
+
+async function hashInstalledRuntimeTree(
+  directory: string,
+  relativeDirectory: string,
+  hash: ReturnType<typeof createHash>,
+): Promise<void> {
+  const stat = await lstat(directory);
+  hashRuntimeField(hash, "directory", relativeDirectory, String(stat.mode));
+  const entries = await readdir(directory, { withFileTypes: true });
+  entries.sort((left, right) =>
+    left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+  );
+  for (const entry of entries) {
+    const sourcePath = path.join(directory, entry.name);
+    const relativePath = path.posix.join(relativeDirectory, entry.name);
+    const entryStat = await lstat(sourcePath);
+    if (entry.isDirectory()) {
+      await hashInstalledRuntimeTree(sourcePath, relativePath, hash);
+    } else if (entry.isFile()) {
+      hashRuntimeField(hash, "file", relativePath, String(entryStat.mode));
+      hashRuntimeField(hash, "bytes", relativePath, await readFile(sourcePath));
+    } else {
+      throw new Error(`installed runtime entry is unsupported: ${sourcePath}`);
+    }
+  }
+}
+
+function hashRuntimeField(
+  hash: ReturnType<typeof createHash>,
+  ...fields: Array<string | Buffer>
+): void {
+  for (const field of fields) {
+    const bytes = Buffer.isBuffer(field) ? field : Buffer.from(field, "utf-8");
+    hash.update(String(bytes.length));
+    hash.update(":");
+    hash.update(bytes);
   }
 }
 
