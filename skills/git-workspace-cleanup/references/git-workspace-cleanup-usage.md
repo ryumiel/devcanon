@@ -18,8 +18,9 @@ environment; do not guess a POSIX path.
 For Git Bash or MSYS2, convert both paths with `cygpath -u`:
 
 ```bash
-SKILL_DIR_POSIX="$(cygpath -u "$SKILL_DIR")"
-TARGET_REPO_POSIX="$(cygpath -u "$TARGET_REPO")"
+command -v cygpath >/dev/null 2>&1 || { printf '%s\n' 'cygpath is required; use Git Bash or MSYS2.' >&2; exit 1; }
+SKILL_DIR_POSIX="$(cygpath -u "$SKILL_DIR")" || exit 1
+TARGET_REPO_POSIX="$(cygpath -u "$TARGET_REPO")" || exit 1
 bash "$SKILL_DIR_POSIX/scripts/git-workspace-cleanup.sh" --repo "$TARGET_REPO_POSIX" --dry-run
 ```
 
@@ -27,7 +28,7 @@ For WSL, invoke through `wsl.exe` and convert both paths with `wslpath` inside
 that environment:
 
 ```powershell
-wsl.exe bash -lc 'skill_dir="$(wslpath "$1")"; target_repo="$(wslpath "$2")"; bash "$skill_dir/scripts/git-workspace-cleanup.sh" --repo "$target_repo" --dry-run' -- $SKILL_DIR $TARGET_REPO
+wsl.exe bash -lc 'command -v wslpath >/dev/null 2>&1 || { printf "%s\n" "wslpath is required; use a WSL environment that provides it." >&2; exit 1; }; skill_dir="$(wslpath "$1")" || exit 1; target_repo="$(wslpath "$2")" || exit 1; bash "$skill_dir/scripts/git-workspace-cleanup.sh" --repo "$target_repo" --dry-run' -- "$SKILL_DIR" "$TARGET_REPO"
 ```
 
 These path forms are environment-specific; do not substitute a Git Bash/MSYS2

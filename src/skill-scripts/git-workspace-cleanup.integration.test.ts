@@ -203,6 +203,22 @@ describe("git-workspace-cleanup skill helper", TEST_OPTIONS, () => {
     expect(result.stderr).toContain("DEVCANON_RUNTIME_DIR");
   });
 
+  it("reports the active passive runtime override when it cannot dispatch", async () => {
+    const rootDir = await createTempDir();
+    tempDirs.push(rootDir);
+    const missingRuntimeDir = path.join(rootDir, "missing runtime");
+
+    const result = await runScript(["--dry-run"], rootDir, {
+      DEVCANON_RUNTIME_DIR: missingRuntimeDir,
+    });
+
+    expect(result.code).not.toBe(0);
+    expectNormalizedOutputToContain(result.stderr, missingRuntimeDir);
+    expect(result.stderr).toContain("missing or not executable");
+    expect(result.stderr).toContain("Correct or unset DEVCANON_RUNTIME_DIR");
+    expect(result.stderr).not.toContain("expected sibling");
+  });
+
   it("reports dirty linked worktrees and local-only branch commits during dry-run", async () => {
     const rootDir = await createTempDir();
     tempDirs.push(rootDir);

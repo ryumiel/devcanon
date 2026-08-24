@@ -21,10 +21,12 @@ runtime_resolver="$skills_root/devcanon-runtime/scripts/devcanon-runtime.sh"
 
 if [ -n "${DEVCANON_RUNTIME_DIR:-}" ]; then
   runtime_resolver="$DEVCANON_RUNTIME_DIR/scripts/devcanon-runtime.sh"
+  [ -x "$runtime_resolver" ] ||
+    fail "devcanon-runtime passive runtime resolver missing or not executable at $runtime_resolver. Correct or unset DEVCANON_RUNTIME_DIR before retrying."
+else
+  [ -x "$runtime_resolver" ] ||
+    fail "devcanon-runtime passive runtime bundle missing or not executable: expected sibling $runtime_resolver. Run devcanon render or devcanon sync to restore the generated sibling bundle; DEVCANON_RUNTIME_DIR is available as a diagnostic override."
 fi
-
-[ -x "$runtime_resolver" ] ||
-  fail "devcanon-runtime passive runtime bundle missing: expected sibling $skills_root/devcanon-runtime/scripts/devcanon-runtime.sh. Run devcanon render or devcanon sync to restore the generated sibling bundle; DEVCANON_RUNTIME_DIR is available as a diagnostic override."
 
 runtime_entrypoint="$("$runtime_resolver" resolve-entrypoint --from "$script_path" --entrypoint "scripts/devcanon-runtime.sh")"
 exec "$runtime_entrypoint" runtime git-workspace-cleanup "$@"
