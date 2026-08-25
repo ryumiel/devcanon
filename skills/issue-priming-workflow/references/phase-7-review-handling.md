@@ -48,9 +48,25 @@ commits.
 When selected items remain, resolve the installed `play-review` bundle and use
 its exact local help projection before preparing the handoff:
 
+Resolve the remaining Bash-only helper through the sibling passive runtime;
+never use ambient `bash` on native Windows. POSIX command shape:
+
 ```bash
 PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
-bash "$PLAY_REVIEW_DIR/scripts/review-artifacts.sh" --help
+DEVCANON_RUNTIME_BUNDLE="$PLAY_REVIEW_DIR/../devcanon-runtime"
+VERIFIED_BASH="$(node "$DEVCANON_RUNTIME_BUNDLE/scripts/resolve-bash.mjs")"
+"$VERIFIED_BASH" "$PLAY_REVIEW_DIR/scripts/review-artifacts.sh" --help
+```
+
+Native PowerShell command shape:
+
+```powershell
+$PlayReviewDir = "<installed-play-review-skill-bundle>"
+$RuntimeBundle = Join-Path (Split-Path $PlayReviewDir) "devcanon-runtime"
+$VerifiedBash = node (Join-Path $RuntimeBundle "scripts/resolve-bash.mjs")
+if ($LASTEXITCODE -ne 0 -or $VerifiedBash.Count -ne 1) { throw "Git Bash resolution failed" }
+& $VerifiedBash (Join-Path $PlayReviewDir "scripts/review-artifacts.sh") --help
+if ($LASTEXITCODE -ne 0) { throw "review-artifacts help failed" }
 ```
 
 Then use `prepare-judgment-nits` through that usage contract. An empty selection

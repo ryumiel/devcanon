@@ -210,6 +210,23 @@ describe("public helper registry", () => {
     expect(rows.map((row) => row.executable)).not.toContain(
       "skills/issue-worktree-setup/scripts/setup-worktree.sh",
     );
+    for (const helper of [
+      "phase-artifacts",
+      "source-immutability",
+      "write-assumptions-comment",
+      "write-auto-handoff",
+      "write-research-brief",
+    ]) {
+      expect(rows).toContainEqual(
+        expect.objectContaining({
+          helperId: `issue-priming-workflow/${helper}`,
+          executable: `skills/issue-priming-workflow/scripts/${helper}.mjs`,
+        }),
+      );
+      expect(rows.map((row) => row.executable)).not.toContain(
+        `skills/issue-priming-workflow/scripts/${helper}.sh`,
+      );
+    }
     expect(
       await readFile(
         path.join(repositoryRoot, "skills/issue-worktree-setup/SKILL.md"),

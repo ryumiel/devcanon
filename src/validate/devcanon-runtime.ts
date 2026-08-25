@@ -8,11 +8,13 @@ import { pathOrSymlinkExists } from "../utils/fs.js";
 import { DEVCANON_RUNTIME_SKILL_NAME } from "./skills.js";
 
 export const RUNTIME_ENTRYPOINT = path.join("scripts", "devcanon-runtime.sh");
+const RUNTIME_BASH_RESOLVER = path.join("scripts", "resolve-bash.mjs");
 const RUNTIME_JS_DIR = path.join("scripts", "runtime");
 const RUNTIME_JS_ENTRYPOINT = path.join(RUNTIME_JS_DIR, "cli.js");
 const RUNTIME_JS_INDEX = path.join(RUNTIME_JS_DIR, "index.js");
 const REQUIRED_RUNTIME_JS_FILES = [
   "artifacts.js",
+  "bash.js",
   "bootstrap-cli.js",
   "bootstrap.js",
   "cleanup-git.js",
@@ -23,6 +25,7 @@ const REQUIRED_RUNTIME_JS_FILES = [
   "git.js",
   "index.js",
   "issue-worktree-setup.js",
+  "issue-priming.js",
   "paths.js",
   "play-review-shared-context.js",
   "pr-merge-worktree.js",
@@ -35,6 +38,7 @@ const REQUIRED_RUNTIME_JS_FILES = [
 ] as const;
 export const REQUIRED_RUNTIME_FILES = [
   RUNTIME_ENTRYPOINT,
+  RUNTIME_BASH_RESOLVER,
   path.join(RUNTIME_JS_DIR, "package.json"),
   ...REQUIRED_RUNTIME_JS_FILES.map((fileName) =>
     path.join(RUNTIME_JS_DIR, fileName),
@@ -111,7 +115,7 @@ async function validateExactRuntimeTree(runtimeDir: string): Promise<void> {
   await requireExactDirectoryEntries(runtimeDir, ["scripts"], runtimeDir);
   await requireExactDirectoryEntries(
     path.join(runtimeDir, "scripts"),
-    ["devcanon-runtime.sh", "runtime"],
+    ["devcanon-runtime.sh", "resolve-bash.mjs", "runtime"],
     runtimeDir,
   );
   await requireExactDirectoryEntries(

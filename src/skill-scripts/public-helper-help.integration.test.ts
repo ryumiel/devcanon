@@ -1,5 +1,13 @@
 import { execFile } from "node:child_process";
-import { cp, mkdir, readFile, readdir, rename } from "node:fs/promises";
+import {
+  cp,
+  lstat,
+  mkdir,
+  readFile,
+  readdir,
+  realpath,
+  rename,
+} from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -7,6 +15,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanupTempDir, createTempDir } from "../__test-helpers__/fixtures.js";
 
 const execFileAsync = promisify(execFile);
+const bashExecutable = await resolveVerifiedBash();
 const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../..",
@@ -16,6 +25,32 @@ type CatalogRow = {
   executable: string;
   usageDocument: string;
 };
+
+async function resolveVerifiedBash(): Promise<string> {
+  if (process.platform !== "win32") return "/bin/bash";
+  const { stdout } = await execFileAsync("where.exe", ["git.exe"]);
+  const candidates = new Set<string>();
+  for (const gitExecutable of stdout
+    .split(/\r?\n/gu)
+    .filter((entry) => path.win32.isAbsolute(entry))) {
+    const gitDirectory = path.win32.dirname(gitExecutable);
+    candidates.add(path.win32.resolve(gitDirectory, "..", "bin", "bash.exe"));
+    candidates.add(
+      path.win32.resolve(gitDirectory, "..", "usr", "bin", "bash.exe"),
+    );
+  }
+  for (const candidate of candidates) {
+    try {
+      if (!(await lstat(candidate)).isFile()) continue;
+      await execFileAsync(candidate, [
+        "-lc",
+        "builtin pwd -W >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1",
+      ]);
+      return await realpath(candidate);
+    } catch {}
+  }
+  throw new Error("Git-for-Windows Bash is unavailable");
+}
 
 function catalogRows(markdown: string): CatalogRow[] {
   const rows: CatalogRow[] = [];
@@ -41,7 +76,9 @@ async function runHelper(
   args: string[],
   cwd: string,
 ): Promise<{ stdout: string; stderr: string }> {
-  const command = executable.endsWith(".mjs") ? process.execPath : "/bin/bash";
+  const command = executable.endsWith(".mjs")
+    ? process.execPath
+    : bashExecutable;
   const result = await execFileAsync(command, [executable, ...args], {
     cwd,
     env: { PATH: process.env.PATH },

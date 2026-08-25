@@ -21,6 +21,10 @@ const windowsHelperIntegrationIncludes = [
   "src/skill-scripts/issue-worktree-setup.integration.test.ts",
   // Native helper coverage keeps the Node worktree adapter in the Windows lane.
   "src/skill-scripts/issue-worktree-setup-windows-helper.integration.test.ts",
+  // Issue priming canonical helpers must ignore ambient Bash on native Windows.
+  "src/skill-scripts/issue-priming-native-helpers.integration.test.ts",
+  // POSIX adapters use a verified Git-for-Windows Bash, never ambient bash.exe.
+  "src/skill-scripts/issue-priming-posix-adapters.integration.test.ts",
   // PR merge cleanup/preflight helpers exercise Windows worktree and PATH handling.
   "src/skill-scripts/pr-merge-worktree-helpers.integration.test.ts",
   // Review manifest helpers validate Windows-aware path normalization and repo roots.

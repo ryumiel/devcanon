@@ -234,8 +234,14 @@ Quick navigation index for the DevCanon repository.
 - Where are shared runtime command helpers? -> [`src/runtime/command.ts`](src/runtime/command.ts)
 - Where is the authoritative trusted runtime bootstrap? ->
   [`src/runtime/bootstrap.ts`](src/runtime/bootstrap.ts)
+- Where is verified cross-platform Bash resolution? ->
+  [`src/runtime/bash.ts`](src/runtime/bash.ts)
+- Where are canonical issue-priming helper mechanics? ->
+  [`src/runtime/issue-priming.ts`](src/runtime/issue-priming.ts)
 - Where is the packaged runtime JavaScript entrypoint? ->
   [`skills/devcanon-runtime/scripts/runtime/cli.js`](skills/devcanon-runtime/scripts/runtime/cli.js)
+- Where is the packaged verified-Bash resolver entrypoint? ->
+  [`skills/devcanon-runtime/scripts/resolve-bash.mjs`](skills/devcanon-runtime/scripts/resolve-bash.mjs)
 - Where is the packaged trusted bootstrap entrypoint? ->
   [`skills/devcanon-runtime/scripts/runtime/bootstrap-cli.js`](skills/devcanon-runtime/scripts/runtime/bootstrap-cli.js)
 

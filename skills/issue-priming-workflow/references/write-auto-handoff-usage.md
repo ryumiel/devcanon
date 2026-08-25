@@ -6,7 +6,7 @@ Writes the validated automatic-handoff artifact.
 
 ## Invocation
 
-Run `PLAN_PATH=<path> bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-auto-handoff.sh"`.
+Run `PLAN_PATH=<path> node "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-auto-handoff.mjs"` on POSIX. In PowerShell, set `$env:PLAN_PATH`, then run `node "$env:ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-auto-handoff.mjs"`. The adjacent `.sh` file is a POSIX compatibility adapter only.
 
 ## Inputs
 
@@ -18,7 +18,7 @@ The issue worktree root is required.
 
 ## Outputs
 
-It prints the repo-relative handoff path on stdout; diagnostics go to stderr.
+It prints exactly one safe repo-relative `.ephemeral/issue-priming-auto-handoff-<40-lowercase-hex>.json` path with one trailing newline. The entrypoint rejects empty, multiline, or malformed runtime output; diagnostics go to stderr.
 
 ## Refusal and failures
 

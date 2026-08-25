@@ -21,7 +21,7 @@ const execFileAsync = promisify(execFile);
 const symlinkAvailable = await canCreateSymlinks();
 const helperScript = path.join(
   process.cwd(),
-  "skills/issue-priming-workflow/scripts/phase-artifacts.sh",
+  "skills/issue-priming-workflow/scripts/phase-artifacts.mjs",
 );
 
 async function makeWorkspace(): Promise<string> {
@@ -55,7 +55,7 @@ async function makeWorkspace(): Promise<string> {
 
 async function runHelper(cwd: string, kind: string, artifactPath: string) {
   return execFileAsync(
-    "bash",
+    process.execPath,
     [helperScript, "validate-read", kind, artifactPath],
     { cwd },
   );
@@ -131,7 +131,7 @@ describe("issue-priming phase-artifacts helper", () => {
         runHelper(subdir, "plan", ".ephemeral/2026-05-25-topic-plan.md"),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining(
-          "phase-artifacts.sh must run from the repository root",
+          "phase-artifacts must run from the repository root",
         ),
       });
     } finally {

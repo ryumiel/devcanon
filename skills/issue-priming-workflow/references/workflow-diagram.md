@@ -7,7 +7,7 @@ are in `SKILL.md` § Phase 1–8.
 digraph priming {
   rankdir=TB;
   worktree [label="1. Worktree\nAdopt handed-off\nworktree + issue body"];
-  helpers [label="Helper guards\nphase-artifacts.sh\nwrite-* helpers", shape=box];
+  helpers [label="Helper guards\nphase-artifacts.mjs\nwrite-* helpers", shape=box];
   immutable_guard [label="D1-D3 source-immutable guard\nresolve configured full model + independent effort; validate complete tuple\nfresh Codex fork_turns:none; response-only; zero handoffs\ncapture -> spawn -> verify -> validate -> cleanup -> apply", shape=note];
   gate [label="2. Gate\nassessor balanced/medium\nfresh history-free child\nassesses complexity"];
   decide [label="Research?", shape=diamond];

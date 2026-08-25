@@ -20,11 +20,10 @@ import {
 
 const execFileAsync = promisify(execFile);
 const symlinkAvailable = await canCreateSymlinks();
-const jqAvailable = await commandAvailable("jq");
-const mkfifoAvailable = await commandAvailable("mkfifo");
+const mkfifoAvailable = process.platform !== "win32";
 const helperScript = path.join(
   process.cwd(),
-  "skills/issue-priming-workflow/scripts/write-auto-handoff.sh",
+  "skills/issue-priming-workflow/scripts/write-auto-handoff.mjs",
 );
 const planPath = ".ephemeral/2026-05-18-example-plan.md";
 
@@ -51,22 +50,13 @@ async function headSha(cwd: string): Promise<string> {
 }
 
 async function runHelper(cwd: string, env: NodeJS.ProcessEnv = {}) {
-  return execFileAsync("bash", [helperScript], {
+  return execFileAsync(process.execPath, [helperScript], {
     cwd,
     env: { ...process.env, PLAN_PATH: planPath, ...env },
   });
 }
 
-async function commandAvailable(command: string): Promise<boolean> {
-  try {
-    await execFileAsync("bash", ["-c", `command -v ${command}`]);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-describe.skipIf(!jqAvailable)("issue-priming auto-handoff helper", () => {
+describe("issue-priming auto-handoff helper", () => {
   it("writes the auto-handoff artifact for a valid plan path", async () => {
     const cwd = await initializeRepo();
     try {
@@ -141,7 +131,7 @@ describe.skipIf(!jqAvailable)("issue-priming auto-handoff helper", () => {
 
       await expect(runHelper(subdir)).rejects.toMatchObject({
         stderr: expect.stringContaining(
-          "write-auto-handoff.sh must run from the repository root",
+          "write-auto-handoff must run from the repository root",
         ),
       });
       await expect(lstat(subdirTarget)).rejects.toMatchObject({

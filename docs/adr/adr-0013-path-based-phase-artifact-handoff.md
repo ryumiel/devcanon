@@ -126,7 +126,7 @@ owning documentation contract, never raw issue-local history or agent reports.
 `<id>` is the slugged form of `payload.identifier`: a hash-prefixed numeric
 identifier becomes its digits, while an uppercase provider key becomes
 lowercase. The authoritative slug and research-brief path computation lives in
-`skills/issue-priming-workflow/scripts/write-research-brief.sh`: lowercase the
+`skills/issue-priming-workflow/scripts/write-research-brief.mjs`: lowercase the
 identifier, convert `/` to `-`, retain only alphanumerics, `.`, `_`, and `-`,
 and reject unsafe derived paths through the script's write-target guard.
 `<topic>` and `<feature-name>` follow the existing `play-brainstorm` /

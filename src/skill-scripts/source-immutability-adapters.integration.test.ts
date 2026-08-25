@@ -1,5 +1,13 @@
 import { execFile } from "node:child_process";
-import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  cp,
+  lstat,
+  mkdir,
+  mkdtemp,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -18,6 +26,33 @@ const adapterSkills = [
   "pr-merge",
 ] as const;
 const tempDirs: string[] = [];
+const bashExecutable = await resolveVerifiedBash();
+
+async function resolveVerifiedBash(): Promise<string> {
+  if (process.platform !== "win32") return "bash";
+  const { stdout } = await execFileAsync("where.exe", ["git.exe"]);
+  const candidates = new Set<string>();
+  for (const gitExecutable of stdout
+    .split(/\r?\n/gu)
+    .filter((entry) => path.win32.isAbsolute(entry))) {
+    const gitDirectory = path.win32.dirname(gitExecutable);
+    candidates.add(path.win32.resolve(gitDirectory, "..", "bin", "bash.exe"));
+    candidates.add(
+      path.win32.resolve(gitDirectory, "..", "usr", "bin", "bash.exe"),
+    );
+  }
+  for (const candidate of candidates) {
+    try {
+      if (!(await lstat(candidate)).isFile()) continue;
+      await execFileAsync(candidate, [
+        "-lc",
+        "builtin pwd -W >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1",
+      ]);
+      return await realpath(candidate);
+    } catch {}
+  }
+  throw new Error("Git-for-Windows Bash is unavailable");
+}
 
 afterEach(async () => {
   await Promise.all(
@@ -61,7 +96,7 @@ describe("source-immutability workflow adapters", () => {
       const adapter = sourceAdapter(skill);
       const handoff = `.ephemeral/${skill}.json`;
       const captured = await execFileAsync(
-        "bash",
+        bashExecutable,
         [adapter, "capture", "--handoff", handoff],
         {
           cwd,
@@ -76,14 +111,14 @@ describe("source-immutability workflow adapters", () => {
 
       await expect(
         execFileAsync(
-          "bash",
+          bashExecutable,
           [adapter, "verify", "--baseline", baseline, "--handoff", handoff],
           { cwd },
         ),
       ).resolves.toMatchObject({ stdout: "unchanged\n", stderr: "" });
       await expect(
         execFileAsync(
-          "bash",
+          bashExecutable,
           [adapter, "cleanup", "--baseline", baseline, "--handoff", handoff],
           { cwd },
         ),
@@ -103,7 +138,7 @@ describe("source-immutability workflow adapters", () => {
       await cp(runtimeSkill, copiedRuntime, { recursive: true });
 
       await expect(
-        execFileAsync("bash", [sourceAdapter(skill), "verify"], {
+        execFileAsync(bashExecutable, [sourceAdapter(skill), "verify"], {
           cwd,
           env: { ...process.env, DEVCANON_RUNTIME_DIR: copiedRuntime },
         }),

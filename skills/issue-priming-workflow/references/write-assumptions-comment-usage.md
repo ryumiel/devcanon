@@ -6,7 +6,7 @@ Prepares the deterministic destination for an assumptions-comment artifact.
 
 ## Invocation
 
-Run `ISSUE_IDENTIFIER=<identifier> bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-assumptions-comment.sh"`.
+Run `ISSUE_IDENTIFIER=<identifier> node "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-assumptions-comment.mjs"` on POSIX. In PowerShell, set `$env:ISSUE_IDENTIFIER`, then run `node "$env:ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-assumptions-comment.mjs"`. The adjacent `.sh` file is a POSIX compatibility adapter only.
 
 ## Inputs
 
@@ -18,7 +18,7 @@ The issue worktree root is required.
 
 ## Outputs
 
-It prints the repo-relative artifact path on stdout; diagnostics go to stderr.
+It prints exactly one safe repo-relative `.ephemeral/<slug>-assumptions-comment.md` path with one trailing newline. The entrypoint rejects empty, multiline, or malformed runtime output; diagnostics go to stderr.
 
 ## Refusal and failures
 

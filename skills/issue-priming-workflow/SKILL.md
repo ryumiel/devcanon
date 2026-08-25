@@ -121,15 +121,21 @@ See [`references/workflow-diagram.md`](references/workflow-diagram.md) for the D
 
 ## Helper Invocation Contracts
 
-Resolve `ISSUE_PRIMING_WORKFLOW_DIR` to the installed `issue-priming-workflow` skill bundle, not the issue worktree. Invoke helpers from the issue worktree root after Phase 1 has run `cd "$WORKTREE_PATH"`; helpers verify repository-root cwd. Treat a nonzero helper exit as a contract failure and stop the current phase rather than falling back to inline path handling. This blanket early-stop rule does not apply to `scripts/source-immutability.sh`; the Phase 2 and Phase 3 GUARD-001 procedures own every nonzero disposition for that helper. Do not move workflow judgment, routing, lifecycle, model selection, review classification, or PR authority into shell.
+Resolve `ISSUE_PRIMING_WORKFLOW_DIR` to the installed `issue-priming-workflow` skill bundle, not the issue worktree. Invoke helpers from the issue worktree root after Phase 1 has run `cd "$WORKTREE_PATH"`; helpers verify repository-root cwd. Treat a nonzero helper exit as a contract failure and stop the current phase rather than falling back to inline path handling. This blanket early-stop rule does not apply to `scripts/source-immutability.mjs`; the Phase 2 and Phase 3 GUARD-001 procedures own every nonzero disposition for that helper. Do not move workflow judgment, routing, lifecycle, model selection, review classification, or PR authority into executable mechanics.
 
 The script-owned deterministic surfaces are:
 
-- `scripts/phase-artifacts.sh` for read guards on issue-priming-owned phase artifacts.
-- `scripts/source-immutability.sh` for the packaged source-immutable
+- `scripts/phase-artifacts.mjs` for read guards on issue-priming-owned phase artifacts.
+- `scripts/source-immutability.mjs` for the packaged source-immutable
   `capture`, `verify`, and `cleanup` lifecycle around D1-D3 leaves.
-- `scripts/write-research-brief.sh` for preparing the Phase 3 research-brief write target.
-- `scripts/write-assumptions-comment.sh` for preparing the Phase 8 assumptions-comment write target.
+- `scripts/write-research-brief.mjs` for preparing the Phase 3 research-brief write target.
+- `scripts/write-auto-handoff.mjs` for writing the Phase 6 automatic handoff.
+- `scripts/write-assumptions-comment.mjs` for preparing the Phase 8 assumptions-comment write target.
+
+Invoke these canonical entrypoints with `node` on every platform. Adjacent
+`.sh` files are POSIX compatibility adapters only and must not be selected by
+native Windows workflows. Each `.mjs` entrypoint checks the runtime exit status
+and its exact stdout contract before returning output to this workflow.
 
 Keep phase-local command snippets where the workflow executes them. For detailed helper interfaces, stdout contracts, path vocabulary, and common diagnostics, load [`references/helper-invocation-contracts.md`](references/helper-invocation-contracts.md).
 
@@ -153,12 +159,12 @@ esac
 cd "$WORKTREE_PATH" || { echo "failed to enter worktree: $WORKTREE_PATH" >&2; exit 1; }
 
 ISSUE_BODY_PATH="<payload.issue-body-path>"
-PHASE_ARTIFACTS_HELPER="$ISSUE_PRIMING_WORKFLOW_DIR/scripts/phase-artifacts.sh"
-bash "$PHASE_ARTIFACTS_HELPER" validate-read issue-body "$ISSUE_BODY_PATH"
+PHASE_ARTIFACTS_HELPER="$ISSUE_PRIMING_WORKFLOW_DIR/scripts/phase-artifacts.mjs"
+node "$PHASE_ARTIFACTS_HELPER" validate-read issue-body "$ISSUE_BODY_PATH"
 
 COMMENT_EVIDENCE_PATH="<payload.comment-evidence-path if present, else empty>"
 if [ -n "$COMMENT_EVIDENCE_PATH" ]; then
-  bash "$PHASE_ARTIFACTS_HELPER" validate-read comment-evidence "$COMMENT_EVIDENCE_PATH"
+  node "$PHASE_ARTIFACTS_HELPER" validate-read comment-evidence "$COMMENT_EVIDENCE_PATH"
 fi
 ```
 
@@ -191,10 +197,10 @@ Ordinary gate and research outcomes remain their existing fallback and
 outcome-precedence routes; they are not capability retries.
 
 Resolve `SOURCE_IMMUTABILITY_HELPER` to
-`$ISSUE_PRIMING_WORKFLOW_DIR/scripts/source-immutability.sh` and run it from
+`$ISSUE_PRIMING_WORKFLOW_DIR/scripts/source-immutability.mjs` and run it from
 the Phase 1 worktree root. Before the first guarded Phase 2 assessor or forced
 Phase 3 investigator, run
-`bash "$SOURCE_IMMUTABILITY_HELPER" --help` once for this enclosing flow.
+`node "$SOURCE_IMMUTABILITY_HELPER" --help` once for this enclosing flow.
 
 ## Phase 2: Complexity Gate
 
@@ -248,7 +254,7 @@ unavailable-gate fallback after the required cleanup. Do not retry, select an
 alias, change effort, escalate, or substitute a role.
 
 Use the enclosing flow's already-resolved
-`$ISSUE_PRIMING_WORKFLOW_DIR/scripts/source-immutability.sh` binding and apply
+`$ISSUE_PRIMING_WORKFLOW_DIR/scripts/source-immutability.mjs` binding and apply
 the GUARD-001 lifecycle to this leaf:
 
 1. **capture before spawn** with no `--handoff`; capture failure prevents the
@@ -267,11 +273,11 @@ the GUARD-001 lifecycle to this leaf:
 The no-handoff command shape is:
 
 ```bash
-GATE_BASELINE="$(bash "$SOURCE_IMMUTABILITY_HELPER" capture)"
+GATE_BASELINE="$(node "$SOURCE_IMMUTABILITY_HELPER" capture)"
 # Spawn the assessor, then capture its raw terminal response/status.
-bash "$SOURCE_IMMUTABILITY_HELPER" verify --baseline "$GATE_BASELINE"
+node "$SOURCE_IMMUTABILITY_HELPER" verify --baseline "$GATE_BASELINE"
 # Validate and retain the response in controller memory.
-bash "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline "$GATE_BASELINE"
+node "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline "$GATE_BASELINE"
 # Only now apply the retained gate result.
 ```
 
@@ -393,7 +399,7 @@ unavailable investigator outcome precedence after required cleanup. Do not
 retry, use a fallback or alias, alter effort, escalate, or substitute a role.
 
 Use the enclosing flow's already-resolved
-`$ISSUE_PRIMING_WORKFLOW_DIR/scripts/source-immutability.sh` binding. Give
+`$ISSUE_PRIMING_WORKFLOW_DIR/scripts/source-immutability.mjs` binding. Give
 every internal, immediate-external, and late-external leaf its own retained
 baseline and apply this GUARD-001 lifecycle independently:
 
@@ -414,11 +420,11 @@ Use a distinct `LEAF_BASELINE` for each investigator. The no-handoff command
 shape is:
 
 ```bash
-LEAF_BASELINE="$(bash "$SOURCE_IMMUTABILITY_HELPER" capture)"
+LEAF_BASELINE="$(node "$SOURCE_IMMUTABILITY_HELPER" capture)"
 # Spawn this investigator, then capture its raw terminal response/status.
-bash "$SOURCE_IMMUTABILITY_HELPER" verify --baseline "$LEAF_BASELINE"
+node "$SOURCE_IMMUTABILITY_HELPER" verify --baseline "$LEAF_BASELINE"
 # Validate and retain this response in controller memory.
-bash "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline "$LEAF_BASELINE"
+node "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline "$LEAF_BASELINE"
 # Only now apply this retained investigator result.
 ```
 
@@ -694,7 +700,7 @@ persist them or reuse them in shared comments except under the sanitized
 summary-only agent-local evidence boundary.
 
 On either successful final-brief route, invoke
-`scripts/write-research-brief.sh` from the issue worktree root with
+`scripts/write-research-brief.mjs` from the issue worktree root with
 `ISSUE_IDENTIFIER` and `ISSUE_PRIMING_TODAY`. Treat a nonzero helper exit as a
 contract failure. The helper prints the repo-relative research path on stdout
 and prepares the write target; it does not write the brief. Write the
@@ -707,7 +713,7 @@ Carry only that path forward to Phase 4's research-done args.
 RESEARCH_BRIEF_PATH=$(
   ISSUE_IDENTIFIER="<payload.identifier>" \
   ISSUE_PRIMING_TODAY="<YYYY-MM-DD>" \
-    bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-research-brief.sh"
+    node "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-research-brief.mjs"
 )
 ```
 
@@ -843,7 +849,7 @@ result. When no durable owner referral notice is present, capture the literal
 before reading it:
 
 ```bash
-bash "$PHASE_ARTIFACTS_HELPER" validate-read design "$DESIGN_PATH"
+node "$PHASE_ARTIFACTS_HELPER" validate-read design "$DESIGN_PATH"
 ```
 
 Use the helper contract from the issue worktree root; success is silent and a
@@ -877,14 +883,14 @@ review must stop inside `play-planning` and must not reach this phase. Validate
 the captured path:
 
 ```bash
-bash "$PHASE_ARTIFACTS_HELPER" validate-read plan "$PLAN_PATH"
+node "$PHASE_ARTIFACTS_HELPER" validate-read plan "$PLAN_PATH"
 ```
 
 Use the helper contract from the issue worktree root; success is silent and a
 nonzero exit stops the phase.
 
 Before invoking `play-subagent-execution`, invoke
-`scripts/write-auto-handoff.sh` from the issue worktree root. Resolve the
+`scripts/write-auto-handoff.mjs` from the issue worktree root. Resolve the
 script from the installed `issue-priming-workflow` skill bundle, pass
 `PLAN_PATH`, and capture stdout as the repo-relative auto-handoff artifact path.
 Treat a nonzero helper exit as a contract failure and stop before invoking the
@@ -893,11 +899,11 @@ for the helper interface, artifact schema, artifact path shape, and rationale.
 
 ```bash
 ISSUE_PRIMING_WORKFLOW_DIR="<installed-issue-priming-workflow-skill-bundle>"
-AUTO_HANDOFF_HELPER="$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-auto-handoff.sh"
+AUTO_HANDOFF_HELPER="$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-auto-handoff.mjs"
 ISSUE_PRIMING_AUTO_HEAD="$(git rev-parse HEAD)"
 AUTO_HANDOFF_FILE=$(
   PLAN_PATH="$PLAN_PATH" \
-    bash "$AUTO_HANDOFF_HELPER"
+    node "$AUTO_HANDOFF_HELPER"
 )
 ```
 
@@ -1147,7 +1153,7 @@ path:
 ```bash
 ASSUMPTIONS_COMMENT_FILE=$(
   ISSUE_IDENTIFIER="<payload.identifier>" \
-    bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-assumptions-comment.sh"
+    node "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-assumptions-comment.mjs"
 )
 ```
 
