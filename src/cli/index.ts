@@ -21,7 +21,7 @@ program
   .description(
     "Manage personal AI skills and generate native agent files for Claude Code and Codex.",
   )
-  .version("0.1.0")
+  .version("2.0.0")
   .option("--config <path>", "path to config file")
   .option("--json", "output machine-readable JSON")
   .option("--log-level <level>", "quiet | normal | verbose | debug", "normal")

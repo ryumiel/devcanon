@@ -76,7 +76,7 @@ describe.runIf(process.platform !== "win32")("setup:cli", () => {
       const version = await execFileAsync(executable, ["--version"], { env });
       const help = await execFileAsync(executable, ["--help"], { env });
 
-      expect(version.stdout.trim()).toBe("0.1.0");
+      expect(version.stdout.trim()).toBe("2.0.0");
       expect(help.stdout).toContain("Usage: devcanon");
     } finally {
       await rm(xdgDataHome, { recursive: true, force: true });
@@ -114,7 +114,7 @@ describe.runIf(process.platform === "win32")("setup:cli", () => {
         shell: commandShell,
       });
 
-      expect(version.stdout.trim()).toBe("0.1.0");
+      expect(version.stdout.trim()).toBe("2.0.0");
       expect(help.stdout).toContain("Usage: devcanon");
     } finally {
       await rm(root, { recursive: true, force: true });
