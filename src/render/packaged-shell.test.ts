@@ -48,22 +48,22 @@ describe("normalizePackagedShellBytes", () => {
     );
   });
 
-  it("normalizes read-only shell files and restores their mode", async () => {
+  it("normalizes read-only shell files and restores their permission bits", async () => {
     const tempDir = await createTempDir();
     const scriptsDir = path.join(tempDir, "scripts");
     const shellPath = path.join(scriptsDir, "tool.sh");
     try {
       await mkdir(scriptsDir, { recursive: true });
       await writeFile(shellPath, "#!/usr/bin/env bash\r\necho shell\r\n");
-      await chmod(shellPath, 0o555);
-      const shellMode = (await lstat(shellPath)).mode & 0o777;
+      await chmod(shellPath, 0o7555);
+      const shellMode = (await lstat(shellPath)).mode & 0o7777;
 
       await normalizePackagedShellTree(scriptsDir);
 
       await expect(readFile(shellPath)).resolves.toStrictEqual(
         Buffer.from("#!/usr/bin/env bash\necho shell\n"),
       );
-      expect((await lstat(shellPath)).mode & 0o777).toBe(shellMode);
+      expect((await lstat(shellPath)).mode & 0o7777).toBe(shellMode);
     } finally {
       await chmod(shellPath, 0o755).catch(() => undefined);
       await cleanupTempDir(tempDir);
