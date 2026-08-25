@@ -150,6 +150,43 @@ describe("devcanon-runtime rendering", () => {
     expect(secondRuntime.contentHash).not.toBe(firstRuntime.contentHash);
   });
 
+  it("writes LF-normalized runtime wrappers with matching content hashes", async () => {
+    await copyDevcanonRuntimeFixture(config.library.skillsDir);
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    const wrapperPath = path.join(runtimeDir, "scripts", "devcanon-runtime.sh");
+    await writeFile(
+      wrapperPath,
+      "#!/usr/bin/env bash\r\necho runtime\r\n",
+      "utf-8",
+    );
+
+    const crlfRuntime = await renderDevcanonRuntimeForTarget(
+      runtimeDir,
+      "codex",
+      config,
+    );
+    await renderAll(config, true);
+    await expect(
+      readFile(
+        path.join(crlfRuntime.generatedPath, "scripts", "devcanon-runtime.sh"),
+      ),
+    ).resolves.toStrictEqual(
+      Buffer.from("#!/usr/bin/env bash\necho runtime\n", "utf-8"),
+    );
+
+    await writeFile(
+      wrapperPath,
+      "#!/usr/bin/env bash\necho runtime\n",
+      "utf-8",
+    );
+    const lfRuntime = await renderDevcanonRuntimeForTarget(
+      runtimeDir,
+      "codex",
+      config,
+    );
+    expect(lfRuntime.contentHash).toBe(crlfRuntime.contentHash);
+  });
+
   it.skipIf(!executableModeMutable)(
     "includes the passive runtime scripts directory mode in rendered content hashes",
     async () => {

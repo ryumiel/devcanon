@@ -68,6 +68,19 @@ vi.mock("./symlink.js", async (importOriginal) => {
 });
 
 const symlinkAvailable = await canCreateSymlinks();
+
+function normalizePackagedShellBytes(bytes: Buffer): Buffer {
+  const normalized: number[] = [];
+  for (let index = 0; index < bytes.length; index += 1) {
+    if (bytes[index] === 13 && bytes[index + 1] === 10) {
+      normalized.push(10);
+      index += 1;
+    } else {
+      normalized.push(bytes[index]);
+    }
+  }
+  return Buffer.from(normalized);
+}
 const execFileAsync = promisify(execFile);
 
 async function seedPassiveRuntime(config: ResolvedConfig): Promise<void> {
@@ -513,6 +526,8 @@ describe("sync", () => {
         .split(path.sep)
         .join("/");
       const sourceScriptBytes = await readFile(sourceScript);
+      const expectedScriptBytes =
+        normalizePackagedShellBytes(sourceScriptBytes);
       const sourceUsageBytes = await readFile(sourceUsage);
       const sourceExecutableMode = (await stat(sourceScript)).mode & 0o111;
 
@@ -533,10 +548,10 @@ describe("sync", () => {
         const installedUsage = path.join(installedRoot, relativeUsage);
 
         expect(await readFile(generatedScript), row.executable).toEqual(
-          sourceScriptBytes,
+          expectedScriptBytes,
         );
         expect(await readFile(installedScript), row.executable).toEqual(
-          sourceScriptBytes,
+          expectedScriptBytes,
         );
         expect(await readFile(generatedUsage), row.usageDocument).toEqual(
           sourceUsageBytes,

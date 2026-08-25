@@ -91,6 +91,81 @@ describe("renderAll", () => {
     }
   });
 
+  it("writes LF-normalized packaged shell files with matching content hashes", async () => {
+    await createSkillFixture(
+      config.library.skillsDir,
+      "shell-skill",
+      undefined,
+      ["scripts"],
+    );
+    const sourceScript = path.join(
+      config.library.skillsDir,
+      "shell-skill",
+      "scripts",
+      "nested",
+      "tool.sh",
+    );
+    await mkdir(path.dirname(sourceScript), { recursive: true });
+    await writeFile(
+      sourceScript,
+      "#!/usr/bin/env bash\r\necho shell\r\n",
+      "utf-8",
+    );
+    await writeFile(
+      path.join(config.library.skillsDir, "shell-skill", "scripts", "data.txt"),
+      Buffer.from([0, 13, 10, 255]),
+    );
+
+    const crlfResult = await renderAll(config, true);
+    for (const target of ["claude", "codex"] as const) {
+      await expect(
+        readFile(
+          path.join(
+            config.library.generatedDir,
+            target,
+            "skills",
+            "shell-skill",
+            "scripts",
+            "nested",
+            "tool.sh",
+          ),
+        ),
+      ).resolves.toStrictEqual(
+        Buffer.from("#!/usr/bin/env bash\necho shell\n", "utf-8"),
+      );
+    }
+
+    await writeFile(sourceScript, "#!/usr/bin/env bash\necho shell\n", "utf-8");
+    const lfResult = await renderAll(config, true);
+
+    for (const target of ["claude", "codex"] as const) {
+      const generatedDir = path.join(
+        config.library.generatedDir,
+        target,
+        "skills",
+        "shell-skill",
+        "scripts",
+      );
+      await expect(
+        readFile(path.join(generatedDir, "nested", "tool.sh")),
+      ).resolves.toStrictEqual(
+        Buffer.from("#!/usr/bin/env bash\necho shell\n", "utf-8"),
+      );
+      await expect(
+        readFile(path.join(generatedDir, "data.txt")),
+      ).resolves.toStrictEqual(Buffer.from([0, 13, 10, 255]));
+      expect(
+        crlfResult.outputs.find(
+          (output) => output.target === target && output.name === "shell-skill",
+        )?.contentHash,
+      ).toBe(
+        lfResult.outputs.find(
+          (output) => output.target === target && output.name === "shell-skill",
+        )?.contentHash,
+      );
+    }
+  });
+
   it("renders agents when the YAML filename differs from the source name", async () => {
     await createAgentFixture(
       config.library.agentsDir,

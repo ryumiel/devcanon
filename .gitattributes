@@ -21,4 +21,5 @@
 *.snap text eol=lf
 
 # Scripts and hooks — force LF
+*.sh text eol=lf
 scripts/hooks/* text eol=lf

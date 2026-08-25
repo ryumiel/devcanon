@@ -16,6 +16,27 @@ import { buildGlossary, resolvePlaceholders } from "./placeholders.js";
 
 const TARGETS = ["claude", "codex"] as const;
 
+function expectedMirroredBytes(
+  subdir: string,
+  relativeFile: string,
+  source: Buffer,
+): Buffer {
+  if (subdir !== "scripts" || !relativeFile.endsWith(".sh")) {
+    return source;
+  }
+
+  const normalized: number[] = [];
+  for (let index = 0; index < source.length; index += 1) {
+    if (source[index] === 13 && source[index + 1] === 10) {
+      normalized.push(10);
+      index += 1;
+    } else {
+      normalized.push(source[index]);
+    }
+  }
+  return Buffer.from(normalized);
+}
+
 function expectedFrontmatter(
   source: SkillSource,
   target: (typeof TARGETS)[number],
@@ -288,7 +309,7 @@ describe("shipped skill rendering", () => {
     }
   });
 
-  it("mirrors every declared supporting-file subtree byte for byte", async () => {
+  it("preserves supporting files except for packaged shell LF normalization", async () => {
     const config = await loadConfig(
       path.join(process.cwd(), "devcanon.config.yaml"),
     );
@@ -348,7 +369,9 @@ describe("shipped skill rendering", () => {
                 readFile(path.join(sourceRoot, relativeFile)),
                 readFile(path.join(renderedRoot, relativeFile)),
               ]);
-              expect(rendered).toEqual(source);
+              expect(rendered).toEqual(
+                expectedMirroredBytes(subdir, relativeFile, source),
+              );
             }
           }
         }

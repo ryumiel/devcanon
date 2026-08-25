@@ -3,6 +3,7 @@ import path from "node:path";
 import type { ResolvedConfig } from "../config/schema.js";
 import type { LoadedSkill, RenderedSkill } from "../models/types.js";
 import { sha256 } from "../utils/hash.js";
+import { normalizePackagedShellBytes } from "./packaged-shell.js";
 import { buildGlossary } from "./placeholders.js";
 import { renderClaudeSkill } from "./skill-claude.js";
 import { renderCodexSkill } from "./skill-codex.js";
@@ -121,7 +122,12 @@ function collectMirroredFilesForHash(
   for (const subdir of subdirs) {
     const sourceRoot = path.join(skillDir, subdir);
     const generatedRoot = path.join(generatedDir, subdir);
-    walkMirroredFilesForHash(sourceRoot, generatedRoot, mirroredFiles);
+    walkMirroredFilesForHash(
+      sourceRoot,
+      generatedRoot,
+      generatedDir,
+      mirroredFiles,
+    );
   }
 
   return mirroredFiles;
@@ -130,6 +136,7 @@ function collectMirroredFilesForHash(
 function walkMirroredFilesForHash(
   sourceDir: string,
   generatedDir: string,
+  skillGeneratedDir: string,
   mirroredFiles: Map<string, string>,
 ): void {
   const entries = readdirSync(sourceDir, { withFileTypes: true }).sort(
@@ -141,14 +148,23 @@ function walkMirroredFilesForHash(
     const generatedPath = path.join(generatedDir, entry.name);
 
     if (entry.isDirectory()) {
-      walkMirroredFilesForHash(sourcePath, generatedPath, mirroredFiles);
+      walkMirroredFilesForHash(
+        sourcePath,
+        generatedPath,
+        skillGeneratedDir,
+        mirroredFiles,
+      );
       continue;
     }
 
     if (entry.isFile()) {
+      const relativePath = path.relative(skillGeneratedDir, generatedPath);
       mirroredFiles.set(
         generatedPath,
-        `file:${readFileSync(sourcePath).toString("base64")}`,
+        `file:${normalizePackagedShellBytes(
+          relativePath,
+          readFileSync(sourcePath),
+        ).toString("base64")}`,
       );
       continue;
     }
