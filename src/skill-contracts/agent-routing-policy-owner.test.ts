@@ -376,6 +376,26 @@ describe("agent routing and mutation policy owner", () => {
         `${skill} never discovers an original checkout config`,
       ).not.toContain("devcanon.config.yaml");
       expect(
+        source,
+        `${skill} never uses symbolic capability profiles`,
+      ).not.toContain("capabilityProfiles.");
+      const positiveRouteModelGuidance = source
+        .split(/[.;!?]/u)
+        .filter((clause) => !/\b(?:do not|never|no)\b/iu.test(clause))
+        .filter(
+          (clause) =>
+            /\b(?:use|select|load|resolve|search|read|find|choose|fall back to)\b\s+(?:the|an?|a)?\s*(?:(?:full|configured|target(?:-rendered)?)\s+)?(?:alias|ambient|nearby|capability profile)\b/iu.test(
+              clause,
+            ) ||
+            /\b(?:lookup|search|load|resolve|read|find)\b[\s\S]{0,120}\b(?:devcanon\.config\.yaml|capabilityProfiles\.)/iu.test(
+              clause,
+            ),
+        );
+      expect(
+        positiveRouteModelGuidance,
+        `${skill} has no positive model rediscovery or fallback guidance`,
+      ).toEqual([]);
+      expect(
         source.replace(/\s+/gu, " "),
         `${skill} fail-closes model resolution`,
       ).toContain(failClosed);

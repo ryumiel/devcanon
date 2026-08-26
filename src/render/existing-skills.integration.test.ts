@@ -15,36 +15,78 @@ import { renderAll } from "./pipeline.js";
 import { buildGlossary, resolvePlaceholders } from "./placeholders.js";
 
 const TARGETS = ["claude", "codex"] as const;
+const ROUTE_OWNER_SKILLS = [
+  "issue-priming-workflow",
+  "play-agent-dispatch",
+  "play-planning",
+  "play-review",
+  "play-skill-authoring",
+  "play-subagent-execution",
+  "pr-merge",
+] as const;
 
 function normalizeContractText(content: string): string {
   return content.replace(/\s+/gu, " ").trim();
 }
 
-function modelGuidanceSentences(content: string): string[] {
-  return content.match(/[^.!?]+[.!?]?/gu) ?? [content];
+function modelGuidanceClauses(content: string): string[] {
+  return content
+    .split(/;|[!?]|(?<=\.)\s+(?=[A-Z])/u)
+    .map((clause) => clause.trim())
+    .filter((clause) => clause.length > 0);
 }
 
-function expectNoRouteModelRediscovery(content: string): void {
-  expect(content).not.toContain("devcanon.config.yaml");
-  expect(content).not.toContain("capabilityProfiles.");
-  expect(content).not.toContain("{{model:");
-  expect(content).not.toMatch(/model\s*[=:]\s*capabilityProfiles\.[\w.]+/u);
+function routeModelRediscoveryViolations(
+  content: string,
+  allowSourceModelTokens = false,
+): string[] {
+  const violations: string[] = [];
+  if (content.includes("devcanon.config.yaml")) violations.push("root-config");
+  if (content.includes("capabilityProfiles.")) {
+    violations.push("capability-profile");
+  }
+  if (!allowSourceModelTokens && content.includes("{{model:")) {
+    violations.push("unresolved-model-token");
+  }
+  if (/model\s*[=:]\s*capabilityProfiles\.[\w.]+/u.test(content)) {
+    violations.push("symbolic-model-dispatch");
+  }
 
-  const positiveGuidance = modelGuidanceSentences(content).filter(
-    (sentence) =>
-      /\b(?:lookup|search|load|resolve)\b/iu.test(sentence) &&
-      /\b(?:devcanon\.config\.yaml|capabilityProfiles\.)/iu.test(sentence) &&
-      !/\b(?:do not|never|no)\b/iu.test(sentence),
-  );
-  expect(positiveGuidance).toEqual([]);
+  for (const clause of modelGuidanceClauses(content)) {
+    if (/\b(?:do not|never|no)\b/iu.test(clause)) continue;
+    if (
+      /\b(?:lookup|search|load|resolve|read|find)\b[\s\S]{0,120}\b(?:devcanon\.config\.yaml|capabilityProfiles\.)/iu.test(
+        clause,
+      )
+    ) {
+      violations.push("positive-rediscovery");
+    }
+    if (
+      /\b(?:use|select|load|resolve|search|read|find|choose|fall back to)\b\s+(?:the|an?|a)?\s*(?:(?:full|configured|target(?:-rendered)?)\s+)?(?:alias|ambient|nearby|capability profile)\b/iu.test(
+        clause,
+      ) ||
+      /\b(?:use|select|load|resolve|search|read|find|choose|fall back to)\b\s+(?:the|an?|a)?\s*model\b[\s\S]{0,80}\b(?:when|if|instead|fallback|unavailable|config|profile)\b/iu.test(
+        clause,
+      )
+    ) {
+      violations.push("positive-fallback");
+    }
+  }
 
-  const positiveFallback = modelGuidanceSentences(content).filter(
-    (sentence) =>
-      /\b(?:use|select|choose|fall back to)\b\s+(?:an?\s+)?(?:alias|nearby|ambient)\s+model\b/iu.test(
-        sentence,
-      ) && !/\b(?:do not|never|no)\b/iu.test(sentence),
-  );
-  expect(positiveFallback).toEqual([]);
+  return violations;
+}
+
+function expectNoRouteModelRediscovery(
+  content: string,
+  allowSourceModelTokens = false,
+): void {
+  expect(
+    routeModelRediscoveryViolations(content, allowSourceModelTokens),
+  ).toEqual([]);
+}
+
+function expectCompleteRouteOwnerInventory(names: readonly string[]): void {
+  expect([...names].sort()).toEqual([...ROUTE_OWNER_SKILLS].sort());
 }
 
 function expectedMirroredBytes(
@@ -283,7 +325,7 @@ describe("shipped skill rendering", () => {
 
       for (const target of TARGETS) {
         const bundleFiles = await Promise.all(
-          ["play-review", "play-subagent-execution"].map(async (skill) => {
+          ROUTE_OWNER_SKILLS.map(async (skill) => {
             const root = path.join(generatedDir, target, "skills", skill);
             const files = await listRelativeFiles(root);
             return Promise.all(
@@ -300,6 +342,11 @@ describe("shipped skill rendering", () => {
           }),
         );
         const renderedFiles = new Map(bundleFiles.flat());
+        expectCompleteRouteOwnerInventory(
+          ROUTE_OWNER_SKILLS.filter((skill) =>
+            renderedFiles.has(`${skill}/SKILL.md`),
+          ),
+        );
 
         for (const [file, content] of renderedFiles) {
           expectNoRouteModelRediscovery(content);
@@ -327,19 +374,28 @@ describe("shipped skill rendering", () => {
   });
 
   it("rejects model rediscovery and fallback guidance despite nearby prohibitions", () => {
-    const nearbyProhibition =
-      "Do not use an alias, nearby, or ambient model. A missing binding blocks before spawn.";
+    expectCompleteRouteOwnerInventory(ROUTE_OWNER_SKILLS);
+    expect(() =>
+      expectCompleteRouteOwnerInventory(ROUTE_OWNER_SKILLS.slice(1)),
+    ).toThrow();
 
-    expect(() =>
-      expectNoRouteModelRediscovery(
-        `${nearbyProhibition} Resolve the full model through capabilityProfiles.frontier.codex.`,
-      ),
-    ).toThrow();
-    expect(() =>
-      expectNoRouteModelRediscovery(
-        `${nearbyProhibition} Select an ambient model when the binding is unavailable.`,
-      ),
-    ).toThrow();
+    const nearbyProhibition = "Do not use an alias.";
+    const cases = [
+      [
+        `${nearbyProhibition}; if unavailable, use an ambient model.`,
+        "positive-fallback",
+      ],
+      ["Use the ambient model when unavailable.", "positive-fallback"],
+      ["Fall back to the nearby model when unavailable.", "positive-fallback"],
+      [
+        "Resolve the full model through capabilityProfiles.frontier.codex.",
+        "positive-rediscovery",
+      ],
+    ] as const;
+
+    for (const [content, violation] of cases) {
+      expect(routeModelRediscoveryViolations(content)).toContain(violation);
+    }
   });
 
   it("renders D10 through reviewer frontier/high without changing deep-reviewer routes", async () => {
