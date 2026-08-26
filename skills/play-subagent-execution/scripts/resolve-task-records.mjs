@@ -64,6 +64,22 @@ if (process.argv[2] === "--help") {
 }
 if (process.argv.length !== 2) fail("positional arguments are not accepted");
 
+function rejectNonemptyStdin() {
+  if (process.stdin.isTTY) return;
+  let stdin;
+  try {
+    stdin = readFileSync(0);
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "EAGAIN") {
+      return;
+    }
+    fail("failed to validate stdin");
+  }
+  if (stdin.length > 0) fail("stdin is not accepted");
+}
+
+rejectNonemptyStdin();
+
 function requireRepositoryRoot() {
   let repositoryRoot;
   try {
@@ -251,6 +267,17 @@ function matchingBacktickRunAcrossLines(lines, startLine, runLength) {
   return undefined;
 }
 
+function inlineCodeIdentifier(text, prefix) {
+  if (!text.startsWith(prefix)) return undefined;
+  const inlineCode = text.slice(prefix.length);
+  const opener = /^`+/.exec(inlineCode)?.[0];
+  if (!opener) return undefined;
+  const end = matchingBacktickRunEnd(inlineCode, opener.length, opener.length);
+  if (end !== inlineCode.length) return undefined;
+  const id = inlineCode.slice(opener.length, end - opener.length);
+  return isRecordId(id) ? id : undefined;
+}
+
 function section(lines, heading) {
   const starts = lines.filter(({ text }) => text === `## ${heading}`);
   if (starts.length > 1) fail(`duplicate plan section: ${heading}`);
@@ -396,20 +423,20 @@ function parseReferenceField(task, label) {
 function recordIdentifiers(lines, tasksStart) {
   const preTasks = lines.filter(({ index }) => index < tasksStart);
   const boundaryIds = preTasks
-    .map(({ text }) => /^### Boundary row `(.+)`$/.exec(text)?.[1])
-    .filter((id) => id !== undefined && isRecordId(id));
+    .map(({ text }) => inlineCodeIdentifier(text, "### Boundary row "))
+    .filter((id) => id !== undefined);
 
   const supplementLines = section(lines, "Supporting-Owner Supplements");
   const supplementIds = supplementLines
     .filter(({ text }) => text.startsWith("- **Governing Entry ID:**"))
     .map(({ text, index }) => {
-      const match = /^- \*\*Governing Entry ID:\*\* `(.+)`$/.exec(text);
-      if (!match || !isRecordId(match[1])) {
+      const id = inlineCodeIdentifier(text, "- **Governing Entry ID:** ");
+      if (id === undefined) {
         fail(
           `malformed supporting-owner supplement identifier near line ${index + 1}`,
         );
       }
-      return match[1];
+      return id;
     });
 
   return {

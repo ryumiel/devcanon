@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import {
@@ -159,6 +159,32 @@ describe("play-subagent-execution task record resolver", () => {
       boundary_row_ids: ["BR-B", "boundary row alpha"],
       supporting_owner_supplement_ids: ["supporting owner alpha"],
     });
+
+    const internalBackticks = basePlan
+      .replace("### Boundary row `BR-A`", "### Boundary row ``BR`A``")
+      .replace('"BR-B", "BR-A"', '"BR-B", "BR`A"')
+      .replace(
+        "- **Governing Entry ID:** `EP-A`",
+        "- **Governing Entry ID:** ``EP`A``",
+      )
+      .replace('["EP-A"]', '["EP`A"]');
+    const internalResult = await runHelper(internalBackticks);
+    expect(JSON.parse(internalResult.stdout)).toMatchObject({
+      boundary_row_ids: ["BR-B", "BR`A"],
+      supporting_owner_supplement_ids: ["EP`A"],
+    });
+
+    for (const malformed of [
+      internalBackticks.replace('"BR-B", "BR`A"', '"BR-B", "`BR`A`"'),
+      internalBackticks.replace(
+        "### Boundary row ``BR`A``",
+        "### Boundary row ``BR`A```",
+      ),
+    ]) {
+      const failure = await expectFailure(malformed);
+      expect(failure.stdout).toBe("");
+      expect(failure.stderr).toContain("unknown or stale boundary row");
+    }
 
     const multilinePlan = basePlan.replace(
       '**Boundary rows:** ["BR-B", "BR-A"]',
@@ -323,6 +349,26 @@ describe("play-subagent-execution task record resolver", () => {
     const before = await readdir(ephemeralRoot);
     await runPlanPath(planPath, basePlan);
     expect(await readdir(ephemeralRoot)).toEqual(before);
+
+    let stdinFailure: { stdout?: string; stderr?: string } | undefined;
+    try {
+      execFileSync(process.execPath, [helperPath], {
+        cwd: repositoryRoot,
+        encoding: "utf8",
+        env: {
+          PATH: process.env.PATH,
+          PLAN_PATH: planPath,
+          TASK_ID: "TASK-A",
+          EXPECTED_PLAN_DIGEST: digest(basePlan),
+        },
+        input: "unexpected input",
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+    } catch (error) {
+      stdinFailure = error as { stdout?: string; stderr?: string };
+    }
+    expect(stdinFailure?.stdout).toBe("");
+    expect(stdinFailure?.stderr).toContain("stdin is not accepted");
 
     const badDigest = await expectFailure(basePlan, {
       EXPECTED_PLAN_DIGEST: "0".repeat(64),
