@@ -1,13 +1,5 @@
 import { execFile } from "node:child_process";
-import {
-  cp,
-  lstat,
-  mkdir,
-  mkdtemp,
-  realpath,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -26,33 +18,11 @@ const adapterSkills = [
   "pr-merge",
 ] as const;
 const tempDirs: string[] = [];
-const bashExecutable = await resolveVerifiedBash();
-
-async function resolveVerifiedBash(): Promise<string> {
-  if (process.platform !== "win32") return "bash";
-  const { stdout } = await execFileAsync("where.exe", ["git.exe"]);
-  const candidates = new Set<string>();
-  for (const gitExecutable of stdout
-    .split(/\r?\n/gu)
-    .filter((entry) => path.win32.isAbsolute(entry))) {
-    const gitDirectory = path.win32.dirname(gitExecutable);
-    candidates.add(path.win32.resolve(gitDirectory, "..", "bin", "bash.exe"));
-    candidates.add(
-      path.win32.resolve(gitDirectory, "..", "usr", "bin", "bash.exe"),
-    );
-  }
-  for (const candidate of candidates) {
-    try {
-      if (!(await lstat(candidate)).isFile()) continue;
-      await execFileAsync(candidate, [
-        "-lc",
-        "builtin pwd -W >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1",
-      ]);
-      return await realpath(candidate);
-    } catch {}
-  }
-  throw new Error("Git-for-Windows Bash is unavailable");
-}
+const bashResolver = path.join(runtimeSkill, "scripts/resolve-bash.mjs");
+const { stdout: resolvedBash } = await execFileAsync(process.execPath, [
+  bashResolver,
+]);
+const bashExecutable = resolvedBash.trim();
 
 afterEach(async () => {
   await Promise.all(

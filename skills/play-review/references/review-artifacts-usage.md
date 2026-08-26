@@ -16,8 +16,14 @@ $PlayReviewDir = "<installed-play-review-skill-bundle>"
 $RuntimeBundle = Join-Path (Split-Path $PlayReviewDir) "devcanon-runtime"
 $VerifiedBash = node (Join-Path $RuntimeBundle "scripts/resolve-bash.mjs")
 if ($LASTEXITCODE -ne 0 -or $VerifiedBash.Count -ne 1) { throw "Git Bash resolution failed" }
-& $VerifiedBash (Join-Path $PlayReviewDir "scripts/review-artifacts.sh") <operation>
-if ($LASTEXITCODE -ne 0) { throw "review-artifacts operation failed" }
+$env:HEAD_SHA = "<review-head-sha>"
+$env:FINDINGS_FILE = ".ephemeral/<branch>-<review-head-sha>-findings.json"
+& $VerifiedBash (Join-Path $PlayReviewDir "scripts/review-artifacts.sh") validate-findings
+if ($LASTEXITCODE -ne 0) { throw "validate-findings failed" }
+
+$env:JUDGMENT_REQUIRED_FINDING_INDEXES = "0,2"
+& $VerifiedBash (Join-Path $PlayReviewDir "scripts/review-artifacts.sh") prepare-judgment-nits
+if ($LASTEXITCODE -ne 0) { throw "prepare-judgment-nits failed" }
 ```
 
 `<operation>` is exactly one of: `validate-findings`, `validate-nits-file`,
