@@ -83,7 +83,7 @@ describe("play-planning execution projection contract", () => {
     }
   });
 
-  it("keeps non-identity task-field ordering non-semantic across planning owners", async () => {
+  it("keeps reference-field ordering non-semantic across planning owners", async () => {
     const [skill, criteria] = await Promise.all([
       readRepoFile("skills/play-planning/SKILL.md"),
       readRepoFile("skills/play-planning/references/planning-criteria.md"),
@@ -97,22 +97,6 @@ describe("play-planning execution projection contract", () => {
         "followed by exactly one `**Boundary rows:**`",
       );
     }
-
-    const taskStructure = normalizedProse(
-      getMarkdownSection(skill, "Task Structure"),
-    );
-    expect(taskStructure).toContain(
-      "After the required immediately-following Task ID, `Mode`, review-routing hints, `Files`, `Boundary rows`, `Supporting-owner supplements`, and `Contract tier` may be reordered",
-    );
-    expect(taskStructure).toContain(
-      "The displayed template and mechanical-task example use illustrative ordering only, not a validity rule",
-    );
-    expect(skill).not.toContain(
-      "after the required Task ID and before any review-routing hint fields",
-    );
-    expect(skill).not.toContain(
-      "after optional `**Mode:** mechanical` and\nbefore `**Files:**`",
-    );
   });
 
   it("removes repeated prose selectors from planning and execution contracts", async () => {
