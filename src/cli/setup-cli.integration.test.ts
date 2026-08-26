@@ -125,9 +125,20 @@ describe.runIf(process.platform === "win32")("setup:cli", () => {
         env,
         shell: commandShell,
       });
+      const unrelatedCwd = path.join(root, "unrelated");
+      await mkdir(unrelatedCwd);
+      const catalog = await execAsync(
+        `"${executable}" --json config get capabilityProfiles.balanced.codex`,
+        { cwd: unrelatedCwd, env, shell: commandShell },
+      );
 
       expect(version.stdout.trim()).toBe("2.0.0");
       expect(help.stdout).toContain("Usage: devcanon");
+      expect(JSON.parse(catalog.stdout)).toMatchObject({
+        source: "bundled",
+        key: "capabilityProfiles.balanced.codex",
+        value: "gpt-5.6-terra",
+      });
     } finally {
       await rm(root, { recursive: true, force: true });
     }

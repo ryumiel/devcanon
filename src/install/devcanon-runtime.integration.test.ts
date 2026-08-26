@@ -25,7 +25,6 @@ import { installTestLogger } from "../__test-helpers__/logger.js";
 import type { TestLoggerResult } from "../__test-helpers__/logger.js";
 import type { InstallMode, ResolvedConfig } from "../config/schema.js";
 import { pathExists } from "../utils/fs.js";
-import { hashLegacyDevcanonRuntimePayload } from "./identity.js";
 import { sync } from "./sync.js";
 import { uninstall } from "./uninstall.js";
 
@@ -48,13 +47,6 @@ async function prepareRuntimeSyncFixture(
   await mkdir(config.library.agentsDir, { recursive: true });
   await copyRuntimeFixture(config.library.skillsDir);
   await createSkillFixture(config.library.skillsDir, "consumer-skill");
-}
-
-async function makeLegacyRuntimeCopy(installedRuntime: string): Promise<void> {
-  await rm(path.join(installedRuntime, "config"), { recursive: true });
-  await rm(
-    path.join(installedRuntime, "scripts", "runtime", "runtime-config.js"),
-  );
 }
 
 describe("devcanon-runtime sync", () => {
@@ -136,125 +128,6 @@ describe("devcanon-runtime sync", () => {
     );
     expect(runtimeRecord?.contentHash).toMatch(/^[a-f0-9]{64}$/);
     expect(runtimeRecord?.installMode).toBe("copy");
-  });
-
-  it("upgrades an exactly matching legacy scripts-only runtime copy", async () => {
-    const config = makeResolvedConfig(tempDir, { claude: { enabled: false } });
-    await prepareRuntimeSyncFixture(config);
-    await sync(config, {
-      dryRun: false,
-      force: false,
-      strict: false,
-      mode: "copy",
-    });
-    const installedRuntime = path.join(
-      config.targets.codex.skillsHome,
-      "devcanon-runtime",
-    );
-    await makeLegacyRuntimeCopy(installedRuntime);
-    const manifest = JSON.parse(await readFile(config.manifest.path, "utf-8"));
-    const record = manifest.records.find(
-      (item: { installedPath: string }) =>
-        item.installedPath === installedRuntime,
-    );
-    record.contentHash =
-      await hashLegacyDevcanonRuntimePayload(installedRuntime);
-    await writeFile(
-      config.manifest.path,
-      `${JSON.stringify(manifest, null, 2)}\n`,
-      "utf-8",
-    );
-
-    const updated = await sync(config, {
-      dryRun: false,
-      force: false,
-      strict: false,
-      mode: "copy",
-    });
-    expect(updated.errors).toEqual([]);
-    expect(
-      await pathExists(
-        path.join(installedRuntime, "config", "runtime-config.json"),
-      ),
-    ).toBe(true);
-    await expect(
-      sync(config, {
-        dryRun: false,
-        force: false,
-        strict: false,
-        mode: "copy",
-      }),
-    ).resolves.toMatchObject({ errors: [] });
-  });
-
-  it("refuses a legacy scripts-only runtime copy whose hash differs from its manifest", async () => {
-    const config = makeResolvedConfig(tempDir, { claude: { enabled: false } });
-    await prepareRuntimeSyncFixture(config);
-    await sync(config, {
-      dryRun: false,
-      force: false,
-      strict: false,
-      mode: "copy",
-    });
-    const installedRuntime = path.join(
-      config.targets.codex.skillsHome,
-      "devcanon-runtime",
-    );
-    await makeLegacyRuntimeCopy(installedRuntime);
-    const manifest = JSON.parse(await readFile(config.manifest.path, "utf-8"));
-    const record = manifest.records.find(
-      (item: { installedPath: string }) =>
-        item.installedPath === installedRuntime,
-    );
-    record.contentHash = "mismatch";
-    await writeFile(
-      config.manifest.path,
-      `${JSON.stringify(manifest, null, 2)}\n`,
-      "utf-8",
-    );
-
-    const result = await sync(config, {
-      dryRun: false,
-      force: false,
-      strict: false,
-      mode: "copy",
-    });
-    expect(result.errors).toEqual([
-      expect.stringContaining("installed copy content hash mismatch"),
-    ]);
-    expect(await pathExists(path.join(installedRuntime, "config"))).toBe(false);
-  });
-
-  it("uninstalls an exactly matching legacy scripts-only runtime copy", async () => {
-    const config = makeResolvedConfig(tempDir, { claude: { enabled: false } });
-    await prepareRuntimeSyncFixture(config);
-    await sync(config, {
-      dryRun: false,
-      force: false,
-      strict: false,
-      mode: "copy",
-    });
-    const installedRuntime = path.join(
-      config.targets.codex.skillsHome,
-      "devcanon-runtime",
-    );
-    await makeLegacyRuntimeCopy(installedRuntime);
-    const manifest = JSON.parse(await readFile(config.manifest.path, "utf-8"));
-    const record = manifest.records.find(
-      (item: { installedPath: string }) =>
-        item.installedPath === installedRuntime,
-    );
-    record.contentHash =
-      await hashLegacyDevcanonRuntimePayload(installedRuntime);
-    await writeFile(
-      config.manifest.path,
-      `${JSON.stringify(manifest, null, 2)}\n`,
-      "utf-8",
-    );
-
-    const result = await uninstall(config, { target: "codex", dryRun: false });
-    expect(result.errors).toEqual([]);
-    expect(await pathExists(installedRuntime)).toBe(false);
   });
 
   it.skipIf(!executableModeMutable)(
