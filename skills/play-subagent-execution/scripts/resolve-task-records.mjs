@@ -121,13 +121,17 @@ function validatePlanPath(repositoryRoot, planPath) {
 
 function visibleLines(markdown) {
   const result = [];
+  const sourceLines = markdown.split(/\r?\n/);
   let fence;
   let htmlComment = false;
-  for (const [index, sourceText] of markdown.split(/\r?\n/).entries()) {
+  let inlineCodeEnd;
+  for (const [index, sourceText] of sourceLines.entries()) {
     let text = sourceText;
     if (!fence) {
-      let visible = "";
-      let cursor = 0;
+      if (inlineCodeEnd && index < inlineCodeEnd.line) continue;
+      let visible = inlineCodeEnd ? " " : "";
+      let cursor = inlineCodeEnd?.end ?? 0;
+      inlineCodeEnd = undefined;
       while (cursor < text.length) {
         if (htmlComment) {
           const end = text.indexOf("-->", cursor);
@@ -143,10 +147,25 @@ function visibleLines(markdown) {
         const codeStart = nextUnescapedBacktick(text, cursor);
         if (codeStart !== -1 && (start === -1 || codeStart < start)) {
           const runLength = backtickRunLength(text, codeStart);
-          const codeEnd = matchingBacktickRunEnd(text, codeStart, runLength);
+          const codeEnd = matchingBacktickRunEnd(
+            text,
+            codeStart + runLength,
+            runLength,
+          );
           if (codeEnd !== -1) {
             visible += text.slice(cursor, codeEnd);
             cursor = codeEnd;
+            continue;
+          }
+          const multilineEnd = matchingBacktickRunAcrossLines(
+            sourceLines,
+            index,
+            runLength,
+          );
+          if (multilineEnd) {
+            visible += text.slice(cursor);
+            cursor = text.length;
+            inlineCodeEnd = multilineEnd;
             continue;
           }
           visible += text.slice(cursor, codeStart + runLength);
@@ -206,15 +225,30 @@ function backtickRunLength(text, start) {
 }
 
 function matchingBacktickRunEnd(text, start, runLength) {
-  let cursor = start + runLength;
+  let cursor = start;
   while (cursor < text.length) {
-    const candidate = nextUnescapedBacktick(text, cursor);
+    const candidate = text.indexOf("`", cursor);
     if (candidate === -1) return -1;
     const candidateLength = backtickRunLength(text, candidate);
     if (candidateLength === runLength) return candidate + candidateLength;
     cursor = candidate + candidateLength;
   }
   return -1;
+}
+
+function matchingBacktickRunAcrossLines(lines, startLine, runLength) {
+  for (let line = startLine + 1; line < lines.length; line++) {
+    const text = lines[line];
+    if (
+      text.trim() === "" ||
+      /^(?: {0,3})(?:#{1,6}(?:\s|$)|`{3,}|~{3,})/.test(text)
+    ) {
+      return undefined;
+    }
+    const end = matchingBacktickRunEnd(text, 0, runLength);
+    if (end !== -1) return { line, end };
+  }
+  return undefined;
 }
 
 function section(lines, heading) {
@@ -384,12 +418,16 @@ function recordIdentifiers(lines, tasksStart) {
   };
 }
 
-function resolveRequested(requested, declared, other, kind) {
+function resolveRequested(requested, declared, other, kind, taskId) {
   for (const id of requested) {
     if (declared.has(id)) continue;
     if (other.has(id))
-      fail(`cross-kind ${kind} identifier: ${JSON.stringify(id)}`);
-    fail(`unknown or stale ${kind} identifier: ${JSON.stringify(id)}`);
+      fail(
+        `cross-kind ${kind} identifier for task ${JSON.stringify(taskId)}: ${JSON.stringify(id)}`,
+      );
+    fail(
+      `unknown or stale ${kind} identifier for task ${JSON.stringify(taskId)}: ${JSON.stringify(id)}`,
+    );
   }
 }
 
@@ -435,12 +473,14 @@ resolveRequested(
   definitions.boundaryIds,
   definitions.supplementIds,
   "boundary row",
+  taskId,
 );
 resolveRequested(
   supportingOwnerSupplementIds,
   definitions.supplementIds,
   definitions.boundaryIds,
   "supporting-owner supplement",
+  taskId,
 );
 
 process.stdout.write(

@@ -211,24 +211,50 @@ describe("play-subagent-execution task record resolver", () => {
   });
 
   it("keeps HTML-comment delimiters inside inline code visible", async () => {
+    const encodeLessThan = (ids: string[]) =>
+      JSON.stringify(ids).replaceAll("<", "\\u003c");
     const unpairedLiteral = basePlan
       .replace("### Boundary row `BR-A`", "### Boundary row `BR<!--A`")
-      .replace('["BR-B", "BR-A"]', '["BR-B"]')
+      .replace('["BR-B", "BR-A"]', encodeLessThan(["BR-B", "BR<!--A"]))
       .replace("## Tasks", "The literal `<!--` remains visible.\n\n## Tasks");
     const unpairedResult = await runHelper(unpairedLiteral);
     expect(JSON.parse(unpairedResult.stdout).boundary_row_ids).toEqual([
       "BR-B",
+      "BR<!--A",
     ]);
 
     const pairedIdentifier = basePlan
       .replace("### Boundary row `BR-A`", "### Boundary row `BR<!--A-->`")
-      .replace('["BR-B", "BR-A"]', '["BR-B"]')
+      .replace('["BR-B", "BR-A"]', encodeLessThan(["BR-B", "BR<!--A-->"]))
       .replace(
         "## Tasks",
         "The paired literals `<!--` and `-->` remain visible.\n\n## Tasks",
       );
     const result = await runHelper(pairedIdentifier);
-    expect(JSON.parse(result.stdout).boundary_row_ids).toEqual(["BR-B"]);
+    expect(JSON.parse(result.stdout).boundary_row_ids).toEqual([
+      "BR-B",
+      "BR<!--A-->",
+    ]);
+
+    const multilineLiteral = basePlan.replace(
+      "## Tasks",
+      "A multiline `literal <!--\ncontinues here`\n\n## Tasks",
+    );
+    await expect(runHelper(multilineLiteral)).resolves.toMatchObject({
+      stderr: "",
+    });
+
+    for (const [anchor, id] of [
+      ["### Boundary row `BR\\`<!--A-->`", "BR\\`<!--A-->"],
+      ["### Boundary row ``BR\\``<!--A-->``", "BR\\``<!--A-->"],
+    ]) {
+      const escapedLookingCloser = basePlan
+        .replace("### Boundary row `BR-A`", anchor)
+        .replace('["BR-B", "BR-A"]', encodeLessThan(["BR-B", id]));
+      const failure = await expectFailure(escapedLookingCloser);
+      expect(failure.stdout).toBe("");
+      expect(failure.stderr).toContain("unknown or stale boundary row");
+    }
   });
 
   it("fails closed for unknown, stale, ambiguous, duplicate-definition, and cross-kind IDs", async () => {
@@ -257,6 +283,15 @@ describe("play-subagent-execution task record resolver", () => {
       expect(failure.stdout).toBe("");
       expect(failure.stderr).not.toBe("");
     }
+
+    const unknownRecord = await expectFailure(
+      basePlan.replace('"BR-B", "BR-A"', '"BR-STALE"'),
+    );
+    expect(unknownRecord.stderr).toContain('task "TASK-A"');
+    const crossKind = await expectFailure(
+      basePlan.replace('["BR-B", "BR-A"]', '["EP-A"]'),
+    );
+    expect(crossKind.stderr).toContain('task "TASK-A"');
 
     const controlIdPlan = basePlan.replace(
       '["BR-B", "BR-A"]',
@@ -304,13 +339,16 @@ describe("play-subagent-execution task record resolver", () => {
     expect(unsafePath.stdout).toBe("");
     expect(unsafePath.stderr).toContain("plan path validation failed");
 
+    const isolatedRoot = await createTempDir();
+    tempDirs.push(isolatedRoot);
+    await execFileAsync("git", ["init", "--quiet"], { cwd: isolatedRoot });
+    const isolatedEphemeral = path.join(isolatedRoot, ".ephemeral");
+    await mkdir(isolatedEphemeral);
     const emptySlugPath = ".ephemeral/-plan.md";
-    const emptySlugAbsolute = path.join(repositoryRoot, emptySlugPath);
-    await writeFile(emptySlugAbsolute, basePlan);
-    createdPaths.push(emptySlugAbsolute);
-    await expect(runPlanPath(emptySlugPath, basePlan)).resolves.toMatchObject({
-      stderr: "",
-    });
+    await writeFile(path.join(isolatedRoot, emptySlugPath), basePlan);
+    await expect(
+      runPlanPath(emptySlugPath, basePlan, {}, isolatedRoot),
+    ).resolves.toMatchObject({ stderr: "" });
 
     const windowsSeparator = await expectFailure(basePlan, {
       PLAN_PATH: ".ephemeral\\nested\\outside-plan.md",

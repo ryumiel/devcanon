@@ -89,6 +89,8 @@ Quick navigation index for the DevCanon repository.
   [`docs/adr/adr-0033-public-helper-usage-contracts.md`](docs/adr/adr-0033-public-helper-usage-contracts.md)
 - Where is calibrated review finding and duplicate-retention rationale recorded? ->
   [`docs/adr/adr-0034-calibrated-review-findings-and-duplicate-retention.md`](docs/adr/adr-0034-calibrated-review-findings-and-duplicate-retention.md)
+- Where is path-backed task-record resolution policy recorded? ->
+  [`docs/adr/adr-0035-path-backed-task-record-resolution.md`](docs/adr/adr-0035-path-backed-task-record-resolution.md)
 - Where is subagent lifecycle ownership recorded? ->
   [`docs/adr/adr-0020-subagent-lifecycle-ownership.md`](docs/adr/adr-0020-subagent-lifecycle-ownership.md)
 - Where is the render loaded boundary decision recorded? ->

@@ -4,6 +4,11 @@
 
 Accepted
 
+The inline-execution compatibility clause for `play-subagent-execution` is
+superseded by
+[ADR-0035](adr-0035-path-backed-task-record-resolution.md). The remaining
+decision stays accepted.
+
 ## Context
 
 ADR-0012 ratified a side-channel file pattern for `play-review`'s findings:
@@ -46,8 +51,9 @@ from its caller. This ADR documents that scoping.
 
 ### Hybrid consumer input contract
 
-`play-brainstorm` and `play-planning` accept the upstream artifact in either of
-two shapes inside their invocation prose:
+Each consumer skill (`play-brainstorm`, `play-planning`,
+`play-subagent-execution`) accepts the upstream artifact in either of two
+shapes inside its invocation prose:
 
 1. **Path reference** (controller-preferred): a single literal line of the
    form `<Artifact label>: <repo-relative-path>`
@@ -56,20 +62,9 @@ two shapes inside their invocation prose:
    unchanged from prior behavior.
 
 If both are present, the path reference wins. The hybrid form preserves
-backward compatibility for direct human invocations of those two generative
-skills (which have no upstream file to reference) while letting controllers
-like `issue-priming-workflow` drop the inline payload entirely.
-
-Issue #642 narrows the execution consumer at hop C. `play-subagent-execution`
-requires the guarded `Plan: .ephemeral/*-plan.md` path plus the exact reviewed
-SHA-256 digest before it can resolve kind-scoped task-record identifiers. It
-still recognizes inline `## Plan` content as a direct-invocation input shape,
-but it must return `BLOCKED/NEEDS_CONTEXT` and ask the caller to save and review
-the plan through the path-backed route; it does not execute, persist, hash, or
-structurally resolve the inline content. This supersedes only ADR-0013's prior
-inline-execution compatibility for `play-subagent-execution`. The hybrid input
-and backward-compatibility requirements for `play-brainstorm` and
-`play-planning` remain unchanged.
+backward compatibility for direct human invocations (which have no upstream
+file to reference) while letting controllers like `issue-priming-workflow`
+drop the inline payload entirely.
 
 ### Producer notice-line contract
 
