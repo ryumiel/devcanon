@@ -412,7 +412,7 @@ describe("play-subagent-execution task record resolver", () => {
       code: number | null;
       stdout: string;
       stderr: string;
-      closedBeforeInput: boolean;
+      refusalObservedWhileInputOpen: boolean;
     }>((resolve) => {
       const child = spawn(
         process.execPath,
@@ -425,9 +425,9 @@ describe("play-subagent-execution task record resolver", () => {
           cwd: repositoryRoot,
           env: {
             PATH: process.env.PATH,
-            PLAN_PATH: planPath,
+            PLAN_PATH: "plan.md",
             TASK_ID: "TASK-A",
-            EXPECTED_PLAN_DIGEST: digest(basePlan),
+            EXPECTED_PLAN_DIGEST: "invalid",
           },
           stdio: ["pipe", "pipe", "pipe", "ipc"],
         },
@@ -435,6 +435,62 @@ describe("play-subagent-execution task record resolver", () => {
       let stdout = "";
       let stderr = "";
       let inputClosed = false;
+      let refusalObservedWhileInputOpen = false;
+      child.stdout.setEncoding("utf8").on("data", (chunk) => {
+        stdout += chunk;
+      });
+      child.stderr.setEncoding("utf8").on("data", (chunk) => {
+        stderr += chunk;
+        if (!inputClosed && stderr.includes("stdin is not accepted")) {
+          refusalObservedWhileInputOpen = !inputClosed;
+          inputClosed = true;
+          child.stdin.end();
+        }
+      });
+      child.stdin.on("error", () => {});
+      const watchdog = setTimeout(() => {
+        if (!inputClosed) {
+          inputClosed = true;
+          child.stdin.end();
+        }
+      }, 5000);
+      child.once("message", () => {
+        child.stdin.write("x", () => {
+          child.send?.("resolve");
+        });
+      });
+      child.on("close", (code) => {
+        clearTimeout(watchdog);
+        resolve({
+          code,
+          stdout,
+          stderr,
+          refusalObservedWhileInputOpen,
+        });
+      });
+    });
+    expect(firstByteStdin.refusalObservedWhileInputOpen).toBe(true);
+    expect(firstByteStdin.code).not.toBe(0);
+    expect(firstByteStdin.stdout).toBe("");
+    expect(firstByteStdin.stderr).toContain("stdin is not accepted");
+
+    const indeterminateStdin = await new Promise<{
+      code: number | null;
+      stdout: string;
+      stderr: string;
+    }>((resolve) => {
+      const child = spawn(process.execPath, [helperPath], {
+        cwd: repositoryRoot,
+        env: {
+          PATH: process.env.PATH,
+          PLAN_PATH: planPath,
+          TASK_ID: "TASK-A",
+          EXPECTED_PLAN_DIGEST: digest(basePlan),
+        },
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      let stdout = "";
+      let stderr = "";
       child.stdout.setEncoding("utf8").on("data", (chunk) => {
         stdout += chunk;
       });
@@ -442,30 +498,56 @@ describe("play-subagent-execution task record resolver", () => {
         stderr += chunk;
       });
       child.stdin.on("error", () => {});
-      let timeout: ReturnType<typeof setTimeout> | undefined;
-      child.once("message", () => {
-        child.stdin.write("x", () => {
-          timeout = setTimeout(() => {
-            inputClosed = true;
-            child.stdin.end();
-          }, 100);
-          child.send?.("resolve");
-        });
-      });
+      const watchdog = setTimeout(() => child.stdin.end(), 5000);
       child.on("close", (code) => {
-        if (timeout) clearTimeout(timeout);
-        resolve({
-          code,
-          stdout,
-          stderr,
-          closedBeforeInput: !inputClosed,
-        });
+        clearTimeout(watchdog);
+        resolve({ code, stdout, stderr });
       });
     });
-    expect(firstByteStdin.closedBeforeInput).toBe(true);
-    expect(firstByteStdin.code).not.toBe(0);
-    expect(firstByteStdin.stdout).toBe("");
-    expect(firstByteStdin.stderr).toContain("stdin is not accepted");
+    expect(indeterminateStdin.code).not.toBe(0);
+    expect(indeterminateStdin.stdout).toBe("");
+    expect(indeterminateStdin.stderr).toContain(
+      "stdin emptiness could not be established",
+    );
+
+    const genericReadFailure = await new Promise<{
+      code: number | null;
+      stdout: string;
+      stderr: string;
+    }>((resolve) => {
+      const child = spawn(
+        process.execPath,
+        [
+          "--input-type=module",
+          "--eval",
+          'import { closeSync, openSync } from "node:fs"; closeSync(0); openSync(process.cwd(), "r"); await import(process.argv[1]);',
+          helperPath,
+        ],
+        {
+          cwd: repositoryRoot,
+          env: {
+            PATH: process.env.PATH,
+            PLAN_PATH: planPath,
+            TASK_ID: "TASK-A",
+            EXPECTED_PLAN_DIGEST: digest(basePlan),
+          },
+          stdio: ["pipe", "pipe", "pipe"],
+        },
+      );
+      let stdout = "";
+      let stderr = "";
+      child.stdout.setEncoding("utf8").on("data", (chunk) => {
+        stdout += chunk;
+      });
+      child.stderr.setEncoding("utf8").on("data", (chunk) => {
+        stderr += chunk;
+      });
+      child.stdin.on("error", () => {});
+      child.on("close", (code) => resolve({ code, stdout, stderr }));
+    });
+    expect(genericReadFailure.code).not.toBe(0);
+    expect(genericReadFailure.stdout).toBe("");
+    expect(genericReadFailure.stderr).toContain("failed to validate stdin");
 
     const badDigest = await expectFailure(basePlan, {
       EXPECTED_PLAN_DIGEST: "0".repeat(64),
