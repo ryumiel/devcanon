@@ -348,6 +348,33 @@ describe("play-subagent-execution task record resolver", () => {
     expect(failure.stderr).toContain("plan requires exactly one Tasks section");
   });
 
+  it("rejects comment-stripped markers without raw fence openers", async () => {
+    const syntheticTildeMarker = basePlan.replace(
+      "## Tasks",
+      "<!--prefix-->~~~text <!--\nexcluded content\n~~~\n\n## Tasks",
+    );
+
+    const failure = await expectFailure(syntheticTildeMarker);
+    expect(failure.stdout).toBe("");
+    expect(failure.stderr).toContain("plan requires exactly one Tasks section");
+  });
+
+  it("keeps canonical-looking tasks inside valid backtick fences excluded", async () => {
+    const validBacktickFence = basePlan.replace(
+      "## Tasks",
+      "```text\n## Tasks\n### Task 999: excluded\n**Task ID:** TASK-A\n```\n\n## Tasks",
+    );
+
+    const result = await runHelper(validBacktickFence);
+    expect(JSON.parse(result.stdout)).toEqual({
+      schema: "play-subagent-execution/task-record-resolution/v1",
+      task_id: "TASK-A",
+      boundary_row_ids: ["BR-B", "BR-A"],
+      supporting_owner_supplement_ids: ["EP-A"],
+    });
+    expect(result.stderr).toBe("");
+  });
+
   it("keeps record constructs visible after matching backticks inside fences", async () => {
     const fencedBackticks = basePlan.replace(
       "### Boundary row `BR-A`",

@@ -206,8 +206,9 @@ function visibleLines(markdown) {
       if (!fence) {
         const rawMarker = /^(?: {0,3})(`{3,}|~{3,})(.*)$/.exec(sourceText);
         if (
-          char === "`" &&
-          (rawMarker?.[1][0] !== "`" || rawMarker[2].includes("`"))
+          !rawMarker ||
+          rawMarker[1] !== marker[1] ||
+          (char === "`" && rawMarker[2].includes("`"))
         ) {
           continue;
         }
