@@ -429,33 +429,37 @@ describe("play-subagent-execution task record resolver", () => {
             TASK_ID: "TASK-A",
             EXPECTED_PLAN_DIGEST: "invalid",
           },
-          stdio: ["pipe", "pipe", "pipe", "ipc"],
+          stdio: ["pipe", "pipe", "pipe", "ipc"] as const,
         },
       );
+      const { stdin, stdout: childStdout, stderr: childStderr } = child;
+      if (!stdin || !childStdout || !childStderr) {
+        throw new Error("expected piped child stdio");
+      }
       let stdout = "";
       let stderr = "";
       let inputClosed = false;
       let refusalObservedWhileInputOpen = false;
-      child.stdout.setEncoding("utf8").on("data", (chunk) => {
+      childStdout.setEncoding("utf8").on("data", (chunk) => {
         stdout += chunk;
       });
-      child.stderr.setEncoding("utf8").on("data", (chunk) => {
+      childStderr.setEncoding("utf8").on("data", (chunk) => {
         stderr += chunk;
         if (!inputClosed && stderr.includes("stdin is not accepted")) {
           refusalObservedWhileInputOpen = !inputClosed;
           inputClosed = true;
-          child.stdin.end();
+          stdin.end();
         }
       });
-      child.stdin.on("error", () => {});
+      stdin.on("error", () => {});
       const watchdog = setTimeout(() => {
         if (!inputClosed) {
           inputClosed = true;
-          child.stdin.end();
+          stdin.end();
         }
       }, 5000);
       child.once("message", () => {
-        child.stdin.write("x", () => {
+        stdin.write("x", () => {
           child.send?.("resolve");
         });
       });
