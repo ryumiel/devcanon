@@ -324,7 +324,7 @@ describe("play-subagent-execution task record resolver", () => {
   it("keeps canonical records visible after comment-like fence info strings", async () => {
     const commentLikeFenceInfo = basePlan.replace(
       "## Tasks",
-      "~~~text <!-- literal info\nexcluded content\n~~~\n\n## Tasks",
+      "~~~text <!-- literal ` info\nexcluded content\n~~~\n\n## Tasks",
     );
 
     const result = await runHelper(commentLikeFenceInfo);
@@ -335,6 +335,17 @@ describe("play-subagent-execution task record resolver", () => {
       supporting_owner_supplement_ids: ["EP-A"],
     });
     expect(result.stderr).toBe("");
+  });
+
+  it("rejects comment-like invalid backtick fence info strings", async () => {
+    const invalidBacktickFenceInfo = basePlan.replace(
+      "## Tasks",
+      "```text <!-- literal ` info\nexcluded content\n```\n\n## Tasks",
+    );
+
+    const failure = await expectFailure(invalidBacktickFenceInfo);
+    expect(failure.stdout).toBe("");
+    expect(failure.stderr).toContain("plan requires exactly one Tasks section");
   });
 
   it("keeps record constructs visible after matching backticks inside fences", async () => {
