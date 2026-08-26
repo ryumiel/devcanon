@@ -198,6 +198,16 @@ describe("runtime configuration selection", () => {
       ),
     ).toBe("CLAUDE.md");
   });
+
+  it("exposes source-schema scalars without loader-only configDir", async () => {
+    const configPath = await createConfigFile(tempDir);
+    const selected = await selectRuntimeConfig(configPath);
+
+    expect(getRuntimeConfigScalar(selected.value, "version")).toBe(2);
+    expect(() => getRuntimeConfigScalar(selected.value, "configDir")).toThrow(
+      "Configuration key not found: configDir",
+    );
+  });
 });
 
 describe("runtime configuration catalog", () => {

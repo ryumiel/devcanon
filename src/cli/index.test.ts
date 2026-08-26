@@ -11,7 +11,11 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { copyDevcanonRuntimeFixture } from "../__test-helpers__/fixtures.js";
+import {
+  copyDevcanonRuntimeFixture,
+  createConfigFile,
+  makeConfigYaml,
+} from "../__test-helpers__/fixtures.js";
 import {
   inspectManifest,
   recoverInvalidManifest,
@@ -96,6 +100,124 @@ describe("CLI entrypoint", () => {
     });
   });
 
+  it("returns source-schema version through registered plain and JSON config get", async () => {
+    const configPath = path.join(process.cwd(), "devcanon.config.yaml");
+    const plain = await execFileAsync(
+      "pnpm",
+      [
+        "exec",
+        "tsx",
+        "src/cli/index.ts",
+        "--config",
+        configPath,
+        "config",
+        "get",
+        "version",
+      ],
+      { cwd: process.cwd(), shell: process.platform === "win32" },
+    );
+    const json = await execFileAsync(
+      "pnpm",
+      [
+        "exec",
+        "tsx",
+        "src/cli/index.ts",
+        "--config",
+        configPath,
+        "--json",
+        "config",
+        "get",
+        "version",
+      ],
+      { cwd: process.cwd(), shell: process.platform === "win32" },
+    );
+
+    expect(plain.stdout).toBe("2\n");
+    expect(JSON.parse(json.stdout)).toMatchObject({
+      path: configPath,
+      source: "explicit",
+      key: "version",
+      value: 2,
+    });
+  });
+
+  it("does not emit success output for loader-only configDir", async () => {
+    const configPath = path.join(process.cwd(), "devcanon.config.yaml");
+    let failure:
+      | { code?: number; stderr?: string; stdout?: string }
+      | undefined;
+    try {
+      await execFileAsync(
+        "pnpm",
+        [
+          "exec",
+          "tsx",
+          "src/cli/index.ts",
+          "--config",
+          configPath,
+          "--json",
+          "config",
+          "get",
+          "configDir",
+        ],
+        { cwd: process.cwd(), shell: process.platform === "win32" },
+      );
+    } catch (error) {
+      failure = error as { code?: number; stderr?: string; stdout?: string };
+    }
+
+    expect(failure).toMatchObject({
+      code: 1,
+      stdout: "",
+      stderr: expect.stringContaining("Configuration key not found: configDir"),
+    });
+  });
+
+  it("reports environment and CWD selection through registered config path", async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-cli-"));
+    const cwdDir = path.join(tempDir, "cwd");
+    const environmentDir = path.join(tempDir, "environment");
+    await mkdir(cwdDir, { recursive: true });
+    await mkdir(environmentDir, { recursive: true });
+    const environmentPath = await createConfigFile(
+      environmentDir,
+      makeConfigYaml(),
+    );
+    await createConfigFile(cwdDir, makeConfigYaml());
+
+    try {
+      const environmentResult = await execFileAsync(
+        tsxEntrypoint(),
+        [cliEntrypoint(), "--json", "config", "path"],
+        {
+          cwd: cwdDir,
+          env: { ...process.env, DEVCANON_CONFIG: environmentPath },
+          shell: process.platform === "win32",
+        },
+      );
+      const cwdResult = await execFileAsync(
+        tsxEntrypoint(),
+        [cliEntrypoint(), "--json", "config", "path"],
+        {
+          cwd: cwdDir,
+          env: { ...process.env, DEVCANON_CONFIG: "" },
+          shell: process.platform === "win32",
+        },
+      );
+
+      expect(JSON.parse(environmentResult.stdout)).toEqual({
+        path: path.resolve(environmentPath),
+        source: "environment",
+      });
+      expect(JSON.parse(cwdResult.stdout)).toMatchObject({
+        source: "cwd",
+        path: expect.stringMatching(/devcanon\.config\.yaml$/u),
+      });
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
   it("uses the bundled catalog through the public CLI outside a source library", async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-cli-"));
     try {
@@ -112,6 +234,35 @@ describe("CLI entrypoint", () => {
       expect(JSON.parse(result.stdout)).toMatchObject({
         source: "bundled",
         path: expect.any(String),
+      });
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reads a bundled scalar through the public CLI outside a source library", async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-cli-"));
+    try {
+      const result = await execFileAsync(
+        tsxEntrypoint(),
+        [
+          cliEntrypoint(),
+          "--json",
+          "config",
+          "get",
+          "capabilityProfiles.balanced.codex",
+        ],
+        {
+          cwd: tempDir,
+          env: { ...process.env, DEVCANON_CONFIG: "" },
+          shell: process.platform === "win32",
+        },
+      );
+
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        source: "bundled",
+        key: "capabilityProfiles.balanced.codex",
+        value: "gpt-5.6-terra",
       });
     } finally {
       await rm(tempDir, { recursive: true, force: true });

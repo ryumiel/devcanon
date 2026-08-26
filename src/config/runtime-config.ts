@@ -167,13 +167,14 @@ async function selectSourceConfig(
   source: Exclude<RuntimeConfigSource, "bundled">,
   strict: boolean,
 ): Promise<SelectedRuntimeConfig> {
+  const { configDir: _configDir, ...resolvedConfig } = await loadConfigAtPath(
+    selectedPath,
+    strict,
+  );
   return {
     path: path.resolve(selectedPath),
     source,
-    value: (await loadConfigAtPath(selectedPath, strict)) as unknown as Record<
-      string,
-      unknown
-    >,
+    value: { version: 2, ...resolvedConfig },
   };
 }
 
