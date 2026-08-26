@@ -330,29 +330,55 @@ describe("agent routing and mutation policy owner", () => {
 
   it("keeps every D1-D18 model source target-rendered and checkout-independent", async () => {
     const ownerSkills = [
-      "issue-priming-workflow",
-      "play-agent-dispatch",
-      "play-planning",
-      "play-review",
-      "play-skill-authoring",
-      "play-subagent-execution",
-      "pr-merge",
-    ];
+      [
+        "issue-priming-workflow",
+        "A missing, blank, unresolved, or mismatched marker blocks before capture or spawn. Do not search a source checkout, use an alias, or fall back to a nearby or ambient model.",
+      ],
+      [
+        "play-agent-dispatch",
+        "A missing, blank, unresolved, or mismatched binding blocks before spawn. Do not search a source checkout, use a sibling runtime when a rendered binding owns this field, or select an alias, nearby, or ambient model.",
+      ],
+      [
+        "play-planning",
+        "A missing, blank, unresolved, or mismatched marker blocks before capture or spawn. Do not search a source checkout, use an alias, or fall back to a nearby or ambient model.",
+      ],
+      [
+        "play-review",
+        "A missing, blank, unresolved, or mismatched marker blocks before capture or spawn. Do not search a source checkout, use an alias, or fall back to a nearby or ambient model.",
+      ],
+      [
+        "play-skill-authoring",
+        "A missing, blank, unresolved, or mismatched marker blocks before capture or spawn. Do not search a source checkout, use an alias, or fall back to a nearby or ambient model.",
+      ],
+      [
+        "play-subagent-execution",
+        "A missing, blank, unresolved, or mismatched marker blocks before capture or spawn. Do not search a source checkout, use an alias, or fall back to a nearby or ambient model.",
+      ],
+      [
+        "pr-merge",
+        "A missing, blank, unresolved, or mismatched marker blocks before capture or spawn. Do not search a source checkout, use an alias, or fall back to a nearby or ambient model.",
+      ],
+    ] as const;
     const sources = await Promise.all(
       ownerSkills.map(
-        async (skill) =>
-          [skill, await readRepoFile(`skills/${skill}/SKILL.md`)] as const,
+        async ([skill, failClosed]) =>
+          [
+            skill,
+            failClosed,
+            await readRepoFile(`skills/${skill}/SKILL.md`),
+          ] as const,
       ),
     );
 
-    for (const [skill, source] of sources) {
+    for (const [skill, failClosed, source] of sources) {
       expect(
         source,
         `${skill} never discovers an original checkout config`,
       ).not.toContain("devcanon.config.yaml");
-      expect(source, `${skill} rejects ambient model authority`).toMatch(
-        /ambient.*model|model.*ambient/u,
-      );
+      expect(
+        source.replace(/\s+/gu, " "),
+        `${skill} fail-closes model resolution`,
+      ).toContain(failClosed);
     }
   });
 

@@ -16,6 +16,37 @@ import { buildGlossary, resolvePlaceholders } from "./placeholders.js";
 
 const TARGETS = ["claude", "codex"] as const;
 
+function normalizeContractText(content: string): string {
+  return content.replace(/\s+/gu, " ").trim();
+}
+
+function modelGuidanceSentences(content: string): string[] {
+  return content.match(/[^.!?]+[.!?]?/gu) ?? [content];
+}
+
+function expectNoRouteModelRediscovery(content: string): void {
+  expect(content).not.toContain("devcanon.config.yaml");
+  expect(content).not.toContain("capabilityProfiles.");
+  expect(content).not.toContain("{{model:");
+  expect(content).not.toMatch(/model\s*[=:]\s*capabilityProfiles\.[\w.]+/u);
+
+  const positiveGuidance = modelGuidanceSentences(content).filter(
+    (sentence) =>
+      /\b(?:lookup|search|load|resolve)\b/iu.test(sentence) &&
+      /\b(?:devcanon\.config\.yaml|capabilityProfiles\.)/iu.test(sentence) &&
+      !/\b(?:do not|never|no)\b/iu.test(sentence),
+  );
+  expect(positiveGuidance).toEqual([]);
+
+  const positiveFallback = modelGuidanceSentences(content).filter(
+    (sentence) =>
+      /\b(?:use|select|choose|fall back to)\b\s+(?:an?\s+)?(?:alias|nearby|ambient)\s+model\b/iu.test(
+        sentence,
+      ) && !/\b(?:do not|never|no)\b/iu.test(sentence),
+  );
+  expect(positiveFallback).toEqual([]);
+}
+
 function expectedMirroredBytes(
   subdir: string,
   relativeFile: string,
@@ -195,29 +226,50 @@ describe("shipped skill rendering", () => {
     const generatedDir = await mkdtemp(
       path.join(tmpdir(), "devcanon-rendered-route-models-"),
     );
-    const bindingsByReference = new Map([
-      [
-        "play-review/references/reviewer-routing-policy.md",
-        ["D7_MODEL", "D8_MODEL", "D9_MODEL", "D10_MODEL"],
-      ],
-      [
-        "play-subagent-execution/references/implementer-prompt.md",
-        ["D12_MODEL"],
-      ],
-      ["play-subagent-execution/references/executor-prompt.md", ["D13_MODEL"]],
-      [
-        "play-subagent-execution/references/spec-reviewer-prompt.md",
-        ["D14_MODEL"],
-      ],
-      [
-        "play-subagent-execution/references/code-quality-reviewer-prompt.md",
-        ["D15_MODEL", "D16_MODEL"],
-      ],
-      [
-        "play-subagent-execution/references/example-workflow.md",
-        ["D12_MODEL", "D13_MODEL", "D14_MODEL", "D15_MODEL", "D16_MODEL"],
-      ],
-    ] as const);
+    const referenceContracts = [
+      {
+        path: "play-review/references/reviewer-routing-policy.md",
+        bindings: ["D7_MODEL", "D8_MODEL", "D9_MODEL", "D10_MODEL"],
+        failClosed:
+          "A missing, blank, unresolved, or mismatched binding blocks before capture or spawn; no source-checkout lookup, fallback model, effort change, retry, escalation, or role substitution is permitted.",
+      },
+      {
+        path: "play-subagent-execution/references/implementer-prompt.md",
+        bindings: ["D12_MODEL"],
+        failClosed:
+          "A missing, blank, unresolved, or mismatched binding blocks before capture or spawn; do not locate a source checkout or use an alias, nearby, or ambient model.",
+      },
+      {
+        path: "play-subagent-execution/references/executor-prompt.md",
+        bindings: ["D13_MODEL"],
+        failClosed:
+          "A missing, blank, unresolved, or mismatched binding blocks before capture or spawn; do not locate a source checkout or use an alias, nearby, or ambient model.",
+      },
+      {
+        path: "play-subagent-execution/references/spec-reviewer-prompt.md",
+        bindings: ["D14_MODEL"],
+        failClosed:
+          "A missing, blank, unresolved, or mismatched binding blocks before capture or spawn; do not locate a source checkout or use an alias, nearby, or ambient model.",
+      },
+      {
+        path: "play-subagent-execution/references/code-quality-reviewer-prompt.md",
+        bindings: ["D15_MODEL", "D16_MODEL"],
+        failClosed:
+          "A missing, blank, unresolved, or mismatched binding blocks before capture or spawn; do not locate a source checkout or use an alias, nearby, or ambient model.",
+      },
+      {
+        path: "play-subagent-execution/references/example-workflow.md",
+        bindings: [
+          "D12_MODEL",
+          "D13_MODEL",
+          "D14_MODEL",
+          "D15_MODEL",
+          "D16_MODEL",
+        ],
+        failClosed:
+          "A missing, blank, unresolved, or mismatched binding blocks before capture or spawn; do not locate a source checkout or use an alias, nearby, or ambient model.",
+      },
+    ] as const;
 
     try {
       await renderAll(
@@ -230,33 +282,39 @@ describe("shipped skill rendering", () => {
       );
 
       for (const target of TARGETS) {
-        const bundleContents = await Promise.all(
+        const bundleFiles = await Promise.all(
           ["play-review", "play-subagent-execution"].map(async (skill) => {
             const root = path.join(generatedDir, target, "skills", skill);
             const files = await listRelativeFiles(root);
             return Promise.all(
               files
                 .filter((file) => file.endsWith(".md"))
-                .map((file) => readFile(path.join(root, file), "utf8")),
+                .map(
+                  async (file) =>
+                    [
+                      `${skill}/${file}`,
+                      await readFile(path.join(root, file), "utf8"),
+                    ] as const,
+                ),
             );
           }),
         );
-        const bundle = bundleContents.flat(2).join("\n");
+        const renderedFiles = new Map(bundleFiles.flat());
 
-        expect(bundle).not.toContain("devcanon.config.yaml");
-        expect(bundle).not.toMatch(
-          /model\s*[=:]\s*capabilityProfiles\.[\w.]+/u,
-        );
-        expect(bundle).not.toContain("{{model:");
-        expect(bundle).toMatch(/unresolved.*marker/u);
-        expect(bundle).toMatch(/alias.*ambient model/u);
+        for (const [file, content] of renderedFiles) {
+          expectNoRouteModelRediscovery(content);
+          expect(content, `${target} ${file}`).not.toContain("{{model:");
+        }
 
-        for (const [relativePath, bindings] of bindingsByReference) {
-          const content = await readFile(
-            path.join(generatedDir, target, "skills", relativePath),
-            "utf8",
-          );
-          for (const binding of bindings) {
+        for (const reference of referenceContracts) {
+          const content = renderedFiles.get(reference.path);
+          expect(
+            content,
+            `${target} ${reference.path} is rendered`,
+          ).toBeDefined();
+          const normalized = normalizeContractText(content ?? "");
+          expect(normalized).toContain(reference.failClosed);
+          for (const binding of reference.bindings) {
             expect(content).toMatch(
               new RegExp(`already-rendered\\s+\`${binding}\``, "u"),
             );
@@ -266,6 +324,22 @@ describe("shipped skill rendering", () => {
     } finally {
       await rm(generatedDir, { recursive: true, force: true });
     }
+  });
+
+  it("rejects model rediscovery and fallback guidance despite nearby prohibitions", () => {
+    const nearbyProhibition =
+      "Do not use an alias, nearby, or ambient model. A missing binding blocks before spawn.";
+
+    expect(() =>
+      expectNoRouteModelRediscovery(
+        `${nearbyProhibition} Resolve the full model through capabilityProfiles.frontier.codex.`,
+      ),
+    ).toThrow();
+    expect(() =>
+      expectNoRouteModelRediscovery(
+        `${nearbyProhibition} Select an ambient model when the binding is unavailable.`,
+      ),
+    ).toThrow();
   });
 
   it("renders D10 through reviewer frontier/high without changing deep-reviewer routes", async () => {
