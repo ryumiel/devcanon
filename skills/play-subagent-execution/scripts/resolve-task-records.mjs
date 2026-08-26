@@ -173,10 +173,11 @@ function visibleLines(markdown) {
             cursor = codeEnd;
             continue;
           }
-          const multilineEnd =
-            /^(?:### (?:Boundary row|Task)|(?:- )?\*\*)/.test(text)
-              ? undefined
-              : matchingBacktickRunAcrossLines(sourceLines, index, runLength);
+          const multilineEnd = matchingBacktickRunAcrossLines(
+            sourceLines,
+            index,
+            runLength,
+          );
           if (multilineEnd) {
             visible += text.slice(cursor);
             cursor = text.length;
@@ -256,6 +257,12 @@ function matchingBacktickRunEnd(text, start, runLength) {
 function matchingBacktickRunAcrossLines(lines, startLine, runLength) {
   for (let line = startLine + 1; line < lines.length; line++) {
     const text = lines[line];
+    if (
+      text.trim() === "" ||
+      /^(?: {0,3})(?:#{1,6}(?:\s|$)|`{3,}|~{3,})/.test(text)
+    ) {
+      return undefined;
+    }
     const end = matchingBacktickRunEnd(text, 0, runLength);
     if (end !== -1) return { line, end };
   }
