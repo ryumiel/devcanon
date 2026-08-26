@@ -440,7 +440,7 @@ For `LIGHTWEIGHT` only:
 **Compact contract:** <purpose, inputs and outputs, producer or consumer
 direction when independently necessary and absent from both the selected
 projection tuple and an applicable directly cited boundary row, material write
-or side-effect owner, failure and cleanup behavior,
+or side-effect owner, permission, failure, cleanup, and recovery behavior,
 focused verification expectations, and the explicit task-specific reason all
 five behavioral eligibility dimensions are true; consume selected projection entries for owner/source,
 participants, common relationships, and proof allocation without restating

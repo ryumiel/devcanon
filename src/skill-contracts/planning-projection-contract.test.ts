@@ -158,7 +158,8 @@ describe("play-planning execution projection contract", () => {
   });
 
   it("distinguishes authorized local filesystem output from external mutation", async () => {
-    const [criteria, checklist, brainstorm] = await Promise.all([
+    const [planningSkill, criteria, checklist, brainstorm] = await Promise.all([
+      readRepoFile("skills/play-planning/SKILL.md"),
       readRepoFile("skills/play-planning/references/planning-criteria.md"),
       readRepoFile("docs/guidelines/documentation-checklists.md"),
       readRepoFile("skills/play-brainstorm/SKILL.md"),
@@ -184,6 +185,11 @@ describe("play-planning execution projection contract", () => {
       "Missing or incorrect ownership or permission for a filesystem write",
     );
     expect(criteriaProse).toContain(
+      "material write or side-effect owner, permission, failure, cleanup, and recovery behavior",
+    );
+    expect(
+      normalizedProse(getMarkdownSection(planningSkill, "Task Structure")),
+    ).toContain(
       "material write or side-effect owner, permission, failure, cleanup, and recovery behavior",
     );
     expect(
