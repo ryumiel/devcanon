@@ -50,6 +50,39 @@ describe("CLI entrypoint", () => {
     expect(result.stdout).toContain("--reconcile-manifest");
   });
 
+  it("exposes the config command group in public help", async () => {
+    const result = await execFileAsync(
+      "pnpm",
+      ["exec", "tsx", "src/cli/index.ts", "--help"],
+      { cwd: process.cwd(), shell: process.platform === "win32" },
+    );
+
+    expect(result.stdout).toMatch(/^\s+config\s/m);
+  });
+
+  it("returns the selected configuration path through the public JSON CLI", async () => {
+    const configPath = path.join(process.cwd(), "devcanon.config.yaml");
+    const result = await execFileAsync(
+      "pnpm",
+      [
+        "exec",
+        "tsx",
+        "src/cli/index.ts",
+        "--config",
+        configPath,
+        "--json",
+        "config",
+        "path",
+      ],
+      { cwd: process.cwd(), shell: process.platform === "win32" },
+    );
+
+    expect(JSON.parse(result.stdout)).toEqual({
+      path: configPath,
+      source: "explicit",
+    });
+  });
+
   it("parses reconciliation through the public CLI and returns UserError exit 1 for bound foreign records", async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-cli-"));
     try {

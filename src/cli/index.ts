@@ -4,6 +4,7 @@ import { Command } from "commander";
 import { CLI_COMMAND } from "../config/identity.js";
 import { EnvironmentError, UserError } from "../utils/errors.js";
 import { type LogLevel, createLogger, setLogger } from "../utils/output.js";
+import { configGetAction, configPathAction } from "./commands/config.js";
 import { diffAction } from "./commands/diff.js";
 import { doctorAction } from "./commands/doctor.js";
 import { initAction } from "./commands/init.js";
@@ -59,6 +60,21 @@ newCmd
   .command("agent <name>")
   .description("Scaffold a new agent YAML file")
   .action(newAgentAction);
+
+// config
+const configCmd = program
+  .command("config")
+  .description("Inspect the selected DevCanon configuration");
+
+configCmd
+  .command("path")
+  .description("Print the selected configuration path")
+  .action(configPathAction);
+
+configCmd
+  .command("get <key>")
+  .description("Print a scalar configuration value")
+  .action(configGetAction);
 
 // validate
 program

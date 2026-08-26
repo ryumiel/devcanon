@@ -56,6 +56,13 @@ export async function loadConfig(
   strict = false,
 ): Promise<ResolvedConfig> {
   const configPath = await findConfigPath(explicitPath);
+  return loadConfigAtPath(configPath, strict);
+}
+
+export async function loadConfigAtPath(
+  configPath: string,
+  strict = false,
+): Promise<ResolvedConfig> {
   const raw = await readTextFile(configPath);
   let parsed: unknown;
 
