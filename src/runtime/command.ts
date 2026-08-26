@@ -103,7 +103,7 @@ async function runtimeConfig(
       await loadRuntimeConfigCatalog();
       return ok({ path: runtimeConfigPath() });
     case "get": {
-      const key = requiredOption(rest, "--key");
+      const key = requiredConfigGetKey(rest);
       return ok({
         key,
         value: getRuntimeConfigValue(await loadRuntimeConfigCatalog(), key),
@@ -115,6 +115,13 @@ async function runtimeConfig(
         `unknown devcanon-runtime config command: ${command ?? "<missing>"}`,
       );
   }
+}
+
+function requiredConfigGetKey(args: readonly string[]): string {
+  if (args.length !== 2 || args[0] !== "--key" || args[1].length === 0) {
+    throw new Error("config get requires exactly --key <nonempty>");
+  }
+  return args[1];
 }
 
 function ephemeralChild(args: readonly string[]) {

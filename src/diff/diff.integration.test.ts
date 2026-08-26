@@ -354,6 +354,42 @@ describe("diffAll integration", () => {
     });
   });
 
+  it.skipIf(!symlinkAvailable)(
+    "reports a drifted symlink-installed runtime catalog as changed",
+    async () => {
+      const symlinkConfig = makeResolvedConfig(tempDir, {
+        claude: { installMode: "symlink" },
+        codex: { installMode: "symlink" },
+        defaults: { installMode: "symlink" },
+      });
+      const result = await sync(symlinkConfig, {
+        dryRun: false,
+        force: false,
+        strict: false,
+        mode: "symlink",
+      });
+      expect(result.errors).toEqual([]);
+      await writeFile(
+        path.join(
+          symlinkConfig.targets.codex.skillsHome,
+          "devcanon-runtime",
+          "config",
+          "runtime-config.json",
+        ),
+        '{"schema":"devcanon/runtime-config/v1","capabilityProfiles":{"efficient":{"claude":"a","codex":"b"},"balanced":{"claude":"c","codex":"d"},"frontier":{"claude":"e","codex":"f"}}}\n',
+        "utf-8",
+      );
+
+      const results = await diffAll(symlinkConfig, "codex");
+      expect(
+        results.find(
+          (entry) =>
+            entry.target === "codex" && entry.name === "devcanon-runtime",
+        ),
+      ).toMatchObject({ status: "changed" });
+    },
+  );
+
   it("reports agent as up-to-date when installed content matches", async () => {
     await createAgentFixture(
       config.library.agentsDir,

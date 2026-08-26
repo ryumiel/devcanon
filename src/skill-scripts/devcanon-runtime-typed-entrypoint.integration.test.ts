@@ -1,5 +1,13 @@
 import { execFile } from "node:child_process";
-import { cp, mkdir, realpath } from "node:fs/promises";
+import {
+  cp,
+  mkdir,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -118,6 +126,17 @@ describe("devcanon-runtime typed entrypoint", () => {
         ],
         { cwd: unrelatedCwd },
       );
+      const typedCatalogValue = await execFileAsync(
+        process.execPath,
+        [
+          path.join(runtimeDir, "scripts", "runtime", "cli.js"),
+          "config",
+          "get",
+          "--key",
+          "capabilityProfiles.balanced.codex",
+        ],
+        { cwd: unrelatedCwd },
+      );
 
       expect(JSON.parse(catalogPath.stdout)).toEqual({
         path: await realpath(
@@ -128,10 +147,147 @@ describe("devcanon-runtime typed entrypoint", () => {
         key: "capabilityProfiles.balanced.codex",
         value: "gpt-5.6-terra",
       });
+      expect(typedCatalogValue.stdout).toBe(catalogValue.stdout);
+
+      await expect(
+        execFileAsync(
+          "bash",
+          [
+            script,
+            "runtime",
+            "config",
+            "get",
+            "--key",
+            "capabilityProfiles.balanced.codex",
+            "--key",
+            "capabilityProfiles.frontier.codex",
+          ],
+          { cwd: unrelatedCwd },
+        ),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("config get requires exactly"),
+      });
     } finally {
       await cleanupTempDir(tempDir);
     }
   });
+
+  it("fails malformed catalog arrays with a stable runtime envelope", async () => {
+    const tempDir = await createTempDir();
+    try {
+      const runtimeDir = path.join(tempDir, "devcanon-runtime");
+      await cp(path.resolve("skills/devcanon-runtime"), runtimeDir, {
+        recursive: true,
+      });
+      await writeFile(
+        path.join(runtimeDir, "config", "runtime-config.json"),
+        "[",
+        "utf-8",
+      );
+
+      await expect(
+        execFileAsync(
+          "bash",
+          [
+            path.join(runtimeDir, "scripts", "devcanon-runtime.sh"),
+            "runtime",
+            "config",
+            "path",
+          ],
+          { timeout: 500 },
+        ),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "invalid runtime configuration catalog",
+        ),
+      });
+    } finally {
+      await cleanupTempDir(tempDir);
+    }
+  });
+
+  it.each([
+    [
+      "removes the catalog",
+      async (runtimeDir: string) => {
+        await rm(path.join(runtimeDir, "config", "runtime-config.json"));
+      },
+    ],
+    [
+      "duplicates a catalog key",
+      async (runtimeDir: string) => {
+        await writeFile(
+          path.join(runtimeDir, "config", "runtime-config.json"),
+          '{"schema":"devcanon/runtime-config/v1","schema":"devcanon/runtime-config/v1"}',
+          "utf-8",
+        );
+      },
+    ],
+  ] as const)("fails when it %s", async (_name, mutate) => {
+    const tempDir = await createTempDir();
+    try {
+      const runtimeDir = path.join(tempDir, "devcanon-runtime");
+      await cp(path.resolve("skills/devcanon-runtime"), runtimeDir, {
+        recursive: true,
+      });
+      await mutate(runtimeDir);
+
+      await expect(
+        execFileAsync("bash", [
+          path.join(runtimeDir, "scripts", "devcanon-runtime.sh"),
+          "runtime",
+          "config",
+          "path",
+        ]),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "invalid runtime configuration catalog",
+        ),
+      });
+    } finally {
+      await cleanupTempDir(tempDir);
+    }
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "rejects a catalog reached through a symlinked config directory",
+    async () => {
+      const tempDir = await createTempDir();
+      try {
+        const runtimeDir = path.join(tempDir, "devcanon-runtime");
+        const externalConfig = path.join(tempDir, "external-config");
+        await cp(path.resolve("skills/devcanon-runtime"), runtimeDir, {
+          recursive: true,
+        });
+        await mkdir(externalConfig);
+        await writeFile(
+          path.join(externalConfig, "runtime-config.json"),
+          await readFile(
+            path.join(runtimeDir, "config", "runtime-config.json"),
+            "utf-8",
+          ),
+          "utf-8",
+        );
+        await rm(path.join(runtimeDir, "config"), { recursive: true });
+        await symlink(externalConfig, path.join(runtimeDir, "config"), "dir");
+
+        await expect(
+          execFileAsync("bash", [
+            path.join(runtimeDir, "scripts", "devcanon-runtime.sh"),
+            "runtime",
+            "config",
+            "path",
+          ]),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "invalid runtime configuration catalog",
+          ),
+        });
+      } finally {
+        await cleanupTempDir(tempDir);
+      }
+    },
+  );
 
   it("packages every shared runtime helper module in the copied passive runtime bundle", async () => {
     const tempDir = await createTempDir();

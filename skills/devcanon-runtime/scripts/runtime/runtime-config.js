@@ -1,4 +1,5 @@
-import { lstat, readFile } from "node:fs/promises";
+import { lstat, readFile, realpath } from "node:fs/promises";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 export const RUNTIME_CONFIG_SCHEMA = "devcanon/runtime-config/v1";
 const PROFILE_NAMES = ["efficient", "balanced", "frontier"];
@@ -9,16 +10,37 @@ export function runtimeConfigPath() {
 export async function loadRuntimeConfigCatalog() {
     const catalogPath = runtimeConfigPath();
     try {
+        const bundleRoot = fileURLToPath(new URL("../..", import.meta.url));
+        const configDirectory = path.dirname(catalogPath);
+        const configStat = await lstat(configDirectory);
+        if (!configStat.isDirectory() || configStat.isSymbolicLink()) {
+            throw new Error("config directory is not a real directory");
+        }
         if (!(await lstat(catalogPath)).isFile()) {
             throw new Error("not a regular file");
         }
+        const physicalBundleRoot = await realpath(bundleRoot);
+        const physicalConfigDirectory = await realpath(configDirectory);
+        const physicalCatalogPath = await realpath(catalogPath);
+        if (!isPathInside(physicalBundleRoot, physicalConfigDirectory) ||
+            !isPathInside(physicalConfigDirectory, physicalCatalogPath)) {
+            throw new Error("catalog path escapes the runtime bundle");
+        }
         const raw = await readFile(catalogPath, "utf-8");
+        const parsed = JSON.parse(raw);
         assertNoDuplicateJsonObjectKeys(raw);
-        return parseRuntimeConfigCatalog(JSON.parse(raw));
+        return parseRuntimeConfigCatalog(parsed);
     }
     catch (error) {
         throw new Error(`invalid runtime configuration catalog: ${error.message}`);
     }
+}
+function isPathInside(parent, candidate) {
+    const relative = path.relative(parent, candidate);
+    return (relative === "" ||
+        (!relative.startsWith(`..${path.sep}`) &&
+            relative !== ".." &&
+            !path.isAbsolute(relative)));
 }
 export function getRuntimeConfigValue(catalog, key) {
     if (!isSafeKey(key))
