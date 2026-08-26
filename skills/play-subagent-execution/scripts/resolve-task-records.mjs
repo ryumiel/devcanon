@@ -7,6 +7,7 @@ import {
   accessSync,
   lstatSync,
   readFileSync,
+  readSync,
   realpathSync,
 } from "node:fs";
 import path from "node:path";
@@ -66,16 +67,15 @@ if (process.argv.length !== 2) fail("positional arguments are not accepted");
 
 function rejectNonemptyStdin() {
   if (process.stdin.isTTY) return;
-  let stdin;
+  const stdin = new Uint8Array(1);
   try {
-    stdin = readFileSync(0);
+    if (readSync(0, stdin, 0, 1, null) !== 0) fail("stdin is not accepted");
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "EAGAIN") {
       fail("stdin emptiness could not be established");
     }
     fail("failed to validate stdin");
   }
-  if (stdin.length > 0) fail("stdin is not accepted");
 }
 
 rejectNonemptyStdin();

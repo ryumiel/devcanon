@@ -408,23 +408,33 @@ describe("play-subagent-execution task record resolver", () => {
     expect(stdinFailure?.stdout).toBe("");
     expect(stdinFailure?.stderr).toContain("stdin is not accepted");
 
-    const delayedStdin = await new Promise<{
+    const firstByteStdin = await new Promise<{
       code: number | null;
       stdout: string;
       stderr: string;
+      closedBeforeInput: boolean;
     }>((resolve) => {
-      const child = spawn(process.execPath, [helperPath], {
-        cwd: repositoryRoot,
-        env: {
-          PATH: process.env.PATH,
-          PLAN_PATH: planPath,
-          TASK_ID: "TASK-A",
-          EXPECTED_PLAN_DIGEST: digest(basePlan),
+      const child = spawn(
+        process.execPath,
+        [
+          "--eval",
+          'process.send("ready"); process.once("message", () => import(process.argv[1]));',
+          helperPath,
+        ],
+        {
+          cwd: repositoryRoot,
+          env: {
+            PATH: process.env.PATH,
+            PLAN_PATH: planPath,
+            TASK_ID: "TASK-A",
+            EXPECTED_PLAN_DIGEST: digest(basePlan),
+          },
+          stdio: ["pipe", "pipe", "pipe", "ipc"],
         },
-        stdio: ["pipe", "pipe", "pipe"],
-      });
+      );
       let stdout = "";
       let stderr = "";
+      let inputClosed = false;
       child.stdout.setEncoding("utf8").on("data", (chunk) => {
         stdout += chunk;
       });
@@ -432,14 +442,30 @@ describe("play-subagent-execution task record resolver", () => {
         stderr += chunk;
       });
       child.stdin.on("error", () => {});
-      setTimeout(() => child.stdin.end("delayed input"), 25);
-      child.on("close", (code) => resolve({ code, stdout, stderr }));
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      child.once("message", () => {
+        child.stdin.write("x", () => {
+          timeout = setTimeout(() => {
+            inputClosed = true;
+            child.stdin.end();
+          }, 100);
+          child.send?.("resolve");
+        });
+      });
+      child.on("close", (code) => {
+        if (timeout) clearTimeout(timeout);
+        resolve({
+          code,
+          stdout,
+          stderr,
+          closedBeforeInput: !inputClosed,
+        });
+      });
     });
-    expect(delayedStdin.code).not.toBe(0);
-    expect(delayedStdin.stdout).toBe("");
-    expect(delayedStdin.stderr).toMatch(
-      /stdin (?:is not accepted|emptiness could not be established)/,
-    );
+    expect(firstByteStdin.closedBeforeInput).toBe(true);
+    expect(firstByteStdin.code).not.toBe(0);
+    expect(firstByteStdin.stdout).toBe("");
+    expect(firstByteStdin.stderr).toContain("stdin is not accepted");
 
     const badDigest = await expectFailure(basePlan, {
       EXPECTED_PLAN_DIGEST: "0".repeat(64),

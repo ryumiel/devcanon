@@ -20,10 +20,12 @@ contract. Normal operation accepts no positional arguments or optional inputs.
 - `TASK_ID`: stable uppercase ASCII kebab identifier for the current task.
 - `EXPECTED_PLAN_DIGEST`: reviewed lowercase 64-hex SHA-256 digest.
 
-Normal operation requires definitively empty stdin. Nonempty stdin is refused
-before plan resolution and never contributes task or record data. An open pipe
-whose emptiness cannot yet be established also fails closed; automated callers
-must close stdin rather than leave an unused producer open.
+Normal operation requires definitively empty stdin. Before plan resolution, the
+resolver inspects at most one stdin byte: a byte is refused as nonempty, while
+EOF is the only empty-input success. Indeterminate availability fails closed,
+and another read error produces the generic validation failure. No stdin data
+contributes task or record data. Automated callers must close stdin rather than
+leave an unused producer open.
 
 The exact reviewed plan bytes must decode as valid UTF-8. Invalid byte
 sequences fail rather than being replaced during decoding.
