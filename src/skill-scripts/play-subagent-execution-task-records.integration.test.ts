@@ -321,6 +321,19 @@ describe("play-subagent-execution task record resolver", () => {
     }
   });
 
+  it("keeps record constructs visible after matching backticks inside fences", async () => {
+    const fencedBackticks = basePlan.replace(
+      "### Boundary row `BR-A`",
+      "```text\nmatching ``` run\n```\n### Boundary row `BR-A`",
+    );
+
+    const result = await runHelper(fencedBackticks);
+    expect(JSON.parse(result.stdout).boundary_row_ids).toEqual([
+      "BR-B",
+      "BR-A",
+    ]);
+  });
+
   it("fails closed for unknown, stale, ambiguous, duplicate-definition, and cross-kind IDs", async () => {
     const invalidPlans = [
       basePlan.replace('"BR-B", "BR-A"', '"BR-STALE"'),

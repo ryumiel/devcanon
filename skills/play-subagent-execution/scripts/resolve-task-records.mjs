@@ -204,6 +204,7 @@ function visibleLines(markdown) {
       const char = marker[1][0];
       const length = marker[1].length;
       if (!fence) {
+        inlineCodeEnd = undefined;
         fence = { char, length };
       } else if (
         fence.char === char &&
