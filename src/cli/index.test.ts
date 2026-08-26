@@ -35,6 +35,19 @@ function terminalLines(stderr: string): string[] {
   return stderr.split(/\r?\n/).filter((line) => line.length > 0);
 }
 
+function cliEntrypoint(): string {
+  return path.join(process.cwd(), "src", "cli", "index.ts");
+}
+
+function tsxEntrypoint(): string {
+  return path.join(
+    process.cwd(),
+    "node_modules",
+    ".bin",
+    process.platform === "win32" ? "tsx.cmd" : "tsx",
+  );
+}
+
 describe("CLI entrypoint", () => {
   it("uses devcanon as the program name in help output", async () => {
     const result = await execFileAsync(
@@ -81,6 +94,48 @@ describe("CLI entrypoint", () => {
       path: configPath,
       source: "explicit",
     });
+  });
+
+  it("uses the bundled catalog through the public CLI outside a source library", async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-cli-"));
+    try {
+      const result = await execFileAsync(
+        tsxEntrypoint(),
+        [cliEntrypoint(), "--json", "config", "path"],
+        {
+          cwd: tempDir,
+          env: { ...process.env, DEVCANON_CONFIG: "" },
+          shell: process.platform === "win32",
+        },
+      );
+
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        source: "bundled",
+        path: expect.any(String),
+      });
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves non-config command failure outside a source library", async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-cli-"));
+    try {
+      await expect(
+        execFileAsync(tsxEntrypoint(), [cliEntrypoint(), "list"], {
+          cwd: tempDir,
+          env: { ...process.env, DEVCANON_CONFIG: "" },
+          shell: process.platform === "win32",
+        }),
+      ).rejects.toMatchObject({
+        code: 1,
+        stderr: expect.stringContaining(
+          "No devcanon.config.yaml found in current directory.",
+        ),
+      });
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
   });
 
   it("parses reconciliation through the public CLI and returns UserError exit 1 for bound foreign records", async () => {

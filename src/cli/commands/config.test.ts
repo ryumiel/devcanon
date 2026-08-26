@@ -34,26 +34,34 @@ describe("config CLI actions", () => {
     expect(logCtx.testLogger.jsons).toEqual([]);
   });
 
-  it("prints a scalar lookup envelope in JSON mode", async () => {
+  it("uses an explicit custom profile for path and JSON scalar lookup", async () => {
     await mkdir(path.join(tempDir, "config"), { recursive: true });
     const configPath = await createConfigFile(
       path.join(tempDir, "config"),
-      makeConfigYaml({ defaults: { installMode: "copy" } }),
+      makeConfigYaml({
+        defaults: { installMode: "copy" },
+        capabilityProfiles: {
+          efficient: { claude: "custom-haiku", codex: "custom-luna" },
+          balanced: { claude: "custom-sonnet", codex: "custom-terra" },
+          frontier: { claude: "custom-opus", codex: "custom-sol" },
+        },
+      }),
     );
 
+    await configPathAction({}, commandWith({ config: configPath }));
     await configGetAction(
-      "defaults.installMode",
+      "capabilityProfiles.balanced.codex",
       {},
       commandWith({ config: configPath, json: true }),
     );
 
-    expect(logCtx.testLogger.infos).toEqual([]);
+    expect(logCtx.testLogger.infos).toEqual([path.resolve(configPath)]);
     expect(logCtx.testLogger.jsons).toEqual([
       {
         path: path.resolve(configPath),
         source: "explicit",
-        key: "defaults.installMode",
-        value: "copy",
+        key: "capabilityProfiles.balanced.codex",
+        value: "custom-terra",
       },
     ]);
   });

@@ -194,7 +194,7 @@ function isSafeRuntimeConfigKey(key: string): boolean {
     key.length > 0 &&
     segments.every(
       (segment) =>
-        /^[A-Za-z_][A-Za-z0-9_]*$/u.test(segment) &&
+        /^[A-Za-z0-9][A-Za-z0-9_-]*$/u.test(segment) &&
         !["__proto__", "constructor", "prototype"].includes(segment),
     )
   );

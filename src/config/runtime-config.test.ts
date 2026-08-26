@@ -1,7 +1,8 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  canCreateSymlinks,
   cleanupTempDir,
   createConfigFile,
   createTempDir,
@@ -14,6 +15,8 @@ import {
   loadRuntimeConfigCatalog,
   selectRuntimeConfig,
 } from "./runtime-config.js";
+
+const symlinkAvailable = await canCreateSymlinks();
 
 describe("runtime configuration selection", () => {
   let tempDir: string;
@@ -124,6 +127,77 @@ describe("runtime configuration selection", () => {
       UserError,
     );
   });
+
+  it("does not fall back when an environment-selected config is malformed", async () => {
+    const cwd = path.join(tempDir, "cwd");
+    await mkdir(cwd, { recursive: true });
+    await createConfigFile(cwd);
+    const malformedPath = path.join(tempDir, "malformed.yaml");
+    await writeFile(malformedPath, "version: 1\n", "utf8");
+    vi.stubEnv("DEVCANON_CONFIG", malformedPath);
+    const previousCwd = process.cwd();
+
+    try {
+      process.chdir(cwd);
+      await expect(selectRuntimeConfig()).rejects.toThrow(
+        "Config version 1 is no longer supported.",
+      );
+    } finally {
+      process.chdir(previousCwd);
+    }
+  });
+
+  it("does not fall back to the bundled catalog when the CWD config is malformed", async () => {
+    const cwd = path.join(tempDir, "cwd");
+    await mkdir(cwd, { recursive: true });
+    await writeFile(
+      path.join(cwd, "devcanon.config.yaml"),
+      "version: 1\n",
+      "utf8",
+    );
+    const previousCwd = process.cwd();
+
+    try {
+      process.chdir(cwd);
+      await expect(selectRuntimeConfig()).rejects.toThrow(
+        "Config version 1 is no longer supported.",
+      );
+    } finally {
+      process.chdir(previousCwd);
+    }
+  });
+
+  it("reads schema-valid hyphenated and digit-leading glossary keys", async () => {
+    const configDir = path.join(tempDir, "config");
+    await mkdir(configDir, { recursive: true });
+    const configPath = await createConfigFile(
+      configDir,
+      makeConfigYaml({
+        toolNames: {
+          "task-tracker": { claude: "TodoWrite", codex: "update_plan" },
+          "7z": { claude: "Archive", codex: "archive" },
+        },
+        fileArtifacts: {
+          "project-instructions": { claude: "CLAUDE.md", codex: "AGENTS.md" },
+        },
+      }),
+    );
+
+    const selected = await selectRuntimeConfig(configPath);
+
+    expect(
+      getRuntimeConfigScalar(selected.value, "toolNames.task-tracker.codex"),
+    ).toBe("update_plan");
+    expect(getRuntimeConfigScalar(selected.value, "toolNames.7z.claude")).toBe(
+      "Archive",
+    );
+    expect(
+      getRuntimeConfigScalar(
+        selected.value,
+        "fileArtifacts.project-instructions.claude",
+      ),
+    ).toBe("CLAUDE.md");
+  });
 });
 
 describe("runtime configuration catalog", () => {
@@ -178,6 +252,67 @@ describe("runtime configuration catalog", () => {
   });
 
   it.each([
+    ["malformed JSON", "{"],
+    [
+      "an unsupported schema identifier",
+      JSON.stringify({
+        ...validRuntimeCatalog(),
+        schema: "devcanon/runtime-config/v2",
+      }),
+    ],
+    [
+      "a missing required capability profile",
+      JSON.stringify({
+        schema: "devcanon/runtime-config/v1",
+        capabilityProfiles: {
+          efficient: { claude: "a", codex: "b" },
+          balanced: { claude: "c", codex: "d" },
+        },
+      }),
+    ],
+  ])("rejects %s", async (_description, content) => {
+    const catalogPath = path.join(tempDir, "runtime-config.json");
+    await writeFile(catalogPath, content, "utf8");
+
+    await expect(loadRuntimeConfigCatalog(catalogPath)).rejects.toBeInstanceOf(
+      UserError,
+    );
+  });
+
+  it("rejects a directory where a runtime catalog is required", async () => {
+    const catalogPath = path.join(tempDir, "runtime-config.json");
+    await mkdir(catalogPath);
+
+    await expect(loadRuntimeConfigCatalog(catalogPath)).rejects.toBeInstanceOf(
+      UserError,
+    );
+  });
+
+  it("rejects a missing runtime catalog", async () => {
+    await expect(
+      loadRuntimeConfigCatalog(path.join(tempDir, "runtime-config.json")),
+    ).rejects.toBeInstanceOf(UserError);
+  });
+
+  it.skipIf(!symlinkAvailable)(
+    "rejects a symlinked runtime catalog",
+    async () => {
+      const targetPath = path.join(tempDir, "target.json");
+      const catalogPath = path.join(tempDir, "runtime-config.json");
+      await writeFile(
+        targetPath,
+        JSON.stringify(validRuntimeCatalog()),
+        "utf8",
+      );
+      await symlink(targetPath, catalogPath, "file");
+
+      await expect(
+        loadRuntimeConfigCatalog(catalogPath),
+      ).rejects.toBeInstanceOf(UserError);
+    },
+  );
+
+  it.each([
     "",
     "capabilityProfiles..codex",
     "capabilityProfiles[balanced].codex",
@@ -197,8 +332,28 @@ describe("runtime configuration catalog", () => {
     ).toThrow(UserError);
   });
 
+  it("rejects array intermediate and leaf values", () => {
+    expect(() =>
+      getRuntimeConfigScalar({ entries: ["value"] }, "entries.0"),
+    ).toThrow(UserError);
+    expect(() =>
+      getRuntimeConfigScalar({ entries: ["value"] }, "entries"),
+    ).toThrow(UserError);
+  });
+
   it("uses JSON spelling for non-string scalar output", () => {
     expect(formatRuntimeConfigScalar(true)).toBe("true");
     expect(formatRuntimeConfigScalar(5)).toBe("5");
   });
 });
+
+function validRuntimeCatalog() {
+  return {
+    schema: "devcanon/runtime-config/v1",
+    capabilityProfiles: {
+      efficient: { claude: "a", codex: "b" },
+      balanced: { claude: "c", codex: "d" },
+      frontier: { claude: "e", codex: "f" },
+    },
+  };
+}
