@@ -401,18 +401,18 @@ sandbox, approvals, or `**Mode:** mechanical`. Mechanical mode does not select a
 capability.
 
 The route owner supplies the capability and independent effort. Every fresh
-Codex dispatch resolves its full model from `devcanon.config.yaml`
-`capabilityProfiles.<capability>.codex` and passes both model and effort
-explicitly. Semantic role TOML omits those target-local dispatch values. D12
+Codex dispatch resolves its full model from its target-rendered route binding
+and passes both model and effort explicitly. Semantic role TOML omits those
+target-local dispatch values. D12
 uses `implementer`, balanced/high; D13 uses `executor`, efficient/medium; and
 D14-D16 use `deep-reviewer`, frontier/xhigh. These pairs do not grant external
 mutation authority.
 
 ### D12-D16 fresh-Codex dispatch contract
 
-For every fresh D12-D16 child, resolve the full model exactly from
-`devcanon.config.yaml` `capabilityProfiles.<capability>.codex`; capability
-selects the model, while effort remains independent. Before lifecycle capture,
+For every fresh D12-D16 child, resolve the full model exactly from its
+target-rendered route binding; capability selects the model, while effort
+remains independent. Before lifecycle capture,
 validate the complete route tuple: route, semantic role, capability, nonblank
 configured full model, independent effort, source and external authority,
 runtime `task_name`, `fork_turns: "none"`, self-contained prompt/context,
@@ -429,19 +429,19 @@ route-specific values below.
 | D15   | `deep-reviewer` / `frontier` / `xhigh` | source-immutable; external none | Independent D15 prompt, captured task head, response-only report              | Provisional/final same-head disposition/fix loop                 |
 | D16   | `deep-reviewer` / `frontier` / `xhigh` | source-immutable; external none | Fresh D16 whole-range prompt, base/head, response-only report                 | Exact ADR-0016 skip or final fix/fresh-review/terminal route     |
 
-Codex-only route bindings: `D12_MODEL` resolves from
-`capabilityProfiles.balanced.codex`; `D13_MODEL` resolves from
-`capabilityProfiles.efficient.codex`; and `D14_MODEL`, `D15_MODEL`, and
-`D16_MODEL` resolve from `capabilityProfiles.frontier.codex`. Target capability
-markers: `{{model:balanced}}`, `{{model:efficient}}`, and
-`{{model:frontier}}`. Each retains the independent effort declared in its route
-row.
+Target-rendered route bindings: `D12_MODEL` = `{{model:balanced}}`;
+`D13_MODEL` = `{{model:efficient}}`; `D14_MODEL` = `{{model:frontier}}`;
+`D15_MODEL` = `{{model:frontier}}`; and `D16_MODEL` = `{{model:frontier}}`.
+Each is the exact full model for this target and retains the independent effort
+declared in its route row. A missing, blank, unresolved, or mismatched marker
+blocks before capture or spawn. Do not search a source checkout, use an alias,
+or fall back to a nearby or ambient model.
 
 After validation and the existing route-local capture, create exactly one fresh
 child with the actual Codex fields:
 
 ```text
-# D12: D12_MODEL = capabilityProfiles.balanced.codex
+# D12: D12_MODEL is the target-rendered balanced model
 Codex.spawn_agent({
   task_name: d12_<instance_ordinal>,
   agent_type: "implementer",
@@ -450,7 +450,7 @@ Codex.spawn_agent({
   fork_turns: "none",
   message: D12_SELF_CONTAINED_PROMPT,
 })
-# D13: D13_MODEL = capabilityProfiles.efficient.codex
+# D13: D13_MODEL is the target-rendered efficient model
 Codex.spawn_agent({
   task_name: d13_<instance_ordinal>,
   agent_type: "executor",
@@ -459,7 +459,7 @@ Codex.spawn_agent({
   fork_turns: "none",
   message: D13_SELF_CONTAINED_PROMPT,
 })
-# D14: D14_MODEL = capabilityProfiles.frontier.codex
+# D14: D14_MODEL is the target-rendered frontier model
 Codex.spawn_agent({
   task_name: d14_<instance_ordinal>,
   agent_type: "deep-reviewer",
@@ -468,7 +468,7 @@ Codex.spawn_agent({
   fork_turns: "none",
   message: D14_SELF_CONTAINED_PROMPT,
 })
-# D15: D15_MODEL = capabilityProfiles.frontier.codex
+# D15: D15_MODEL is the target-rendered frontier model
 Codex.spawn_agent({
   task_name: d15_<instance_ordinal>,
   agent_type: "deep-reviewer",
@@ -477,7 +477,7 @@ Codex.spawn_agent({
   fork_turns: "none",
   message: D15_SELF_CONTAINED_PROMPT,
 })
-# D16: D16_MODEL = capabilityProfiles.frontier.codex
+# D16: D16_MODEL is the target-rendered frontier model
 Codex.spawn_agent({
   task_name: d16_<instance_ordinal>,
   agent_type: "deep-reviewer",

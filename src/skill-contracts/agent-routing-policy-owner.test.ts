@@ -311,21 +311,47 @@ describe("agent routing and mutation policy owner", () => {
 
       const source = ownerSkills.get(ownerSkill);
       expect(source, `${ownerSkill} source is readable`).toBeDefined();
-      expect(source).toContain(
-        `${model} = capabilityProfiles.${capability}.codex`,
-      );
+      expect(source).toContain(`\`${model}\` = \`{{model:${capability}}}\``);
       expect(config.capabilityProfiles[capability].codex).toMatch(/\S/);
       expect(source).toContain(
         [
           "Codex.spawn_agent({",
           `  task_name: ${id.toLowerCase()}_<instance_ordinal>,`,
           `  agent_type: \"${role}\",`,
-          `  model: ${model}${id === "D17" ? `, # capabilityProfiles.${capability}.codex` : ","}`,
+          `  model: ${model},`,
           `  reasoning_effort: \"${effort}\",`,
           '  fork_turns: "none",',
           `  message: ${message},`,
           "})",
         ].join("\n"),
+      );
+    }
+  });
+
+  it("keeps every D1-D18 model source target-rendered and checkout-independent", async () => {
+    const ownerSkills = [
+      "issue-priming-workflow",
+      "play-agent-dispatch",
+      "play-planning",
+      "play-review",
+      "play-skill-authoring",
+      "play-subagent-execution",
+      "pr-merge",
+    ];
+    const sources = await Promise.all(
+      ownerSkills.map(
+        async (skill) =>
+          [skill, await readRepoFile(`skills/${skill}/SKILL.md`)] as const,
+      ),
+    );
+
+    for (const [skill, source] of sources) {
+      expect(
+        source,
+        `${skill} never discovers an original checkout config`,
+      ).not.toContain("devcanon.config.yaml");
+      expect(source, `${skill} rejects ambient model authority`).toMatch(
+        /ambient.*model|model.*ambient/u,
       );
     }
   });

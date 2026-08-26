@@ -204,8 +204,8 @@ or ambient agent.
 
 Before every fresh D17 diagnosis or classified fix, validate the complete route
 tuple: route, semantic role, capability, nonblank full model resolved exactly
-from `devcanon.config.yaml` `capabilityProfiles.<capability>.codex`, independent
-effort, source/external authority, runtime `task_name`, `fork_turns: "none"`,
+from its target-rendered route binding, independent effort, source/external
+authority, runtime `task_name`, `fork_turns: "none"`,
 self-contained prompt/context, expected output, and termination. Missing or
 mismatched values block before capture or spawn. Apply the shared
 `subagent-lifecycle` rule; D17 supplies the exact route values.
@@ -215,49 +215,51 @@ authorized paths, collected CI evidence, response-only or mutable constraint,
 expected diagnosis/fix report, and the termination below. After validation and
 the existing lifecycle/capture gate, use the actual Codex fields:
 
-Codex-only route bindings: `D17_DIAGNOSIS_MODEL` and
-`D17_JUDGMENT_FIX_MODEL` resolve from `capabilityProfiles.balanced.codex`;
-`D17_EXACT_FIX_MODEL` resolves from `capabilityProfiles.efficient.codex`.
-Target capability markers: `{{model:balanced}}` and `{{model:efficient}}`.
-Each retains the independent effort declared in its classified route.
+Target-rendered route bindings: `D17_DIAGNOSIS_MODEL` = `{{model:balanced}}`;
+`D17_EXACT_FIX_MODEL` = `{{model:efficient}}`; and
+`D17_JUDGMENT_FIX_MODEL` = `{{model:balanced}}`. Each is the exact full model
+for this target and retains the independent effort declared in its classified
+route. A missing, blank, unresolved, or mismatched marker blocks before
+capture or spawn. Do not search a source checkout, use an alias, or fall back
+to a nearby or ambient model.
 
 ```text
 # Diagnosis: source-immutable, response-only; output is the evidence-only
 # diagnosis. Termination is diagnosis validation, cleanup, then classification.
-# D17_DIAGNOSIS_MODEL = capabilityProfiles.balanced.codex
+# D17_DIAGNOSIS_MODEL is the target-rendered balanced model
 Codex.spawn_agent({
   task_name: d17_<instance_ordinal>,
   agent_type: "investigator",
-  model: D17_DIAGNOSIS_MODEL, # capabilityProfiles.balanced.codex
+  model: D17_DIAGNOSIS_MODEL,
   reasoning_effort: "high",
   fork_turns: "none",
   message: D17_DIAGNOSIS_SELF_CONTAINED_PROMPT,
 })
 # Exact mechanical fix: source-mutable; output is scoped committed fix/report.
 # Termination returns the committed result to the root for verification/push.
-# D17_EXACT_FIX_MODEL = capabilityProfiles.efficient.codex
+# D17_EXACT_FIX_MODEL is the target-rendered efficient model
 Codex.spawn_agent({
   task_name: d17_<instance_ordinal>,
   agent_type: "executor",
-  model: D17_EXACT_FIX_MODEL, # capabilityProfiles.efficient.codex
+  model: D17_EXACT_FIX_MODEL,
   reasoning_effort: "medium",
   fork_turns: "none",
   message: D17_EXACT_FIX_SELF_CONTAINED_PROMPT,
 })
 # Judgment-bearing fix: source-mutable; output is scoped committed fix/report.
 # Termination returns the committed result to the root for verification/push.
-# D17_JUDGMENT_FIX_MODEL = capabilityProfiles.balanced.codex
+# D17_JUDGMENT_FIX_MODEL is the target-rendered balanced model
 Codex.spawn_agent({
   task_name: d17_<instance_ordinal>,
   agent_type: "implementer",
-  model: D17_JUDGMENT_FIX_MODEL, # capabilityProfiles.balanced.codex
+  model: D17_JUDGMENT_FIX_MODEL,
   reasoning_effort: "high",
   fork_turns: "none",
   message: D17_JUDGMENT_FIX_SELF_CONTAINED_PROMPT,
 })
 ```
 
-The resolved `D17_*_MODEL` is the full configured model, never an ambient,
+The resolved `D17_*_MODEL` is the full target-rendered model, never an ambient,
 alias, or universal hard-coded capability string. As its owner allows, D17 may
 continue only an unchanged branch and stable diagnosis/fix task identity through
 the shared lifecycle rule; diagnosis-to-fix classification is a fresh changed

@@ -83,10 +83,10 @@ semantic-role catalog and role-envelope owner. For that exact selected role and
 target, declare its
 `capability`, target-native `effort`, `source_authority`, `external_authority`,
 ordered duplicate-free `claude_tools`, `codex_sandbox`, and `default_network`.
-Resolve Codex `model` from the selected role's exact capability through
-`devcanon.config.yaml` `capabilityProfiles.<capability>.codex`. Require the
-selected source capability to match the selected semantic role before
-resolution; a capability-less or mismatched source fails that parity check.
+Resolve Codex `model` from the selected role's exact target-rendered capability
+binding. Require the selected source capability to match the selected semantic
+role before resolution; a capability-less or mismatched source fails that
+parity check.
 Keep target-native effort independent: it must equal the selected role's
 matching Codex effort from the semantic-role catalog, never a
 capability-derived or ambient value. Validate `source_authority` separately
@@ -94,15 +94,15 @@ against that same catalog; effort does not imply authority.
 `agents/*.yaml` are governed declarations and parity inputs,
 never semantic authorities; their target-local literal fields are governed
 values under the agent spec, but D4's fresh-Codex selection still resolves its
-full model through the configured capability profile.
+full model through the rendered target binding.
 
-For the selected D4 role, the complete Codex-only model bindings are
-`efficient` → `capabilityProfiles.efficient.codex`, `balanced` →
-`capabilityProfiles.balanced.codex`, and `frontier` →
-`capabilityProfiles.frontier.codex`. Target capability markers:
-`{{model:efficient}}`, `{{model:balanced}}`, and `{{model:frontier}}`. The
-bindings select only the configured full model; the separately validated role
-effort remains independent.
+For the selected D4 role, the complete target-rendered Codex model bindings are
+`efficient` → `{{model:efficient}}`, `balanced` → `{{model:balanced}}`, and
+`frontier` → `{{model:frontier}}`. The bindings select only the exact full
+model for this target; the separately validated role effort remains
+independent. A missing, blank, unresolved, or mismatched binding blocks before
+spawn. Do not search a source checkout, use a sibling runtime when a rendered
+binding owns this field, or select an alias, nearby, or ambient model.
 
 Classify each independent problem domain separately. The controller selects one
 of the policy-owned six-role set before spawn; a generic or inherited workflow
@@ -131,7 +131,7 @@ Codex.spawn_agent({
 })
 ```
 
-Validate the semantic role, source capability parity, configured full model,
+Validate the semantic role, source capability parity, target-rendered full model,
 independent matching-Codex-effort parity, source authority, external authority,
 scope, termination, context, approval, tools, sandbox, network, output, and
 prompt inputs before that one creation. Before capture, choose

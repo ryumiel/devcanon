@@ -164,10 +164,7 @@ describe("shipped skill rendering", () => {
         );
         const configuredModel = config.capabilityProfiles[capability][target];
 
-        expect(body).toContain(
-          `${binding} = capabilityProfiles.${capability}.codex`,
-        );
-        expect(body).toContain(configuredModel);
+        expect(body).toContain(`\`${binding}\` = \`${configuredModel}\``);
         expect(body).not.toContain(
           `\`${binding}\` resolves to \`${config.capabilityProfiles[capability].claude}\``,
         );
@@ -178,13 +175,14 @@ describe("shipped skill rendering", () => {
       const { body } = parseFrontmatter(
         getSkillOutput(outputs, "play-agent-dispatch", target).content,
       );
-      expect(body).toContain("Codex-only model bindings");
-      expect(body).toContain("Target capability markers:");
+      expect(body).toContain("target-rendered Codex model bindings");
       for (const capability of ["efficient", "balanced", "frontier"] as const) {
-        expect(body).toContain(`capabilityProfiles.${capability}.codex`);
-        expect(body).toContain(config.capabilityProfiles[capability][target]);
+        expect(body).toContain(
+          `\`${capability}\` → \`${config.capabilityProfiles[capability][target]}\``,
+        );
+        const otherTarget = target === "claude" ? "codex" : "claude";
         expect(body).not.toContain(
-          `\`${capability}\` → \`${config.capabilityProfiles[capability].claude}\``,
+          `\`${capability}\` → \`${config.capabilityProfiles[capability][otherTarget]}\``,
         );
       }
     }
@@ -229,7 +227,7 @@ describe("shipped skill rendering", () => {
       for (const route of ["D14", "D15", "D16"] as const) {
         expect(execution).toContain(
           [
-            `# ${route}: ${route}_MODEL = capabilityProfiles.frontier.codex`,
+            `# ${route}: ${route}_MODEL is the target-rendered frontier model`,
             "Codex.spawn_agent({",
             `  task_name: ${route.toLowerCase()}_<instance_ordinal>,`,
             '  agent_type: "deep-reviewer",',
