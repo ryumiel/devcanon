@@ -490,8 +490,8 @@ entries for every actual known participant and independently necessary
 execution relationship, owner/source, and proof allocation. It adds only
 purpose, inputs and outputs, producer or consumer direction when independently
 necessary and absent from both the projection tuple and an applicable directly
-cited boundary row, material write or side-effect owner, failure and cleanup
-behavior, focused verification expectations, and
+cited boundary row, material write or side-effect owner, permission, failure,
+cleanup, and recovery behavior, focused verification expectations, and
 the explicit reason all five eligibility dimensions are true. It does not
 acquire the complete table merely because it has bounded, recoverable helper
 I/O or filesystem effects. Add family
@@ -539,7 +539,7 @@ must not restate the projection tuple. A valid `LIGHTWEIGHT` compact record adds
 only its independently necessary task-local purpose, inputs and outputs,
 producer or consumer direction when absent from both the projection tuple and
 an applicable directly cited boundary row, material write or side-effect owner,
-failure and cleanup behavior, and explicit reason
+permission, failure, cleanup, and recovery behavior, and explicit reason
 all five eligibility dimensions are true; its selected projection entries supply the common
 participant, relationship, owner, and proof facts. It need not manufacture
 inverse entries, supporting owners, partitions, consumers, or example families
@@ -584,8 +584,8 @@ an actual known participant, owner/source, proof allocation, or independently
 necessary execution relationship, or when its compact task-local record omits
 purpose, inputs and outputs, independently necessary producer or consumer
 direction absent from both the projection tuple and an applicable directly
-cited boundary row, material write or side-effect owner, failure and cleanup
-behavior, focused verification expectations, or
+cited boundary row, material write or side-effect owner, permission, failure,
+cleanup, and recovery behavior, focused verification expectations, or
 an explicit statement that all five eligibility dimensions are true. An absent equivalent inverse
 producer-consumer or reference entry alone is not an omission. Unclear tier
 eligibility defaults to `FULL`; the compact route never excuses a known
@@ -835,8 +835,9 @@ for every actual known participant and independently necessary execution
 relationship, owner/source, and proof allocation. It adds the closed compact
 task-local purpose, inputs and outputs, producer or consumer direction when it
 is independently necessary and not identified by the projection tuple,
-material write or side-effect owner, failure and cleanup behavior, focused
-verification expectations, and an explicit reason all five eligibility dimensions are true.
+material write or side-effect owner, permission, failure, cleanup, and recovery
+behavior, focused verification expectations, and an explicit reason all five
+eligibility dimensions are true.
 It does not require an equivalent inverse producer-consumer or reference entry.
 It is sufficient unless specifically authorized applicable extra detail is
 required by a concrete approved task-local need or an independently applicable
@@ -950,7 +951,7 @@ normative owner/source, and proof allocation. Its closed compact task-local
 fields add purpose, inputs and outputs, producer or consumer direction when
 independently necessary and absent from both the projection tuple and an
 applicable directly cited boundary row, material write or side-effect owner,
-failure and cleanup behavior, focused verification
+permission, failure, cleanup, and recovery behavior, focused verification
 expectations, and the explicit reason all five eligibility dimensions are true. It does not
 restate the projection tuple, duplicate an equivalent inverse relationship, or
 acquire FULL-only checklist fields or `N/A` entries. Add checklist detail only
