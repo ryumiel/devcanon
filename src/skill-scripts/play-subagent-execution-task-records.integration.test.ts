@@ -1,0 +1,380 @@
+import { execFile } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
+import { constants } from "node:fs";
+import {
+  access,
+  chmod,
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+import { afterEach, describe, expect, it } from "vitest";
+import { cleanupTempDir, createTempDir } from "../__test-helpers__/fixtures.js";
+
+const execFileAsync = promisify(execFile);
+const repositoryRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../..",
+);
+const helperPath = path.join(
+  repositoryRoot,
+  "skills/play-subagent-execution/scripts/resolve-task-records.mjs",
+);
+const ephemeralRoot = path.join(repositoryRoot, ".ephemeral");
+
+const basePlan = `# Resolver fixture
+
+## Supporting-Owner Supplements
+
+- **Governing Entry ID:** \`EP-A\`
+  - **Supporting owner:** owner-a
+- **Governing Entry ID:** \`EP-B\`
+  - **Supporting owner:** owner-b
+
+## Boundary Contract Traceability
+
+### Boundary row \`BR-A\`
+
+- input-a
+
+### Boundary row \`BR-B\`
+
+- input-b
+
+## Tasks
+
+### Task 1: Resolve records
+
+**Task ID:** TASK-A
+
+**Boundary rows:** ["BR-B", "BR-A"]
+
+**Supporting-owner supplements:** ["EP-A"]
+
+**Contract tier:** FULL
+`;
+
+const createdPaths: string[] = [];
+const tempDirs: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(
+    createdPaths
+      .splice(0)
+      .map((target) => rm(target, { force: true, recursive: true })),
+  );
+  await Promise.all(tempDirs.splice(0).map((target) => cleanupTempDir(target)));
+});
+
+function digest(content: string): string {
+  return createHash("sha256").update(content).digest("hex");
+}
+
+async function writePlan(content: string): Promise<string> {
+  await mkdir(ephemeralRoot, { recursive: true });
+  const relativePath = `.ephemeral/task-records-${randomUUID()}-plan.md`;
+  const absolutePath = path.join(repositoryRoot, relativePath);
+  await writeFile(absolutePath, content);
+  createdPaths.push(absolutePath);
+  return relativePath;
+}
+
+async function runHelper(
+  content: string,
+  overrides: Record<string, string> = {},
+  cwd = repositoryRoot,
+): Promise<{ stdout: string; stderr: string }> {
+  const planPath = await writePlan(content);
+  return runPlanPath(planPath, content, overrides, cwd);
+}
+
+async function runPlanPath(
+  planPath: string,
+  content: string,
+  overrides: Record<string, string> = {},
+  cwd = repositoryRoot,
+): Promise<{ stdout: string; stderr: string }> {
+  return execFileAsync(process.execPath, [helperPath], {
+    cwd,
+    env: {
+      PATH: process.env.PATH,
+      PLAN_PATH: planPath,
+      TASK_ID: "TASK-A",
+      EXPECTED_PLAN_DIGEST: digest(content),
+      ...overrides,
+    },
+  });
+}
+
+async function expectFailure(
+  content: string,
+  overrides: Record<string, string> = {},
+  cwd = repositoryRoot,
+): Promise<{ stdout: string; stderr: string }> {
+  try {
+    await runHelper(content, overrides, cwd);
+  } catch (error) {
+    return error as { stdout: string; stderr: string };
+  }
+  throw new Error("expected helper failure");
+}
+
+describe("play-subagent-execution task record resolver", () => {
+  it("emits only validated IDs in authored request order for zero, one, or many references", async () => {
+    const many = await runHelper(basePlan);
+    expect(JSON.parse(many.stdout)).toEqual({
+      schema: "play-subagent-execution/task-record-resolution/v1",
+      task_id: "TASK-A",
+      boundary_row_ids: ["BR-B", "BR-A"],
+      supporting_owner_supplement_ids: ["EP-A"],
+    });
+    expect(many.stdout.endsWith("\n")).toBe(true);
+    expect(many.stdout).not.toContain("input-a");
+    expect(many.stderr).toBe("");
+
+    const zeroPlan = basePlan
+      .replace('["BR-B", "BR-A"]', "[]")
+      .replace('["EP-A"]', "[]");
+    const zero = await runHelper(zeroPlan);
+    expect(JSON.parse(zero.stdout)).toMatchObject({
+      boundary_row_ids: [],
+      supporting_owner_supplement_ids: [],
+    });
+
+    const onePlan = basePlan.replace('["BR-B", "BR-A"]', '["BR-A"]');
+    const one = await runHelper(onePlan);
+    expect(JSON.parse(one.stdout).boundary_row_ids).toEqual(["BR-A"]);
+
+    const representationPlan = basePlan
+      .replaceAll("BR-A", "boundary row alpha")
+      .replaceAll("EP-A", "supporting owner alpha");
+    const representation = await runHelper(representationPlan);
+    expect(JSON.parse(representation.stdout)).toMatchObject({
+      boundary_row_ids: ["BR-B", "boundary row alpha"],
+      supporting_owner_supplement_ids: ["supporting owner alpha"],
+    });
+
+    const multilinePlan = basePlan.replace(
+      '**Boundary rows:** ["BR-B", "BR-A"]',
+      '**Boundary rows:** [\n  "BR-B",\n  "BR-A"\n]',
+    );
+    const multiline = await runHelper(multilinePlan);
+    expect(JSON.parse(multiline.stdout).boundary_row_ids).toEqual([
+      "BR-B",
+      "BR-A",
+    ]);
+
+    const nonAnchorMentions = basePlan
+      .replace(
+        "## Boundary Contract Traceability",
+        "| **Governing Entry ID:** | prose mention |\n\n## Boundary Contract Traceability",
+      )
+      .replace(
+        "## Tasks",
+        "### Boundary row without a canonical ID anchor\n\n## Tasks",
+      );
+    await expect(runHelper(nonAnchorMentions)).resolves.toMatchObject({
+      stderr: "",
+    });
+  });
+
+  it("rejects malformed, repeated, and invalid canonical task fields", async () => {
+    const invalidPlans = [
+      basePlan.replace('**Boundary rows:** ["BR-B", "BR-A"]\n\n', ""),
+      basePlan.replace(
+        '**Boundary rows:** ["BR-B", "BR-A"]',
+        '**Boundary rows:** ["BR-A"]\n\n**Boundary rows:** ["BR-B"]',
+      ),
+      basePlan.replace('["BR-B", "BR-A"]', "not-json"),
+      basePlan.replace('["BR-B", "BR-A"]', '"BR-A"'),
+      basePlan.replace('["BR-B", "BR-A"]', '["BR-A", 1]'),
+      basePlan.replace('["BR-B", "BR-A"]', '["BR-A", ""]'),
+      basePlan.replace('["BR-B", "BR-A"]', '["BR-A\\n"]'),
+      basePlan.replace('["BR-B", "BR-A"]', '["BR-A", "BR-A"]'),
+      basePlan.replace(
+        '**Boundary rows:** ["BR-B", "BR-A"]',
+        '<!--\n**Boundary rows:** ["BR-B", "BR-A"]\n-->',
+      ),
+    ];
+
+    for (const plan of invalidPlans) {
+      const failure = await expectFailure(plan);
+      expect(failure.stdout).toBe("");
+      expect(failure.stderr).not.toBe("");
+    }
+  });
+
+  it("fails closed for unknown, stale, ambiguous, duplicate-definition, and cross-kind IDs", async () => {
+    const invalidPlans = [
+      basePlan.replace('"BR-B", "BR-A"', '"BR-STALE"'),
+      basePlan.replace("### Boundary row `BR-B`", "### Boundary row `BR-A`"),
+      basePlan.replace('["BR-B", "BR-A"]', '["EP-A"]'),
+      basePlan.replace('["EP-A"]', '["BR-A"]'),
+      basePlan.replace(
+        "- **Governing Entry ID:** `EP-B`",
+        "- **Governing Entry ID:** `EP-A`",
+      ),
+      basePlan.replace("### Boundary row `BR-B`", "### Boundary row BR-B"),
+      basePlan.replace(
+        "### Boundary row `BR-A`",
+        "<!--\n### Boundary row `BR-A`\n-->",
+      ),
+      basePlan.replace(
+        "- **Governing Entry ID:** `EP-A`",
+        "**Governing Entry ID:** `EP-A`",
+      ),
+    ];
+
+    for (const plan of invalidPlans) {
+      const failure = await expectFailure(plan);
+      expect(failure.stdout).toBe("");
+      expect(failure.stderr).not.toBe("");
+    }
+
+    const controlIdPlan = basePlan.replace(
+      '["BR-B", "BR-A"]',
+      '["\\u001b[31mUNKNOWN"]',
+    );
+    const controlFailure = await expectFailure(controlIdPlan);
+    expect(controlFailure.stderr).not.toContain("\u001b");
+    expect(controlFailure.stderr).toContain("\\u001b");
+  });
+
+  it("rejects missing, duplicate, and unknown Task IDs", async () => {
+    const missing = basePlan.replace("**Task ID:** TASK-A\n\n", "");
+    const duplicate = basePlan.replace(
+      "**Task ID:** TASK-A",
+      "**Task ID:** TASK-A\n\n**Task ID:** TASK-A",
+    );
+
+    for (const plan of [missing, duplicate]) {
+      const failure = await expectFailure(plan);
+      expect(failure.stdout).toBe("");
+    }
+
+    const unknown = await expectFailure(basePlan, { TASK_ID: "TASK-UNKNOWN" });
+    expect(unknown.stdout).toBe("");
+  });
+
+  it("validates root, path, and digest before resolution without writing files or partial stdout", async () => {
+    const planPath = await writePlan(basePlan);
+    const before = await readdir(ephemeralRoot);
+    await runPlanPath(planPath, basePlan);
+    expect(await readdir(ephemeralRoot)).toEqual(before);
+
+    const badDigest = await expectFailure(basePlan, {
+      EXPECTED_PLAN_DIGEST: "0".repeat(64),
+    });
+    expect(badDigest.stdout).toBe("");
+    expect(badDigest.stderr).toContain("digest mismatch");
+
+    const malformedDigest = await expectFailure(basePlan, {
+      EXPECTED_PLAN_DIGEST: "invalid",
+    });
+    expect(malformedDigest.stdout).toBe("");
+
+    const unsafePath = await expectFailure(basePlan, { PLAN_PATH: "plan.md" });
+    expect(unsafePath.stdout).toBe("");
+    expect(unsafePath.stderr).toContain("plan path validation failed");
+
+    const windowsSeparator = await expectFailure(basePlan, {
+      PLAN_PATH: ".ephemeral\\nested\\outside-plan.md",
+    });
+    expect(windowsSeparator.stderr).toContain("plan path validation failed");
+
+    const controlPath = await expectFailure(basePlan, {
+      PLAN_PATH: ".ephemeral/task-records-\u001b-plan.md",
+    });
+    expect(controlPath.stderr).not.toContain("\u001b");
+    expect(controlPath.stderr).toContain("\\u001b");
+
+    const orderedFailure = await expectFailure(basePlan, {
+      PLAN_PATH: "plan.md",
+      TASK_ID: "",
+      EXPECTED_PLAN_DIGEST: "invalid",
+    });
+    expect(orderedFailure.stderr).toContain("plan path validation failed");
+
+    const symlinkTarget = await writePlan(basePlan);
+    const symlinkPath = `.ephemeral/task-records-${randomUUID()}-plan.md`;
+    const symlinkAbsolute = path.join(repositoryRoot, symlinkPath);
+    await symlink(path.join(repositoryRoot, symlinkTarget), symlinkAbsolute);
+    createdPaths.push(symlinkAbsolute);
+    await expect(runPlanPath(symlinkPath, basePlan)).rejects.toMatchObject({
+      stdout: "",
+    });
+
+    const directoryPath = `.ephemeral/task-records-${randomUUID()}-plan.md`;
+    const directoryAbsolute = path.join(repositoryRoot, directoryPath);
+    await mkdir(directoryAbsolute);
+    createdPaths.push(directoryAbsolute);
+    await expect(runPlanPath(directoryPath, basePlan)).rejects.toMatchObject({
+      stdout: "",
+    });
+
+    const unreadablePath = await writePlan(basePlan);
+    const unreadableAbsolute = path.join(repositoryRoot, unreadablePath);
+    await chmod(unreadableAbsolute, 0o000);
+    try {
+      let readable = true;
+      try {
+        await access(unreadableAbsolute, constants.R_OK);
+      } catch {
+        readable = false;
+      }
+      if (readable) {
+        await expect(
+          runPlanPath(unreadablePath, basePlan),
+        ).resolves.toMatchObject({ stderr: "" });
+      } else {
+        await expect(
+          runPlanPath(unreadablePath, basePlan),
+        ).rejects.toMatchObject({ stdout: "" });
+      }
+    } finally {
+      await chmod(unreadableAbsolute, 0o600);
+    }
+
+    const unrelatedCwd = await createTempDir();
+    tempDirs.push(unrelatedCwd);
+    const wrongRoot = await expectFailure(basePlan, {}, unrelatedCwd);
+    expect(wrongRoot.stdout).toBe("");
+    expect(wrongRoot.stderr).toContain("repository root");
+
+    const controlTask = await expectFailure(basePlan, {
+      TASK_ID: "TASK-\u001b",
+    });
+    expect(controlTask.stderr).not.toContain("\u001b");
+    expect(controlTask.stderr).toContain("\\u001b");
+  });
+
+  it("prints the adjacent usage contract through --help", async () => {
+    const usagePath = path.join(
+      repositoryRoot,
+      "skills/play-subagent-execution/references/resolve-task-records-usage.md",
+    );
+    const result = await execFileAsync(
+      process.execPath,
+      [helperPath, "--help"],
+      {
+        cwd: repositoryRoot,
+        env: { PATH: process.env.PATH },
+      },
+    );
+    expect(result.stdout).toBe(await readFile(usagePath, "utf8"));
+    expect(result.stderr).toBe("");
+
+    await expect(
+      execFileAsync(process.execPath, [helperPath, "--help", "extra"], {
+        cwd: repositoryRoot,
+        env: { PATH: process.env.PATH },
+      }),
+    ).rejects.toMatchObject({ stdout: "" });
+  });
+});

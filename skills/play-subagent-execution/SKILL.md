@@ -10,7 +10,7 @@ codex_sidecar:
 
 ## Public helper mechanics
 
-Use the adjacent [source-immutability usage](references/source-immutability-usage.md), [write-risk-signals usage](references/write-risk-signals-usage.md), [write-snapshot-manifest usage](references/write-snapshot-manifest-usage.md), and [validate-snapshot-manifest usage](references/validate-snapshot-manifest-usage.md). This skill retains D14-D16 lifecycle, blocking, and terminal-handoff policy.
+Use the adjacent [task-record resolver usage](references/resolve-task-records-usage.md), [source-immutability usage](references/source-immutability-usage.md), [write-risk-signals usage](references/write-risk-signals-usage.md), [write-snapshot-manifest usage](references/write-snapshot-manifest-usage.md), and [validate-snapshot-manifest usage](references/validate-snapshot-manifest-usage.md). This skill retains task-record continuation, D14-D16 lifecycle, blocking, and terminal-handoff policy.
 
 ## Invocation Policy
 
@@ -99,22 +99,36 @@ planning. This selection does not decide whether membership or topology is
 semantically truthful or complete. Legacy and pre-projection plans receive no
 inference or bypass.
 
-Append only selected entries and plan-level supporting-owner supplements or
-boundary records that the current task directly cites as
-`supporting-owner supplement <Entry ID>` or
-`boundary row <stable row ID>`. Resolve the identifier only within the named
-record kind; projection-entry selection is separate. Each cited identifier must
-resolve to exactly one record in that domain. Do not discover records merely
-because they mention a selected Entry ID, send the full plan for child
-resolution, recursively follow references, infer missing entries or semantic
-applicability, validate semantic coverage or topology exhaustiveness, or route
-from the projection.
+Every current task must contain each canonical field exactly once:
+
+```markdown
+**Boundary rows:** ["BR-A", "BR-B"]
+**Supporting-owner supplements:** []
+```
+
+For a validated path-backed plan, after the existing plan-path and exact-digest
+gate, invoke `scripts/resolve-task-records.mjs` with `PLAN_PATH`, the current
+`TASK_ID`, and `EXPECTED_PLAN_DIGEST` as defined by its adjacent usage contract.
+Require the closed `play-subagent-execution/task-record-resolution/v1` result
+with exactly `schema`, `task_id`, `boundary_row_ids`, and
+`supporting_owner_supplement_ids`. Both record-kind values are identifier arrays
+in authored request order. The helper validates identity and kind only; it does
+not emit, extract, slice, or authorize Markdown record bodies.
+
+Use only those validated IDs to curate uniquely identified plan-level records
+through the controller's existing context-assembly responsibility. If the
+helper fails, its result is malformed, or identified-record curation is
+ambiguous, return `BLOCKED/NEEDS_CONTEXT` to planning before dispatch. Do not
+discover records merely because they mention a selected Entry ID, send the full
+plan for child resolution, recursively follow references, infer missing records
+or semantic applicability, validate semantic coverage or topology
+exhaustiveness, define a new record-body grammar, or route from the projection.
 
 Then run the structural task-contract gate against the extracted plan/task
 execution context. Before
 implementer dispatch, reviewer dispatch, final whole-implementation review, or
 skip-dispatch evaluation, assemble the extracted plan/task execution context
-from resolved projection entries, their directly task-cited plan-level records,
+from resolved projection entries, plan-level records curated from validated IDs,
 plan-level Contract Example Discipline obligations or equivalent clearly
 labeled sections/obligations when present, task-local checklist or no-trigger
 status, and any task-local example or verification obligations that refine the
@@ -144,7 +158,7 @@ task-local purpose, inputs and outputs, producer or
 consumer direction when independently necessary and absent from both the
 selected projection tuple and an applicable directly cited boundary row,
 material write or side-effect owner, failure and cleanup behavior, and explicit
-reason every FULL trigger is absent. Selected projection
+reason all five behavioral eligibility dimensions are true. Selected projection
 entries are the only common participant and relationship representation. For
 reviewed plans, D5 owns whether they cover every actual participant and
 independently necessary execution
@@ -162,7 +176,7 @@ labeled section/obligation, apply the shared consumer rule in
 [`references/contract-example-discipline-consumer-rule.md`](references/contract-example-discipline-consumer-rule.md).
 Validate the `LIGHTWEIGHT` structure from the assembled context without
 reclassifying the declared tier. The executor checks the selected entries,
-linked records, and task-local fields structurally; D5 owns semantic coverage
+validated IDs, curated records, and task-local fields structurally; D5 owns semantic coverage
 for reviewed plans. The controller must not treat
 prompt-mediated consumers as the only consumers or omit guarded-inline D13
 merely because no child prompt is dispatched.
@@ -217,15 +231,16 @@ validates the path before reading:
 
 ```bash
 case "$PLAN_PATH" in
-  .ephemeral/*/*) echo "nested plan path rejected: $PLAN_PATH" >&2; exit 1 ;;
+  *\\*) echo "plan path validation failed" >&2; exit 1 ;;
+  .ephemeral/*/*) echo "nested plan path rejected" >&2; exit 1 ;;
   .ephemeral/*-plan.md) ;;
-  *) echo "plan path validation failed: $PLAN_PATH" >&2; exit 1 ;;
+  *) echo "plan path validation failed" >&2; exit 1 ;;
 esac
-[ "${PLAN_PATH#*..}" = "$PLAN_PATH" ] || { echo "path traversal: $PLAN_PATH" >&2; exit 1; }
+[ "${PLAN_PATH#*..}" = "$PLAN_PATH" ] || { echo "path traversal rejected" >&2; exit 1; }
 [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
-[ ! -L "$PLAN_PATH" ] || { echo "plan must not be a symlink: $PLAN_PATH" >&2; exit 1; }
-[ -f "$PLAN_PATH" ] || { echo "plan missing or not a regular file: $PLAN_PATH" >&2; exit 1; }
-[ -r "$PLAN_PATH" ] || { echo "plan missing or unreadable: $PLAN_PATH" >&2; exit 1; }
+[ ! -L "$PLAN_PATH" ] || { echo "plan must not be a symlink" >&2; exit 1; }
+[ -f "$PLAN_PATH" ] || { echo "plan missing or not a regular file" >&2; exit 1; }
+[ -r "$PLAN_PATH" ] || { echo "plan missing or unreadable" >&2; exit 1; }
 ```
 
 Immediately after those guards and before reading, extracting, routing, or
@@ -238,12 +253,11 @@ extraction and must return to the owning planning workflow; never replace the
 expected digest with the current file digest. Keep both values controller-local
 and do not create a digest artifact, helper, parser, or registry.
 
-This bash uses the generic phase-artifact read guard shape: narrow the suffix to
-the expected artifact, reject traversal, reject symlinked `.ephemeral` and
-symlinked leaf files, require a regular file, and verify readability before
-opening the file. `play-review` findings/nits envelopes use a stricter
-direct-child `.ephemeral/` guard because those paths are echoed through review
-output and reused by wrappers before read or overwrite.
+This bash uses the task-record helper's direct-child read guard shape: narrow
+the suffix to the expected artifact, reject both separator forms and traversal,
+reject symlinked `.ephemeral` and symlinked leaf files, require a regular file,
+and verify readability before opening the file. Failure diagnostics do not echo
+the caller-controlled path.
 
 Only after the digest comparison passes does the controller read the plan from the path and proceed with task
 extraction. Per-task implementer subagents continue to receive curated,
@@ -300,10 +314,16 @@ status, or copied invocation prose.
 
 A `## Plan` heading followed by content body, or an entire plan document
 pasted into the invocation prose. No path validation is required — content
-is consumed verbatim from the prose. Direct human invocations that paste a
-plan inline use this shape.
+is consumed verbatim only to identify the missing execution prerequisite.
+Because current task-record resolution requires a guarded plan path and exact
+digest, an inline plan must return `BLOCKED/NEEDS_CONTEXT` before structural
+resolution or dispatch and ask the caller to save and review the plan through
+the path-backed route. Do not materialize inline content, synthesize a digest,
+parse its reference fields as a fallback, or bypass the resolver.
 
-The path reference is consumed by the controller; the inline form is preserved for direct human invocations that paste a plan into the prose.
+The path reference is consumed by the controller; the inline form remains
+recognized for direct human invocations so it can fail closed with the bounded
+path-and-digest prerequisite instead of being misread as an ad hoc task.
 
 ## When to Use
 
@@ -319,20 +339,21 @@ For the full selection and process diagrams, load
 
 ## The Process
 
-1. Read the plan from a validated `Plan: <path>` reference or from inline
-   invocation content. Keep plan-path handling controller-owned; per-task
-   implementers receive curated inlined task text, not the plan path.
+1. Read the plan from a validated `Plan: <path>` reference. Recognize inline
+   invocation content only to return the path-and-digest prerequisite above.
+   Keep plan-path handling controller-owned; per-task implementers receive
+   curated inlined task text, not the plan path.
 2. Extract all authored tasks with their full text, surrounding context,
-   resolved projection entries, directly task-cited plan-level records, declared
+   resolved projection entries, canonical record-reference fields, declared
    contract tier, tier-appropriate contract fields, verification expectations,
    and any mode or route hints.
 3. Assemble the extracted plan/task execution context before implementer
    dispatch, reviewer dispatch, final whole-implementation review, or
-   skip-dispatch evaluation. Include complete supporting-owner supplements or
-   boundary records that the task directly cites as
-   `supporting-owner supplement <Entry ID>` or
-   `boundary row <stable row ID>`. Resolve each identifier only within its named
-   record kind and require exactly one matching record. Include plan-level
+   skip-dispatch evaluation. For path-backed plans, invoke the task-record
+   resolver and validate its closed ID-only result before curating only the
+   uniquely identified supporting-owner supplements and boundary records. Keep
+   identifier validation separate from controller-owned content curation and
+   fail closed before dispatch when either is ambiguous. Include plan-level
    Contract Example Discipline obligations or equivalent clearly labeled
    sections/obligations when present, task-local declared tier and
    tier-appropriate structure, and any task-local example or verification

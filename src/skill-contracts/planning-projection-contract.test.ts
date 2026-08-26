@@ -13,22 +13,31 @@ const projectionFields = [
   "Proof",
 ] as const;
 
-const directCitationForms = [
-  "supporting-owner supplement <Entry ID>",
-  "boundary row <stable row ID>",
+const recordReferenceFields = [
+  "Boundary rows",
+  "Supporting-owner supplements",
+] as const;
+
+const lightweightDimensions = [
+  "exactly one behavioral owner",
+  "no public schema or API",
+  "no security-sensitive or untrusted boundary",
+  "no external mutation",
+  "outputs and side effects are bounded and recoverable",
 ] as const;
 
 function numberedFieldLabels(section: string): string[] {
   return [...section.matchAll(/^\d+\. `([^`]+)`:/gm)].map((match) => match[1]);
 }
 
-function citationTokens(markdown: string): string[] {
-  return [...markdown.matchAll(/`([^`\r\n]+)`/g)].map((match) => match[1]);
+function canonicalTaskFields(markdown: string): string[] {
+  return [...markdown.matchAll(/^\*\*([^*\r\n]+):\*\*/gm)]
+    .map((match) => match[1])
+    .filter((field) => recordReferenceFields.includes(field as never));
 }
 
-function citationForms(markdown: string): string[] {
-  const knownForms = new Set<string>(directCitationForms);
-  return citationTokens(markdown).filter((token) => knownForms.has(token));
+function normalizedProse(markdown: string): string {
+  return markdown.replace(/\s+/g, " ").trim();
 }
 
 describe("play-planning execution projection contract", () => {
@@ -60,7 +69,7 @@ describe("play-planning execution projection contract", () => {
     expect(numberedFieldLabels(missingAuthority)).not.toEqual(projectionFields);
   });
 
-  it("shares distinct supplement and boundary-row citation forms with the execution consumer", async () => {
+  it("shares canonical record-reference fields with the execution consumer", async () => {
     const [skill, criteria, execution] = await Promise.all([
       readRepoFile("skills/play-planning/SKILL.md"),
       readRepoFile("skills/play-planning/references/planning-criteria.md"),
@@ -68,40 +77,125 @@ describe("play-planning execution projection contract", () => {
     ]);
 
     for (const source of [skill, criteria, execution]) {
-      expect(new Set(citationForms(source))).toEqual(
-        new Set(directCitationForms),
+      expect(new Set(canonicalTaskFields(source))).toEqual(
+        new Set(recordReferenceFields),
       );
     }
   });
 
-  it("rejects unlabeled or cross-kind citation syntax", () => {
-    const invalidForms = [
-      "`<Entry ID>`",
-      "`supporting-owner supplement <stable row ID>`",
-      "`boundary row <Entry ID>`",
-    ];
+  it("keeps reference-field ordering non-semantic across planning owners", async () => {
+    const [skill, criteria] = await Promise.all([
+      readRepoFile("skills/play-planning/SKILL.md"),
+      readRepoFile("skills/play-planning/references/planning-criteria.md"),
+    ]);
 
-    for (const invalidForm of invalidForms) {
-      expect(citationForms(invalidForm)).toEqual([]);
+    for (const source of [skill, criteria]) {
+      expect(normalizedProse(source)).toContain(
+        "their relative position and the order of unrelated task fields are non-semantic",
+      );
+      expect(source).not.toContain(
+        "followed by exactly one `**Boundary rows:**`",
+      );
     }
   });
 
-  it("rejects forbidden citation forms in actual contract sources", async () => {
+  it("removes repeated prose selectors from planning and execution contracts", async () => {
     const sources = await Promise.all([
       readRepoFile("skills/play-planning/SKILL.md"),
       readRepoFile("skills/play-planning/references/planning-criteria.md"),
       readRepoFile("skills/play-subagent-execution/SKILL.md"),
     ]);
-    const invalidForms = [
-      "<Entry ID>",
-      "supporting-owner supplement <stable row ID>",
-      "boundary row <Entry ID>",
-    ];
 
     for (const source of sources) {
-      for (const invalidForm of invalidForms) {
-        expect(citationTokens(source)).not.toContain(invalidForm);
-      }
+      expect(source).not.toContain("supporting-owner supplement <Entry ID>");
+      expect(source).not.toContain("boundary row <stable row ID>");
+    }
+  });
+
+  it("owns the closed behavioral LIGHTWEIGHT test and one-dimensional examples", async () => {
+    const criteria = await readRepoFile(
+      "skills/play-planning/references/planning-criteria.md",
+    );
+    const section = getMarkdownSection(
+      criteria,
+      "Proportional contract planning",
+    );
+    const prose = normalizedProse(section);
+
+    for (const dimension of lightweightDimensions) {
+      expect(prose).toContain(dimension);
+    }
+
+    expect(prose).toContain("Persistence or filesystem effects alone");
+    expect(prose).toContain("Invalid behavioral-owner mutation");
+    expect(prose).toContain("Invalid public-contract mutation");
+    expect(prose).toContain("Invalid trust-boundary mutation");
+    expect(prose).toContain("Invalid external-mutation mutation");
+    expect(prose).toContain("Invalid recovery mutation");
+  });
+
+  it("keeps boundary-owned facts single-carrier and representation differences non-blocking", async () => {
+    const criteria = await readRepoFile(
+      "skills/play-planning/references/planning-criteria.md",
+    );
+    const prose = normalizedProse(criteria);
+
+    expect(prose).toContain(
+      "Directly cited boundary records may exclusively own",
+    );
+    expect(prose).toContain(
+      "does not also become an Execution Projection surface",
+    );
+    expect(prose).toContain(
+      "representation-only wording or ordering difference is non-blocking",
+    );
+    expect(prose).toContain(
+      "Missing owners, participants, implementation membership, proof ownership, or execution facts remain blocking",
+    );
+    expect(prose).toContain("Valid boundary-carried context");
+    expect(prose).toContain("Invalid missing-participant mutation");
+    expect(prose).toContain("Invalid missing-authority mutation");
+    expect(prose).toContain("Invalid missing-task-membership mutation");
+    expect(prose).toContain("Invalid missing-proof mutation");
+    expect(prose).toContain("Valid representation-only mutation");
+    expect(prose).toContain("narrow canonical anchor grammar");
+    expect(prose).toContain("record IDs are kind-scoped and do not inherit");
+    expect(prose).toContain("Task ID's `UPPER-ASCII-KEBAB` grammar");
+  });
+
+  it("keeps the controller and all prompt consumers on validated curated IDs", async () => {
+    const [execution, ...prompts] = await Promise.all([
+      readRepoFile("skills/play-subagent-execution/SKILL.md"),
+      readRepoFile(
+        "skills/play-subagent-execution/references/implementer-prompt.md",
+      ),
+      readRepoFile(
+        "skills/play-subagent-execution/references/executor-prompt.md",
+      ),
+      readRepoFile(
+        "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
+      ),
+    ]);
+
+    expect(execution).toContain(
+      "Require the closed `play-subagent-execution/task-record-resolution/v1` result",
+    );
+    expect(execution).toContain("with exactly `schema`, `task_id`");
+    expect(execution).toContain("Use only those validated IDs to curate");
+    expect(execution).toContain(
+      "an inline plan must return `BLOCKED/NEEDS_CONTEXT`",
+    );
+    expect(execution).toContain('*\\\\*) echo "plan path validation failed"');
+    expect(normalizedProse(execution)).toContain(
+      "Failure diagnostics do not echo the caller-controlled path",
+    );
+    for (const prompt of prompts) {
+      expect(prompt).toContain(
+        "plan-level records curated only from the\n    task resolver's validated canonical IDs",
+      );
+      expect(prompt).toContain(
+        "Do not parse the full plan, re-resolve IDs, infer other records",
+      );
     }
   });
 });

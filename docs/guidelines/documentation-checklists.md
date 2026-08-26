@@ -37,29 +37,29 @@ materially changes a generated artifact, derived artifact, helper I/O file,
 `.ephemeral` handoff, cross-skill handoff, or other side-channel data that a
 later actor, skill, script, validator, or review workflow consumes.
 
-The FULL applicability set is closed: use FULL treatment when the side-channel
-contract is durable, public, cross-session, untrusted, security-sensitive, or
-cross-owner. No other dimension triggers FULL. If it is unclear whether one of
-those six dimensions applies, default to FULL. When any applies, retain every
-question below. For private, transient, same-controller mechanics with no
-durable schema consumer, use the LIGHTWEIGHT planning tier: record task-local
+The proportional applicability set is behavioral and closed. Use the
+LIGHTWEIGHT planning tier only when all five dimensions are true: exactly one
+behavioral owner; no public schema or API; no security-sensitive or untrusted
+boundary; no external mutation; and bounded, recoverable outputs and side
+effects. If any dimension is false or unclear, use the applicable stronger
+treatment. Persistence and filesystem effects alone do not require FULL. Do
+not classify by artifact type, language, repository layout, path, or
+implementation mechanism. For eligible LIGHTWEIGHT work, record task-local
 purpose, inputs and outputs, producer or consumer direction when independently
 necessary and absent from both the projection tuple and an applicable directly
 cited boundary row, material write or side-effect owner, failure and cleanup,
-focused verification, and the explicit reason every FULL trigger is absent. The canonical Execution Projection records common
+focused verification, and the explicit reason all five dimensions are true. The canonical Execution Projection records common
 affected surfaces, normative owner/source, mode, task/no-code disposition, and
 proof allocation once for curated task context. If independently necessary
 producer or consumer direction is absent from both carriers, record it once in
 the compact task record; do not add an equivalent inverse producer-consumer edge. A
 distinct or independently necessary participant or execution fact remains
-required. That single explicit reason also collectively establishes that every
-remaining FULL-only question is
-inapplicable. No separate collective marking act, individual question marker,
-FULL-only field, or `N/A` entry is required. A change with no side-channel or
-other contract trigger records its task-specific reason and does not apply this
-checklist. Any independently applicable side-channel, generated, safety,
-untrusted, durable, public, cross-session, cross-owner, or governance
-obligation remains blocking.
+required. That single explicit reason establishes LIGHTWEIGHT eligibility. No
+separate collective marking act, individual question marker, FULL-only field,
+or `N/A` entry is required. A change with no side-channel or other contract
+trigger records its task-specific reason and does not apply this checklist.
+Known omissions, a false eligibility dimension, or independently applicable
+material authority remain blocking.
 
 This checklist owns reusable authoring and review questions. Concrete artifact
 schemas, helper mechanics, emitted diagnostics, and runtime validation remain

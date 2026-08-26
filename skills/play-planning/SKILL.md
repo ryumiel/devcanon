@@ -258,8 +258,9 @@ its independently necessary compact task-local facts, including producer or
 consumer direction when neither the selected projection tuple nor an applicable
 directly cited boundary row identifies it. A
 family-local authority requires additional complete or necessary topology only
-when it explicitly governs the ownership-topology mapping. Known omissions and
-independently triggered obligations remain blocking at every tier. Every changed behavior
+when it explicitly governs the ownership-topology mapping. Known omissions,
+false eligibility dimensions, and independently applicable material authority
+remain blocking at every tier. Every changed behavior
 and affected surface must reach a current task with its normative owner. The
 canonical planning criteria own the detailed topology and task-mapping rules,
 including tier-aware example-discipline triggers; the readiness reference
@@ -269,6 +270,14 @@ owning design and broken task mappings to planning instead of adding a
 synchronized restatement. Repeated detail does not make a reference or summary
 normative, verification does not define policy, and generated skill packages
 remain derived consumers rather than edit targets.
+
+An applicable directly cited boundary record may exclusively carry
+participant-specific inputs, outputs, directions, derived destinations,
+ordering, validation, failure behavior, and observable boundary conditions.
+Do not repeat those facts as projection surfaces unless a projection-owned
+authority, common relationship, mode, task-membership, or proof dimension
+differs. Missing owners, participants, membership, proof, or execution facts
+remain blocking.
 
 After the Scope Delta and before tasks, compile approved relationships into one
 `## Execution Projection` under the canonical criteria. Entries contain only
@@ -380,6 +389,10 @@ before starting.
 
 **Task ID:** <UPPER-ASCII-KEBAB>
 
+**Boundary rows:** []
+
+**Supporting-owner supplements:** []
+
 **Contract tier:** FULL | LIGHTWEIGHT | NO-TRIGGER
 
 <!-- Optional review-routing hints, when present, go here:
@@ -428,8 +441,8 @@ For `LIGHTWEIGHT` only:
 direction when independently necessary and absent from both the selected
 projection tuple and an applicable directly cited boundary row, material write
 or side-effect owner, failure and cleanup behavior,
-focused verification expectations, and the explicit task-specific reason every
-FULL trigger is absent; consume selected projection entries for owner/source,
+focused verification expectations, and the explicit task-specific reason all
+five behavioral eligibility dimensions are true; consume selected projection entries for owner/source,
 participants, common relationships, and proof allocation without restating
 them>
 
@@ -451,7 +464,11 @@ interface, policy, or other non-trivial task-contract trigger>
 ```
 
 Every authored task must place the required `**Task ID:**
-<UPPER-ASCII-KEBAB>` field immediately after its heading. The Task ID is
+<UPPER-ASCII-KEBAB>` field immediately after its heading. The task record also
+contains exactly one `**Boundary rows:**` field and one
+`**Supporting-owner supplements:**` field; their relative position and the
+order of unrelated task fields are non-semantic. Each reference-field value is
+a JSON array of zero or more unique, non-empty string identifiers. The Task ID is
 semantic, unique within the plan, and assigned once. It is independent of the
 task number, order, and display title and must remain unchanged across task
 insertions, reordering, title edits, and review revisions. Missing, duplicate,
@@ -464,10 +481,11 @@ Every authored current task must then declare exactly one canonical
 canonical criteria before choosing its contract detail; planning owns this
 classification. `FULL` tasks carry the complete contract checklist,
 `LIGHTWEIGHT` tasks carry every compact-contract field and the explicit reason
-all FULL triggers are absent, and `NO-TRIGGER` tasks carry a task-specific
+all five behavioral eligibility dimensions are true, and `NO-TRIGGER` tasks carry a task-specific
 reason no contract trigger applies. Ambiguity defaults to `FULL`. A compact
-diff, private implementation name, or `.ephemeral/` path does not by itself
-authorize `LIGHTWEIGHT` or `NO-TRIGGER`.
+diff, private implementation name, artifact type, language, repository layout,
+path, persistence, or filesystem effect does not by itself authorize or reject
+`LIGHTWEIGHT`; apply the five behavioral dimensions from the canonical criteria.
 
 Projection disposition and task-valued proof are the sole plan-local membership
 facts. D5 validates their semantic truth and completeness. The executor
@@ -480,12 +498,17 @@ contracts do not restate that tuple; they remain executable authority for
 task-local scope, dependencies, required behavior, acceptance, and verification
 expectations.
 
-When a task needs a plan-level supporting-owner supplement or boundary record,
-cite that existing record in the task text as either
-`supporting-owner supplement <Entry ID>` or
-`boundary row <stable row ID>`. The record-kind label selects the resolution
-domain; projection-entry selection remains separate. The executor includes the
-cited record in curated context; do not copy it into the task contract.
+Every task selects plan-level records only through its two canonical fields.
+`Boundary rows` contains boundary-row IDs and `Supporting-owner supplements`
+contains Entry-ID-keyed supplement IDs. Empty arrays are valid. The declared
+field selects the resolution domain; projection-entry selection remains
+separate. Every requested identifier must resolve exactly once within that
+domain. Unknown, duplicate, stale, ambiguous, and cross-kind identifiers fail
+closed. The executor includes only the selected records in curated context; do
+not copy them into the task contract, recursively traverse them, infer missing
+records, or forward the complete plan to resolve references.
+Use the canonical record anchors owned by the planning criteria; alternate
+tables, headings, or prose labels do not define resolvable record identities.
 
 Select exactly one tier-specific block from the template and remove the other
 two. The ordinary task fields, acceptance criteria, verification expectations,
@@ -550,6 +573,10 @@ Example mechanical-task header (the enclosing projection assigns
 ### Task N: Rename Example Token
 
 **Task ID:** RENAME-EXAMPLE-TOKEN
+
+**Boundary rows:** []
+
+**Supporting-owner supplements:** []
 
 **Contract tier:** NO-TRIGGER
 
@@ -675,7 +702,7 @@ Review in this order:
    and review-routing hints, and minimum-sufficient proof. Confirm every
    current task declares exactly one canonical contract tier and carries the
    tier-appropriate structure owned by the criteria: complete FULL fields,
-   complete LIGHTWEIGHT compact fields plus the all-FULL-triggers-absent
+   complete LIGHTWEIGHT compact fields plus the all-five-dimensions-true
    reason, or a task-specific NO-TRIGGER reason. Reject missing, ambiguous, or
    under-specified tier declarations; do not infer proportionality from diff
    size or path spelling.
@@ -707,9 +734,10 @@ valid `LIGHTWEIGHT` record, a family-local authority selects additional complete
 or necessary detail only for the family it explicitly governs; it never
 promotes unrelated families. Verify every actual known participant and every
 independently necessary execution relationship, every closed compact field, and
-explicit absence of every FULL trigger. Do not require an equivalent inverse
+an explicit statement that all five eligibility dimensions are true. Do not require an equivalent inverse
 edge solely to duplicate the projection's curated context. Ambiguity defaults to
-`FULL`; known omissions and independently triggered obligations remain blocking.
+`FULL`; known omissions, false eligibility dimensions, and independently
+applicable material authority remain blocking.
 
 Only verified CURRENT findings may be fixed inline. A BLOCKER stops and returns
 to its owning decision surface. FOLLOW-UP and OPTIONAL findings remain in
@@ -1040,8 +1068,12 @@ contract and boundary traceability, task contracts, documentation impact, and
 minimum-sufficient proof. It validates every current task's declared canonical
 tier and tier-appropriate structure against the criteria. It validates D5-owned
 projection completeness, grouping, and task membership without copying
-tier-local facts. It also checks citations and applicable review-routing hints.
-The canonical reference owns the detailed criteria.
+tier-local facts. It also checks structured record references and applicable
+review-routing hints. The canonical reference owns the detailed criteria. The
+reviewer must not block a semantically complete plan for prose wording or field
+ordering, absent duplication of boundary-owned facts, or bounded recoverable
+persistence/filesystem effects alone; genuine semantic omissions remain
+blocking.
 
 The reviewer reports every concrete in-remit finding and classifies it as
 `CURRENT`, `BLOCKER`, `FOLLOW-UP`, or `OPTIONAL`. CURRENT and BLOCKER
