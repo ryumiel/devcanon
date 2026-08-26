@@ -26,6 +26,9 @@ const lightweightDimensions = [
   "outputs and side effects are bounded and recoverable",
 ] as const;
 
+const externalStateBoundary =
+  "externally controlled or outside the authorized repository/worktree state";
+
 function numberedFieldLabels(section: string): string[] {
   return [...section.matchAll(/^\d+\. `([^`]+)`:/gm)].map((match) => match[1]);
 }
@@ -151,6 +154,34 @@ describe("play-planning execution projection contract", () => {
     expect(brainstorm).toContain("Planning remains the sole tier classifier");
     expect(brainstorm).not.toContain(
       "private, transient, same-controller, and have no durable schema consumer",
+    );
+  });
+
+  it("distinguishes authorized local filesystem output from external mutation", async () => {
+    const [criteria, checklist, brainstorm] = await Promise.all([
+      readRepoFile("skills/play-planning/references/planning-criteria.md"),
+      readRepoFile("docs/guidelines/documentation-checklists.md"),
+      readRepoFile("skills/play-brainstorm/SKILL.md"),
+    ]);
+
+    for (const source of [criteria, checklist, brainstorm]) {
+      expect(normalizedProse(source)).toContain(externalStateBoundary);
+    }
+
+    const criteriaProse = normalizedProse(
+      getMarkdownSection(criteria, "Proportional contract planning"),
+    );
+    expect(criteriaProse).toContain(
+      "bounded, recoverable filesystem output inside the authorized repository/worktree",
+    );
+    expect(criteriaProse).toContain(
+      "explicit write owner, permission, failure, cleanup, and recovery",
+    );
+    expect(criteriaProse).toContain(
+      "provider, network, user-home, system-wide, outside-worktree, or otherwise externally controlled mutation",
+    );
+    expect(normalizedProse(criteria)).toContain(
+      "Missing or incorrect ownership or permission for a filesystem write",
     );
   });
 

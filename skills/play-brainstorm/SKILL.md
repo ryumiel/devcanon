@@ -352,6 +352,13 @@ external mutation; and outputs and side effects are bounded and recoverable.
 Record a false or unclear dimension and its stronger-treatment reason without
 assigning a planning tier. Persistence, cross-session use, or a filesystem
 effect alone is not a separate reason to treat a boundary as load-bearing.
+For the external-mutation fact, external means mutation of externally
+controlled or outside the authorized repository/worktree state. A bounded,
+recoverable filesystem output inside that boundary is not external solely
+because it persists, but the design still records its write owner, permission,
+failure, cleanup, and recovery facts. Provider, network, user-home,
+system-wide, outside-worktree, and other externally controlled mutations remain
+external.
 If no contract, boundary, lifecycle, side effect, generated or side-channel
 artifact, interface, policy, or other non-trivial trigger changes, record that
 task-specific design fact. This is a design-time boundary decision for the

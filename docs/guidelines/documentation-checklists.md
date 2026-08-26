@@ -61,6 +61,13 @@ trigger records its task-specific reason and does not apply this checklist.
 Known omissions, a false eligibility dimension, or independently applicable
 material authority remain blocking.
 
+Planning owns tier classification. For this checklist's external-mutation
+question, external means mutation of externally controlled or outside the
+authorized repository/worktree state. A bounded, recoverable filesystem output
+inside that boundary is not external solely because it persists, but it still
+requires explicit write ownership and permission plus failure, cleanup, and
+recovery treatment.
+
 This checklist owns reusable authoring and review questions. Concrete artifact
 schemas, helper mechanics, emitted diagnostics, and runtime validation remain
 owned by the source skill, source script, runtime helper, ADR, or test for that
