@@ -26,9 +26,6 @@ const lightweightDimensions = [
   "outputs and side effects are bounded and recoverable",
 ] as const;
 
-const externalStateBoundary =
-  "externally controlled or outside the authorized repository/worktree state";
-
 function numberedFieldLabels(section: string): string[] {
   return [...section.matchAll(/^\d+\. `([^`]+)`:/gm)].map((match) => match[1]);
 }
@@ -158,37 +155,64 @@ describe("play-planning execution projection contract", () => {
   });
 
   it("distinguishes authorized local filesystem output from external mutation", async () => {
-    const [criteria, checklist, brainstorm] = await Promise.all([
+    const [planningSkill, criteria, checklist, brainstorm] = await Promise.all([
+      readRepoFile("skills/play-planning/SKILL.md"),
       readRepoFile("skills/play-planning/references/planning-criteria.md"),
       readRepoFile("docs/guidelines/documentation-checklists.md"),
       readRepoFile("skills/play-brainstorm/SKILL.md"),
     ]);
 
-    for (const source of [criteria, checklist, brainstorm]) {
-      expect(normalizedProse(source)).toContain(externalStateBoundary);
-    }
-
     const criteriaProse = normalizedProse(
       getMarkdownSection(criteria, "Proportional contract planning"),
     );
-    expect(criteriaProse).toContain(
-      "bounded, recoverable filesystem output inside the authorized repository/worktree",
-    );
+    expect(criteriaProse).toContain("outside the authorized worktree state");
     expect(criteriaProse).toContain(
       "The fifth dimension separately determines whether outputs and side effects are bounded and recoverable",
     );
-    expect(normalizedProse(criteria)).toContain(
+    const allCriteriaProse = normalizedProse(criteria);
+    expect(allCriteriaProse).toContain(
       "Missing or incorrect ownership or permission for a filesystem write",
     );
+    expect(allCriteriaProse).toContain(
+      "Missing or incorrect state transition, failure, retry, recovery, rollback, cleanup",
+    );
+
     const checklistProse = normalizedProse(
       getMarkdownSection(checklist, "Side-Channel Artifact Contract Checklist"),
     );
+    expect(checklistProse).toContain("outside the authorized worktree state");
     expect(checklistProse).toContain(
       "Bounded and recoverable eligibility remains the fifth dimension",
     );
     expect(checklistProse).toContain(
       "Write ownership and permission retain their existing validation",
     );
+    expect(checklistProse).toContain(
+      "This checklist owns reusable authoring and review questions",
+    );
+
+    const brainstormProse = normalizedProse(
+      getMarkdownSection(brainstorm, "Contract Decisions"),
+    );
+    expect(brainstormProse).toContain("outside the authorized worktree state");
+    expect(brainstormProse).toContain(
+      "This is a design-time boundary decision for the planning handoff",
+    );
+    expect(brainstormProse).toContain(
+      "Planning remains the sole tier classifier",
+    );
+
+    const templateProse = normalizedProse(
+      getMarkdownSection(planningSkill, "Task Structure"),
+    );
+    expect(templateProse).toContain(
+      "material write or side-effect owner, failure and cleanup behavior",
+    );
+    expect(templateProse).toContain("focused verification expectations");
+    expect(templateProse).toContain(
+      "all five behavioral eligibility dimensions",
+    );
+    expect(templateProse).not.toContain("or side-effect owner, permission,");
   });
 
   it("keeps boundary-owned facts single-carrier and representation differences non-blocking", async () => {

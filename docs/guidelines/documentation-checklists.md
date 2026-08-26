@@ -64,7 +64,7 @@ material authority remain blocking.
 
 Planning owns tier classification. For this checklist's external-mutation
 question, external means mutation of externally controlled or outside the
-authorized repository/worktree state. A filesystem output inside that boundary
+authorized worktree state. A filesystem output inside that boundary
 is not external solely because it persists. Bounded and recoverable eligibility
 remains the fifth dimension. Write ownership and permission retain their
 existing validation through mutation-authority and SIDE-EFFECT checks; applicable

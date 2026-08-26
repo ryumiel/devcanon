@@ -155,8 +155,8 @@ participants, membership, proof, and execution facts remain blocking at every
 tier.
 
 The no-external-mutation dimension concerns mutation of externally controlled
-or outside the authorized repository/worktree state. A filesystem output inside
-the authorized repository/worktree is not external solely because it persists.
+or outside the authorized worktree state. A filesystem output inside the
+authorized worktree is not external solely because it persists.
 The fifth dimension separately determines whether outputs and side effects are
 bounded and recoverable. Write ownership and permission remain subject to
 existing mutation-authority and `SIDE-EFFECT` validation, while applicable
@@ -165,10 +165,10 @@ lifecycle behavior remains independently required.
 ### Proportionality examples
 
 - **Valid `LIGHTWEIGHT` example:** one behavioral owner produces a bounded,
-  recoverable filesystem output inside the authorized repository/worktree for
+  recoverable filesystem output inside the authorized worktree for
   private internal behavior. There is no public schema or API, no
   security-sensitive or untrusted boundary, and no mutation of externally
-  controlled or outside the authorized repository/worktree state. Its compact
+  controlled or outside the authorized worktree state. Its compact
   contract owns task-local inputs, outputs, write owner, failure and cleanup
   behavior, and focused verification; its projection entry records common
   participation and proof allocation. Existing mutation-authority permission
@@ -184,9 +184,9 @@ lifecycle behavior remains independently required.
   untrusted input or cross a security-sensitive boundary. The trusted-boundary
   dimension is false, so this `LIGHTWEIGHT` route is ineligible.
 - **Invalid external-mutation mutation:** relative to the valid example, add a
-  provider, network, user-home, system-wide, outside-worktree, or otherwise
-  externally controlled mutation. The no-external-mutation dimension is false,
-  so this `LIGHTWEIGHT` route is ineligible.
+  provider, network, user-home, system-wide, a write outside the authorized
+  worktree, or another externally controlled mutation. The no-external-mutation
+  dimension is false, so this `LIGHTWEIGHT` route is ineligible.
 - **Invalid recovery mutation:** relative to the valid example, make only the
   output or side effect unbounded or unrecoverable. The bounded-recoverable
   dimension is false, so this `LIGHTWEIGHT` route is ineligible.
@@ -285,7 +285,7 @@ Use the first matching row in this exact precedence order:
 
 `SIDE-EFFECT` separately catches missing or incorrect filesystem-write
 ownership or permission. A filesystem write is external only when it mutates
-externally controlled or outside the authorized repository/worktree state.
+externally controlled or outside the authorized worktree state.
 
 ### Consolidation, invalidation, and same-digest PASS
 
