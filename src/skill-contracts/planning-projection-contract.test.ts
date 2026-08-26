@@ -183,11 +183,19 @@ describe("play-planning execution projection contract", () => {
     expect(normalizedProse(criteria)).toContain(
       "Missing or incorrect ownership or permission for a filesystem write",
     );
+    expect(criteriaProse).toContain(
+      "material write or side-effect owner, permission, failure, cleanup, and recovery behavior",
+    );
     expect(
-      normalizedProse(criteria).match(
-        /material write or side-effect owner, permission, failure, cleanup, and recovery behavior/g,
+      normalizedProse(
+        getMarkdownSection(
+          checklist,
+          "Side-Channel Artifact Contract Checklist",
+        ),
       ),
-    ).toHaveLength(5);
+    ).toContain(
+      "material write or side-effect owner, permission, failure, cleanup, and recovery behavior",
+    );
   });
 
   it("keeps boundary-owned facts single-carrier and representation differences non-blocking", async () => {

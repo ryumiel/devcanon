@@ -137,7 +137,7 @@ what counts as a blocking defect. Ambiguous classification defaults to `FULL`.
   adds purpose, inputs and outputs, producer or consumer direction when it is an
   independently necessary execution fact identified by neither the selected
   projection tuple nor an applicable directly cited boundary row, material
-  write or side-effect owner, failure and cleanup
+  write or side-effect owner, permission, failure, cleanup, and recovery
   behavior, focused verification expectations, and the explicit reason all five
   eligibility dimensions are true. Changing any one dimension makes this
   `LIGHTWEIGHT` route invalid and requires the applicable stronger treatment.

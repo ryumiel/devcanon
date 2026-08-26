@@ -47,8 +47,9 @@ not classify by artifact type, language, repository layout, path, or
 implementation mechanism. For eligible LIGHTWEIGHT work, record task-local
 purpose, inputs and outputs, producer or consumer direction when independently
 necessary and absent from both the projection tuple and an applicable directly
-cited boundary row, material write or side-effect owner, failure and cleanup,
-focused verification, and the explicit reason all five dimensions are true. The canonical Execution Projection records common
+cited boundary row, material write or side-effect owner, permission, failure,
+cleanup, and recovery behavior, focused verification, and the explicit reason
+all five dimensions are true. The canonical Execution Projection records common
 affected surfaces, normative owner/source, mode, task/no-code disposition, and
 proof allocation once for curated task context. If independently necessary
 producer or consumer direction is absent from both carriers, record it once in
