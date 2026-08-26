@@ -109,6 +109,8 @@ Every current task must contain each canonical field exactly once:
 For a validated path-backed plan, after the existing plan-path and exact-digest
 gate, invoke `scripts/resolve-task-records.mjs` with `PLAN_PATH`, the current
 `TASK_ID`, and `EXPECTED_PLAN_DIGEST` as defined by its adjacent usage contract.
+Attach closed stdin; an open pipe whose emptiness is not yet established fails
+closed before plan resolution.
 Require the closed `play-subagent-execution/task-record-resolution/v1` result
 with exactly `schema`, `task_id`, `boundary_row_ids`, and
 `supporting_owner_supplement_ids`. Both record-kind values are identifier arrays

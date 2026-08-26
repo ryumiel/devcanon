@@ -134,6 +134,26 @@ describe("play-planning execution projection contract", () => {
     expect(prose).toContain("Invalid recovery mutation");
   });
 
+  it("keeps upstream design facts aligned without moving tier authority", async () => {
+    const brainstorm = normalizedProse(
+      getMarkdownSection(
+        await readRepoFile("skills/play-brainstorm/SKILL.md"),
+        "Contract Decisions",
+      ),
+    );
+
+    for (const dimension of lightweightDimensions) {
+      expect(brainstorm).toContain(dimension);
+    }
+    expect(brainstorm).toContain(
+      "Persistence, cross-session use, or a filesystem effect alone",
+    );
+    expect(brainstorm).toContain("Planning remains the sole tier classifier");
+    expect(brainstorm).not.toContain(
+      "private, transient, same-controller, and have no durable schema consumer",
+    );
+  });
+
   it("keeps boundary-owned facts single-carrier and representation differences non-blocking", async () => {
     const criteria = await readRepoFile(
       "skills/play-planning/references/planning-criteria.md",

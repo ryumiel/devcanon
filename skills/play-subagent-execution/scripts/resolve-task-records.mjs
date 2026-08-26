@@ -71,7 +71,7 @@ function rejectNonemptyStdin() {
     stdin = readFileSync(0);
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "EAGAIN") {
-      return;
+      fail("stdin emptiness could not be established");
     }
     fail("failed to validate stdin");
   }
@@ -274,7 +274,10 @@ function inlineCodeIdentifier(text, prefix) {
   if (!opener) return undefined;
   const end = matchingBacktickRunEnd(inlineCode, opener.length, opener.length);
   if (end !== inlineCode.length) return undefined;
-  const id = inlineCode.slice(opener.length, end - opener.length);
+  let id = inlineCode.slice(opener.length, end - opener.length);
+  if (id.startsWith(" ") && id.endsWith(" ") && /[^ ]/.test(id)) {
+    id = id.slice(1, -1);
+  }
   return isRecordId(id) ? id : undefined;
 }
 

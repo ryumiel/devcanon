@@ -20,8 +20,10 @@ contract. Normal operation accepts no positional arguments or optional inputs.
 - `TASK_ID`: stable uppercase ASCII kebab identifier for the current task.
 - `EXPECTED_PLAN_DIGEST`: reviewed lowercase 64-hex SHA-256 digest.
 
-Normal operation requires empty stdin. Nonempty stdin is refused before plan
-resolution and never contributes task or record data.
+Normal operation requires definitively empty stdin. Nonempty stdin is refused
+before plan resolution and never contributes task or record data. An open pipe
+whose emptiness cannot yet be established also fails closed; automated callers
+must close stdin rather than leave an unused producer open.
 
 The exact reviewed plan bytes must decode as valid UTF-8. Invalid byte
 sequences fail rather than being replaced during decoding.
@@ -34,6 +36,8 @@ use the exact visible H3 text `Boundary row` followed by the ID in backticks.
 Inside at most one `## Supporting-Owner Supplements` section, supplements use
 the exact bullet label `Governing Entry ID` followed by the ID in backticks.
 These anchors identify records but do not define or extract their bodies.
+Code spans use Markdown's one-space padding rule, so identifiers that begin or
+end with a backtick retain their exact visible value.
 Fenced code and HTML-comment content are invisible and cannot define a section,
 task, field, or record anchor. HTML-comment delimiters inside Markdown inline
 code spans remain visible literal content and do not start or end a comment.

@@ -1,4 +1,4 @@
-import { execFile, execFileSync } from "node:child_process";
+import { execFile, execFileSync, spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import {
@@ -76,6 +76,16 @@ function digest(content: string | Uint8Array): string {
   return createHash("sha256").update(content).digest("hex");
 }
 
+function markdownCodeSpan(value: string): string {
+  const longestRun = Math.max(
+    0,
+    ...[...value.matchAll(/`+/g)].map((match) => match[0].length),
+  );
+  const delimiter = "`".repeat(longestRun + 1);
+  const needsPadding = value.startsWith("`") || value.endsWith("`");
+  return `${delimiter}${needsPadding ? ` ${value} ` : value}${delimiter}`;
+}
+
 async function writePlan(content: string | Uint8Array): Promise<string> {
   await mkdir(ephemeralRoot, { recursive: true });
   const relativePath = `.ephemeral/task-records-${randomUUID()}-plan.md`;
@@ -100,15 +110,29 @@ async function runPlanPath(
   overrides: Record<string, string> = {},
   cwd = repositoryRoot,
 ): Promise<{ stdout: string; stderr: string }> {
-  return execFileAsync(process.execPath, [helperPath], {
-    cwd,
-    env: {
-      PATH: process.env.PATH,
-      PLAN_PATH: planPath,
-      TASK_ID: "TASK-A",
-      EXPECTED_PLAN_DIGEST: digest(content),
-      ...overrides,
-    },
+  return new Promise((resolve, reject) => {
+    const child = execFile(
+      process.execPath,
+      [helperPath],
+      {
+        cwd,
+        env: {
+          PATH: process.env.PATH,
+          PLAN_PATH: planPath,
+          TASK_ID: "TASK-A",
+          EXPECTED_PLAN_DIGEST: digest(content),
+          ...overrides,
+        },
+      },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(Object.assign(error, { stdout, stderr }));
+          return;
+        }
+        resolve({ stdout, stderr });
+      },
+    );
+    child.stdin?.end();
   });
 }
 
@@ -173,6 +197,20 @@ describe("play-subagent-execution task record resolver", () => {
       boundary_row_ids: ["BR-B", "BR`A"],
       supporting_owner_supplement_ids: ["EP`A"],
     });
+
+    for (const edgeBacktickId of ["`BR", "BR`", "```"] as const) {
+      const edgeBackticks = basePlan
+        .replace(
+          "### Boundary row `BR-A`",
+          `### Boundary row ${markdownCodeSpan(edgeBacktickId)}`,
+        )
+        .replace('"BR-B", "BR-A"', `"BR-B", "${edgeBacktickId}"`);
+      const edgeResult = await runHelper(edgeBackticks);
+      expect(JSON.parse(edgeResult.stdout).boundary_row_ids).toEqual([
+        "BR-B",
+        edgeBacktickId,
+      ]);
+    }
 
     for (const malformed of [
       internalBackticks.replace('"BR-B", "BR`A"', '"BR-B", "`BR`A`"'),
@@ -369,6 +407,39 @@ describe("play-subagent-execution task record resolver", () => {
     }
     expect(stdinFailure?.stdout).toBe("");
     expect(stdinFailure?.stderr).toContain("stdin is not accepted");
+
+    const delayedStdin = await new Promise<{
+      code: number | null;
+      stdout: string;
+      stderr: string;
+    }>((resolve) => {
+      const child = spawn(process.execPath, [helperPath], {
+        cwd: repositoryRoot,
+        env: {
+          PATH: process.env.PATH,
+          PLAN_PATH: planPath,
+          TASK_ID: "TASK-A",
+          EXPECTED_PLAN_DIGEST: digest(basePlan),
+        },
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      let stdout = "";
+      let stderr = "";
+      child.stdout.setEncoding("utf8").on("data", (chunk) => {
+        stdout += chunk;
+      });
+      child.stderr.setEncoding("utf8").on("data", (chunk) => {
+        stderr += chunk;
+      });
+      child.stdin.on("error", () => {});
+      setTimeout(() => child.stdin.end("delayed input"), 25);
+      child.on("close", (code) => resolve({ code, stdout, stderr }));
+    });
+    expect(delayedStdin.code).not.toBe(0);
+    expect(delayedStdin.stdout).toBe("");
+    expect(delayedStdin.stderr).toMatch(
+      /stdin (?:is not accepted|emptiness could not be established)/,
+    );
 
     const badDigest = await expectFailure(basePlan, {
       EXPECTED_PLAN_DIGEST: "0".repeat(64),
