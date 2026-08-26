@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
-import { cp, lstat, readFile, readdir, rm } from "node:fs/promises";
+import { cp, lstat, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { RUNTIME_CONFIG_SCHEMA } from "../config/runtime-config.js";
 import type { ResolvedConfig } from "../config/schema.js";
 import type { RenderedSkill } from "../models/types.js";
 import { ensureDir } from "../utils/fs.js";
@@ -32,16 +33,30 @@ export async function renderDevcanonRuntimeForTarget(
       DEVCANON_RUNTIME_SKILL_NAME,
     ),
     content: "",
-    contentHash: await hashRuntimePayload(runtimeDir),
+    contentHash: await hashRuntimePayload(
+      runtimeDir,
+      renderedRuntimeCatalog(config),
+    ),
   };
 }
 
 export async function writeRenderedDevcanonRuntime(
   runtimeDir: string,
   generatedPath: string,
+  config: ResolvedConfig,
 ): Promise<void> {
   await rm(generatedPath, { recursive: true, force: true });
   await ensureDir(generatedPath);
+  await cp(
+    path.join(runtimeDir, "config"),
+    path.join(generatedPath, "config"),
+    { recursive: true, verbatimSymlinks: true },
+  );
+  await writeFile(
+    path.join(generatedPath, "config", "runtime-config.json"),
+    renderedRuntimeCatalog(config),
+    "utf-8",
+  );
   await cp(
     path.join(runtimeDir, "scripts"),
     path.join(generatedPath, "scripts"),
@@ -50,12 +65,42 @@ export async function writeRenderedDevcanonRuntime(
   await normalizePackagedShellTree(path.join(generatedPath, "scripts"));
 }
 
-async function hashRuntimePayload(runtimeDir: string): Promise<string> {
+async function hashRuntimePayload(
+  runtimeDir: string,
+  catalogBytes: Buffer,
+): Promise<string> {
   const hash = createHash("sha256");
+  const configDirectory = path.join(runtimeDir, "config");
+  const configStat = await lstat(configDirectory);
+  const catalogPath = path.join(configDirectory, "runtime-config.json");
+  const catalogStat = await lstat(catalogPath);
+  hashRuntimeField(hash, "directory", "config", String(configStat.mode));
+  hashRuntimeField(
+    hash,
+    "file",
+    "config/runtime-config.json",
+    String(catalogStat.mode),
+  );
+  hashRuntimeField(hash, "bytes", "config/runtime-config.json", catalogBytes);
+
   const scripts = await lstat(path.join(runtimeDir, "scripts"));
   hashRuntimeField(hash, "directory", "scripts", String(scripts.mode));
   await hashRuntimeTree(path.join(runtimeDir, "scripts"), "scripts", hash);
   return hash.digest("hex");
+}
+
+function renderedRuntimeCatalog(config: ResolvedConfig): Buffer {
+  return Buffer.from(
+    `${JSON.stringify(
+      {
+        schema: RUNTIME_CONFIG_SCHEMA,
+        capabilityProfiles: config.capabilityProfiles,
+      },
+      null,
+      2,
+    )}\n`,
+    "utf-8",
+  );
 }
 
 async function hashRuntimeTree(

@@ -251,6 +251,11 @@ async function hashInstalledDevcanonRuntime(
 
   const hash = createHash("sha256");
   await hashInstalledRuntimeTree(
+    path.join(installedPath, "config"),
+    "config",
+    hash,
+  );
+  await hashInstalledRuntimeTree(
     path.join(installedPath, "scripts"),
     "scripts",
     hash,

@@ -26,6 +26,7 @@ import {
 import { installTestLogger } from "../__test-helpers__/logger.js";
 import type { ResolvedConfig } from "../config/schema.js";
 import { withManifestPersistenceFaultsForTesting } from "../install/manifest.js";
+import { sync } from "../install/sync.js";
 import type { RenderedAgent } from "../models/types.js";
 import { renderAll } from "../render/pipeline.js";
 import { sha256 } from "../utils/hash.js";
@@ -319,6 +320,38 @@ describe("diffAll integration", () => {
       expect(result.status).toBe("added");
       expect(result.diff).toBeNull();
     }
+  });
+
+  it("reports a drifted installed runtime catalog as changed", async () => {
+    const result = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+      mode: "copy",
+    });
+    expect(result.errors).toEqual([]);
+    const installedCatalog = path.join(
+      config.targets.codex.skillsHome,
+      "devcanon-runtime",
+      "config",
+      "runtime-config.json",
+    );
+    await writeFile(
+      installedCatalog,
+      '{"schema":"devcanon/runtime-config/v1","capabilityProfiles":{"efficient":{"claude":"a","codex":"b"},"balanced":{"claude":"c","codex":"d"},"frontier":{"claude":"e","codex":"f"}}}\n',
+      "utf-8",
+    );
+
+    const results = await diffAll(config, "codex");
+    expect(
+      results.find(
+        (entry) =>
+          entry.target === "codex" && entry.name === "devcanon-runtime",
+      ),
+    ).toMatchObject({
+      status: "changed",
+      diff: "Runtime support bundle content has changed.",
+    });
   });
 
   it("reports agent as up-to-date when installed content matches", async () => {

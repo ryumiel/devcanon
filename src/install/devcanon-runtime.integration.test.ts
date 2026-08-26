@@ -92,6 +92,12 @@ describe("devcanon-runtime sync", () => {
         path.join(installedRuntime, "scripts", "devcanon-runtime.sh"),
       ),
     ).toBe(true);
+    await expect(
+      readFile(
+        path.join(installedRuntime, "config", "runtime-config.json"),
+        "utf-8",
+      ),
+    ).resolves.toContain('"schema": "devcanon/runtime-config/v1"');
 
     const manifest = JSON.parse(
       await readFile(config.manifest.path, "utf-8"),

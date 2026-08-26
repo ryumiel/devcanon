@@ -1,6 +1,7 @@
 import { lstat, realpath } from "node:fs/promises";
 import { createTwoFilesPatch } from "diff";
 import type { ResolvedConfig } from "../config/schema.js";
+import { verifyManagedOutputIdentity } from "../install/identity.js";
 import {
   ManifestIdentityError,
   normalizeManifestIdentity,
@@ -81,6 +82,20 @@ export async function diffAll(
           recordMatchesOutput(candidate, output),
         );
         if (record && record.contentHash === output.contentHash) {
+          if (
+            output.name === "devcanon-runtime" &&
+            !(await hasMatchingRuntimeIdentity(config, record, output))
+          ) {
+            results.push({
+              status: "changed",
+              target: output.target,
+              type: output.type,
+              name: output.name,
+              installedPath: output.installedPath,
+              diff: "Runtime support bundle content has changed.",
+            });
+            continue;
+          }
           results.push({
             status: "up-to-date",
             target: output.target,
@@ -131,6 +146,19 @@ export async function diffAll(
   }
 
   return results;
+}
+
+async function hasMatchingRuntimeIdentity(
+  config: ResolvedConfig,
+  record: Parameters<typeof verifyManagedOutputIdentity>[0]["record"],
+  output: Parameters<typeof verifyManagedOutputIdentity>[0]["output"],
+): Promise<boolean> {
+  try {
+    await verifyManagedOutputIdentity({ config, record, output });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function recordMatchesOutput(

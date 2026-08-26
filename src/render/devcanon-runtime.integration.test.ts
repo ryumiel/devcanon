@@ -78,6 +78,18 @@ describe("devcanon-runtime rendering", () => {
       "devcanon-runtime.sh",
     );
     expect(await pathExists(runtimeScriptPath)).toBe(true);
+    await expect(
+      readFile(
+        path.join(claudeRuntimeDir, "config", "runtime-config.json"),
+        "utf-8",
+      ),
+    ).resolves.toContain('"schema": "devcanon/runtime-config/v1"');
+    await expect(
+      readFile(
+        path.join(codexRuntimeDir, "config", "runtime-config.json"),
+        "utf-8",
+      ),
+    ).resolves.toContain('"schema": "devcanon/runtime-config/v1"');
     expect(await readFile(runtimeScriptPath, "utf-8")).toContain(
       "resolve-entrypoint",
     );
@@ -148,6 +160,49 @@ describe("devcanon-runtime rendering", () => {
       config,
     );
     expect(secondRuntime.contentHash).not.toBe(firstRuntime.contentHash);
+  });
+
+  it("projects resolved capability profiles into both runtime catalogs", async () => {
+    await copyDevcanonRuntimeFixture(config.library.skillsDir);
+    config.capabilityProfiles = {
+      efficient: { claude: "claude-efficient", codex: "codex-efficient" },
+      balanced: { claude: "claude-balanced", codex: "codex-balanced" },
+      frontier: { claude: "claude-frontier", codex: "codex-frontier" },
+    };
+
+    const first = await renderAll(config, true);
+    const firstHash = first.outputs.find(
+      (output) =>
+        output.target === "codex" && output.name === "devcanon-runtime",
+    )?.contentHash;
+    for (const target of ["claude", "codex"] as const) {
+      await expect(
+        readFile(
+          path.join(
+            config.library.generatedDir,
+            target,
+            "skills",
+            "devcanon-runtime",
+            "config",
+            "runtime-config.json",
+          ),
+          "utf-8",
+        ),
+      ).resolves.toContain('"codex": "codex-balanced"');
+    }
+
+    config.capabilityProfiles = {
+      efficient: { claude: "claude-efficient", codex: "codex-efficient" },
+      balanced: { claude: "claude-balanced", codex: "codex-updated" },
+      frontier: { claude: "claude-frontier", codex: "codex-frontier" },
+    };
+    const second = await renderAll(config, false);
+    expect(
+      second.outputs.find(
+        (output) =>
+          output.target === "codex" && output.name === "devcanon-runtime",
+      )?.contentHash,
+    ).not.toBe(firstHash);
   });
 
   it("writes LF-normalized runtime wrappers with matching content hashes", async () => {

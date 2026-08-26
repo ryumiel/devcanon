@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { cp } from "node:fs/promises";
+import { cp, mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -84,6 +84,49 @@ describe("devcanon-runtime typed entrypoint", () => {
       expect(JSON.parse(stdout)).toMatchObject({
         normalized: "/var/result.json",
         comparable: "/var/result.json",
+      });
+    } finally {
+      await cleanupTempDir(tempDir);
+    }
+  });
+
+  it("reads config path and values from the copied sibling catalog outside the repository", async () => {
+    const tempDir = await createTempDir();
+    try {
+      const runtimeDir = path.join(tempDir, "devcanon-runtime");
+      const unrelatedCwd = path.join(tempDir, "unrelated");
+      await cp(path.resolve("skills/devcanon-runtime"), runtimeDir, {
+        recursive: true,
+      });
+      await mkdir(unrelatedCwd);
+      const script = path.join(runtimeDir, "scripts", "devcanon-runtime.sh");
+
+      const catalogPath = await execFileAsync(
+        "bash",
+        [script, "runtime", "config", "path"],
+        { cwd: unrelatedCwd },
+      );
+      const catalogValue = await execFileAsync(
+        "bash",
+        [
+          script,
+          "runtime",
+          "config",
+          "get",
+          "--key",
+          "capabilityProfiles.balanced.codex",
+        ],
+        { cwd: unrelatedCwd },
+      );
+
+      expect(JSON.parse(catalogPath.stdout)).toEqual({
+        path: await realpath(
+          path.join(runtimeDir, "config", "runtime-config.json"),
+        ),
+      });
+      expect(JSON.parse(catalogValue.stdout)).toEqual({
+        key: "capabilityProfiles.balanced.codex",
+        value: "gpt-5.6-terra",
       });
     } finally {
       await cleanupTempDir(tempDir);

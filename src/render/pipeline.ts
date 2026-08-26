@@ -253,6 +253,7 @@ async function renderLoadedInternal<
       await writeRenderedDevcanonRuntime(
         runtime.sourcePath,
         runtime.generatedPath,
+        config,
       );
     }
   }

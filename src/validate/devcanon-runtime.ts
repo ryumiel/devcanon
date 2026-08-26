@@ -37,6 +37,7 @@ const REQUIRED_RUNTIME_JS_FILES = [
   "pr-review-manifests.js",
   "pr-review-result-validation.js",
   "review-artifacts.js",
+  "runtime-config.js",
   "schema.js",
   "source-immutability.js",
 ] as const;

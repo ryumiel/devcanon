@@ -11,6 +11,15 @@ describe("runtime command helpers", () => {
     });
   });
 
+  it("returns a stable failure envelope for an unknown config subcommand", async () => {
+    await expect(runRuntimeCommand(["config", "replace"])).resolves.toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr:
+        '{"ok":false,"code":"unknown-config-command","message":"unknown devcanon-runtime config command: replace"}\n',
+    });
+  });
+
   it("routes the provider scope producer through its distinct command group", async () => {
     await expect(
       runRuntimeCommand(["pr-review-provider-scope-evidence", "contract"]),
