@@ -18,6 +18,11 @@ const adapterSkills = [
   "pr-merge",
 ] as const;
 const tempDirs: string[] = [];
+const bashResolver = path.join(runtimeSkill, "scripts/resolve-bash.mjs");
+const { stdout: resolvedBash } = await execFileAsync(process.execPath, [
+  bashResolver,
+]);
+const bashExecutable = resolvedBash.trim();
 
 afterEach(async () => {
   await Promise.all(
@@ -61,7 +66,7 @@ describe("source-immutability workflow adapters", () => {
       const adapter = sourceAdapter(skill);
       const handoff = `.ephemeral/${skill}.json`;
       const captured = await execFileAsync(
-        "bash",
+        bashExecutable,
         [adapter, "capture", "--handoff", handoff],
         {
           cwd,
@@ -76,14 +81,14 @@ describe("source-immutability workflow adapters", () => {
 
       await expect(
         execFileAsync(
-          "bash",
+          bashExecutable,
           [adapter, "verify", "--baseline", baseline, "--handoff", handoff],
           { cwd },
         ),
       ).resolves.toMatchObject({ stdout: "unchanged\n", stderr: "" });
       await expect(
         execFileAsync(
-          "bash",
+          bashExecutable,
           [adapter, "cleanup", "--baseline", baseline, "--handoff", handoff],
           { cwd },
         ),
@@ -103,7 +108,7 @@ describe("source-immutability workflow adapters", () => {
       await cp(runtimeSkill, copiedRuntime, { recursive: true });
 
       await expect(
-        execFileAsync("bash", [sourceAdapter(skill), "verify"], {
+        execFileAsync(bashExecutable, [sourceAdapter(skill), "verify"], {
           cwd,
           env: { ...process.env, DEVCANON_RUNTIME_DIR: copiedRuntime },
         }),

@@ -20,7 +20,7 @@ const execFileAsync = promisify(execFile);
 const symlinkAvailable = await canCreateSymlinks();
 const helperScript = path.join(
   process.cwd(),
-  "skills/issue-priming-workflow/scripts/write-assumptions-comment.sh",
+  "skills/issue-priming-workflow/scripts/write-assumptions-comment.mjs",
 );
 
 async function makeWorkspace(): Promise<string> {
@@ -33,7 +33,7 @@ async function makeWorkspace(): Promise<string> {
 }
 
 async function runHelper(cwd: string, env: NodeJS.ProcessEnv = {}) {
-  return execFileAsync("bash", [helperScript], {
+  return execFileAsync(process.execPath, [helperScript], {
     cwd,
     env: { ...process.env, ISSUE_IDENTIFIER: "ENG-123", ...env },
   });
@@ -110,7 +110,7 @@ describe("issue-priming assumptions comment helper", () => {
 
       await expect(runHelper(subdir)).rejects.toMatchObject({
         stderr: expect.stringContaining(
-          "write-assumptions-comment.sh must run from the repository root",
+          "write-assumptions-comment must run from the repository root",
         ),
       });
       await expect(

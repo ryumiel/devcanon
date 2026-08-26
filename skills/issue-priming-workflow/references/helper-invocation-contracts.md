@@ -10,3 +10,7 @@ by the adjacent [phase-artifacts usage](phase-artifacts-usage.md),
 `SKILL.md` owns phase order, hard stops, lifecycle, model selection, review
 classification, and PR authority. Phase 6 auto-handoff policy remains in
 [phase-6-auto-handoff.md](phase-6-auto-handoff.md).
+
+The repository's normative cross-platform entrypoint, native Windows Bash
+prohibition, output-validation, and recovery rules are owned by the
+[platform specification](../../../docs/specs/platform.md#workflow-helper-execution).

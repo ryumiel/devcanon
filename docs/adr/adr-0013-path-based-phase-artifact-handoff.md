@@ -126,9 +126,12 @@ owning documentation contract, never raw issue-local history or agent reports.
 `<id>` is the slugged form of `payload.identifier`: a hash-prefixed numeric
 identifier becomes its digits, while an uppercase provider key becomes
 lowercase. The authoritative slug and research-brief path computation lives in
-`skills/issue-priming-workflow/scripts/write-research-brief.sh`: lowercase the
-identifier, convert `/` to `-`, retain only alphanumerics, `.`, `_`, and `-`,
-and reject unsafe derived paths through the script's write-target guard.
+`src/runtime/issue-priming.ts`: lowercase the identifier, convert `/` to `-`,
+retain only alphanumerics, `.`, `_`, and `-`, and reject unsafe derived paths
+through the runtime's write-target guard. The public
+`skills/issue-priming-workflow/scripts/write-research-brief.mjs` entrypoint
+delegates to the packaged derivative of that runtime authority and validates
+its documented stdout contract.
 `<topic>` and `<feature-name>` follow the existing `play-brainstorm` /
 `play-planning` conventions and are unchanged.
 
@@ -202,12 +205,12 @@ file path where the producer follows the legacy replace-before-`Write` pattern,
 and reject directories or other non-regular existing paths — was introduced by
 `skills/play-review/references/findings-envelope-contract.md` and is required
 by ADR-0012. Each phase-artifact producer owns its deterministic mechanics at
-its own boundary: `issue-priming-workflow` uses
-`scripts/write-research-brief.sh` when it persists the research brief, and that
-helper intentionally uses a stricter target-leaf policy by rejecting symlinked
-research-brief paths instead of removing them. This stricter research-helper
-behavior does not change the legacy leaf-symlink behavior of `play-review`,
-`play-brainstorm`, or `play-planning`.
+its own boundary: `issue-priming-workflow` uses the public
+`scripts/write-research-brief.mjs` entrypoint when it persists the research
+brief, and its runtime-backed helper intentionally uses a stricter target-leaf
+policy by rejecting symlinked research-brief paths instead of removing them.
+This stricter research-helper behavior does not change the legacy leaf-symlink
+behavior of `play-review`, `play-brainstorm`, or `play-planning`.
 
 The generic guard shape remains the policy baseline for phase artifacts. When a
 guard becomes complex, reusable, or shared across multiple skills, ADR-0019

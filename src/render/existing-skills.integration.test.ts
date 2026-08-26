@@ -106,6 +106,30 @@ function expectSidecarParity(
 }
 
 describe("shipped skill rendering", () => {
+  it("renders Node-first issue-priming helper calls for both targets", async () => {
+    const config = await loadConfig(
+      path.join(process.cwd(), "devcanon.config.yaml"),
+    );
+    const { outputs } = await renderAll(config, false, true);
+    const helpers = [
+      "phase-artifacts",
+      "source-immutability",
+      "write-research-brief",
+      "write-auto-handoff",
+      "write-assumptions-comment",
+    ];
+
+    for (const target of TARGETS) {
+      const { body } = parseFrontmatter(
+        getSkillOutput(outputs, "issue-priming-workflow", target).content,
+      );
+      for (const helper of helpers) {
+        expect(body).toContain(`${helper}.mjs`);
+        expect(body).not.toMatch(new RegExp(`bash [^\\n]*${helper}\\.sh`, "u"));
+      }
+    }
+  });
+
   it("materializes every D1-D18 route model binding from the configured capability", async () => {
     const config = await loadConfig(
       path.join(process.cwd(), "devcanon.config.yaml"),

@@ -6,7 +6,7 @@ Prepares the deterministic research-brief artifact destination.
 
 ## Invocation
 
-Run `ISSUE_IDENTIFIER=<identifier> ISSUE_PRIMING_TODAY=<YYYY-MM-DD> bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-research-brief.sh"`.
+Run `ISSUE_IDENTIFIER=<identifier> ISSUE_PRIMING_TODAY=<YYYY-MM-DD> node "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-research-brief.mjs"` on POSIX. In PowerShell, set `$env:ISSUE_IDENTIFIER` and `$env:ISSUE_PRIMING_TODAY`, then run `node "$env:ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-research-brief.mjs"`. The adjacent `.sh` file is a POSIX compatibility adapter only.
 
 ## Inputs
 
@@ -20,7 +20,7 @@ The issue worktree root is required.
 
 ## Outputs
 
-It prints the repo-relative research-brief path on stdout; diagnostics go to stderr.
+It prints exactly one safe repo-relative `.ephemeral/<YYYY-MM-DD>-<slug>-research.md` path with one trailing newline. The entrypoint rejects empty, multiline, or malformed runtime output; diagnostics go to stderr.
 
 ## Refusal and failures
 

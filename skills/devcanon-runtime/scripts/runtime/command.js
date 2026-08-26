@@ -1,4 +1,6 @@
+import { runResolveBashCommand } from "./bash.js";
 import { runGitWorkspaceCleanupCommand } from "./git-workspace-cleanup.js";
+import { runIssuePrimingCommand } from "./issue-priming.js";
 import { runIssueWorktreeSetupCommand } from "./issue-worktree-setup.js";
 import { RuntimePathError, normalizeRuntimePath, requireDirectEphemeralChild, } from "./paths.js";
 import { runPlayReviewSharedContextCommand } from "./play-review-shared-context.js";
@@ -19,6 +21,8 @@ export async function runRuntimeCommand(args) {
             case "contract":
                 requireNoArgs(command, rest);
                 return ok(RUNTIME_COMMAND_CONTRACT);
+            case "resolve-bash":
+                return await runResolveBashCommand(rest);
             case "path-info":
                 return ok(pathInfo(rest));
             case "ephemeral-child":
@@ -33,6 +37,8 @@ export async function runRuntimeCommand(args) {
                 return await runPlayReviewSharedContextCommand(rest);
             case "issue-worktree-setup":
                 return await runIssueWorktreeSetupCommand(rest);
+            case "issue-priming":
+                return await runIssuePrimingCommand(rest);
             case "git-workspace-cleanup":
                 return await runGitWorkspaceCleanupCommand(rest);
             case "pr-merge-worktree":

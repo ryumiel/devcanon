@@ -15,6 +15,56 @@
 - symlink support may depend on Developer Mode or privileges
 - copy fallback must always be supported
 
+### Workflow helper execution
+
+Deterministic workflow helpers that support native Windows use a public Node
+`.mjs` entrypoint. That entrypoint is the cross-platform command surface and
+owns argument forwarding plus validation of the passive runtime's documented
+stdout contract. A successful child exit is insufficient when stdout is empty,
+multiline, malformed, or unsafe for a command that promises a token or path.
+Commands with intentional silent success must declare that contract and reject
+unexpected output.
+
+POSIX `.sh` files beside a canonical `.mjs` helper are compatibility adapters
+only. They delegate to Node and must not reimplement path, filesystem, schema,
+state-transition, or output policy. Invoke the `.mjs` file directly on both
+Windows and POSIX unless a POSIX-only caller specifically needs the adapter.
+
+Native Windows workflows must never invoke bare `bash`. `bash.exe` on `PATH`
+may be the Windows Store or WSL launcher, which is not evidence that a helper
+ran against native Windows Git metadata. A workflow that still genuinely
+requires Bash must run inside an already established POSIX environment or use
+an explicitly resolved and usability-checked Git-for-Windows Bash executable.
+Resolution must reject `WindowsApps` and WSL launchers, must not fall back to an
+unverified first `PATH` match, and must stop with an actionable diagnostic when
+Git Bash is unavailable. Native Windows Git worktree metadata must not be
+translated into WSL paths.
+
+The passive runtime's `scripts/resolve-bash.mjs` program is the sole shell
+resolver for workflows that cannot yet avoid Bash. On Windows it considers an
+explicit `DEVCANON_GIT_BASH` path and Git-for-Windows locations derived from
+`git.exe` on `PATH`, verifies Bash, `cygpath`, and Git capabilities, and prints
+exactly one absolute executable path. Callers must stop if that path output is
+missing or malformed. Other skills and references may show invocation but must
+not duplicate candidate selection or verification semantics.
+
+For issue priming, `phase-artifacts.mjs`, `source-immutability.mjs`,
+`write-research-brief.mjs`, `write-auto-handoff.mjs`, and
+`write-assumptions-comment.mjs` are Node-first and require no Bash or WSL.
+Their adjacent usage documents own concrete Windows and POSIX examples. Other
+cataloged `.sh` helpers remain Bash-only until separately migrated; their usage
+contracts must describe the supported shell boundary and must not imply that a
+bare PowerShell `bash` lookup is supported.
+
+When a Node-first helper reports a missing, unreadable, or incompatible passive
+runtime, restore or re-sync the sibling `devcanon-runtime` bundle and rerun the
+same `.mjs` entrypoint. For input, working-directory, path-safety,
+artifact-state, or source-drift refusals, follow the adjacent helper usage
+contract and correct the reported condition instead of re-syncing blindly.
+When a remaining Bash-only helper cannot find verified Git Bash, install or
+repair Git for Windows or rerun from a supported POSIX environment; do not
+bypass the helper or infer success from missing output.
+
 ### PR-review session creation
 
 The numbered transaction guarantees and failure equivalence classes are owned

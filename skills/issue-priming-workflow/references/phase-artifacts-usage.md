@@ -6,7 +6,7 @@ Validates readable issue-priming phase artifacts.
 
 ## Invocation
 
-Run `bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/phase-artifacts.sh" validate-read <kind> <repo-relative-path>`.
+Run `node "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/phase-artifacts.mjs" validate-read <kind> <repo-relative-path>` on Windows or POSIX. A POSIX caller that needs the compatibility surface may instead run `bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/phase-artifacts.sh" ...`; that adapter delegates to the `.mjs` entrypoint and owns no validation policy.
 
 ## Inputs
 
@@ -18,7 +18,7 @@ The issue worktree root is required.
 
 ## Outputs
 
-Successful validation is silent; failures write diagnostics to stderr and exit nonzero.
+Successful validation has an explicit silent-success contract: stdout must be empty. The entrypoint rejects unexpected stdout from its runtime. Failures write diagnostics to stderr and exit nonzero.
 
 ## Refusal and failures
 

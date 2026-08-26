@@ -6,7 +6,7 @@ Runs the packaged source-immutability adapter for issue-priming leaves.
 
 ## Invocation
 
-Run `capture [--handoff .ephemeral/<file>]`, `verify --baseline .ephemeral/.devcanon-source-immutability-<hex>.json [--handoff .ephemeral/<file>]`, or `cleanup --baseline .ephemeral/.devcanon-source-immutability-<hex>.json [--handoff .ephemeral/<file>]` through `bash "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/source-immutability.sh"`.
+Run `capture [--handoff .ephemeral/<file>]`, `verify --baseline .ephemeral/.devcanon-source-immutability-<hex>.json [--handoff .ephemeral/<file>]`, or `cleanup --baseline .ephemeral/.devcanon-source-immutability-<hex>.json [--handoff .ephemeral/<file>]` through `node "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/source-immutability.mjs"` on Windows or POSIX. The adjacent `.sh` file is a POSIX compatibility adapter that delegates to this canonical entrypoint.
 
 ## Inputs
 
@@ -18,7 +18,7 @@ Run `capture [--handoff .ephemeral/<file>]`, `verify --baseline .ephemeral/.devc
 
 ## Outputs
 
-`capture` prints the retained `.ephemeral/.devcanon-source-immutability-<hex>.json` path. Successful `verify` prints `unchanged`; successful `cleanup` prints `cleaned`. Diagnostics use stderr.
+`capture` prints exactly one retained `.ephemeral/.devcanon-source-immutability-<32-lowercase-hex>.json` path and one trailing newline. Successful `verify` prints exactly `unchanged`; successful `cleanup` prints exactly `cleaned`, each with one trailing newline. The `.mjs` entrypoint rejects empty, multiline, or malformed runtime output even when the runtime exits zero. Diagnostics use stderr.
 
 ## Refusal and failures
 

@@ -11,6 +11,14 @@ const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../..",
 );
+const bashResolver = path.join(
+  repositoryRoot,
+  "skills/devcanon-runtime/scripts/resolve-bash.mjs",
+);
+const { stdout: resolvedBash } = await execFileAsync(process.execPath, [
+  bashResolver,
+]);
+const bashExecutable = resolvedBash.trim();
 
 type CatalogRow = {
   executable: string;
@@ -41,7 +49,9 @@ async function runHelper(
   args: string[],
   cwd: string,
 ): Promise<{ stdout: string; stderr: string }> {
-  const command = executable.endsWith(".mjs") ? process.execPath : "/bin/bash";
+  const command = executable.endsWith(".mjs")
+    ? process.execPath
+    : bashExecutable;
   const result = await execFileAsync(command, [executable, ...args], {
     cwd,
     env: { PATH: process.env.PATH },
