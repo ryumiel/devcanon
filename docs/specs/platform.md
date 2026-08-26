@@ -56,11 +56,14 @@ cataloged `.sh` helpers remain Bash-only until separately migrated; their usage
 contracts must describe the supported shell boundary and must not imply that a
 bare PowerShell `bash` lookup is supported.
 
-When a Node-first helper fails, restore or re-sync the sibling
-`devcanon-runtime` bundle and rerun the same `.mjs` entrypoint. When a remaining
-Bash-only helper cannot find verified Git Bash, install or repair Git for
-Windows or rerun from a supported POSIX environment; do not bypass the helper
-or infer success from missing output.
+When a Node-first helper reports a missing, unreadable, or incompatible passive
+runtime, restore or re-sync the sibling `devcanon-runtime` bundle and rerun the
+same `.mjs` entrypoint. For input, working-directory, path-safety,
+artifact-state, or source-drift refusals, follow the adjacent helper usage
+contract and correct the reported condition instead of re-syncing blindly.
+When a remaining Bash-only helper cannot find verified Git Bash, install or
+repair Git for Windows or rerun from a supported POSIX environment; do not
+bypass the helper or infer success from missing output.
 
 ### PR-review session creation
 

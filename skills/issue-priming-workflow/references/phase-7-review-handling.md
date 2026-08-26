@@ -4,6 +4,32 @@ Use [play-review review-artifacts usage](../../play-review/references/review-art
 for `validate-findings` and `prepare-judgment-nits`. This reference owns
 Phase 7 classification, reruns, and Phase 8 continuation.
 
+The review-artifacts helper remains Bash-only. Before the first
+`validate-findings` operation, resolve the installed `play-review` bundle and
+the sibling passive runtime, invoke the helper's exact local `--help`, and reuse
+the same verified Bash executable for every later review-artifacts operation.
+Never use ambient `bash` on native Windows.
+
+POSIX command shape:
+
+```bash
+PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
+DEVCANON_RUNTIME_BUNDLE="$PLAY_REVIEW_DIR/../devcanon-runtime"
+VERIFIED_BASH="$(node "$DEVCANON_RUNTIME_BUNDLE/scripts/resolve-bash.mjs")"
+"$VERIFIED_BASH" "$PLAY_REVIEW_DIR/scripts/review-artifacts.sh" --help
+```
+
+Native PowerShell command shape:
+
+```powershell
+$PlayReviewDir = "<installed-play-review-skill-bundle>"
+$RuntimeBundle = Join-Path (Split-Path $PlayReviewDir) "devcanon-runtime"
+$VerifiedBash = node (Join-Path $RuntimeBundle "scripts/resolve-bash.mjs")
+if ($LASTEXITCODE -ne 0 -or $VerifiedBash.Count -ne 1) { throw "Git Bash resolution failed" }
+& $VerifiedBash (Join-Path $PlayReviewDir "scripts/review-artifacts.sh") --help
+if ($LASTEXITCODE -ne 0) { throw "review-artifacts help failed" }
+```
+
 ## Review Evidence
 
 After each `branch-review --fix` run, retain that run's immutable review-head,
@@ -45,33 +71,11 @@ commits.
 
 ## Judgment-Required Nits Envelope
 
-When selected items remain, resolve the installed `play-review` bundle and use
-its exact local help projection before preparing the handoff:
-
-Resolve the remaining Bash-only helper through the sibling passive runtime;
-never use ambient `bash` on native Windows. POSIX command shape:
-
-```bash
-PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
-DEVCANON_RUNTIME_BUNDLE="$PLAY_REVIEW_DIR/../devcanon-runtime"
-VERIFIED_BASH="$(node "$DEVCANON_RUNTIME_BUNDLE/scripts/resolve-bash.mjs")"
-"$VERIFIED_BASH" "$PLAY_REVIEW_DIR/scripts/review-artifacts.sh" --help
-```
-
-Native PowerShell command shape:
-
-```powershell
-$PlayReviewDir = "<installed-play-review-skill-bundle>"
-$RuntimeBundle = Join-Path (Split-Path $PlayReviewDir) "devcanon-runtime"
-$VerifiedBash = node (Join-Path $RuntimeBundle "scripts/resolve-bash.mjs")
-if ($LASTEXITCODE -ne 0 -or $VerifiedBash.Count -ne 1) { throw "Git Bash resolution failed" }
-& $VerifiedBash (Join-Path $PlayReviewDir "scripts/review-artifacts.sh") --help
-if ($LASTEXITCODE -ne 0) { throw "review-artifacts help failed" }
-```
-
-Then use `prepare-judgment-nits` through that usage contract. An empty selection
-is controller-owned: omit `nits_file` rather than calling the helper. Leave
-source files unchanged during this handoff.
+When selected items remain, reuse the installed `play-review` bundle and the
+verified Bash executable established before validation. Then use
+`prepare-judgment-nits` through the owning usage contract with that executable.
+An empty selection is controller-owned: omit `nits_file` rather than calling
+the helper. Leave source files unchanged during this handoff.
 
 ## Phase 8 Handoff
 

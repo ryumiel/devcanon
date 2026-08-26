@@ -94,11 +94,12 @@ async function resolvePosixBash(env: NodeJS.ProcessEnv): Promise<string> {
     if (!directory) continue;
     const candidate = path.resolve(directory, "bash");
     try {
-      const stat = await lstat(candidate);
-      if (!stat.isFile() || stat.isSymbolicLink()) continue;
-      await access(candidate, constants.X_OK);
+      const resolvedCandidate = await realpath(candidate);
+      const stat = await lstat(resolvedCandidate);
+      if (!stat.isFile()) continue;
+      await access(resolvedCandidate, constants.X_OK);
       await execFileAsync(
-        candidate,
+        resolvedCandidate,
         ["--noprofile", "--norc", "-c", "exit 0"],
         {
           env,
@@ -106,7 +107,7 @@ async function resolvePosixBash(env: NodeJS.ProcessEnv): Promise<string> {
           timeout: 10_000,
         },
       );
-      return await realpath(candidate);
+      return resolvedCandidate;
     } catch {
       // Continue through PATH entries without trusting a failed candidate.
     }
