@@ -34,6 +34,34 @@ interface ManagedIdentityOutput {
 type InstalledSkillFiles = Map<string, readonly string[]>;
 
 const MAX_EXHAUSTIVE_SKILL_HASH_CANDIDATES = 1024;
+const LEGACY_RUNTIME_JS_FILES = [
+  "artifacts.js",
+  "bash.js",
+  "bootstrap-cli.js",
+  "bootstrap.js",
+  "cleanup-git.js",
+  "cli.js",
+  "command.js",
+  "git-diff-parser.js",
+  "git-workspace-cleanup.js",
+  "git.js",
+  "index.js",
+  "issue-worktree-setup.js",
+  "issue-priming.js",
+  "paths.js",
+  "play-review-shared-context.js",
+  "pr-merge-worktree.js",
+  "pr-review-leases.js",
+  "pr-review-manifests.js",
+  "pr-review-result-validation.js",
+  "review-artifacts.js",
+  "schema.js",
+  "source-immutability.js",
+] as const;
+const LEGACY_RUNTIME_JS_FILE_SETS = [
+  LEGACY_RUNTIME_JS_FILES,
+  [...LEGACY_RUNTIME_JS_FILES, "runtime-config.js"],
+] as const;
 
 export async function verifyManagedOutputIdentity({
   config,
@@ -230,7 +258,10 @@ async function assertCopyIdentity(record: ManagedRecord): Promise<void> {
       record.type === "agent"
         ? [await hashInstalledAgent(record.installedPath)]
         : record.type === "skill" && record.name === DEVCANON_RUNTIME_SKILL_NAME
-          ? [await hashDevcanonRuntimePayload(record.installedPath)]
+          ? await runtimeHashCandidates(
+              record.installedPath,
+              record.contentHash,
+            )
           : await hashInstalledSkill(record);
   } catch (err) {
     throw identityError(
@@ -261,6 +292,135 @@ export async function hashDevcanonRuntimePayload(
     hash,
   );
   return hash.digest("hex");
+}
+
+export async function hashLegacyDevcanonRuntimePayload(
+  installedPath: string,
+): Promise<string> {
+  await validateLegacyDevcanonRuntimePayload(installedPath);
+  const hash = createHash("sha256");
+  await hashInstalledRuntimeTree(
+    path.join(installedPath, "scripts"),
+    "scripts",
+    hash,
+  );
+  return hash.digest("hex");
+}
+
+async function runtimeHashCandidates(
+  installedPath: string,
+  expectedHash: string,
+): Promise<string[]> {
+  try {
+    return [await hashDevcanonRuntimePayload(installedPath)];
+  } catch (currentPayloadError) {
+    try {
+      const legacyHash = await hashLegacyDevcanonRuntimePayload(installedPath);
+      return legacyHash === expectedHash ? [legacyHash] : [];
+    } catch {
+      throw currentPayloadError;
+    }
+  }
+}
+
+async function validateLegacyDevcanonRuntimePayload(
+  installedPath: string,
+): Promise<void> {
+  await requireLegacyRuntimeDirectory(installedPath);
+  await requireExactLegacyRuntimeEntries(installedPath, ["scripts"]);
+  const scriptsDirectory = path.join(installedPath, "scripts");
+  await requireLegacyRuntimeDirectory(scriptsDirectory);
+  await requireExactLegacyRuntimeEntries(scriptsDirectory, [
+    "devcanon-runtime.sh",
+    "resolve-bash.mjs",
+    "runtime",
+  ]);
+  const runtimeDirectory = path.join(scriptsDirectory, "runtime");
+  await requireLegacyRuntimeDirectory(runtimeDirectory);
+  const legacyRuntimeJsFiles = await requireExactLegacyRuntimeEntriesOneOf(
+    runtimeDirectory,
+    LEGACY_RUNTIME_JS_FILE_SETS.map((files) => ["package.json", ...files]),
+  );
+  for (const relativePath of [
+    path.join("scripts", "devcanon-runtime.sh"),
+    path.join("scripts", "resolve-bash.mjs"),
+    path.join("scripts", "runtime", "package.json"),
+    ...legacyRuntimeJsFiles.map((fileName) =>
+      path.join("scripts", "runtime", fileName),
+    ),
+  ]) {
+    const stat = await lstat(path.join(installedPath, relativePath));
+    if (!stat.isFile()) {
+      throw new Error(
+        `legacy runtime entry is not a regular file: ${relativePath}`,
+      );
+    }
+  }
+  if (
+    process.platform !== "win32" &&
+    ((await lstat(path.join(scriptsDirectory, "devcanon-runtime.sh"))).mode &
+      0o111) ===
+      0
+  ) {
+    throw new Error("legacy runtime entrypoint is not executable");
+  }
+}
+
+async function requireLegacyRuntimeDirectory(directory: string): Promise<void> {
+  const stat = await lstat(directory);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    throw new Error(
+      `legacy runtime entry is not a real directory: ${directory}`,
+    );
+  }
+}
+
+async function requireExactLegacyRuntimeEntries(
+  directory: string,
+  expectedEntries: readonly string[],
+): Promise<void> {
+  const actualEntries = await readdir(directory, { withFileTypes: true });
+  if (
+    actualEntries.length !== expectedEntries.length ||
+    actualEntries.some(
+      (entry) =>
+        entry.isSymbolicLink() ||
+        !(entry.isDirectory() || entry.isFile()) ||
+        !expectedEntries.includes(entry.name),
+    )
+  ) {
+    throw new Error(
+      `legacy runtime payload has unsupported entries: ${directory}`,
+    );
+  }
+}
+
+async function requireExactLegacyRuntimeEntriesOneOf(
+  directory: string,
+  alternatives: ReadonlyArray<readonly string[]>,
+): Promise<readonly string[]> {
+  const actualEntries = await readdir(directory, { withFileTypes: true });
+  if (
+    actualEntries.some((entry) => entry.isSymbolicLink() || !entry.isFile())
+  ) {
+    throw new Error(
+      `legacy runtime payload has unsupported entries: ${directory}`,
+    );
+  }
+  const actualNames = actualEntries.map((entry) => entry.name).sort();
+  for (const alternative of alternatives) {
+    if (
+      alternative.length === actualNames.length &&
+      [...alternative]
+        .sort()
+        .every((entry, index) => entry === actualNames[index])
+    ) {
+      return alternative.filter((entry) => entry !== "package.json");
+    }
+  }
+  throw new Error(
+    `legacy runtime payload has unsupported entries: ${directory}`,
+  );
 }
 
 async function hashInstalledRuntimeTree(

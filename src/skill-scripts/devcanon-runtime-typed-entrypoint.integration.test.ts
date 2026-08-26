@@ -18,6 +18,11 @@ const execFileAsync = promisify(execFile);
 const runtimeScript = path.resolve(
   "skills/devcanon-runtime/scripts/devcanon-runtime.sh",
 );
+const validProfiles = {
+  efficient: { claude: "a", codex: "b" },
+  balanced: { claude: "c", codex: "d" },
+  frontier: { claude: "e", codex: "f" },
+};
 
 describe("devcanon-runtime typed entrypoint", () => {
   it("tracks the compiled JavaScript entrypoint as executable", async () => {
@@ -249,6 +254,84 @@ describe("devcanon-runtime typed entrypoint", () => {
     }
   });
 
+  it.each([
+    [
+      "an unsupported schema",
+      {
+        schema: "devcanon/runtime-config/v2",
+        capabilityProfiles: validProfiles,
+      },
+    ],
+    [
+      "a missing profile",
+      {
+        schema: "devcanon/runtime-config/v1",
+        capabilityProfiles: {
+          efficient: validProfiles.efficient,
+          balanced: validProfiles.balanced,
+        },
+      },
+    ],
+    [
+      "a missing target",
+      {
+        schema: "devcanon/runtime-config/v1",
+        capabilityProfiles: {
+          ...validProfiles,
+          balanced: { claude: "c" },
+        },
+      },
+    ],
+    [
+      "a blank model",
+      {
+        schema: "devcanon/runtime-config/v1",
+        capabilityProfiles: {
+          ...validProfiles,
+          balanced: { claude: "c", codex: " " },
+        },
+      },
+    ],
+    [
+      "a nested extra field",
+      {
+        schema: "devcanon/runtime-config/v1",
+        capabilityProfiles: {
+          ...validProfiles,
+          balanced: { claude: "c", codex: "d", extra: true },
+        },
+      },
+    ],
+  ])("fails a catalog with %s", async (_name, catalog) => {
+    const tempDir = await createTempDir();
+    try {
+      const runtimeDir = path.join(tempDir, "devcanon-runtime");
+      await cp(path.resolve("skills/devcanon-runtime"), runtimeDir, {
+        recursive: true,
+      });
+      await writeFile(
+        path.join(runtimeDir, "config", "runtime-config.json"),
+        JSON.stringify(catalog),
+        "utf-8",
+      );
+
+      await expect(
+        execFileAsync("bash", [
+          path.join(runtimeDir, "scripts", "devcanon-runtime.sh"),
+          "runtime",
+          "config",
+          "path",
+        ]),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "invalid runtime configuration catalog",
+        ),
+      });
+    } finally {
+      await cleanupTempDir(tempDir);
+    }
+  });
+
   it.skipIf(process.platform === "win32")(
     "rejects a catalog reached through a symlinked config directory",
     async () => {
@@ -270,6 +353,43 @@ describe("devcanon-runtime typed entrypoint", () => {
         );
         await rm(path.join(runtimeDir, "config"), { recursive: true });
         await symlink(externalConfig, path.join(runtimeDir, "config"), "dir");
+
+        await expect(
+          execFileAsync("bash", [
+            path.join(runtimeDir, "scripts", "devcanon-runtime.sh"),
+            "runtime",
+            "config",
+            "path",
+          ]),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "invalid runtime configuration catalog",
+          ),
+        });
+      } finally {
+        await cleanupTempDir(tempDir);
+      }
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "rejects a symlinked runtime catalog file",
+    async () => {
+      const tempDir = await createTempDir();
+      try {
+        const runtimeDir = path.join(tempDir, "devcanon-runtime");
+        const catalogPath = path.join(
+          runtimeDir,
+          "config",
+          "runtime-config.json",
+        );
+        const externalCatalog = path.join(tempDir, "external-config.json");
+        await cp(path.resolve("skills/devcanon-runtime"), runtimeDir, {
+          recursive: true,
+        });
+        await writeFile(externalCatalog, JSON.stringify({}), "utf-8");
+        await rm(catalogPath);
+        await symlink(externalCatalog, catalogPath, "file");
 
         await expect(
           execFileAsync("bash", [

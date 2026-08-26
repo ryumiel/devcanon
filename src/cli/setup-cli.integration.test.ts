@@ -1,5 +1,5 @@
 import { exec, execFile } from "node:child_process";
-import { access, mkdtemp, rm } from "node:fs/promises";
+import { access, mkdir, mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -75,9 +75,21 @@ describe.runIf(process.platform !== "win32")("setup:cli", () => {
       const executable = path.join(globalBin, "devcanon");
       const version = await execFileAsync(executable, ["--version"], { env });
       const help = await execFileAsync(executable, ["--help"], { env });
+      const unrelatedCwd = path.join(xdgDataHome, "unrelated");
+      await mkdir(unrelatedCwd);
+      const catalog = await execFileAsync(
+        executable,
+        ["--json", "config", "get", "capabilityProfiles.balanced.codex"],
+        { cwd: unrelatedCwd, env },
+      );
 
       expect(version.stdout.trim()).toBe("2.0.0");
       expect(help.stdout).toContain("Usage: devcanon");
+      expect(JSON.parse(catalog.stdout)).toMatchObject({
+        source: "bundled",
+        key: "capabilityProfiles.balanced.codex",
+        value: "gpt-5.6-terra",
+      });
     } finally {
       await rm(xdgDataHome, { recursive: true, force: true });
     }
