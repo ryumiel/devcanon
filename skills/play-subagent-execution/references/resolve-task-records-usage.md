@@ -20,6 +20,9 @@ contract. Normal operation accepts no positional arguments or optional inputs.
 - `TASK_ID`: stable uppercase ASCII kebab identifier for the current task.
 - `EXPECTED_PLAN_DIGEST`: reviewed lowercase 64-hex SHA-256 digest.
 
+The exact reviewed plan bytes must decode as valid UTF-8. Invalid byte
+sequences fail rather than being replaced during decoding.
+
 The selected task must contain exactly one `**Boundary rows:**` field and one
 `**Supporting-owner supplements:**` field. Each value is a JSON array of zero
 or more unique, non-empty stable identifier strings. JSON whitespace, including
@@ -29,7 +32,8 @@ Inside at most one `## Supporting-Owner Supplements` section, supplements use
 the exact bullet label `Governing Entry ID` followed by the ID in backticks.
 These anchors identify records but do not define or extract their bodies.
 Fenced code and HTML-comment content are invisible and cannot define a section,
-task, field, or record anchor.
+task, field, or record anchor. HTML-comment delimiters inside Markdown inline
+code spans remain visible literal content and do not start or end a comment.
 
 ## Working directory
 
@@ -49,13 +53,14 @@ Markdown record bodies, a notice line, or an output file.
 
 The helper fails nonzero without partial structured stdout for an unsafe,
 missing, unreadable, nonregular, or symlinked plan; wrong working directory;
-missing or malformed inputs; digest mismatch; missing, repeated, or malformed
-task fields; duplicate requested IDs; missing or duplicate Task IDs; unknown,
-stale, ambiguous, duplicate-definition, or cross-kind record IDs; or malformed
-canonical record anchors. Resolution is direct and kind-scoped. The helper does
-not normalize or repair the plan, infer semantic applicability, recursively
-traverse records, extract Markdown bodies, or forward the complete plan.
-Diagnostics JSON-escape caller-controlled paths, task IDs, and record IDs.
+missing or malformed inputs; digest mismatch; invalid UTF-8; missing, repeated,
+or malformed task fields; duplicate requested IDs; missing or duplicate Task
+IDs; unknown, stale, ambiguous, duplicate-definition, or cross-kind record IDs;
+or malformed canonical record anchors. Resolution is direct and kind-scoped.
+The helper does not normalize or repair the plan, infer semantic applicability,
+recursively traverse records, extract Markdown bodies, or forward the complete
+plan. Diagnostics JSON-escape caller-controlled paths, task IDs, and record
+IDs.
 
 ## Side effects
 

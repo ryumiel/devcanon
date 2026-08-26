@@ -72,11 +72,11 @@ afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((target) => cleanupTempDir(target)));
 });
 
-function digest(content: string): string {
+function digest(content: string | Uint8Array): string {
   return createHash("sha256").update(content).digest("hex");
 }
 
-async function writePlan(content: string): Promise<string> {
+async function writePlan(content: string | Uint8Array): Promise<string> {
   await mkdir(ephemeralRoot, { recursive: true });
   const relativePath = `.ephemeral/task-records-${randomUUID()}-plan.md`;
   const absolutePath = path.join(repositoryRoot, relativePath);
@@ -96,7 +96,7 @@ async function runHelper(
 
 async function runPlanPath(
   planPath: string,
-  content: string,
+  content: string | Uint8Array,
   overrides: Record<string, string> = {},
   cwd = repositoryRoot,
 ): Promise<{ stdout: string; stderr: string }> {
@@ -210,6 +210,27 @@ describe("play-subagent-execution task record resolver", () => {
     }
   });
 
+  it("keeps HTML-comment delimiters inside inline code visible", async () => {
+    const unpairedLiteral = basePlan
+      .replace("### Boundary row `BR-A`", "### Boundary row `BR<!--A`")
+      .replace('["BR-B", "BR-A"]', '["BR-B"]')
+      .replace("## Tasks", "The literal `<!--` remains visible.\n\n## Tasks");
+    const unpairedResult = await runHelper(unpairedLiteral);
+    expect(JSON.parse(unpairedResult.stdout).boundary_row_ids).toEqual([
+      "BR-B",
+    ]);
+
+    const pairedIdentifier = basePlan
+      .replace("### Boundary row `BR-A`", "### Boundary row `BR<!--A-->`")
+      .replace('["BR-B", "BR-A"]', '["BR-B"]')
+      .replace(
+        "## Tasks",
+        "The paired literals `<!--` and `-->` remain visible.\n\n## Tasks",
+      );
+    const result = await runHelper(pairedIdentifier);
+    expect(JSON.parse(result.stdout).boundary_row_ids).toEqual(["BR-B"]);
+  });
+
   it("fails closed for unknown, stale, ambiguous, duplicate-definition, and cross-kind IDs", async () => {
     const invalidPlans = [
       basePlan.replace('"BR-B", "BR-A"', '"BR-STALE"'),
@@ -283,6 +304,14 @@ describe("play-subagent-execution task record resolver", () => {
     expect(unsafePath.stdout).toBe("");
     expect(unsafePath.stderr).toContain("plan path validation failed");
 
+    const emptySlugPath = ".ephemeral/-plan.md";
+    const emptySlugAbsolute = path.join(repositoryRoot, emptySlugPath);
+    await writeFile(emptySlugAbsolute, basePlan);
+    createdPaths.push(emptySlugAbsolute);
+    await expect(runPlanPath(emptySlugPath, basePlan)).resolves.toMatchObject({
+      stderr: "",
+    });
+
     const windowsSeparator = await expectFailure(basePlan, {
       PLAN_PATH: ".ephemeral\\nested\\outside-plan.md",
     });
@@ -300,6 +329,18 @@ describe("play-subagent-execution task record resolver", () => {
       EXPECTED_PLAN_DIGEST: "invalid",
     });
     expect(orderedFailure.stderr).toContain("plan path validation failed");
+
+    const invalidUtf8 = Buffer.concat([
+      Buffer.from(basePlan, "utf8"),
+      Buffer.from([0xc3, 0x28]),
+    ]);
+    const invalidUtf8Path = await writePlan(invalidUtf8);
+    await expect(
+      runPlanPath(invalidUtf8Path, invalidUtf8),
+    ).rejects.toMatchObject({
+      stdout: "",
+      stderr: expect.stringContaining("not valid UTF-8"),
+    });
 
     const symlinkTarget = await writePlan(basePlan);
     const symlinkPath = `.ephemeral/task-records-${randomUUID()}-plan.md`;

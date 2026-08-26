@@ -11,6 +11,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { TextDecoder } from "node:util";
 
 const scriptPath = fileURLToPath(import.meta.url);
 const usagePath = path.resolve(
@@ -92,7 +93,7 @@ function requireRepositoryRoot() {
 function validatePlanPath(repositoryRoot, planPath) {
   if (
     planPath.includes("..") ||
-    !/^\.ephemeral\/[^\\/]+-plan\.md$/.test(planPath)
+    !/^\.ephemeral\/[^\\/]*-plan\.md$/.test(planPath)
   ) {
     fail(`plan path validation failed: ${diagnosticValue(planPath)}`);
   }
@@ -139,6 +140,19 @@ function visibleLines(markdown) {
           continue;
         }
         const start = text.indexOf("<!--", cursor);
+        const codeStart = nextUnescapedBacktick(text, cursor);
+        if (codeStart !== -1 && (start === -1 || codeStart < start)) {
+          const runLength = backtickRunLength(text, codeStart);
+          const codeEnd = matchingBacktickRunEnd(text, codeStart, runLength);
+          if (codeEnd !== -1) {
+            visible += text.slice(cursor, codeEnd);
+            cursor = codeEnd;
+            continue;
+          }
+          visible += text.slice(cursor, codeStart + runLength);
+          cursor = codeStart + runLength;
+          continue;
+        }
         if (start === -1) {
           visible += text.slice(cursor);
           cursor = text.length;
@@ -168,6 +182,39 @@ function visibleLines(markdown) {
     if (!fence && text.trim() !== "") result.push({ index, text });
   }
   return result;
+}
+
+function nextUnescapedBacktick(text, from) {
+  let cursor = from;
+  while (cursor < text.length) {
+    const next = text.indexOf("`", cursor);
+    if (next === -1) return -1;
+    let precedingBackslashes = 0;
+    for (let index = next - 1; index >= 0 && text[index] === "\\"; index--) {
+      precedingBackslashes++;
+    }
+    if (precedingBackslashes % 2 === 0) return next;
+    cursor = next + 1;
+  }
+  return -1;
+}
+
+function backtickRunLength(text, start) {
+  let end = start;
+  while (text[end] === "`") end++;
+  return end - start;
+}
+
+function matchingBacktickRunEnd(text, start, runLength) {
+  let cursor = start + runLength;
+  while (cursor < text.length) {
+    const candidate = nextUnescapedBacktick(text, cursor);
+    if (candidate === -1) return -1;
+    const candidateLength = backtickRunLength(text, candidate);
+    if (candidateLength === runLength) return candidate + candidateLength;
+    cursor = candidate + candidateLength;
+  }
+  return -1;
 }
 
 function section(lines, heading) {
@@ -362,11 +409,17 @@ try {
 }
 const actualDigest = createHash("sha256").update(planBytes).digest("hex");
 if (actualDigest !== expectedDigest) fail("reviewed plan digest mismatch");
+let planText;
+try {
+  planText = new TextDecoder("utf-8", { fatal: true }).decode(planBytes);
+} catch {
+  fail("plan is not valid UTF-8");
+}
 const taskId = requireEnvironment("TASK_ID");
 if (!taskIdPattern.test(taskId))
   fail(`invalid Task ID: ${diagnosticValue(taskId)}`);
 
-const lines = visibleLines(planBytes.toString("utf8"));
+const lines = visibleLines(planText);
 const tasksHeadings = lines.filter(({ text }) => text === "## Tasks");
 if (tasksHeadings.length !== 1) fail("plan requires exactly one Tasks section");
 const task = parseTask(lines, taskId);
