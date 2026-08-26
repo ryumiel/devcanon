@@ -188,6 +188,86 @@ describe("shipped skill rendering", () => {
     }
   });
 
+  it("keeps rendered workflow model consumers bound to their owner-supplied models", async () => {
+    const config = await loadConfig(
+      path.join(process.cwd(), "devcanon.config.yaml"),
+    );
+    const generatedDir = await mkdtemp(
+      path.join(tmpdir(), "devcanon-rendered-route-models-"),
+    );
+    const bindingsByReference = new Map([
+      [
+        "play-review/references/reviewer-routing-policy.md",
+        ["D7_MODEL", "D8_MODEL", "D9_MODEL", "D10_MODEL"],
+      ],
+      [
+        "play-subagent-execution/references/implementer-prompt.md",
+        ["D12_MODEL"],
+      ],
+      ["play-subagent-execution/references/executor-prompt.md", ["D13_MODEL"]],
+      [
+        "play-subagent-execution/references/spec-reviewer-prompt.md",
+        ["D14_MODEL"],
+      ],
+      [
+        "play-subagent-execution/references/code-quality-reviewer-prompt.md",
+        ["D15_MODEL", "D16_MODEL"],
+      ],
+      [
+        "play-subagent-execution/references/example-workflow.md",
+        ["D12_MODEL", "D13_MODEL", "D14_MODEL", "D15_MODEL", "D16_MODEL"],
+      ],
+    ] as const);
+
+    try {
+      await renderAll(
+        {
+          ...config,
+          library: { ...config.library, generatedDir },
+        },
+        true,
+        true,
+      );
+
+      for (const target of TARGETS) {
+        const bundleContents = await Promise.all(
+          ["play-review", "play-subagent-execution"].map(async (skill) => {
+            const root = path.join(generatedDir, target, "skills", skill);
+            const files = await listRelativeFiles(root);
+            return Promise.all(
+              files
+                .filter((file) => file.endsWith(".md"))
+                .map((file) => readFile(path.join(root, file), "utf8")),
+            );
+          }),
+        );
+        const bundle = bundleContents.flat(2).join("\n");
+
+        expect(bundle).not.toContain("devcanon.config.yaml");
+        expect(bundle).not.toMatch(
+          /model\s*[=:]\s*capabilityProfiles\.[\w.]+/u,
+        );
+        expect(bundle).not.toContain("{{model:");
+        expect(bundle).toMatch(/unresolved.*marker/u);
+        expect(bundle).toMatch(/alias.*ambient model/u);
+
+        for (const [relativePath, bindings] of bindingsByReference) {
+          const content = await readFile(
+            path.join(generatedDir, target, "skills", relativePath),
+            "utf8",
+          );
+          for (const binding of bindings) {
+            expect(content).toMatch(
+              new RegExp(`already-rendered\\s+\`${binding}\``, "u"),
+            );
+          }
+        }
+      }
+    } finally {
+      await rm(generatedDir, { recursive: true, force: true });
+    }
+  });
+
   it("renders D10 through reviewer frontier/high without changing deep-reviewer routes", async () => {
     const config = await loadConfig(
       path.join(process.cwd(), "devcanon.config.yaml"),

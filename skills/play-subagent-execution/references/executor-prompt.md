@@ -11,11 +11,13 @@ judgment-bearing work, use [`implementer-prompt.md`](implementer-prompt.md).
 **Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/executor.yaml`](../../../agents/executor.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
 
 **Fresh configuration:** The controller validates D13's complete fresh tuple
-before capture: `executor`, `efficient`, the nonblank full model resolved from
-`devcanon.config.yaml` `capabilityProfiles.efficient.codex`, independent
+before capture: `executor`, `efficient`, the nonblank full model in the
+controller/owner-supplied already-rendered `D13_MODEL` binding, independent
 `medium`, source-mutable/external-none authority, `d13_<instance_ordinal>`,
 `fork_turns: "none"`, this fully substituted prompt, report output, and the
-existing five-guardrail stop/reclassify termination. Apply
+existing five-guardrail stop/reclassify termination. A missing, blank,
+unresolved, or mismatched binding blocks before capture or spawn; do not locate
+a source checkout or use an alias, nearby, or ambient model. Apply
 `subagent-lifecycle` for allocation and continuation. A D13 boundary
 reclassification uses the existing fresh D12 lifecycle path.
 

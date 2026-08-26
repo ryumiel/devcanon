@@ -13,12 +13,14 @@ configuration, documentation, or external systems; return only the response.
 Findings are evidence; mutation disposition belongs to the controller.
 
 **Fresh configuration:** Before D14 capture, validate `deep-reviewer`,
-`frontier`, the nonblank full model resolved from `devcanon.config.yaml`
-`capabilityProfiles.frontier.codex`, independent `xhigh`, source-immutable and
+`frontier`, the nonblank full model in the controller/owner-supplied
+already-rendered `D14_MODEL` binding, independent `xhigh`, source-immutable and
 external-none authority, `d14_<instance_ordinal>`, `fork_turns: "none"`, this
 independent fully substituted prompt, response-only output, and the existing
-same-head/fix-loop termination. Apply `subagent-lifecycle` for allocation and
-cleanup. D14 is always a fresh one-shot reviewer.
+same-head/fix-loop termination. A missing, blank, unresolved, or mismatched
+binding blocks before capture or spawn; do not locate a source checkout or use
+an alias, nearby, or ambient model. Apply `subagent-lifecycle` for allocation
+and cleanup. D14 is always a fresh one-shot reviewer.
 
 **D14 question:** Does the implementation at the supplied task head satisfy
 Task N exactly, including its extracted contract, without missing or extra
