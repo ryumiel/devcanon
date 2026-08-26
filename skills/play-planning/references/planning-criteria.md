@@ -137,8 +137,8 @@ what counts as a blocking defect. Ambiguous classification defaults to `FULL`.
   adds purpose, inputs and outputs, producer or consumer direction when it is an
   independently necessary execution fact identified by neither the selected
   projection tuple nor an applicable directly cited boundary row, material
-  write or side-effect owner, permission, failure, cleanup, and recovery
-  behavior, focused verification expectations, and the explicit reason all five
+  write or side-effect owner, failure and cleanup behavior, focused verification
+  expectations, and the explicit reason all five
   eligibility dimensions are true. Changing any one dimension makes this
   `LIGHTWEIGHT` route invalid and requires the applicable stronger treatment.
 - `NO-TRIGGER`: allowed only when the task changes no contract, boundary,
@@ -156,9 +156,11 @@ tier.
 
 The no-external-mutation dimension concerns mutation of externally controlled
 or outside the authorized repository/worktree state. A filesystem output inside
-the authorized repository/worktree is not external solely because it persists;
-its write ownership and permission, failure, cleanup, and recovery obligations
-remain independently required.
+the authorized repository/worktree is not external solely because it persists.
+The fifth dimension separately determines whether outputs and side effects are
+bounded and recoverable. Write ownership and permission remain subject to
+existing mutation-authority and `SIDE-EFFECT` validation, while applicable
+lifecycle behavior remains independently required.
 
 ### Proportionality examples
 
@@ -167,10 +169,11 @@ remain independently required.
   private internal behavior. There is no public schema or API, no
   security-sensitive or untrusted boundary, and no mutation of externally
   controlled or outside the authorized repository/worktree state. Its compact
-  contract records the explicit write owner, permission, failure, cleanup, and
-  recovery; its projection entry records common participation and proof
-  allocation. Persistence and the filesystem mechanism do not by themselves
-  require `FULL`.
+  contract owns task-local inputs, outputs, write owner, failure and cleanup
+  behavior, and focused verification; its projection entry records common
+  participation and proof allocation. Existing mutation-authority permission
+  checks and the fifth dimension's bounded/recoverable requirement still apply.
+  Persistence and the filesystem mechanism do not by themselves require `FULL`.
 - **Invalid behavioral-owner mutation:** relative to that valid example, add a
   second behavioral owner. Exactly one behavioral owner is no longer true, so
   this `LIGHTWEIGHT` route is ineligible.
@@ -490,8 +493,8 @@ entries for every actual known participant and independently necessary
 execution relationship, owner/source, and proof allocation. It adds only
 purpose, inputs and outputs, producer or consumer direction when independently
 necessary and absent from both the projection tuple and an applicable directly
-cited boundary row, material write or side-effect owner, permission, failure,
-cleanup, and recovery behavior, focused verification expectations, and
+cited boundary row, material write or side-effect owner, failure and cleanup
+behavior, focused verification expectations, and
 the explicit reason all five eligibility dimensions are true. It does not
 acquire the complete table merely because it has bounded, recoverable helper
 I/O or filesystem effects. Add family
@@ -539,7 +542,7 @@ must not restate the projection tuple. A valid `LIGHTWEIGHT` compact record adds
 only its independently necessary task-local purpose, inputs and outputs,
 producer or consumer direction when absent from both the projection tuple and
 an applicable directly cited boundary row, material write or side-effect owner,
-permission, failure, cleanup, and recovery behavior, and explicit reason
+failure and cleanup behavior, and explicit reason
 all five eligibility dimensions are true; its selected projection entries supply the common
 participant, relationship, owner, and proof facts. It need not manufacture
 inverse entries, supporting owners, partitions, consumers, or example families
@@ -584,8 +587,8 @@ an actual known participant, owner/source, proof allocation, or independently
 necessary execution relationship, or when its compact task-local record omits
 purpose, inputs and outputs, independently necessary producer or consumer
 direction absent from both the projection tuple and an applicable directly
-cited boundary row, material write or side-effect owner, permission, failure,
-cleanup, and recovery behavior, focused verification expectations, or
+cited boundary row, material write or side-effect owner, failure and cleanup
+behavior, focused verification expectations, or
 an explicit statement that all five eligibility dimensions are true. An absent equivalent inverse
 producer-consumer or reference entry alone is not an omission. Unclear tier
 eligibility defaults to `FULL`; the compact route never excuses a known
@@ -835,9 +838,9 @@ for every actual known participant and independently necessary execution
 relationship, owner/source, and proof allocation. It adds the closed compact
 task-local purpose, inputs and outputs, producer or consumer direction when it
 is independently necessary and not identified by the projection tuple,
-material write or side-effect owner, permission, failure, cleanup, and recovery
-behavior, focused verification expectations, and an explicit reason all five
-eligibility dimensions are true.
+material write or side-effect owner, failure and cleanup behavior, focused
+verification expectations, and an explicit reason all five eligibility
+dimensions are true.
 It does not require an equivalent inverse producer-consumer or reference entry.
 It is sufficient unless specifically authorized applicable extra detail is
 required by a concrete approved task-local need or an independently applicable
@@ -951,7 +954,7 @@ normative owner/source, and proof allocation. Its closed compact task-local
 fields add purpose, inputs and outputs, producer or consumer direction when
 independently necessary and absent from both the projection tuple and an
 applicable directly cited boundary row, material write or side-effect owner,
-permission, failure, cleanup, and recovery behavior, focused verification
+failure and cleanup behavior, focused verification
 expectations, and the explicit reason all five eligibility dimensions are true. It does not
 restate the projection tuple, duplicate an equivalent inverse relationship, or
 acquire FULL-only checklist fields or `N/A` entries. Add checklist detail only

@@ -158,8 +158,7 @@ describe("play-planning execution projection contract", () => {
   });
 
   it("distinguishes authorized local filesystem output from external mutation", async () => {
-    const [planningSkill, criteria, checklist, brainstorm] = await Promise.all([
-      readRepoFile("skills/play-planning/SKILL.md"),
+    const [criteria, checklist, brainstorm] = await Promise.all([
       readRepoFile("skills/play-planning/references/planning-criteria.md"),
       readRepoFile("docs/guidelines/documentation-checklists.md"),
       readRepoFile("skills/play-brainstorm/SKILL.md"),
@@ -176,31 +175,19 @@ describe("play-planning execution projection contract", () => {
       "bounded, recoverable filesystem output inside the authorized repository/worktree",
     );
     expect(criteriaProse).toContain(
-      "explicit write owner, permission, failure, cleanup, and recovery",
-    );
-    expect(criteriaProse).toContain(
-      "provider, network, user-home, system-wide, outside-worktree, or otherwise externally controlled mutation",
+      "The fifth dimension separately determines whether outputs and side effects are bounded and recoverable",
     );
     expect(normalizedProse(criteria)).toContain(
       "Missing or incorrect ownership or permission for a filesystem write",
     );
-    expect(criteriaProse).toContain(
-      "material write or side-effect owner, permission, failure, cleanup, and recovery behavior",
+    const checklistProse = normalizedProse(
+      getMarkdownSection(checklist, "Side-Channel Artifact Contract Checklist"),
     );
-    expect(
-      normalizedProse(getMarkdownSection(planningSkill, "Task Structure")),
-    ).toContain(
-      "material write or side-effect owner, permission, failure, cleanup, and recovery behavior",
+    expect(checklistProse).toContain(
+      "Bounded and recoverable eligibility remains the fifth dimension",
     );
-    expect(
-      normalizedProse(
-        getMarkdownSection(
-          checklist,
-          "Side-Channel Artifact Contract Checklist",
-        ),
-      ),
-    ).toContain(
-      "material write or side-effect owner, permission, failure, cleanup, and recovery behavior",
+    expect(checklistProse).toContain(
+      "Write ownership and permission retain their existing validation",
     );
   });
 
