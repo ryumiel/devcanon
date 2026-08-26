@@ -321,6 +321,38 @@ describe("play-subagent-execution task record resolver", () => {
     }
   });
 
+  it("keeps canonical records visible after multiline code spans cross structural lines", async () => {
+    const multilineCodeSpan = basePlan.replace(
+      "## Tasks",
+      "A multiline ``literal <!--\n\n## Example heading\ncontinues here``\n\n## Tasks",
+    );
+
+    const result = await runHelper(multilineCodeSpan);
+    expect(JSON.parse(result.stdout)).toEqual({
+      schema: "play-subagent-execution/task-record-resolution/v1",
+      task_id: "TASK-A",
+      boundary_row_ids: ["BR-B", "BR-A"],
+      supporting_owner_supplement_ids: ["EP-A"],
+    });
+    expect(result.stderr).toBe("");
+  });
+
+  it("keeps canonical records visible after comment-like fence info strings", async () => {
+    const commentLikeFenceInfo = basePlan.replace(
+      "## Tasks",
+      "~~~text <!-- literal info\nexcluded content\n~~~\n\n## Tasks",
+    );
+
+    const result = await runHelper(commentLikeFenceInfo);
+    expect(JSON.parse(result.stdout)).toEqual({
+      schema: "play-subagent-execution/task-record-resolution/v1",
+      task_id: "TASK-A",
+      boundary_row_ids: ["BR-B", "BR-A"],
+      supporting_owner_supplement_ids: ["EP-A"],
+    });
+    expect(result.stderr).toBe("");
+  });
+
   it("keeps record constructs visible after matching backticks inside fences", async () => {
     const fencedBackticks = basePlan.replace(
       "### Boundary row `BR-A`",
