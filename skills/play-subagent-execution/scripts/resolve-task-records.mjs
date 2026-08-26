@@ -142,6 +142,16 @@ function visibleLines(markdown) {
   let htmlComment = false;
   let inlineCodeEnd;
   for (const [index, sourceText] of sourceLines.entries()) {
+    const rawMarker = /^(?: {0,3})(`{3,}|~{3,})(.*)$/.exec(sourceText);
+    if (!fence && !htmlComment && rawMarker) {
+      const char = rawMarker[1][0];
+      if (char !== "`" || !rawMarker[2].includes("`")) {
+        inlineCodeEnd = undefined;
+        htmlComment = false;
+        fence = { char, length: rawMarker[1].length };
+        continue;
+      }
+    }
     let text = sourceText;
     if (!fence) {
       if (inlineCodeEnd && index < inlineCodeEnd.line) continue;
@@ -203,19 +213,8 @@ function visibleLines(markdown) {
     if (marker) {
       const char = marker[1][0];
       const length = marker[1].length;
-      if (!fence) {
-        const rawMarker = /^(?: {0,3})(`{3,}|~{3,})(.*)$/.exec(sourceText);
-        if (
-          !rawMarker ||
-          rawMarker[1] !== marker[1] ||
-          (char === "`" && rawMarker[2].includes("`"))
-        ) {
-          continue;
-        }
-        inlineCodeEnd = undefined;
-        htmlComment = false;
-        fence = { char, length };
-      } else if (
+      if (
+        fence &&
         fence.char === char &&
         length >= fence.length &&
         marker[2].trim() === ""
