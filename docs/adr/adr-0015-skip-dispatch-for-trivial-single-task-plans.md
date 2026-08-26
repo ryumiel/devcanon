@@ -72,11 +72,15 @@ than a runtime check):
    affected execution consumers/generated outputs, must-preserve and required
    behavior, spec/procedure work, risk surfaces, and verification expectations,
    with no blank fields or unexplained `N/A` fields. `LIGHTWEIGHT` requires its
-   remaining compact task-local fields and an explicit reason every FULL trigger
-   is absent. `NO-TRIGGER` requires a task-specific reason. Both reduced tiers
-   require the reviewed two-gate provenance for the plan being executed. Direct,
-   hand-written, copied, older, or otherwise unreviewed plans without that
-   provenance must use a structurally complete assembled `FULL` context. If
+   remaining compact task-local fields and an explicit reason all five
+   behavioral eligibility dimensions are true. Mutation permission remains
+   subject to mutation-authority and `SIDE-EFFECT` ownership validation;
+   recovery remains governed by bounded-and-recoverable eligibility plus
+   applicable lifecycle behavior. `NO-TRIGGER` requires a task-specific reason.
+   Both reduced tiers require the reviewed two-gate provenance for the plan
+   being executed. Direct, hand-written, copied, older, or otherwise unreviewed
+   plans without that provenance must use a structurally complete assembled
+   `FULL` context. If
    source inspection cannot confirm the tier-appropriate authority,
    source-of-truth, participant, direct relationship, consumer,
    generated-output, or evidence surface, the task contract is invalid.

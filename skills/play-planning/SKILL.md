@@ -464,16 +464,19 @@ interface, policy, or other non-trivial task-contract trigger>
 ```
 
 Every authored task must place the required `**Task ID:**
-<UPPER-ASCII-KEBAB>` field immediately after its heading. The task record also
-contains exactly one `**Boundary rows:**` field and one
-`**Supporting-owner supplements:**` field; their relative position and the
-order of unrelated task fields are non-semantic. Each reference-field value is
-a JSON array of zero or more unique, non-empty string identifiers. The Task ID is
-semantic, unique within the plan, and assigned once. It is independent of the
-task number, order, and display title and must remain unchanged across task
-insertions, reordering, title edits, and review revisions. Missing, duplicate,
-positional, or changed task IDs block review. `Task N` remains a display and
-ordering label only.
+<UPPER-ASCII-KEBAB>` field immediately after its heading. After the required
+immediately-following Task ID, `Mode`, review-routing hints, `Files`, `Boundary
+rows`, `Supporting-owner supplements`, and `Contract tier` may be reordered.
+The displayed template and mechanical-task example use illustrative ordering
+only, not a validity rule. The task record contains exactly one `**Boundary
+rows:**` field and one `**Supporting-owner supplements:**` field; their relative
+position and the order of unrelated task fields are non-semantic. Each
+reference-field value is a JSON array of zero or more unique, non-empty string
+identifiers. The Task ID is semantic, unique within the plan, and assigned once.
+It is independent of the task number, order, and display title and must remain
+unchanged across task insertions, reordering, title edits, and review revisions.
+Missing, duplicate, positional, or changed task IDs block review. `Task N`
+remains a display and ordering label only.
 
 Every authored current task must then declare exactly one canonical
 `**Contract tier:** FULL`, `**Contract tier:** LIGHTWEIGHT`, or
@@ -559,11 +562,10 @@ comment evidence as an authority surface.
 
 ### Optional `**Mode:**` field
 
-Tasks that fit the mechanical taxonomy may include `**Mode:** mechanical` after
-the required Task ID and before any review-routing hint fields. This is a
-non-authoritative hint; `play-subagent-execution` owns route validation and may
-reject or override it. The detailed taxonomy (positive and negative examples)
-lives in the [mechanical task taxonomy](../play-subagent-execution/references/skip-dispatch-policy.md#mechanical-task-taxonomy)
+Tasks that fit the mechanical taxonomy may include `**Mode:** mechanical`. This
+is a non-authoritative hint; `play-subagent-execution` owns route validation and
+may reject or override it. The detailed taxonomy (positive and negative
+examples) lives in the [mechanical task taxonomy](../play-subagent-execution/references/skip-dispatch-policy.md#mechanical-task-taxonomy)
 reference — consult it before setting the hint.
 
 Example mechanical-task header (the enclosing projection assigns
@@ -625,8 +627,7 @@ Omit `**Mode:** mechanical` for any task with judgment (TDD step pairs, multi-fi
 
 ### Optional Review-Routing Hint Fields
 
-Tasks may include these fields after optional `**Mode:** mechanical` and
-before `**Files:**`:
+Tasks may include these fields:
 
 ```markdown
 **Risk hint:** low | medium | high
