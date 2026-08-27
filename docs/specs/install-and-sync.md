@@ -65,9 +65,10 @@ Each bound managed record must include:
 - content hash
 - timestamp
 
-`devcanon-runtime` is a fixed passive `scripts/` bundle. Its v1 record uses
-`type: "skill"` only as the existing skills-home transport identity; it is not
-a source skill and has neither `SKILL.md` nor a Codex invocation sidecar.
+`devcanon-runtime` is a fixed passive bundle with validated top-level `config/`
+and `scripts/` trees. Its v1 record uses `type: "skill"` only as the existing
+skills-home transport identity; it is not a source skill and has neither
+`SKILL.md` nor a Codex invocation sidecar.
 
 ### Manifest identity and boundary
 

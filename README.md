@@ -103,4 +103,4 @@ devcanon sync
 
 ## Status
 
-Active development. The v1 CLI supports Claude Code and Codex targets.
+Active development. The CLI supports Claude Code and Codex targets.

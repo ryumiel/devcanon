@@ -108,6 +108,24 @@ nor given installation, sync, identity, or uninstall compatibility guarantees.
 The runtime catalog is transport data for the generated or installed runtime,
 not a second authoritative user-configuration file.
 
+### Installed passive-runtime command contract
+
+This contract is distinct from the public `devcanon config` commands above.
+The shell adapter dispatches `runtime config path`, which accepts no arguments,
+or `runtime config get --key <nonempty>`, which accepts exactly that one flag
+and value. The typed dispatcher receives the corresponding `config path` or
+`config get --key <nonempty>` arguments. Duplicate flags, extra arguments, and
+path overrides are rejected.
+
+The commands consume only the sibling validated runtime catalog. They do not
+consult an explicit source path, `DEVCANON_CONFIG`, or the current directory.
+On success, `path` writes the JSON object `{ "path": "<absolute sibling catalog
+path>" }`; `get` writes `{ "key": "<key>", "value": "<string>" }`. On
+failure they exit non-zero with no success output and write the stable JSON
+envelope `{ "ok": false, "code": "<code>", "message": "<message>" }` to
+standard error. The command and error-code details remain owned by
+[`src/runtime/command.ts`](../../src/runtime/command.ts).
+
 ### Scenarios
 
 - From an unrelated directory with no selected source configuration,
@@ -139,6 +157,9 @@ not a second authoritative user-configuration file.
   [`src/render/devcanon-runtime.integration.test.ts`](../../src/render/devcanon-runtime.integration.test.ts)
   and
   [`src/install/devcanon-runtime.integration.test.ts`](../../src/install/devcanon-runtime.integration.test.ts).
+- Runtime-command coverage must exercise sibling lookup, exact arguments,
+  typed-and-shell parity, unrelated-current-directory behavior, and failures in
+  [`src/skill-scripts/devcanon-runtime-typed-entrypoint.integration.test.ts`](../../src/skill-scripts/devcanon-runtime-typed-entrypoint.integration.test.ts).
 
 ---
 
