@@ -275,9 +275,9 @@ implementation, not the initial source-side migration.
 - [ADR-0024, Runtime Packaging and Resolution](../adr/adr-0024-shared-support-skill-runtime.md#runtime-packaging-and-resolution):
   installed helpers use the version-aligned sibling passive runtime rather than
   a global CLI - accepted architecture owner.
-- [`src/utils/markdown-prose.ts`](../../src/utils/markdown-prose.ts): current
-  handwritten block-code and prose recognition used by production consumers -
-  replacement evidence.
+- [`src/utils/markdown-structure.ts`](../../src/utils/markdown-structure.ts):
+  shared GFM block-code range adapter used by production consumers - current
+  source evidence.
 - [`src/render/placeholders.test.ts`](../../src/render/placeholders.test.ts):
   current focused placeholder behavior corpus - passing source evidence.
 

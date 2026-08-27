@@ -17,7 +17,7 @@ import {
 } from "../render/frontmatter.js";
 import { UserError } from "../utils/errors.js";
 import { isDirectory, pathExists, readTextFile } from "../utils/fs.js";
-import { collectProseSegments } from "../utils/markdown-prose.js";
+import { parseMarkdownStructure } from "../utils/markdown-structure.js";
 import { FILESYSTEM_SAFE } from "../utils/naming.js";
 import { getLogger } from "../utils/output.js";
 import {
@@ -262,7 +262,7 @@ export function collectActiveModelPlaceholderErrors(
     const seenTokens = new Set<string>();
 
     for (const input of inputs) {
-      for (const segment of collectProseSegments(input)) {
+      for (const segment of collectActiveMarkdownSegments(input)) {
         for (const match of segment.matchAll(ACTIVE_MODEL_PLACEHOLDER)) {
           const namespace = match[1];
           const value = match[2];
@@ -297,7 +297,7 @@ function collectDriftDiagnostics(
   glossaries: DriftGlossaries,
 ): DriftDiagnostic[] {
   const proseSegments = sharedProseInputs.flatMap((input) =>
-    collectProseSegments(input),
+    collectActiveMarkdownSegments(input),
   );
   if (proseSegments.length === 0) return [];
 
@@ -350,6 +350,24 @@ function collectDriftDiagnostics(
   }
 
   return [...found.values()];
+}
+
+function collectActiveMarkdownSegments(input: string): string[] {
+  const segments: string[] = [];
+  let cursor = 0;
+
+  for (const range of parseMarkdownStructure(input).blockCodeRanges()) {
+    if (range.start > cursor) {
+      segments.push(input.slice(cursor, range.start));
+    }
+    cursor = range.end;
+  }
+
+  if (cursor < input.length) {
+    segments.push(input.slice(cursor));
+  }
+
+  return segments;
 }
 
 function containsToken(input: string, token: string): boolean {

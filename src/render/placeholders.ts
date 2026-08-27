@@ -7,7 +7,7 @@ import {
   type ResolvedConfig,
   type ToolNames,
 } from "../config/schema.js";
-import { visitMarkdownLines } from "../utils/markdown-prose.js";
+import { parseMarkdownStructure } from "../utils/markdown-structure.js";
 
 /**
  * Matches an optional escape (`\`) followed by `{{namespace:value}}`.
@@ -21,7 +21,6 @@ const PLACEHOLDER = /(\\)?\{\{([\w-]+):([\w-]+)\}\}/g;
 const ACTIVE_MODEL_PLACEHOLDER =
   /(?<!\\)\{\{(model|model-codex):([^{}\r\n]*)\}\}/g;
 const SHARED_PLACEHOLDER_VALUE = /^[\w-]+$/;
-export { collectProseSegments } from "../utils/markdown-prose.js";
 
 export interface PlaceholderGlossary {
   model: CapabilityProfiles;
@@ -71,30 +70,35 @@ export function resolvePlaceholders(
   context?: PlaceholderRenderContext,
 ): string {
   const out: string[] = [];
+  let cursor = 0;
 
-  visitMarkdownLines(input, {
-    onProseLine: (line) => {
-      out.push(substituteLine(line, target, glossary, context));
-    },
-    onFenceLine: (line) => {
-      out.push(line);
-    },
-    onCodeLine: (line) => {
-      out.push(line);
-    },
-  });
+  for (const range of parseMarkdownStructure(input).blockCodeRanges()) {
+    out.push(
+      substituteActiveSource(
+        input.slice(cursor, range.start),
+        target,
+        glossary,
+        context,
+      ),
+      input.slice(range.start, range.end),
+    );
+    cursor = range.end;
+  }
+  out.push(
+    substituteActiveSource(input.slice(cursor), target, glossary, context),
+  );
 
-  return out.join("\n");
+  return out.join("");
 }
 
-function substituteLine(
-  line: string,
+function substituteActiveSource(
+  source: string,
   target: "claude" | "codex",
   glossary: PlaceholderGlossary,
   context: PlaceholderRenderContext | undefined,
 ): string {
-  validateMalformedModelPlaceholders(line, context);
-  return line.replace(PLACEHOLDER, (_match, esc, namespace, value) => {
+  validateMalformedModelPlaceholders(source, context);
+  return source.replace(PLACEHOLDER, (_match, esc, namespace, value) => {
     if (esc) {
       return `{{${namespace}:${value}}}`;
     }
