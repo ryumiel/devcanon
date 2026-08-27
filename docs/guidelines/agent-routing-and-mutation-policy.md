@@ -180,19 +180,24 @@ distinct sessions just because they share a semantic agent.
 
 This policy is the sole owner of the complete fresh-Codex spawn contract for
 D1-D18. For every fresh child, the controller validates and supplies all of the
-following from the selected policy route and existing configuration:
+following from the selected policy route and its target-rendered binding:
 
 - a lifecycle-owned, route-local `task_name`;
 - the selected semantic `agent_type`;
-- the configured full model resolved from the route capability through
-  `capabilityProfiles.<capability>.codex`;
+- the rendered full model produced from the route capability for the active
+  target;
 - the exact independent route `reasoning_effort`;
 - `fork_turns: "none"`; and
 - a self-contained message that includes the task context and the route's
   authority plus source-skill-owned output and termination instructions.
 
-The controller must not derive a fresh Codex model or effort from source-agent
-Codex fields. Compatible same-session reuse is permitted only for D12's
+The source route capability selects this binding only during rendering. At
+dispatch, the binding is already a literal full target model. The controller
+must not derive a fresh Codex model or effort from source-agent Codex fields,
+rediscover a source configuration, or read a sibling passive-runtime catalog
+to replace the rendered binding. A missing, blank, unresolved, or mismatched
+binding blocks before spawn; no alias, nearby or ambient model, effort change,
+or fallback is permitted. Compatible same-session reuse is permitted only for D12's
 original stable-task fix or within-scope continuation and D17's unchanged stable
 branch/task. Every other D1-D18 route is fresh-only; D14, D15, and D16 are
 explicitly one-shot fresh reviewers. After this route permission, the existing
@@ -208,7 +213,7 @@ changed tuple or task identity requires a complete fresh session; the lifecycle
 owner performs the transition mechanics.
 
 If native Codex rejects the selected pair, report exactly
-`model=<configured-full-model> effort=<route-effort>` and use the route-local
+`model=<rendered-full-model> effort=<route-effort>` and use the route-local
 unavailable or `BLOCKED` terminal. No fallback, alias, effort change, retry,
 escalation, or role substitution is permitted. Slot exhaustion is distinct; the
 lifecycle owner owns exact-pair recovery and rejection mechanics.
@@ -230,13 +235,13 @@ role-envelope owner. For the exact selected role and target, it derives
 `capability`, route `effort`, `source_authority`,
 `external_authority`, ordered duplicate-free `claude_tools`, `codex_sandbox`,
 and `default_network`. A fresh Codex D4 model is the configured full model from
-the selected route capability and
-[`devcanon.config.yaml`](../../devcanon.config.yaml); its effort is the
+the selected route capability's target-rendered binding; its effort is the
 independent selected route effort. The selected source must match the selected
-role's capability before that resolution; a capability-less or mismatched source
-fails that parity check rather than entering model resolution. Source-level
-explicit-null suppression remains a source-to-render contract and does not
-override the fresh-route tuple.
+role's capability before that render-time binding is used; a capability-less or
+mismatched source fails that parity check rather than entering model resolution.
+Source-level explicit-null suppression remains a source-to-render contract and
+does not override the fresh-route tuple. The controller does not reload source
+configuration or use the sibling passive runtime to supply this binding.
 
 `agents/*.yaml` are governed declarations/instances and parity inputs, never
 peer semantic authorities. Cognitive demand and stance remain planner

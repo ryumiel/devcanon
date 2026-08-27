@@ -28,8 +28,12 @@ DevCanon accepts one fixed passive runtime support bundle,
 reuse exceeds an owning skill's local `scripts/` boundary. It is not a source
 skill or human workflow entry point, and it must not own review judgment,
 planning judgment, GitHub posting approval, issue routing, or user-facing
-workflow policy. Its fixed payload contains only `scripts/`; it must contain
-neither `SKILL.md` nor a Codex invocation sidecar.
+workflow policy. Its current fixed payload contains validated `config/` and
+`scripts/` trees; it must contain neither `SKILL.md` nor a Codex invocation
+sidecar. The `config/` tree carries the exact runtime capability-profile
+catalog that is projected for each target at render time. It is runtime
+transport data, not a user-editable source configuration or route-selection
+owner.
 
 Skill prose remains authoritative for workflow policy, escalation rules,
 operator approval, and the command surface presented to the agent. Runtime code
@@ -72,13 +76,15 @@ resolves the default runtime under:
 <skills-root>/devcanon-runtime/
 ```
 
-Rendered previews copy the passive `scripts/` payload; installed bundles use
-the same sibling skills-home layout through the existing copy or symlink modes.
+Rendered previews copy the passive `config/` and `scripts/` payload; installed
+bundles use the same sibling skills-home layout through the existing copy or
+symlink modes.
 The v1 manifest records the bundle with `type: "skill"` only as that existing
 skills-home transport identity. It does not make the bundle a source skill or
 add `SKILL.md` or an invocation sidecar. Passive-runtime copy identity validates
-the fixed payload and its content hash only; it has no legacy fallback or
-migration behavior.
+the current fixed payload and its content hash only. A pre-change scripts-only
+payload is incomplete and is not accepted or upgraded; DevCanon makes no
+install/sync/uninstall compatibility promise for it.
 
 Adapters that use the established override-resolution path retain its explicit
 `DEVCANON_RUNTIME_DIR` behavior for tests, diagnostics, and packaging

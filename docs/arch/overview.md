@@ -86,6 +86,35 @@ catalog, within the existing prose, escape, and fence boundaries.
 [Capability Profiles v2 Migration](../guidelines/capability-profiles-v2-migration.md)
 owns the manual operator cutover and rollback procedure.
 
+### Configuration Discovery and Runtime Catalog Boundary
+
+`src/config/load.ts` owns source-configuration discovery for library-operating
+commands: explicit path, environment, then current-directory configuration,
+with no packaged-catalog fallback. `src/config/runtime-config.ts` owns the
+separate read-only selection used by public `config path` and `config get`.
+That selector uses the same source precedence and, only when no source
+configuration is selected, reads the bundled runtime catalog.
+
+The runtime catalog is an exact `schema` plus `capabilityProfiles` JSON
+transport object. It is not a second user configuration: source configuration
+continues to own library paths, targets, manifest settings, and the catalog
+that drives rendering. `src/render/devcanon-runtime.ts` projects the selected
+source capability profiles into each enabled target's runtime bundle;
+`src/validate/devcanon-runtime.ts` validates the exact `config/` and `scripts/`
+payload before source-driven render or transport. The generated and installed
+copies are derived current-format runtime payloads, not discovery sources for
+an arbitrary source checkout.
+
+Runtime-backed route skills receive their per-target full model through source
+placeholders resolved during rendering. At execution they consume that rendered
+binding, not a source config, current working directory, or sibling runtime
+catalog lookup. The passive sibling runtime remains the owner of deterministic
+runtime commands; it does not own route model selection.
+
+The current runtime payload has no scripts-only compatibility path. A missing
+or malformed `config/` catalog, or a scripts-only payload, fails validation and
+is not upgraded, reconciled, or treated as a valid installed runtime.
+
 ### Semantic Agent Routing Boundary
 
 The current architecture has six semantic source roles under `agents/` and
@@ -112,13 +141,14 @@ remain independent. The evolving complete inventories live in the
 [ADR-0027](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md)
 owns the stable decision.
 
-Fresh child controllers obtain the full Codex model from the route capability
-and `capabilityProfiles`, and effort from the independent route tuple. The
+Fresh child controllers consume the full Codex model from the route's
+target-rendered binding and effort from the independent route tuple. Source
+capability profiles supply the binding only during target rendering. The
 running-session configuration is fixed by ADR-0027; changed required tuple or
 task identity needs a new session. The shared lifecycle procedure owns the
 transition mechanics, while route skills own permitted task-local continuation.
-This boundary avoids a source-agent default becoming an ambient runtime dispatch
-override.
+This boundary avoids a source-agent default or runtime lookup becoming an
+ambient runtime dispatch override.
 
 Source authority and external authority are separate closed axes. A
 source-immutable role may run permitted commands and write one

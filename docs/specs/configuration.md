@@ -30,6 +30,103 @@ the invoking directory does not change that resolution.
 
 ---
 
+## Runtime configuration discovery
+
+This section owns selection for the public [`config path` and `config get`
+commands](cli-commands.md#config-path-and-config-get). It does not change the
+source-configuration requirement for commands that render, validate, install,
+or otherwise operate on a library.
+
+### Scope and non-goals
+
+`config` inspects either a selected source configuration or the packaged runtime
+catalog. It is read-only. It neither creates a configuration file nor selects a
+model, installs output, or establishes that a provider account accepts a model.
+The source schema in
+[`src/config/schema.ts`](../../src/config/schema.ts) and the selection code in
+[`src/config/runtime-config.ts`](../../src/config/runtime-config.ts) remain the
+executable contract authority.
+
+### Selection requirements
+
+For `config path` and `config get`, DevCanon selects exactly one value in this
+order:
+
+1. the global `--config <path>` source configuration;
+2. `DEVCANON_CONFIG` source configuration;
+3. `devcanon.config.yaml` in the current directory; or
+4. the packaged `devcanon-runtime` catalog when no source configuration is
+   selected.
+
+An explicit or environment path that is missing is an error; it does not fall
+through to a lower-precedence source or the catalog. Likewise, once a source
+configuration is selected, YAML or schema failure is reported for that source
+and no fallback occurs. A present current-directory config also wins over the
+catalog and fails closed when invalid.
+
+The first three choices load the normal source configuration, including its
+relative-path resolution. The selected value exposes `version` and the resolved
+source configuration, but not loader-only state such as `configDir`.
+
+The fourth choice is the catalog packaged with
+`skills/devcanon-runtime/config/runtime-config.json`. It is an exact JSON
+envelope containing its schema identifier and the required capability-profile
+catalog; it is not a substitute user configuration and cannot supply library,
+target-home, manifest, or installation settings. The catalog must be a regular,
+non-symlink file with a valid exact shape and no duplicate JSON object keys. An
+invalid packaged catalog is an error, not a reason to search another location.
+
+Existing commands keep their source-configuration discovery contract. In
+particular, `init`, `validate`, `render`, `sync`, `uninstall`, `diff`, `doctor`,
+and `list` do not use the packaged catalog as a fallback when no source
+configuration is available.
+
+### Catalog projection and runtime custody
+
+The source `capabilityProfiles` catalog selects model strings while DevCanon
+renders a target. For every enabled target, the renderer writes a runtime
+catalog containing that selected source catalog beside the target's passive
+runtime scripts. An installed runtime reads only its sibling catalog; it does
+not rediscover the source checkout, the invoking directory, or an ambient
+configuration file.
+
+The passive runtime's current payload is exactly its validated `config/` and
+`scripts/` trees, without `SKILL.md` or a Codex invocation sidecar. It is
+current-format-only: a scripts-only runtime is invalid and is neither upgraded
+nor given installation, sync, identity, or uninstall compatibility guarantees.
+The runtime catalog is transport data for the generated or installed runtime,
+not a second authoritative user-configuration file.
+
+### Scenarios
+
+- From an unrelated directory with no selected source configuration,
+  `devcanon config get capabilityProfiles.balanced.codex` reads the packaged
+  catalog and prints `gpt-5.6-terra`. `devcanon --json config path` reports an
+  absolute `path` and `source: "bundled"`.
+- With `--config` pointing to a valid custom source configuration,
+  `devcanon --config <path> --json config get capabilityProfiles.balanced.codex`
+  reports that path, `source: "explicit"`, the requested key, and the custom
+  Codex value. Rendering from that configuration projects its paired Claude and
+  Codex values into their respective target runtime bundles.
+- A missing `--config` path, a malformed selected source configuration, an
+  unknown dotted key, a non-scalar key, a malformed catalog, or a catalog with
+  an unsupported schema or duplicate object key fails with an error. None is
+  replaced by a lower-precedence source, a nearby catalog, an alias, or an
+  ambient model.
+
+### Acceptance and verification
+
+- Public inspection observes the precedence and no-fallback behavior above in
+  an unrelated current directory, with explicit source configuration, and with
+  invalid selected inputs.
+- Plain and JSON command behavior is verified by the command-action tests;
+  catalog shape, file-kind, and key-safety behavior are verified by the runtime
+  configuration tests.
+- Render and install verification confirms that each target runtime receives
+  its selected catalog and rejects an incomplete payload.
+
+---
+
 ## Example
 
 ```yaml

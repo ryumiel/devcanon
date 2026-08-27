@@ -198,6 +198,8 @@ For module responsibilities, dependency rules, and data flow, see
 | Command            | Description                                                     |
 | ------------------ | --------------------------------------------------------------- |
 | `init`             | Initialize a new DevCanon library                               |
+| `config path`      | Print the selected source-config or bundled-catalog path        |
+| `config get <key>` | Print a selected scalar configuration value                     |
 | `new skill <name>` | Scaffold a new skill                                            |
 | `new agent <name>` | Scaffold a new agent role                                       |
 | `validate`         | Validate config, the passive runtime bundle, skills, and agents |

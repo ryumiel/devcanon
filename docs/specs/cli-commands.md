@@ -46,14 +46,52 @@ Passive runtime support bundle behavior:
 
 - fresh libraries receive the fixed passive runtime support bundle at
   `skills/devcanon-runtime/`
-- the bundle contains only its validated `scripts/` payload, with no
-  `SKILL.md` or Codex invocation sidecar
+- the current-format-only bundle contains its validated `config/` catalog and
+  `scripts/` payload, with no `SKILL.md` or Codex invocation sidecar
 - an existing matching `skills/devcanon-runtime/` path is preserved
 - an existing non-matching `skills/devcanon-runtime/` path causes `init` to
   fail with repair guidance; DevCanon does not overwrite the existing support
   runtime bundle path
+- a scripts-only legacy runtime is not an accepted payload and is not upgraded
+  or reconciled by `init`
 - generated outputs remain disposable render results, not authoritative source
   files
+
+---
+
+## `config path` and `config get`
+
+Inspect the configuration selected for this command without rendering or
+installing anything.
+
+```bash
+devcanon [--config <path>] [--json] [--strict] config path
+devcanon [--config <path>] [--json] [--strict] config get <key>
+```
+
+`config path` prints only the selected absolute path in plain output. With
+`--json`, it writes one JSON object with `path` and `source`, where `source` is
+`explicit`, `environment`, `cwd`, or `bundled`.
+
+`config get <key>` accepts a safe dotted key and returns only scalar values.
+Plain output prints string values directly and JSON-spells numbers and booleans.
+With `--json`, it writes one JSON object with `path`, `source`, `key`, and
+`value`. Objects, arrays, missing keys, unsafe key syntax, and inherited-key
+paths are errors.
+
+Selection, catalog-validation, and key errors use the CLI's ordinary error
+output and exit non-zero; they do not emit a plain or JSON success value.
+
+These commands select `--config`, then `DEVCANON_CONFIG`, then a current
+directory `devcanon.config.yaml`, and finally the packaged runtime catalog only
+when none of those source configurations is selected. A missing explicit or
+environment path, an invalid selected source configuration, or an invalid
+catalog fails closed; the command does not use a lower-precedence source or
+fallback model. The full selection, catalog, and source-command boundary is
+owned by [Configuration](configuration.md#runtime-configuration-discovery).
+
+All other DevCanon commands retain source-configuration discovery and do not
+fall back to the packaged catalog.
 
 ---
 
