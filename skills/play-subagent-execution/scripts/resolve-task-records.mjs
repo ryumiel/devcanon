@@ -233,7 +233,7 @@ function visibleLines(markdown) {
         fence &&
         fence.char === char &&
         length >= fence.length &&
-        marker[2].trim() === ""
+        /^[ \t]*$/.test(marker[2])
       ) {
         fence = undefined;
       }

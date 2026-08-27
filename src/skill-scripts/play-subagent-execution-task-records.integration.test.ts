@@ -546,6 +546,17 @@ describe("play-subagent-execution task record resolver", () => {
     expect(result.stderr).toBe("");
   });
 
+  it("does not close fences with Unicode whitespace suffixes", async () => {
+    const nonClosingFence = basePlan.replace(
+      "## Tasks",
+      "```text\nexcluded content\n```\u00a0\n\n## Tasks",
+    );
+
+    const failure = await expectFailure(nonClosingFence);
+    expect(failure.stdout).toBe("");
+    expect(failure.stderr).toContain("plan requires exactly one Tasks section");
+  });
+
   it("keeps record constructs visible after matching backticks inside fences", async () => {
     const fencedBackticks = basePlan.replace(
       "### Boundary row `BR-A`",
