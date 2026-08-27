@@ -7,7 +7,9 @@ Accepted
 The model-tier glossary and resolution choice in this record is partially
 superseded by [ADR-0026](adr-0026-capability-profiles.md). The per-target skill
 rendering, override, sidecar, substitution-boundary, and namespace decisions
-remain accepted.
+remain accepted except that
+[ADR-0035](adr-0035-installed-runtime-configuration-discovery.md) adds the
+execution-target-bound `model-codex` namespace.
 
 ## Context
 

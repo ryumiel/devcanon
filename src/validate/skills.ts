@@ -240,7 +240,8 @@ export async function loadAndValidateSkills(
   return skills;
 }
 
-const ACTIVE_MODEL_PLACEHOLDER = /(?<!\\)\{\{model:([^{}\r\n]*)\}\}/g;
+const ACTIVE_MODEL_PLACEHOLDER =
+  /(?<!\\)\{\{(model|model-codex):([^{}\r\n]*)\}\}/g;
 
 export function collectActiveModelPlaceholderErrors(
   skillName: string,
@@ -250,10 +251,6 @@ export function collectActiveModelPlaceholderErrors(
   sourceFilePath: string,
 ): string[] {
   const errors: string[] = [];
-  const supported = CapabilitySchema.options
-    .map((capability) => `{{model:${capability}}}`)
-    .join(", ");
-
   for (const target of targets) {
     const targetOverride = source[target];
     const inputs = [
@@ -267,13 +264,17 @@ export function collectActiveModelPlaceholderErrors(
     for (const input of inputs) {
       for (const segment of collectProseSegments(input)) {
         for (const match of segment.matchAll(ACTIVE_MODEL_PLACEHOLDER)) {
-          const value = match[1];
+          const namespace = match[1];
+          const value = match[2];
           const token = match[0];
           const capability = CapabilitySchema.safeParse(value);
           if (capability.success || seenTokens.has(token)) {
             continue;
           }
           seenTokens.add(token);
+          const supported = CapabilitySchema.options
+            .map((capability) => `{{${namespace}:${capability}}}`)
+            .join(", ");
           errors.push(
             `Skill "${skillName}" (${target}): unsupported model capability "${value}" in token "${token}" — use ${supported}; the capabilityProfiles catalog in ${CONFIG_FILE_NAME} defines the target model strings (source: ${sourceFilePath})`,
           );

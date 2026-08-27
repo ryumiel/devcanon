@@ -65,9 +65,10 @@ Each bound managed record must include:
 - content hash
 - timestamp
 
-`devcanon-runtime` is a fixed passive `scripts/` bundle. Its v1 record uses
-`type: "skill"` only as the existing skills-home transport identity; it is not
-a source skill and has neither `SKILL.md` nor a Codex invocation sidecar.
+`devcanon-runtime` is a fixed passive bundle with validated top-level `config/`
+and `scripts/` trees. Its v1 record uses `type: "skill"` only as the existing
+skills-home transport identity; it is not a source skill and has neither
+`SKILL.md` nor a Codex invocation sidecar.
 
 ### Manifest identity and boundary
 
@@ -378,9 +379,12 @@ generated or source root. If the original symlink spelling can no longer be
 reconstructed without unbounded guessing, identity verification fails closed and
 keeps the manifest record.
 
-For the passive `devcanon-runtime` bundle, copy identity validates only the
-fixed scripts payload and recorded content hash. It uses no `SKILL.md` identity,
-legacy fallback, or migration path.
+For the passive `devcanon-runtime` bundle, the exact current payload has
+top-level `config/` and `scripts/` trees and no `SKILL.md`. Copy identity
+validates and hashes both the catalog and scripts payload against the recorded
+content hash; it has no legacy fallback or migration path. Symlink identity
+continues to verify the expected target path, while `diff` also checks the
+resolved runtime payload against the rendered hash.
 
 During uninstall, a valid manifest record whose installed path is already
 missing is treated as removed only after target-home containment and symlink

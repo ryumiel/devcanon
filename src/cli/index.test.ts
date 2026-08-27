@@ -11,7 +11,11 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { copyDevcanonRuntimeFixture } from "../__test-helpers__/fixtures.js";
+import {
+  copyDevcanonRuntimeFixture,
+  createConfigFile,
+  makeConfigYaml,
+} from "../__test-helpers__/fixtures.js";
 import {
   inspectManifest,
   recoverInvalidManifest,
@@ -35,6 +39,19 @@ function terminalLines(stderr: string): string[] {
   return stderr.split(/\r?\n/).filter((line) => line.length > 0);
 }
 
+function cliEntrypoint(): string {
+  return path.join(process.cwd(), "src", "cli", "index.ts");
+}
+
+function tsxEntrypoint(): string {
+  return path.join(
+    process.cwd(),
+    "node_modules",
+    ".bin",
+    process.platform === "win32" ? "tsx.cmd" : "tsx",
+  );
+}
+
 describe("CLI entrypoint", () => {
   it("uses devcanon as the program name in help output", async () => {
     const result = await execFileAsync(
@@ -48,6 +65,302 @@ describe("CLI entrypoint", () => {
 
     expect(result.stdout).toContain("Usage: devcanon");
     expect(result.stdout).toContain("--reconcile-manifest");
+  });
+
+  it("exposes the config command group in public help", async () => {
+    const result = await execFileAsync(
+      "pnpm",
+      ["exec", "tsx", "src/cli/index.ts", "--help"],
+      { cwd: process.cwd(), shell: process.platform === "win32" },
+    );
+
+    expect(result.stdout).toMatch(/^\s+config\s/m);
+  });
+
+  it("returns the selected configuration path through the public JSON CLI", async () => {
+    const configPath = path.join(process.cwd(), "devcanon.config.yaml");
+    const result = await execFileAsync(
+      "pnpm",
+      [
+        "exec",
+        "tsx",
+        "src/cli/index.ts",
+        "--config",
+        configPath,
+        "--json",
+        "config",
+        "path",
+      ],
+      { cwd: process.cwd(), shell: process.platform === "win32" },
+    );
+
+    expect(JSON.parse(result.stdout)).toEqual({
+      path: configPath,
+      source: "explicit",
+    });
+  });
+
+  it("rejects an explicitly empty config path without success output", async () => {
+    let failure:
+      | { code?: number; stderr?: string; stdout?: string }
+      | undefined;
+    try {
+      await execFileAsync(
+        tsxEntrypoint(),
+        [cliEntrypoint(), "--config", "", "--json", "config", "path"],
+        { cwd: process.cwd(), shell: process.platform === "win32" },
+      );
+    } catch (error) {
+      failure = error as { code?: number; stderr?: string; stdout?: string };
+    }
+
+    expect(failure).toMatchObject({
+      code: 1,
+      stdout: "",
+      stderr: expect.stringContaining("Config path must not be empty."),
+    });
+  });
+
+  it("rejects an explicitly empty config path for ordinary library commands", async () => {
+    let failure:
+      | { code?: number; stderr?: string; stdout?: string }
+      | undefined;
+    try {
+      await execFileAsync(
+        tsxEntrypoint(),
+        [cliEntrypoint(), "--config", "", "--json", "list"],
+        { cwd: process.cwd(), shell: process.platform === "win32" },
+      );
+    } catch (error) {
+      failure = error as { code?: number; stderr?: string; stdout?: string };
+    }
+
+    expect(failure).toMatchObject({
+      code: 1,
+      stdout: "",
+      stderr: expect.stringContaining("Config path must not be empty."),
+    });
+  });
+
+  it("rejects an explicitly empty render target before success output", async () => {
+    const configPath = path.join(process.cwd(), "devcanon.config.yaml");
+    let failure:
+      | { code?: number; stderr?: string; stdout?: string }
+      | undefined;
+    try {
+      await execFileAsync(
+        tsxEntrypoint(),
+        [
+          cliEntrypoint(),
+          "--config",
+          configPath,
+          "--json",
+          "render",
+          "--target",
+          "",
+        ],
+        { cwd: process.cwd(), shell: process.platform === "win32" },
+      );
+    } catch (error) {
+      failure = error as { code?: number; stderr?: string; stdout?: string };
+    }
+
+    expect(failure).toMatchObject({
+      code: 1,
+      stdout: "",
+      stderr: expect.stringContaining(
+        'Invalid target "". Must be "claude" or "codex".',
+      ),
+    });
+  });
+
+  it("returns source-schema version through registered plain and JSON config get", async () => {
+    const configPath = path.join(process.cwd(), "devcanon.config.yaml");
+    const plain = await execFileAsync(
+      "pnpm",
+      [
+        "exec",
+        "tsx",
+        "src/cli/index.ts",
+        "--config",
+        configPath,
+        "config",
+        "get",
+        "version",
+      ],
+      { cwd: process.cwd(), shell: process.platform === "win32" },
+    );
+    const json = await execFileAsync(
+      "pnpm",
+      [
+        "exec",
+        "tsx",
+        "src/cli/index.ts",
+        "--config",
+        configPath,
+        "--json",
+        "config",
+        "get",
+        "version",
+      ],
+      { cwd: process.cwd(), shell: process.platform === "win32" },
+    );
+
+    expect(plain.stdout).toBe("2\n");
+    expect(JSON.parse(json.stdout)).toMatchObject({
+      path: configPath,
+      source: "explicit",
+      key: "version",
+      value: 2,
+    });
+  });
+
+  it("does not emit success output for loader-only configDir", async () => {
+    const configPath = path.join(process.cwd(), "devcanon.config.yaml");
+    let failure:
+      | { code?: number; stderr?: string; stdout?: string }
+      | undefined;
+    try {
+      await execFileAsync(
+        "pnpm",
+        [
+          "exec",
+          "tsx",
+          "src/cli/index.ts",
+          "--config",
+          configPath,
+          "--json",
+          "config",
+          "get",
+          "configDir",
+        ],
+        { cwd: process.cwd(), shell: process.platform === "win32" },
+      );
+    } catch (error) {
+      failure = error as { code?: number; stderr?: string; stdout?: string };
+    }
+
+    expect(failure).toMatchObject({
+      code: 1,
+      stdout: "",
+      stderr: expect.stringContaining("Configuration key not found: configDir"),
+    });
+  });
+
+  it("reports environment and CWD selection through registered config path", async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-cli-"));
+    const cwdDir = path.join(tempDir, "cwd");
+    const environmentDir = path.join(tempDir, "environment");
+    await mkdir(cwdDir, { recursive: true });
+    await mkdir(environmentDir, { recursive: true });
+    const environmentPath = await createConfigFile(
+      environmentDir,
+      makeConfigYaml(),
+    );
+    await createConfigFile(cwdDir, makeConfigYaml());
+
+    try {
+      const environmentResult = await execFileAsync(
+        tsxEntrypoint(),
+        [cliEntrypoint(), "--json", "config", "path"],
+        {
+          cwd: cwdDir,
+          env: { ...process.env, DEVCANON_CONFIG: environmentPath },
+          shell: process.platform === "win32",
+        },
+      );
+      const cwdResult = await execFileAsync(
+        tsxEntrypoint(),
+        [cliEntrypoint(), "--json", "config", "path"],
+        {
+          cwd: cwdDir,
+          env: { ...process.env, DEVCANON_CONFIG: "" },
+          shell: process.platform === "win32",
+        },
+      );
+
+      expect(JSON.parse(environmentResult.stdout)).toEqual({
+        path: path.resolve(environmentPath),
+        source: "environment",
+      });
+      expect(JSON.parse(cwdResult.stdout)).toMatchObject({
+        source: "cwd",
+        path: expect.stringMatching(/devcanon\.config\.yaml$/u),
+      });
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("uses the bundled catalog through the public CLI outside a source library", async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-cli-"));
+    try {
+      const result = await execFileAsync(
+        tsxEntrypoint(),
+        [cliEntrypoint(), "--json", "config", "path"],
+        {
+          cwd: tempDir,
+          env: { ...process.env, DEVCANON_CONFIG: "" },
+          shell: process.platform === "win32",
+        },
+      );
+
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        source: "bundled",
+        path: expect.any(String),
+      });
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reads a bundled scalar through the public CLI outside a source library", async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-cli-"));
+    try {
+      const result = await execFileAsync(
+        tsxEntrypoint(),
+        [
+          cliEntrypoint(),
+          "--json",
+          "config",
+          "get",
+          "capabilityProfiles.balanced.codex",
+        ],
+        {
+          cwd: tempDir,
+          env: { ...process.env, DEVCANON_CONFIG: "" },
+          shell: process.platform === "win32",
+        },
+      );
+
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        source: "bundled",
+        key: "capabilityProfiles.balanced.codex",
+        value: "gpt-5.6-terra",
+      });
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves non-config command failure outside a source library", async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-cli-"));
+    try {
+      await expect(
+        execFileAsync(tsxEntrypoint(), [cliEntrypoint(), "list"], {
+          cwd: tempDir,
+          env: { ...process.env, DEVCANON_CONFIG: "" },
+          shell: process.platform === "win32",
+        }),
+      ).rejects.toMatchObject({
+        code: 1,
+        stderr: expect.stringContaining(
+          "No devcanon.config.yaml found in current directory.",
+        ),
+      });
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
   });
 
   it("parses reconciliation through the public CLI and returns UserError exit 1 for bound foreign records", async () => {

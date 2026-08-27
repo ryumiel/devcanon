@@ -4,6 +4,10 @@
 
 Accepted
 
+[ADR-0035](adr-0035-installed-runtime-configuration-discovery.md) partially
+supersedes this ADR only for passive-runtime payload contents and current-format
+catalog custody. All other decisions in this ADR remain accepted.
+
 ## Context
 
 DevCanon skills increasingly need deterministic helpers for behavior that is

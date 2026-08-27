@@ -15,6 +15,46 @@ import { renderAll } from "./pipeline.js";
 import { buildGlossary, resolvePlaceholders } from "./placeholders.js";
 
 const TARGETS = ["claude", "codex"] as const;
+const FIXED_ROUTE_OWNER_CONTRACT = [
+  ["D1", "issue-priming-workflow"],
+  ["D2", "issue-priming-workflow"],
+  ["D3", "issue-priming-workflow"],
+  ["D4", "play-agent-dispatch"],
+  ["D5", "play-planning"],
+  ["D6", "play-planning"],
+  ["D7", "play-review"],
+  ["D8", "play-review"],
+  ["D9", "play-review"],
+  ["D10", "play-review"],
+  ["D11", "play-skill-authoring"],
+  ["D12", "play-subagent-execution"],
+  ["D13", "play-subagent-execution"],
+  ["D14", "play-subagent-execution"],
+  ["D15", "play-subagent-execution"],
+  ["D16", "play-subagent-execution"],
+  ["D17", "pr-merge"],
+  ["D18", "play-review"],
+] as const;
+const ROUTE_OWNER_SKILLS = [
+  "issue-priming-workflow",
+  "play-agent-dispatch",
+  "play-planning",
+  "play-review",
+  "play-skill-authoring",
+  "play-subagent-execution",
+  "pr-merge",
+] as const;
+
+function normalizeContractText(content: string): string {
+  return content.replace(/\s+/gu, " ").trim();
+}
+
+function expectNoForbiddenRouteModelTokens(content: string): void {
+  expect(content).not.toContain("devcanon.config.yaml");
+  expect(content).not.toContain("capabilityProfiles.");
+  expect(content).not.toMatch(/\{\{model(?:-codex)?:/u);
+  expect(content).not.toMatch(/model\s*[=:]\s*capabilityProfiles\.[\w.]+/u);
+}
 
 function expectedMirroredBytes(
   subdir: string,
@@ -162,13 +202,13 @@ describe("shipped skill rendering", () => {
         const { body } = parseFrontmatter(
           getSkillOutput(outputs, skill, target).content,
         );
-        const configuredModel = config.capabilityProfiles[capability][target];
+        const normalizedBody = normalizeContractText(body);
+        const configuredModel = config.capabilityProfiles[capability].codex;
 
-        expect(body).toContain(
-          `${binding} = capabilityProfiles.${capability}.codex`,
+        expect(normalizedBody).toContain(
+          `\`${binding}\` = \`${configuredModel}\``,
         );
-        expect(body).toContain(configuredModel);
-        expect(body).not.toContain(
+        expect(normalizedBody).not.toContain(
           `\`${binding}\` resolves to \`${config.capabilityProfiles[capability].claude}\``,
         );
       }
@@ -178,15 +218,128 @@ describe("shipped skill rendering", () => {
       const { body } = parseFrontmatter(
         getSkillOutput(outputs, "play-agent-dispatch", target).content,
       );
-      expect(body).toContain("Codex-only model bindings");
-      expect(body).toContain("Target capability markers:");
+      const normalizedBody = normalizeContractText(body);
+      expect(normalizedBody).toContain("Codex-bound model bindings");
       for (const capability of ["efficient", "balanced", "frontier"] as const) {
-        expect(body).toContain(`capabilityProfiles.${capability}.codex`);
-        expect(body).toContain(config.capabilityProfiles[capability][target]);
-        expect(body).not.toContain(
+        expect(normalizedBody).toContain(
+          `\`${capability}\` → \`${config.capabilityProfiles[capability].codex}\``,
+        );
+        expect(normalizedBody).not.toContain(
           `\`${capability}\` → \`${config.capabilityProfiles[capability].claude}\``,
         );
       }
+    }
+  });
+
+  it("keeps rendered workflow model consumers bound to their owner-supplied models", async () => {
+    const config = await loadConfig(
+      path.join(process.cwd(), "devcanon.config.yaml"),
+    );
+    const generatedDir = await mkdtemp(
+      path.join(tmpdir(), "devcanon-rendered-route-models-"),
+    );
+    const referenceContracts = [
+      {
+        path: "play-review/references/reviewer-routing-policy.md",
+        bindings: ["D7_MODEL", "D8_MODEL", "D9_MODEL", "D10_MODEL"],
+        failClosed:
+          "A missing, blank, unresolved, or mismatched binding blocks before capture or spawn; no source-checkout lookup, fallback model, effort change, retry, escalation, or role substitution is permitted.",
+      },
+      {
+        path: "play-subagent-execution/references/implementer-prompt.md",
+        bindings: ["D12_MODEL"],
+        failClosed:
+          "A missing, blank, unresolved, or mismatched binding blocks before capture or spawn; do not locate a source checkout or use an alias, nearby, or ambient model.",
+      },
+      {
+        path: "play-subagent-execution/references/executor-prompt.md",
+        bindings: ["D13_MODEL"],
+        failClosed:
+          "A missing, blank, unresolved, or mismatched binding blocks before capture or spawn; do not locate a source checkout or use an alias, nearby, or ambient model.",
+      },
+      {
+        path: "play-subagent-execution/references/spec-reviewer-prompt.md",
+        bindings: ["D14_MODEL"],
+        failClosed:
+          "A missing, blank, unresolved, or mismatched binding blocks before capture or spawn; do not locate a source checkout or use an alias, nearby, or ambient model.",
+      },
+      {
+        path: "play-subagent-execution/references/code-quality-reviewer-prompt.md",
+        bindings: ["D15_MODEL", "D16_MODEL"],
+        failClosed:
+          "A missing, blank, unresolved, or mismatched binding blocks before capture or spawn; do not locate a source checkout or use an alias, nearby, or ambient model.",
+      },
+      {
+        path: "play-subagent-execution/references/example-workflow.md",
+        bindings: [
+          "D12_MODEL",
+          "D13_MODEL",
+          "D14_MODEL",
+          "D15_MODEL",
+          "D16_MODEL",
+        ],
+        failClosed:
+          "A missing, blank, unresolved, or mismatched binding blocks before capture or spawn; do not locate a source checkout or use an alias, nearby, or ambient model.",
+      },
+    ] as const;
+
+    try {
+      await renderAll(
+        {
+          ...config,
+          library: { ...config.library, generatedDir },
+        },
+        true,
+        true,
+      );
+
+      for (const target of TARGETS) {
+        const bundleFiles = await Promise.all(
+          ROUTE_OWNER_SKILLS.map(async (skill) => {
+            const root = path.join(generatedDir, target, "skills", skill);
+            const files = await listRelativeFiles(root);
+            return Promise.all(
+              files
+                .filter((file) => file.endsWith(".md"))
+                .map(
+                  async (file) =>
+                    [
+                      `${skill}/${file}`,
+                      await readFile(path.join(root, file), "utf8"),
+                    ] as const,
+                ),
+            );
+          }),
+        );
+        const renderedFiles = new Map<string, string>(bundleFiles.flat());
+        for (const [id, owner] of FIXED_ROUTE_OWNER_CONTRACT) {
+          expect(
+            renderedFiles.has(`${owner}/SKILL.md`),
+            `${target} ${id} owner ${owner} is rendered`,
+          ).toBe(true);
+        }
+
+        for (const [file, content] of renderedFiles) {
+          expectNoForbiddenRouteModelTokens(content);
+        }
+
+        for (const reference of referenceContracts) {
+          const content = renderedFiles.get(reference.path);
+          expect(
+            content,
+            `${target} ${reference.path} is rendered`,
+          ).toBeDefined();
+          const normalized = normalizeContractText(content ?? "");
+          expect(normalized).toContain(reference.failClosed);
+          for (const binding of reference.bindings) {
+            expect(content).toMatch(
+              new RegExp(`already-rendered\\s+\`${binding}\``, "u"),
+            );
+          }
+        }
+      }
+    } finally {
+      await rm(generatedDir, { recursive: true, force: true });
     }
   });
 
@@ -215,7 +368,7 @@ describe("shipped skill rendering", () => {
       );
       expect(playReview).toContain("`semantic_role: reviewer`");
       expect(playReview).toContain(d10Spawn);
-      expect(playReview).toContain(config.capabilityProfiles.frontier[target]);
+      expect(playReview).toContain(config.capabilityProfiles.frontier.codex);
       expect(playReview).not.toContain(
         "D10 is one response-only `deep-reviewer`, frontier/xhigh",
       );
@@ -229,7 +382,7 @@ describe("shipped skill rendering", () => {
       for (const route of ["D14", "D15", "D16"] as const) {
         expect(execution).toContain(
           [
-            `# ${route}: ${route}_MODEL = capabilityProfiles.frontier.codex`,
+            `# ${route}: ${route}_MODEL is the Codex-bound frontier model`,
             "Codex.spawn_agent({",
             `  task_name: ${route.toLowerCase()}_<instance_ordinal>,`,
             '  agent_type: "deep-reviewer",',
@@ -266,7 +419,7 @@ describe("shipped skill rendering", () => {
       );
 
       expect(body).toContain(d18Spawn);
-      expect(body).toContain(config.capabilityProfiles.balanced[target]);
+      expect(body).toContain(config.capabilityProfiles.balanced.codex);
     }
   });
 

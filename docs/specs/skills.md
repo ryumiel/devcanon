@@ -142,23 +142,27 @@ for the rewrite triggers.
 
 ## Placeholders
 
-Three placeholder namespaces resolve at render time against
+Four placeholder forms resolve at render time against
 glossaries in `devcanon.config.yaml`:
 
 - `{{model:<capability>}}` against `capabilityProfiles` (for example,
   `{{model:frontier}}`).
+- `{{model-codex:<capability>}}` against the Codex member of
+  `capabilityProfiles` for prose that feeds an explicit Codex execution
+  primitive, regardless of the rendered artifact target.
 - `{{tool:<key>}}` against `toolNames` (e.g.
   `{{tool:task-tracker}}`).
 - `{{file:<key>}}` against `fileArtifacts` (e.g.
   `{{file:project-instructions}}`).
 
-All three share the same shape: each glossary entry is a
+The glossaries share the same shape: each entry is a
 `{claude, codex}` pair. During the Claude render pass, the entry's
 `claude` value is substituted; during the Codex pass, the `codex`
-value. The same skill source therefore produces different rendered
-strings in `generated/claude/...` and `generated/codex/...`.
+value. `model-codex` is the bounded exception: it selects the `codex` member in
+both passes because its consumer is explicitly a Codex execution primitive.
 
 Escape with a leading backslash: `\{{model:frontier}}`,
+`\{{model-codex:frontier}}`,
 `\{{tool:task-tracker}}`, `\{{file:project-instructions}}`.
 Placeholders inside fenced code blocks (backtick or tilde) are
 not substituted.
@@ -186,6 +190,8 @@ these invalid forms rather than silently leaving them unresolved.
 - Use `{{model:efficient}}`, `{{model:balanced}}`, and
   `{{model:frontier}}` for model-capability references in shared
   skill bodies.
+- Use `{{model-codex:<capability>}}` only when the rendered value is passed to
+  an explicit Codex execution primitive in both artifact targets.
 - Use `{{tool:<key>}}` and `{{file:<key>}}` for tool and
   artifact names whose spelling differs across targets. Example:
   `{{tool:task-tracker}}` instead of literal `TodoWrite`;
@@ -257,11 +263,19 @@ policy and other project-local detail should usually live in
 `references/` or in the owning project documentation rather than in the
 always-loaded skill prompt.
 
-Only `SKILL.md` and these four subdirs are part of the installed bundle.
-Any other non-hidden top-level file or directory is flagged by `validate`
-(and rejected under `validate --strict`). Unknown support directories are not
-rendered or mirrored into generated skills. Hidden entries (e.g. `.DS_Store`
-or `.cache/`) are ignored.
+For ordinary declaration-bearing skills, only `SKILL.md` and these four
+subdirectories are part of the installed bundle. Any other non-hidden top-level
+file or directory is flagged by `validate` (and rejected under
+`validate --strict`). Unknown support directories are not rendered or mirrored
+into generated skills. Hidden entries (e.g. `.DS_Store` or `.cache/`) are
+ignored.
+
+The managed passive `devcanon-runtime` bundle is the explicit non-declaration
+exception: it has no `SKILL.md` and instead contains validated top-level
+`config/` and `scripts/` trees. Its exact payload and transport behavior are
+owned by [Install and sync](install-and-sync.md) and
+[ADR-0035](../adr/adr-0035-installed-runtime-configuration-discovery.md), not
+by the ordinary-skill allowlist.
 
 ---
 
@@ -273,10 +287,11 @@ or `.cache/`) are ignored.
 - Frontmatter `name` must match the stricter skill-name regex above and equal
   the directory name.
 - Skill names must be unique.
-- Every active `{{X:Y}}` placeholder must use `X` ∈ {`model`, `tool`,
-  `file`}. Model `Y` must be exactly `efficient`, `balanced`, or `frontier`;
-  tool and file keys must exist in the corresponding glossary.
-- Model placeholders use the exact capability enum. `toolNames` and
+- Every active `{{X:Y}}` placeholder must use `X` ∈ {`model`,
+  `model-codex`, `tool`, `file`}. Model and model-codex `Y` values must be
+  exactly `efficient`, `balanced`, or `frontier`; tool and file keys must exist
+  in the corresponding glossary.
+- Model and model-codex placeholders use the exact capability enum. `toolNames` and
   `fileArtifacts` keys match `^[a-z0-9][a-z0-9-]*$` (lowercase, digits,
   hyphens; e.g. `task-tracker`, `project-instructions`).
 - Former model tokens, malformed active model tokens, and unknown model
@@ -291,10 +306,12 @@ or `.cache/`) are ignored.
   authoring target is `1,500`-`3,500` estimated GPT tokens. This
   warning is not promoted to an error by `--strict`; strict enforcement
   and baseline mechanics are not implemented.
-- Top-level entries other than `SKILL.md` and the four optional subdirs
-  (`assets/`, `examples/`, `references/`, `scripts/`) are flagged: stray
-  files and unknown non-hidden support directories emit warnings (errors under
-  `--strict`). Hidden entries are not flagged.
+- For ordinary declaration-bearing skills, top-level entries other than
+  `SKILL.md` and the four optional subdirs (`assets/`, `examples/`,
+  `references/`, `scripts/`) are flagged: stray files and unknown non-hidden
+  support directories emit warnings (errors under `--strict`). Hidden entries
+  are not flagged. `devcanon-runtime` is the validated non-declaration
+  exception above.
 
 ---
 

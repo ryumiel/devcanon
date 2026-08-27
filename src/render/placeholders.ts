@@ -11,14 +11,15 @@ import { visitMarkdownLines } from "../utils/markdown-prose.js";
 
 /**
  * Matches an optional escape (`\`) followed by `{{namespace:value}}`.
- * Namespace uses `\w+` (letters, digits, underscore).
+ * Namespace uses letters, digits, underscores, and hyphens.
  * Value uses `[\w-]+` to support kebab-case keys (e.g. `task-tracker`).
  * The captured key is then re-validated per-namespace against the stricter
  * config-time format in `substituteLine`, so e.g. `{{tool:taskTracker}}`
  * yields a clear "invalid key" error instead of "unknown key".
  */
-const PLACEHOLDER = /(\\)?\{\{(\w+):([\w-]+)\}\}/g;
-const ACTIVE_MODEL_PLACEHOLDER = /(?<!\\)\{\{model:([^{}\r\n]*)\}\}/g;
+const PLACEHOLDER = /(\\)?\{\{([\w-]+):([\w-]+)\}\}/g;
+const ACTIVE_MODEL_PLACEHOLDER =
+  /(?<!\\)\{\{(model|model-codex):([^{}\r\n]*)\}\}/g;
 const SHARED_PLACEHOLDER_VALUE = /^[\w-]+$/;
 export { collectProseSegments } from "../utils/markdown-prose.js";
 
@@ -33,17 +34,18 @@ export interface PlaceholderRenderContext {
   target: "claude" | "codex";
 }
 
-const SUPPORTED_NAMESPACES = ["model", "tool", "file"] as const;
+const SUPPORTED_NAMESPACES = ["model", "model-codex", "tool", "file"] as const;
 type SupportedNamespace = (typeof SUPPORTED_NAMESPACES)[number];
 
 const NAMESPACE_CONFIG_KEY: Record<SupportedNamespace, string> = {
   model: "capabilityProfiles",
+  "model-codex": "capabilityProfiles",
   tool: "toolNames",
   file: "fileArtifacts",
 };
 
 const NAMESPACE_KEY_FORMAT: Record<
-  Exclude<SupportedNamespace, "model">,
+  Exclude<SupportedNamespace, "model" | "model-codex">,
   RegExp
 > = {
   tool: PLACEHOLDER_KEY,
@@ -102,8 +104,14 @@ function substituteLine(
         context,
       );
     }
-    if (namespace === "model") {
-      return resolveModelPlaceholder(value, target, glossary.model, context);
+    if (namespace === "model" || namespace === "model-codex") {
+      return resolveModelPlaceholder(
+        value,
+        namespace === "model-codex" ? "codex" : target,
+        glossary.model,
+        context,
+        namespace,
+      );
     }
     if (!NAMESPACE_KEY_FORMAT[namespace].test(value)) {
       throw renderError(
@@ -137,9 +145,9 @@ function validateMalformedModelPlaceholders(
   context: PlaceholderRenderContext | undefined,
 ): void {
   for (const match of line.matchAll(ACTIVE_MODEL_PLACEHOLDER)) {
-    const value = match[1];
+    const value = match[2];
     if (SHARED_PLACEHOLDER_VALUE.test(value)) continue;
-    throw unsupportedModelPlaceholderError(value, context);
+    throw unsupportedModelPlaceholderError(value, context, match[1]);
   }
 }
 
@@ -148,10 +156,11 @@ function resolveModelPlaceholder(
   target: "claude" | "codex",
   profiles: CapabilityProfiles,
   context: PlaceholderRenderContext | undefined,
+  namespace = "model",
 ): string {
   const capability = CapabilitySchema.safeParse(value);
   if (!capability.success || !Object.hasOwn(profiles, capability.data)) {
-    throw unsupportedModelPlaceholderError(value, context);
+    throw unsupportedModelPlaceholderError(value, context, namespace);
   }
 
   return profiles[capability.data][target];
@@ -160,10 +169,11 @@ function resolveModelPlaceholder(
 function unsupportedModelPlaceholderError(
   value: string,
   context: PlaceholderRenderContext | undefined,
+  namespace = "model",
 ): Error {
-  const token = `{{model:${value}}}`;
+  const token = `{{${namespace}:${value}}}`;
   const supported = CapabilitySchema.options
-    .map((capability) => `{{model:${capability}}}`)
+    .map((capability) => `{{${namespace}:${capability}}}`)
     .join(", ");
   return renderError(
     `unsupported model capability "${value}" in token "${token}" — use ${supported}; the ${NAMESPACE_CONFIG_KEY.model} catalog in ${CONFIG_FILE_NAME} defines the target model strings`,

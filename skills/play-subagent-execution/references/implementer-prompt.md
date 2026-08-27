@@ -14,13 +14,15 @@ not authorize external-system mutation, parallel task implementation, or work
 outside the controller-authorized paths.
 
 **Fresh configuration:** The controller validates D12's complete fresh tuple
-before capture: `implementer`, `balanced`, the nonblank full model resolved from
-`devcanon.config.yaml` `capabilityProfiles.balanced.codex`, independent
+before capture: `implementer`, `balanced`, the nonblank full model in the
+controller/owner-supplied already-rendered `D12_MODEL` binding, independent
 `high`, source-mutable/external-none authority, `d12_<instance_ordinal>`,
 `fork_turns: "none"`, this fully substituted prompt, report output, and the
-existing snapshot/status/commit termination. Apply `subagent-lifecycle` for
-allocation and continuation; the lifecycle/status policy declares the permitted
-same-task D12 fix loop.
+existing snapshot/status/commit termination. A missing, blank, unresolved, or
+mismatched binding blocks before capture or spawn; do not locate a source
+checkout or use an alias, nearby, or ambient model. Apply `subagent-lifecycle`
+for allocation and continuation; the lifecycle/status policy declares the
+permitted same-task D12 fix loop.
 
 ````
 Task tool (general-purpose):

@@ -3,6 +3,10 @@ import { lstat, readdir } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
+import {
+  RUNTIME_CONFIG_RELATIVE_PATH,
+  loadRuntimeConfigCatalog,
+} from "../config/runtime-config.js";
 import { UserError } from "../utils/errors.js";
 import { pathOrSymlinkExists } from "../utils/fs.js";
 import { DEVCANON_RUNTIME_SKILL_NAME } from "./skills.js";
@@ -33,12 +37,14 @@ const REQUIRED_RUNTIME_JS_FILES = [
   "pr-review-manifests.js",
   "pr-review-result-validation.js",
   "review-artifacts.js",
+  "runtime-config.js",
   "schema.js",
   "source-immutability.js",
 ] as const;
 export const REQUIRED_RUNTIME_FILES = [
   RUNTIME_ENTRYPOINT,
   RUNTIME_BASH_RESOLVER,
+  RUNTIME_CONFIG_RELATIVE_PATH,
   path.join(RUNTIME_JS_DIR, "package.json"),
   ...REQUIRED_RUNTIME_JS_FILES.map((fileName) =>
     path.join(RUNTIME_JS_DIR, fileName),
@@ -89,7 +95,15 @@ export async function validateDevcanonRuntime(
     runtimeDir,
     RUNTIME_JS_DIR,
   );
+  await requireRealDirectory(
+    path.join(runtimeDir, "config"),
+    runtimeDir,
+    "config",
+  );
   await validateExactRuntimeTree(runtimeDir);
+  await loadRuntimeConfigCatalog(
+    path.join(runtimeDir, RUNTIME_CONFIG_RELATIVE_PATH),
+  );
 
   const entrypoint = path.join(runtimeDir, RUNTIME_ENTRYPOINT);
   if (!(await hasExecutableBit(entrypoint))) {
@@ -112,7 +126,16 @@ async function requireRealDirectory(
 }
 
 async function validateExactRuntimeTree(runtimeDir: string): Promise<void> {
-  await requireExactDirectoryEntries(runtimeDir, ["scripts"], runtimeDir);
+  await requireExactDirectoryEntries(
+    runtimeDir,
+    ["config", "scripts"],
+    runtimeDir,
+  );
+  await requireExactDirectoryEntries(
+    path.join(runtimeDir, "config"),
+    ["runtime-config.json"],
+    runtimeDir,
+  );
   await requireExactDirectoryEntries(
     path.join(runtimeDir, "scripts"),
     ["devcanon-runtime.sh", "resolve-bash.mjs", "runtime"],

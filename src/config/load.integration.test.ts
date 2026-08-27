@@ -14,6 +14,12 @@ import { UserError } from "../utils/errors.js";
 import { findConfigPath, loadConfig } from "./load.js";
 
 describe("findConfigPath", () => {
+  it("rejects an explicitly empty path without falling through", async () => {
+    await expect(findConfigPath("")).rejects.toMatchObject({
+      message: "Config path must not be empty.",
+    });
+  });
+
   let tempDir: string;
 
   beforeEach(async () => {

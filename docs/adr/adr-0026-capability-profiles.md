@@ -10,6 +10,12 @@ effort default catalog in
 [ADR-0025](adr-0025-codex-model-tier-selection.md). Their remaining historical
 rationale and evidence stay accepted.
 
+[ADR-0035](adr-0035-installed-runtime-configuration-discovery.md) supersedes
+this decision only for the installed-runtime catalog lifecycle and a
+controller's consumption of an already-rendered route binding. This ADR remains
+the decision owner for the capability-profile vocabulary and its source-to-
+target model mapping.
+
 ## Context
 
 The former model-tier contract combined two independent choices: which target
@@ -66,8 +72,10 @@ resolution follows this precedence for `codex.model`:
 
 Explicit suppression bypasses resolution; it does not alter the model-only
 capability catalog or couple a profile to effort. Fresh route dispatch remains a
-separate controller concern: it resolves its configured full model from the
-route capability and selects independent route effort.
+separate controller concern: the selected capability produces a binding for the
+dispatch primitive during rendering, then dispatch consumes that literal full model with
+independent route effort. Dispatch does not rediscover source configuration or
+the sibling runtime catalog to select or replace a model.
 
 Claude model selection remains literal-or-absent; `claude.model: null` is
 rejected by the agent-source contract. The agent spec owns both target-specific
@@ -78,9 +86,12 @@ Effort remains an explicit target-native field: `claude.effort` or
 field is omitted and the target's ambient behavior applies. Capability
 resolution never supplies, inherits, or changes effort.
 
-Skill prose and top-level string fields in skill target overrides may use only
-the canonical `{{model:efficient}}`, `{{model:balanced}}`, and
-`{{model:frontier}}` tokens. Agent literal target `model` fields reject model
+Skill prose and top-level string fields in skill target overrides may use the
+canonical target-native `{{model:efficient}}`, `{{model:balanced}}`, and
+`{{model:frontier}}` tokens. Prose that passes a value to an explicit Codex
+execution primitive may instead use the corresponding
+`{{model-codex:<capability>}}` form, which selects the Codex catalog member in
+both artifact targets. Agent literal target `model` fields reject model
 placeholders; the agent spec's `codex.model: null` suppression is the only
 non-literal model-source state.
 

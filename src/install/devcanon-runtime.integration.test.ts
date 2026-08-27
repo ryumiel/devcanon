@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import {
   chmod,
   cp,
@@ -10,6 +11,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
+import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   canCreateSymlinks,
@@ -28,6 +30,7 @@ import { uninstall } from "./uninstall.js";
 
 const symlinkAvailable = await canCreateSymlinks();
 const executableModeMutable = await canMutateExecutableMode();
+const execFileAsync = promisify(execFile);
 
 async function copyRuntimeFixture(skillsDir: string): Promise<void> {
   await cp(
@@ -69,6 +72,17 @@ describe("devcanon-runtime sync", () => {
     ) as { files?: string[] };
 
     expect(packageJson.files).toContain("skills/devcanon-runtime");
+
+    const packed = JSON.parse(
+      (
+        await execFileAsync("pnpm", ["pack", "--dry-run", "--json"], {
+          cwd: process.cwd(),
+        })
+      ).stdout,
+    ) as { files: Array<{ path: string }> };
+    expect(packed.files.map((file) => file.path)).toContain(
+      "skills/devcanon-runtime/config/runtime-config.json",
+    );
   });
 
   it("installs runtime files in copy mode and records the runtime manifest hash", async () => {
@@ -92,6 +106,12 @@ describe("devcanon-runtime sync", () => {
         path.join(installedRuntime, "scripts", "devcanon-runtime.sh"),
       ),
     ).toBe(true);
+    await expect(
+      readFile(
+        path.join(installedRuntime, "config", "runtime-config.json"),
+        "utf-8",
+      ),
+    ).resolves.toContain('"schema": "devcanon/runtime-config/v1"');
 
     const manifest = JSON.parse(
       await readFile(config.manifest.path, "utf-8"),
@@ -467,6 +487,20 @@ describe("devcanon-runtime sync", () => {
           path.join(installedRuntime, "scripts", "devcanon-runtime.sh"),
         ),
       ).toBe(true);
+      await expect(
+        readFile(
+          path.join(installedRuntime, "config", "runtime-config.json"),
+          "utf-8",
+        ),
+      ).resolves.toContain('"schema": "devcanon/runtime-config/v1"');
+      await expect(
+        sync(config, {
+          dryRun: false,
+          force: false,
+          strict: false,
+          mode: "symlink",
+        }),
+      ).resolves.toMatchObject({ errors: [] });
       expect(path.dirname(installedRuntime)).toBe(
         path.dirname(
           path.join(config.targets.codex.skillsHome, "consumer-skill"),
@@ -490,6 +524,12 @@ describe("devcanon-runtime sync", () => {
         config.targets.codex.skillsHome,
         "devcanon-runtime",
       );
+      await expect(
+        readFile(
+          path.join(installedRuntime, "config", "runtime-config.json"),
+          "utf-8",
+        ),
+      ).resolves.toContain('"schema": "devcanon/runtime-config/v1"');
       await rm(path.join(config.library.skillsDir, "devcanon-runtime"), {
         recursive: true,
         force: true,

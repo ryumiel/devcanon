@@ -16,6 +16,11 @@ import {
   runPrReviewProviderScopeEvidenceCommand,
   runReviewArtifactsCommand,
 } from "./review-artifacts.js";
+import {
+  getRuntimeConfigValue,
+  loadRuntimeConfigCatalog,
+  runtimeConfigPath,
+} from "./runtime-config.js";
 import { runSourceImmutabilityCommand } from "./source-immutability.js";
 
 export const RUNTIME_COMMAND_CONTRACT = {
@@ -42,6 +47,8 @@ export async function runRuntimeCommand(
         return await runResolveBashCommand(rest);
       case "path-info":
         return ok(pathInfo(rest));
+      case "config":
+        return await runtimeConfig(rest);
       case "ephemeral-child":
         return ok(ephemeralChild(rest));
       case "validate-json":
@@ -84,6 +91,37 @@ function pathInfo(args: readonly string[]) {
   const pathValue = requiredOption(args, "--path");
   const platform = optionalPlatform(args);
   return normalizeRuntimePath(pathValue, platform);
+}
+
+async function runtimeConfig(
+  args: readonly string[],
+): Promise<RuntimeCommandOutcome> {
+  const [command, ...rest] = args;
+  switch (command) {
+    case "path":
+      requireNoArgs("config path", rest);
+      await loadRuntimeConfigCatalog();
+      return ok({ path: runtimeConfigPath() });
+    case "get": {
+      const key = requiredConfigGetKey(rest);
+      return ok({
+        key,
+        value: getRuntimeConfigValue(await loadRuntimeConfigCatalog(), key),
+      });
+    }
+    default:
+      return fail(
+        "unknown-config-command",
+        `unknown devcanon-runtime config command: ${command ?? "<missing>"}`,
+      );
+  }
+}
+
+function requiredConfigGetKey(args: readonly string[]): string {
+  if (args.length !== 2 || args[0] !== "--key" || args[1].length === 0) {
+    throw new Error("config get requires exactly --key <nonempty>");
+  }
+  return args[1];
 }
 
 function ephemeralChild(args: readonly string[]) {

@@ -13,12 +13,14 @@ risk-triggered `Architecture` prompt; D9 remains the risk-triggered `Spec`
 prompt. Their review questions stay distinct even though the semantic role is
 shared.
 
-For every selected D7-D9 child, the controller resolves the full Codex model
-through `devcanon.config.yaml` `capabilityProfiles.frontier.codex`, keeps the
-route-owned `high` effort independent, validates the complete tuple and
-self-contained prompt, and creates exactly one fresh `reviewer` with that
-model, effort, and `fork_turns: "none"`. No inherited history, fallback model,
-effort change, retry, escalation, or role substitution is permitted.
+For every selected D7-D9 child, the controller consumes the owner-supplied
+already-rendered `D7_MODEL`, already-rendered `D8_MODEL`, or already-rendered
+`D9_MODEL` binding, keeps the route-owned `high` effort independent, validates
+the complete tuple and self-contained prompt, and creates exactly one fresh
+`reviewer` with that model, effort, and `fork_turns: "none"`. A missing, blank,
+unresolved, or mismatched binding blocks before capture or spawn; no
+source-checkout lookup, fallback model, effort change, retry, escalation, or
+role substitution is permitted.
 
 D10 remains a separate `reviewer`, frontier/high critic route after
 topical aggregation. It preserves the existing verdict and unverified-fallback
@@ -26,7 +28,7 @@ contracts and never recursively dispatches another reviewer or critic. Every
 selected D7-D10 route independently uses the no-handoff GUARD-001 lifecycle in
 `SKILL.md`; the guard changes neither a topical trigger nor a critic verdict.
 
-D10 resolves the full Codex model through the same `frontier` profile while its
+D10 consumes the owner-supplied already-rendered `D10_MODEL` binding while its
 route-owned effort remains `high`; its complete critic prompt and fresh
 `fork_turns: "none"` creation are owned by `SKILL.md`.
 

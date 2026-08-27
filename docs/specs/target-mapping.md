@@ -35,7 +35,10 @@ not derive from capability.
 
 Skills use the same catalog only through canonical model placeholders in prose
 and supported top-level override strings. Agent target `model` fields accept
-literal strings, not placeholders.
+literal strings, not placeholders. `{{model:<capability>}}` follows the
+artifact target. `{{model-codex:<capability>}}` selects the Codex member in
+both artifact targets and is reserved for a value passed to an explicit Codex
+execution primitive.
 
 ### Claude mapping
 
@@ -92,8 +95,9 @@ relevant check locally when generated output needs inspection.
 Source skill directories with `SKILL.md`, source agent definitions, source
 runtime TypeScript, renderer code, tests, and the install manifest remain
 authoritative for their respective contracts. The fixed passive runtime bundle
-under `skills/devcanon-runtime/` is a scripts-only source payload, not a source
-skill or generated invocation surface. Its packaged JavaScript under
+under `skills/devcanon-runtime/` is a validated current-format `config/` and
+`scripts/` source payload, not a source skill or generated invocation surface.
+Its packaged JavaScript under
 `scripts/runtime/` is derived support output that stays tracked because
 installed skill bundles need version-aligned helper files, while `src/runtime/`
 owns the deterministic runtime behavior.

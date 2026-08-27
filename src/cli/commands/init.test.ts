@@ -52,6 +52,18 @@ describe("initAction", () => {
         path.join(tempDir, "skills", "devcanon-runtime", "SKILL.md"),
       ),
     ).toBe(false);
+    await expect(
+      readFile(
+        path.join(
+          tempDir,
+          "skills",
+          "devcanon-runtime",
+          "config",
+          "runtime-config.json",
+        ),
+        "utf-8",
+      ),
+    ).resolves.toContain('"schema": "devcanon/runtime-config/v1"');
     expect(
       await pathExists(
         path.join(

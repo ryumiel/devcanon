@@ -75,6 +75,8 @@ Quick navigation index for the DevCanon repository.
 - Where is the CLI config (dogfooding)? -> [`devcanon.config.yaml`](devcanon.config.yaml)
 - Where are direct skill helper script runtime tests? -> [`src/skill-scripts/`](src/skill-scripts/)
 - Where are shared typed runtime helper modules? -> [`src/runtime/`](src/runtime/)
+- Where is installed passive-runtime sibling catalog loading and validation? ->
+  [`src/runtime/runtime-config.ts`](src/runtime/runtime-config.ts)
 
 ---
 
@@ -105,6 +107,8 @@ Quick navigation index for the DevCanon repository.
   [`docs/adr/adr-0023-play-planning-implementer-executability-gate.md`](docs/adr/adr-0023-play-planning-implementer-executability-gate.md)
 - Where is the shared passive runtime support bundle decision recorded? ->
   [`docs/adr/adr-0024-shared-support-skill-runtime.md`](docs/adr/adr-0024-shared-support-skill-runtime.md)
+- Where is the installed runtime configuration-discovery decision recorded? ->
+  [`docs/adr/adr-0035-installed-runtime-configuration-discovery.md`](docs/adr/adr-0035-installed-runtime-configuration-discovery.md)
 - Where is the historical Codex model tier selection evidence recorded? ->
   [`docs/adr/adr-0025-codex-model-tier-selection.md`](docs/adr/adr-0025-codex-model-tier-selection.md)
 - Where is the current capability profile decision recorded? ->
@@ -162,6 +166,8 @@ Quick navigation index for the DevCanon repository.
 
 - Where is the CLI entrypoint? -> [`src/cli/index.ts`](src/cli/index.ts)
 - Where are the CLI command implementations? -> [`src/cli/commands/`](src/cli/commands/)
+- Where is the public `config path` and `config get` command implementation? ->
+  [`src/cli/commands/config.ts`](src/cli/commands/config.ts)
 
 ---
 
@@ -170,6 +176,8 @@ Quick navigation index for the DevCanon repository.
 - Where is the config loader? -> [`src/config/load.ts`](src/config/load.ts)
 - Where is the config Zod schema? -> [`src/config/schema.ts`](src/config/schema.ts)
 - Where are the config defaults? -> [`src/config/defaults.ts`](src/config/defaults.ts)
+- Where is public runtime configuration selection and catalog validation? ->
+  [`src/config/runtime-config.ts`](src/config/runtime-config.ts)
 
 ---
 
@@ -195,7 +203,9 @@ Quick navigation index for the DevCanon repository.
 - Where is the skill render orchestrator? -> [`src/render/skill.ts`](src/render/skill.ts)
 - Where is the Claude skill renderer? -> [`src/render/skill-claude.ts`](src/render/skill-claude.ts)
 - Where is the Codex skill renderer (with sidecar)? -> [`src/render/skill-codex.ts`](src/render/skill-codex.ts)
-- Where is the placeholder resolver (`{{model:*}}`, `{{tool:*}}`, `{{file:*}}`)? -> [`src/render/placeholders.ts`](src/render/placeholders.ts)
+- Where is the placeholder resolver (`{{model:*}}`, `{{model-codex:*}}`,
+  `{{tool:*}}`, `{{file:*}}`)? ->
+  [`src/render/placeholders.ts`](src/render/placeholders.ts)
 - Where is the agent capability model resolver? -> [`src/render/capability-profiles.ts`](src/render/capability-profiles.ts)
 - Where is frontmatter parse/serialize? -> [`src/render/frontmatter.ts`](src/render/frontmatter.ts)
 

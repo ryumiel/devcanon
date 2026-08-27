@@ -230,7 +230,7 @@ async function assertCopyIdentity(record: ManagedRecord): Promise<void> {
       record.type === "agent"
         ? [await hashInstalledAgent(record.installedPath)]
         : record.type === "skill" && record.name === DEVCANON_RUNTIME_SKILL_NAME
-          ? [await hashInstalledDevcanonRuntime(record.installedPath)]
+          ? [await hashDevcanonRuntimePayload(record.installedPath)]
           : await hashInstalledSkill(record);
   } catch (err) {
     throw identityError(
@@ -244,12 +244,17 @@ async function assertCopyIdentity(record: ManagedRecord): Promise<void> {
   }
 }
 
-async function hashInstalledDevcanonRuntime(
+export async function hashDevcanonRuntimePayload(
   installedPath: string,
 ): Promise<string> {
   await validateDevcanonRuntime(installedPath);
 
   const hash = createHash("sha256");
+  await hashInstalledRuntimeTree(
+    path.join(installedPath, "config"),
+    "config",
+    hash,
+  );
   await hashInstalledRuntimeTree(
     path.join(installedPath, "scripts"),
     "scripts",

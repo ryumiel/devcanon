@@ -46,14 +46,60 @@ Passive runtime support bundle behavior:
 
 - fresh libraries receive the fixed passive runtime support bundle at
   `skills/devcanon-runtime/`
-- the bundle contains only its validated `scripts/` payload, with no
-  `SKILL.md` or Codex invocation sidecar
+- the current-format-only bundle contains its validated `config/` catalog and
+  `scripts/` payload, with no `SKILL.md` or Codex invocation sidecar
 - an existing matching `skills/devcanon-runtime/` path is preserved
 - an existing non-matching `skills/devcanon-runtime/` path causes `init` to
   fail with repair guidance; DevCanon does not overwrite the existing support
   runtime bundle path
+- a scripts-only legacy runtime is not an accepted payload and is not upgraded
+  or reconciled by `init`
 - generated outputs remain disposable render results, not authoritative source
   files
+
+---
+
+## `config path` and `config get`
+
+Inspect the configuration selected for this command without rendering or
+installing anything.
+
+```bash
+devcanon [--config <path>] [--json] [--strict] config path
+devcanon [--config <path>] [--json] [--strict] config get <key>
+```
+
+`config path` prints only the selected absolute path in plain output. With
+`--json`, it writes one JSON object with `path` and `source`, where `source` is
+`explicit`, `environment`, `cwd`, or `bundled`.
+
+`config get <key>` accepts dotted segments matching
+`[A-Za-z0-9][A-Za-z0-9_-]*`; it rejects `__proto__`, `constructor`, and
+`prototype` in every segment. It returns only scalar string, number, or boolean
+values. Plain output prints string values directly and JSON-spells numbers and
+booleans. With `--json`, it writes one JSON object with `path`, `source`, `key`,
+and `value`. Containers and arrays, missing keys, unsafe key syntax, and
+inherited-key paths are errors.
+
+When no source configuration is selected, the command reads the packaged
+`devcanon/runtime-config/v1` catalog. Its closed top-level object is
+`{ schema, capabilityProfiles }`; `capabilityProfiles` remains owned by the
+strict source schema rather than this command specification.
+
+Selection, catalog-validation, and key errors use the CLI's ordinary error
+output and exit non-zero; they do not emit a plain or JSON success value.
+
+These commands select `--config`, then `DEVCANON_CONFIG`, then a current
+directory `devcanon.config.yaml`, and finally the packaged runtime catalog only
+when none of those source configurations is selected. A missing explicit or
+environment path, an invalid selected source configuration, or an invalid
+catalog fails closed; the command does not use a lower-precedence source or
+fallback model. The full selection, catalog, and source-command boundary is
+owned by [Configuration](configuration.md#runtime-configuration-discovery).
+
+Commands operating on an existing library retain source-configuration discovery.
+`init` independently creates configuration and does not discover or fall back.
+No non-`config` command uses the packaged catalog as a fallback.
 
 ---
 
@@ -152,7 +198,13 @@ Generate outputs into `generated/` without installing.
 
 ```bash
 devcanon render
+devcanon render --target <claude|codex>
 ```
+
+`--target` limits generated outputs and stale-output cleanup to the selected
+enabled target. Without it, `render` processes every enabled target. Only
+`claude` and `codex` are accepted; any other supplied value, including an empty
+string, is an error.
 
 ---
 

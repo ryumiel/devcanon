@@ -9,4 +9,5 @@ export * from "./play-review-shared-context.js";
 export * from "./pr-review-leases.js";
 export * from "./pr-review-manifests.js";
 export * from "./review-artifacts.js";
+export * from "./runtime-config.js";
 export * from "./schema.js";

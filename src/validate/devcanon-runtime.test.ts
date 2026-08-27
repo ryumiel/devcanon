@@ -11,6 +11,7 @@ import {
 import { renderAll } from "../render/pipeline.js";
 import { UserError } from "../utils/errors.js";
 import { pathExists } from "../utils/fs.js";
+import { validateDevcanonRuntime } from "./devcanon-runtime.js";
 
 const symlinkAvailable = await canCreateSymlinks();
 
@@ -104,6 +105,27 @@ describe("devcanon-runtime source validation", () => {
       /passive runtime support bundle devcanon-runtime is incomplete/i,
     );
     expect(await pathExists(sentinel)).toBe(true);
+  });
+
+  it("rejects a runtime catalog with an extra envelope field", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    await writeFile(
+      path.join(runtimeDir, "config", "runtime-config.json"),
+      JSON.stringify({
+        schema: "devcanon/runtime-config/v1",
+        capabilityProfiles: {
+          efficient: { claude: "a", codex: "b" },
+          balanced: { claude: "c", codex: "d" },
+          frontier: { claude: "e", codex: "f" },
+        },
+        extra: true,
+      }),
+      "utf-8",
+    );
+
+    await expect(validateDevcanonRuntime(runtimeDir)).rejects.toThrow(
+      /runtime configuration catalog/i,
+    );
   });
 
   it.skipIf(!symlinkAvailable)(

@@ -589,14 +589,7 @@ function parseRouteRow(
       `Agent routing policy owner direct-route ${id} must resolve exactly one explicit owner skill`,
     );
   }
-  const ownerSkill =
-    explicitOwners.length === 1
-      ? explicitOwners[0]
-      : /issue priming/i.test(ownerSurface)
-        ? "issue-priming-workflow"
-        : /execution/i.test(ownerSurface)
-          ? "play-subagent-execution"
-          : undefined;
+  const ownerSkill = explicitOwners[0];
   if (!ownerSkill) {
     throw new Error(
       `Agent routing policy owner direct-route ${id} must resolve exactly one owner skill`,

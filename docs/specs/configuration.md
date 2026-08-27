@@ -30,6 +30,140 @@ the invoking directory does not change that resolution.
 
 ---
 
+## Runtime configuration discovery
+
+This section owns selection for the public [`config path` and `config get`
+commands](cli-commands.md#config-path-and-config-get). It does not change the
+source-configuration requirement for commands that render, validate, install,
+or otherwise operate on a library.
+
+### Scope and non-goals
+
+`config` inspects either a selected source configuration or the packaged runtime
+catalog. It is read-only. It neither creates a configuration file nor selects a
+model, installs output, or establishes that a provider account accepts a model.
+The source schema in
+[`src/config/schema.ts`](../../src/config/schema.ts) and the selection code in
+[`src/config/runtime-config.ts`](../../src/config/runtime-config.ts) remain the
+executable contract authority.
+
+### Selection requirements
+
+For `config path` and `config get`, DevCanon selects exactly one value in this
+order:
+
+1. the global `--config <path>` source configuration;
+2. `DEVCANON_CONFIG` source configuration;
+3. `devcanon.config.yaml` in the current directory; or
+4. the packaged `devcanon-runtime` catalog when no source configuration is
+   selected.
+
+An explicit path that is empty or missing, or an environment path that is
+missing, is an error; it does not fall through to a lower-precedence source or
+the catalog. Likewise, once a source
+configuration is selected, YAML or schema failure is reported for that source
+and no fallback occurs. A present current-directory config also wins over the
+catalog and fails closed when invalid.
+
+The first three choices load the normal source configuration, including its
+relative-path resolution. The selected value exposes `version` and the resolved
+source configuration, but not loader-only state such as `configDir`.
+
+The fourth choice is the catalog packaged with
+`skills/devcanon-runtime/config/runtime-config.json`. It has literal schema
+`devcanon/runtime-config/v1` and a closed top-level
+`{ schema, capabilityProfiles }` object. Its `capabilityProfiles` value uses
+the strict existing source authority in
+[`src/config/schema.ts`](../../src/config/schema.ts); this spec does not repeat
+the profile fields. The catalog is not a substitute user configuration and
+cannot supply library, target-home, manifest, or installation settings. It must
+be a regular, non-symlink file with a valid exact shape and no duplicate JSON
+object keys. An invalid packaged catalog is an error, not a reason to search
+another location.
+
+For `config get`, each dotted segment must match
+`[A-Za-z0-9][A-Za-z0-9_-]*`. A key may not contain `__proto__`, `constructor`,
+or `prototype` in any segment. Lookup returns only a string, number, or boolean;
+arrays and containers are not scalar results.
+
+Commands that operate on an existing library retain source-configuration
+discovery. `init` independently creates a source configuration and does not
+perform discovery or fallback. No non-`config` command uses the packaged catalog
+as a fallback.
+
+### Catalog projection and runtime custody
+
+The source `capabilityProfiles` catalog selects model strings while DevCanon
+renders a target. For each enabled target selected for that render, the renderer
+projects the same complete paired Claude-and-Codex capability-profile catalog
+beside the target's passive runtime scripts. An installed runtime reads only its
+sibling catalog; it does not rediscover the source checkout, the invoking
+directory, or an ambient configuration file. See
+[ADR-0035](../adr/adr-0035-installed-runtime-configuration-discovery.md) for
+the decision rationale and alternatives.
+
+The passive runtime's current payload is exactly its validated `config/` and
+`scripts/` trees, without `SKILL.md` or a Codex invocation sidecar. It is
+current-format-only: a scripts-only runtime is invalid and is neither upgraded
+nor given installation, sync, identity, or uninstall compatibility guarantees.
+The runtime catalog is transport data for the generated or installed runtime,
+not a second authoritative user-configuration file.
+
+### Installed passive-runtime command contract
+
+This contract is distinct from the public `devcanon config` commands above.
+The shell adapter dispatches `runtime config path`, which accepts no arguments,
+or `runtime config get --key <nonempty>`, which accepts exactly that one flag
+and value. The typed dispatcher receives the corresponding `config path` or
+`config get --key <nonempty>` arguments. Duplicate flags, extra arguments, and
+path overrides are rejected.
+
+The commands consume only the sibling validated runtime catalog. They do not
+consult an explicit source path, `DEVCANON_CONFIG`, or the current directory.
+On success, `path` writes the JSON object `{ "path": "<absolute sibling catalog
+path>" }`; `get` writes `{ "key": "<key>", "value": "<string>" }`. On
+failure they exit non-zero with no success output and write the stable JSON
+envelope `{ "ok": false, "code": "<code>", "message": "<message>" }` to
+standard error. The command and error-code details remain owned by
+[`src/runtime/command.ts`](../../src/runtime/command.ts).
+
+### Scenarios
+
+- From an unrelated directory with no selected source configuration,
+  `devcanon config get capabilityProfiles.balanced.codex` reads the packaged
+  catalog and prints `gpt-5.6-terra`. `devcanon --json config path` reports an
+  absolute `path` and `source: "bundled"`.
+- With `--config` pointing to a valid custom source configuration,
+  `devcanon --config <path> --json config get capabilityProfiles.balanced.codex`
+  reports that path, `source: "explicit"`, the requested key, and the custom
+  Codex value. Rendering from that configuration projects its paired Claude and
+  Codex values into their respective target runtime bundles.
+- A missing `--config` path, a malformed selected source configuration, an
+  unknown dotted key, a non-scalar key, a malformed catalog, or a catalog with
+  an unsupported schema or duplicate object key fails with an error. None is
+  replaced by a lower-precedence source, a nearby catalog, an alias, or an
+  ambient model.
+
+### Acceptance and verification expectations
+
+- Selector coverage must exercise precedence, malformed selected source,
+  no-fallback behavior, catalog validation, and scalar-key rejection in
+  [`src/config/runtime-config.test.ts`](../../src/config/runtime-config.test.ts).
+- Public-command registration and entrypoint behavior must remain in
+  [`src/cli/index.test.ts`](../../src/cli/index.test.ts).
+- Plain output, JSON output, and command-action error behavior must remain in
+  [`src/cli/commands/config.test.ts`](../../src/cli/commands/config.test.ts).
+- Render and install coverage must confirm the selected catalog projection and
+  reject incomplete runtime payloads in
+  [`src/render/devcanon-runtime.integration.test.ts`](../../src/render/devcanon-runtime.integration.test.ts)
+  and
+  [`src/install/devcanon-runtime.integration.test.ts`](../../src/install/devcanon-runtime.integration.test.ts).
+- Runtime-command coverage must exercise sibling lookup, exact arguments,
+  typed-and-shell parity, unrelated-current-directory behavior, and failures in
+  [`src/skill-scripts/devcanon-runtime-typed-entrypoint.integration.test.ts`](../../src/skill-scripts/devcanon-runtime-typed-entrypoint.integration.test.ts).
+
+---
+
 ## Example
 
 ```yaml
@@ -156,6 +290,9 @@ the user-facing boundary without replacing that source authority.
 - Skill tokens resolve per target: `{{model:frontier}}` becomes the configured
   `frontier.claude` or `frontier.codex` string. Agent target model fields do not
   accept model placeholders.
+- Codex-bound skill tokens such as `{{model-codex:frontier}}` become the
+  configured `frontier.codex` string in both artifact targets because their
+  consumer is an explicit Codex execution primitive.
 - DevCanon provides no custom, compatibility, transitional, or legacy profiles
   and no automatic translation from v1.
 
