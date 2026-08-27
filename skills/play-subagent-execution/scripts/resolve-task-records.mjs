@@ -172,7 +172,19 @@ function visibleLines(markdown) {
           cursor = end + 3;
           continue;
         }
-        const start = text.indexOf("<!--", cursor);
+        let start = text.indexOf("<!--", cursor);
+        while (start !== -1) {
+          let precedingBackslashes = 0;
+          for (
+            let index = start - 1;
+            index >= 0 && text[index] === "\\";
+            index--
+          ) {
+            precedingBackslashes++;
+          }
+          if (precedingBackslashes % 2 === 0) break;
+          start = text.indexOf("<!--", start + 4);
+        }
         const codeStart = nextUnescapedBacktick(text, cursor);
         if (codeStart !== -1 && (start === -1 || codeStart < start)) {
           const runLength = backtickRunLength(text, codeStart);

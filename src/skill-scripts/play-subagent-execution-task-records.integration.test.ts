@@ -321,6 +321,30 @@ describe("play-subagent-execution task record resolver", () => {
     }
   });
 
+  it("keeps backslash-escaped HTML-comment openers visible", async () => {
+    const escapedOpener = basePlan.replace(
+      '**Boundary rows:** ["BR-B", "BR-A"]',
+      '\\<!-- visible note\n**Boundary rows:** ["BR-B", "BR-A"]\n--> visible note',
+    );
+
+    const result = await runHelper(escapedOpener);
+    expect(JSON.parse(result.stdout).boundary_row_ids).toEqual([
+      "BR-B",
+      "BR-A",
+    ]);
+    expect(result.stderr).toBe("");
+
+    const evenBackslashes = basePlan.replace(
+      '**Boundary rows:** ["BR-B", "BR-A"]',
+      '\\\\<!-- actual comment\n**Boundary rows:** ["BR-B", "BR-A"]\n-->',
+    );
+    const failure = await expectFailure(evenBackslashes);
+    expect(failure.stdout).toBe("");
+    expect(failure.stderr).toContain(
+      "Boundary rows field must occur exactly once",
+    );
+  });
+
   it("does not synthesize structural headings by removing HTML comments", async () => {
     for (const plan of [
       basePlan.replace("## Tasks", "<!--prefix-->## Tasks"),
