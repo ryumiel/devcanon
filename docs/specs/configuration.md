@@ -127,14 +127,13 @@ not a second authoritative user-configuration file.
 
 ### Acceptance and verification expectations
 
-- Public-command coverage must exercise precedence and no-fallback behavior in
-  an unrelated current directory, with explicit source configuration, and with
-  invalid selected inputs. The proof owners are
-  [`src/cli/index.test.ts`](../../src/cli/index.test.ts) and
-  [`src/cli/commands/config.test.ts`](../../src/cli/commands/config.test.ts).
-- Catalog shape, file-kind, scalar-key safety, and lookup rejection coverage
-  must remain in
+- Selector coverage must exercise precedence, malformed selected source,
+  no-fallback behavior, catalog validation, and scalar-key rejection in
   [`src/config/runtime-config.test.ts`](../../src/config/runtime-config.test.ts).
+- Public-command registration and entrypoint behavior must remain in
+  [`src/cli/index.test.ts`](../../src/cli/index.test.ts).
+- Plain output, JSON output, and command-action error behavior must remain in
+  [`src/cli/commands/config.test.ts`](../../src/cli/commands/config.test.ts).
 - Render and install coverage must confirm the selected catalog projection and
   reject incomplete runtime payloads in
   [`src/render/devcanon-runtime.integration.test.ts`](../../src/render/devcanon-runtime.integration.test.ts)

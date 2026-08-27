@@ -15,8 +15,8 @@ selected for their target, but cannot safely rediscover an arbitrary source
 checkout or depend on ambient configuration at execution time.
 
 The passive runtime was previously understood as a scripts-only transport
-bundle. That form cannot carry an independently validated, target-specific
-catalog and makes installed runtime discovery ambiguous.
+bundle. That form cannot carry an independently validated, render-projected
+target-local catalog copy and makes installed runtime discovery ambiguous.
 
 ## Decision
 
@@ -41,6 +41,11 @@ validated payload contains `config/` and `scripts/`, and excludes `SKILL.md`
 and a Codex invocation sidecar. Scripts-only payloads are incomplete. DevCanon
 does not upgrade, reconcile, or promise uninstall compatibility for a
 pre-change scripts-only payload.
+
+This ADR partially supersedes [ADR-0024](adr-0024-shared-support-skill-runtime.md)
+only for passive-runtime payload contents and current-format catalog custody.
+ADR-0024's other deterministic-runtime, resolution, and packaging decisions
+remain accepted.
 
 Route skills use target-rendered full-model bindings. The source capability
 names the profile during rendering; a controller later consumes the literal

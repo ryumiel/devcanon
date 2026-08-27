@@ -257,11 +257,19 @@ policy and other project-local detail should usually live in
 `references/` or in the owning project documentation rather than in the
 always-loaded skill prompt.
 
-Only `SKILL.md` and these four subdirs are part of the installed bundle.
-Any other non-hidden top-level file or directory is flagged by `validate`
-(and rejected under `validate --strict`). Unknown support directories are not
-rendered or mirrored into generated skills. Hidden entries (e.g. `.DS_Store`
-or `.cache/`) are ignored.
+For ordinary declaration-bearing skills, only `SKILL.md` and these four
+subdirectories are part of the installed bundle. Any other non-hidden top-level
+file or directory is flagged by `validate` (and rejected under
+`validate --strict`). Unknown support directories are not rendered or mirrored
+into generated skills. Hidden entries (e.g. `.DS_Store` or `.cache/`) are
+ignored.
+
+The managed passive `devcanon-runtime` bundle is the explicit non-declaration
+exception: it has no `SKILL.md` and instead contains validated top-level
+`config/` and `scripts/` trees. Its exact payload and transport behavior are
+owned by [Install and sync](install-and-sync.md) and
+[ADR-0035](../adr/adr-0035-installed-runtime-configuration-discovery.md), not
+by the ordinary-skill allowlist.
 
 ---
 
@@ -291,10 +299,12 @@ or `.cache/`) are ignored.
   authoring target is `1,500`-`3,500` estimated GPT tokens. This
   warning is not promoted to an error by `--strict`; strict enforcement
   and baseline mechanics are not implemented.
-- Top-level entries other than `SKILL.md` and the four optional subdirs
-  (`assets/`, `examples/`, `references/`, `scripts/`) are flagged: stray
-  files and unknown non-hidden support directories emit warnings (errors under
-  `--strict`). Hidden entries are not flagged.
+- For ordinary declaration-bearing skills, top-level entries other than
+  `SKILL.md` and the four optional subdirs (`assets/`, `examples/`,
+  `references/`, `scripts/`) are flagged: stray files and unknown non-hidden
+  support directories emit warnings (errors under `--strict`). Hidden entries
+  are not flagged. `devcanon-runtime` is the validated non-declaration
+  exception above.
 
 ---
 
