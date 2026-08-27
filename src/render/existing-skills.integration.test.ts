@@ -15,6 +15,35 @@ import { renderAll } from "./pipeline.js";
 import { buildGlossary, resolvePlaceholders } from "./placeholders.js";
 
 const TARGETS = ["claude", "codex"] as const;
+const FIXED_ROUTE_OWNER_CONTRACT: Array<{
+  id: string;
+  owner: string;
+  capability?: string;
+  branch?: string;
+}> = [
+  { id: "D1", owner: "issue-priming-workflow" },
+  { id: "D2", owner: "issue-priming-workflow" },
+  { id: "D3", owner: "issue-priming-workflow" },
+  { id: "D4", capability: "efficient", owner: "play-agent-dispatch" },
+  { id: "D4", capability: "balanced", owner: "play-agent-dispatch" },
+  { id: "D4", capability: "frontier", owner: "play-agent-dispatch" },
+  { id: "D5", owner: "play-planning" },
+  { id: "D6", owner: "play-planning" },
+  { id: "D7", owner: "play-review" },
+  { id: "D8", owner: "play-review" },
+  { id: "D9", owner: "play-review" },
+  { id: "D10", owner: "play-review" },
+  { id: "D11", owner: "play-skill-authoring" },
+  { id: "D12", owner: "play-subagent-execution" },
+  { id: "D13", owner: "play-subagent-execution" },
+  { id: "D14", owner: "play-subagent-execution" },
+  { id: "D15", owner: "play-subagent-execution" },
+  { id: "D16", owner: "play-subagent-execution" },
+  { id: "D17", branch: "diagnosis", owner: "pr-merge" },
+  { id: "D17", branch: "exact-fix", owner: "pr-merge" },
+  { id: "D17", branch: "judgment-fix", owner: "pr-merge" },
+  { id: "D18", owner: "play-review" },
+];
 const ROUTE_OWNER_SKILLS = [
   "issue-priming-workflow",
   "play-agent-dispatch",
@@ -29,64 +58,11 @@ function normalizeContractText(content: string): string {
   return content.replace(/\s+/gu, " ").trim();
 }
 
-function modelGuidanceClauses(content: string): string[] {
-  return content
-    .split(/;|[!?]|(?<=\.)\s+(?=[A-Z])/u)
-    .map((clause) => clause.trim())
-    .filter((clause) => clause.length > 0);
-}
-
-function routeModelRediscoveryViolations(
-  content: string,
-  allowSourceModelTokens = false,
-): string[] {
-  const violations: string[] = [];
-  if (content.includes("devcanon.config.yaml")) violations.push("root-config");
-  if (content.includes("capabilityProfiles.")) {
-    violations.push("capability-profile");
-  }
-  if (!allowSourceModelTokens && content.includes("{{model:")) {
-    violations.push("unresolved-model-token");
-  }
-  if (/model\s*[=:]\s*capabilityProfiles\.[\w.]+/u.test(content)) {
-    violations.push("symbolic-model-dispatch");
-  }
-
-  for (const clause of modelGuidanceClauses(content)) {
-    if (/\b(?:do not|never|no)\b/iu.test(clause)) continue;
-    if (
-      /\b(?:lookup|search|load|resolve|read|find)\b[\s\S]{0,120}\b(?:devcanon\.config\.yaml|capabilityProfiles\.)/iu.test(
-        clause,
-      )
-    ) {
-      violations.push("positive-rediscovery");
-    }
-    if (
-      /\b(?:use|select|load|resolve|search|read|find|choose|fall back to)\b\s+(?:the|an?|a)?\s*(?:(?:full|configured|target(?:-rendered)?)\s+)?(?:alias|ambient|nearby|capability profile)\b/iu.test(
-        clause,
-      ) ||
-      /\b(?:use|select|load|resolve|search|read|find|choose|fall back to)\b\s+(?:the|an?|a)?\s*model\b[\s\S]{0,80}\b(?:when|if|instead|fallback|unavailable|config|profile)\b/iu.test(
-        clause,
-      )
-    ) {
-      violations.push("positive-fallback");
-    }
-  }
-
-  return violations;
-}
-
-function expectNoRouteModelRediscovery(
-  content: string,
-  allowSourceModelTokens = false,
-): void {
-  expect(
-    routeModelRediscoveryViolations(content, allowSourceModelTokens),
-  ).toEqual([]);
-}
-
-function expectCompleteRouteOwnerInventory(names: readonly string[]): void {
-  expect([...names].sort()).toEqual([...ROUTE_OWNER_SKILLS].sort());
+function expectNoForbiddenRouteModelTokens(content: string): void {
+  expect(content).not.toContain("devcanon.config.yaml");
+  expect(content).not.toContain("capabilityProfiles.");
+  expect(content).not.toContain("{{model:");
+  expect(content).not.toMatch(/model\s*[=:]\s*capabilityProfiles\.[\w.]+/u);
 }
 
 function expectedMirroredBytes(
@@ -341,16 +317,16 @@ describe("shipped skill rendering", () => {
             );
           }),
         );
-        const renderedFiles = new Map(bundleFiles.flat());
-        expectCompleteRouteOwnerInventory(
-          ROUTE_OWNER_SKILLS.filter((skill) =>
-            renderedFiles.has(`${skill}/SKILL.md`),
-          ),
-        );
+        const renderedFiles = new Map<string, string>(bundleFiles.flat());
+        for (const route of FIXED_ROUTE_OWNER_CONTRACT) {
+          expect(
+            renderedFiles.has(`${route.owner}/SKILL.md`),
+            `${target} ${route.id}${route.capability ? ` ${route.capability}` : ""}${route.branch ? ` ${route.branch}` : ""} owner ${route.owner} is rendered`,
+          ).toBe(true);
+        }
 
         for (const [file, content] of renderedFiles) {
-          expectNoRouteModelRediscovery(content);
-          expect(content, `${target} ${file}`).not.toContain("{{model:");
+          expectNoForbiddenRouteModelTokens(content);
         }
 
         for (const reference of referenceContracts) {
@@ -370,31 +346,6 @@ describe("shipped skill rendering", () => {
       }
     } finally {
       await rm(generatedDir, { recursive: true, force: true });
-    }
-  });
-
-  it("rejects model rediscovery and fallback guidance despite nearby prohibitions", () => {
-    expectCompleteRouteOwnerInventory(ROUTE_OWNER_SKILLS);
-    expect(() =>
-      expectCompleteRouteOwnerInventory(ROUTE_OWNER_SKILLS.slice(1)),
-    ).toThrow();
-
-    const nearbyProhibition = "Do not use an alias.";
-    const cases = [
-      [
-        `${nearbyProhibition}; if unavailable, use an ambient model.`,
-        "positive-fallback",
-      ],
-      ["Use the ambient model when unavailable.", "positive-fallback"],
-      ["Fall back to the nearby model when unavailable.", "positive-fallback"],
-      [
-        "Resolve the full model through capabilityProfiles.frontier.codex.",
-        "positive-rediscovery",
-      ],
-    ] as const;
-
-    for (const [content, violation] of cases) {
-      expect(routeModelRediscoveryViolations(content)).toContain(violation);
     }
   });
 

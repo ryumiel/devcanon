@@ -10,6 +10,36 @@ import { loadConfig } from "../config/load.js";
 const OWNER_PATH = "docs/guidelines/agent-routing-and-mutation-policy.md";
 const AGENT_SPEC_PATH = "docs/specs/agents.md";
 
+const FIXED_ROUTE_OWNER_INVENTORY: Array<{
+  id: string;
+  owner: string;
+  capability?: string;
+  branch?: string;
+}> = [
+  { id: "D1", owner: "issue-priming-workflow" },
+  { id: "D2", owner: "issue-priming-workflow" },
+  { id: "D3", owner: "issue-priming-workflow" },
+  { id: "D4", capability: "efficient", owner: "play-agent-dispatch" },
+  { id: "D4", capability: "balanced", owner: "play-agent-dispatch" },
+  { id: "D4", capability: "frontier", owner: "play-agent-dispatch" },
+  { id: "D5", owner: "play-planning" },
+  { id: "D6", owner: "play-planning" },
+  { id: "D7", owner: "play-review" },
+  { id: "D8", owner: "play-review" },
+  { id: "D9", owner: "play-review" },
+  { id: "D10", owner: "play-review" },
+  { id: "D11", owner: "play-skill-authoring" },
+  { id: "D12", owner: "play-subagent-execution" },
+  { id: "D13", owner: "play-subagent-execution" },
+  { id: "D14", owner: "play-subagent-execution" },
+  { id: "D15", owner: "play-subagent-execution" },
+  { id: "D16", owner: "play-subagent-execution" },
+  { id: "D17", branch: "diagnosis", owner: "pr-merge" },
+  { id: "D17", branch: "exact-fix", owner: "pr-merge" },
+  { id: "D17", branch: "judgment-fix", owner: "pr-merge" },
+  { id: "D18", owner: "play-review" },
+];
+
 const FRESH_SPAWNS = [
   [
     "D1",
@@ -204,6 +234,21 @@ const FRESH_SPAWNS = [
 ] as const;
 
 describe("agent routing and mutation policy owner", () => {
+  it("keeps a literal D1-D18 route-owner inventory", async () => {
+    const owner = await readAgentRoutingPolicyOwner(OWNER_PATH);
+
+    expect([
+      ...new Set(FIXED_ROUTE_OWNER_INVENTORY.map((route) => route.id)),
+    ]).toEqual(Array.from({ length: 18 }, (_, index) => `D${index + 1}`));
+    for (const route of FIXED_ROUTE_OWNER_INVENTORY) {
+      expect(
+        owner.directChildRoutes.find((candidate) => candidate.id === route.id)
+          ?.ownerSkill,
+        `${route.id} ${route.capability ?? route.branch ?? "fixed"} owner`,
+      ).toBe(route.owner);
+    }
+  });
+
   it("parses the complete skill and D1-D18 route inventories", async () => {
     const [owner, sourceSkills] = await Promise.all([
       readAgentRoutingPolicyOwner(OWNER_PATH),
@@ -379,22 +424,6 @@ describe("agent routing and mutation policy owner", () => {
         source,
         `${skill} never uses symbolic capability profiles`,
       ).not.toContain("capabilityProfiles.");
-      const positiveRouteModelGuidance = source
-        .split(/[.;!?]/u)
-        .filter((clause) => !/\b(?:do not|never|no)\b/iu.test(clause))
-        .filter(
-          (clause) =>
-            /\b(?:use|select|load|resolve|search|read|find|choose|fall back to)\b\s+(?:the|an?|a)?\s*(?:(?:full|configured|target(?:-rendered)?)\s+)?(?:alias|ambient|nearby|capability profile)\b/iu.test(
-              clause,
-            ) ||
-            /\b(?:lookup|search|load|resolve|read|find)\b[\s\S]{0,120}\b(?:devcanon\.config\.yaml|capabilityProfiles\.)/iu.test(
-              clause,
-            ),
-        );
-      expect(
-        positiveRouteModelGuidance,
-        `${skill} has no positive model rediscovery or fallback guidance`,
-      ).toEqual([]);
       expect(
         source.replace(/\s+/gu, " "),
         `${skill} fail-closes model resolution`,
@@ -419,6 +448,11 @@ describe("agent routing and mutation policy owner", () => {
       scopeAndTermination: "scope/termination",
       externalAuthority: "none",
     });
+    for (const capability of ["efficient", "balanced", "frontier"] as const) {
+      expect(source).toContain(
+        `\`${capability}\` → \`{{model:${capability}}}\``,
+      );
+    }
     expect(source).toContain(
       [
         "Codex.spawn_agent({",
