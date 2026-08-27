@@ -239,44 +239,30 @@ describe("play-planning execution projection contract", () => {
     expect(prose).toContain("Invalid missing-task-membership mutation");
     expect(prose).toContain("Invalid missing-proof mutation");
     expect(prose).toContain("Valid representation-only mutation");
-    expect(prose).toContain("narrow canonical anchor grammar");
-    expect(prose).toContain("record IDs are kind-scoped and do not inherit");
-    expect(prose).toContain("Task ID's `UPPER-ASCII-KEBAB` grammar");
+    expect(prose).toContain("Record IDs are kind-scoped");
+    expect(prose).toContain("do not inherit Task ID's");
+    expect(prose).toContain("do not define a Markdown or record-body grammar");
   });
 
-  it("keeps the controller and all prompt consumers on validated curated IDs", async () => {
-    const [execution, ...prompts] = await Promise.all([
-      readRepoFile("skills/play-subagent-execution/SKILL.md"),
-      readRepoFile(
-        "skills/play-subagent-execution/references/implementer-prompt.md",
-      ),
-      readRepoFile(
-        "skills/play-subagent-execution/references/executor-prompt.md",
-      ),
-      readRepoFile(
-        "skills/play-subagent-execution/references/spec-reviewer-prompt.md",
-      ),
-    ]);
+  it("keeps kind-scoped resolution controller-owned and fail-closed", async () => {
+    const execution = await readRepoFile(
+      "skills/play-subagent-execution/SKILL.md",
+    );
+    const prose = normalizedProse(execution);
 
-    expect(execution).toContain(
-      "Require the closed `play-subagent-execution/task-record-resolution/v1` result",
+    expect(prose).toContain(
+      "The controller resolves `Boundary rows` only against boundary records",
     );
-    expect(execution).toContain("with exactly `schema`, `task_id`");
-    expect(execution).toContain("Use only those validated IDs to curate");
-    expect(execution).toContain(
-      "an inline plan must return `BLOCKED/NEEDS_CONTEXT`",
+    expect(prose).toContain(
+      "`Supporting-owner supplements` only against supporting-owner supplements",
     );
-    expect(execution).toContain('*\\\\*) echo "plan path validation failed"');
-    expect(normalizedProse(execution)).toContain(
-      "Failure diagnostics do not echo the caller-controlled path",
+    expect(prose).toContain(
+      "Unknown, duplicate, stale, ambiguous, or cross-kind identifiers return `BLOCKED/NEEDS_CONTEXT`",
     );
-    for (const prompt of prompts) {
-      expect(prompt).toContain(
-        "plan-level records curated only from the\n    task resolver's validated canonical IDs",
-      );
-      expect(prompt).toContain(
-        "Do not parse the full plan, re-resolve IDs, infer other records",
-      );
-    }
+    expect(prose).toContain(
+      "not a public helper or general Markdown parsing API",
+    );
+    expect(execution).not.toContain("resolve-task-records.mjs");
+    expect(execution).not.toContain("task-record-resolution/v1");
   });
 });

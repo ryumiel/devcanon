@@ -54,13 +54,9 @@ Task tool (general-purpose):
 
     This controller-curated context contains selected Execution Projection
     entries, the literal declared `Contract tier` plus its independently
-    necessary task-local structure, plan-level records curated only from the
-    task resolver's validated canonical IDs, any
+    necessary task-local structure, directly task-cited plan-level records, any
     present plan-level Contract Example Discipline obligations, and task-local
     example or verification obligations.
-    The controller owns helper invocation, result validation, and record
-    curation. Do not parse the full plan, re-resolve IDs, infer other records,
-    or require repeated prose selectors.
     You consume the declared tier and never reclassify it. Do not promote,
     demote, or infer a tier from task prose, diff size, path spelling, or runtime
     risk routing.
@@ -85,8 +81,7 @@ Task tool (general-purpose):
       direction. The role consumes any applicable row without restating it. The
       compact task-local fields also supply purpose, inputs and outputs, material
       write or side-effect owner, failure and cleanup behavior, focused
-      verification expectations, and why all five behavioral eligibility
-      dimensions are true.
+      verification expectations, and why every FULL trigger is absent.
       `LIGHTWEIGHT` does not require intentionally absent FULL-only
       fields or `N/A` entries and does not add FULL-only matrices, spec or risk
       rows, or `N/A` placeholders. Specifically authorized applicable extra

@@ -4,11 +4,6 @@
 
 Accepted
 
-The inline-execution compatibility clause for `play-subagent-execution` is
-superseded by
-[ADR-0035](adr-0035-path-backed-task-record-resolution.md). The remaining
-decision stays accepted.
-
 ## Context
 
 ADR-0012 ratified a side-channel file pattern for `play-review`'s findings:

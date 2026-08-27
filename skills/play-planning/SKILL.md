@@ -510,8 +510,8 @@ domain. Unknown, duplicate, stale, ambiguous, and cross-kind identifiers fail
 closed. The executor includes only the selected records in curated context; do
 not copy them into the task contract, recursively traverse them, infer missing
 records, or forward the complete plan to resolve references.
-Use the canonical record anchors owned by the planning criteria; alternate
-tables, headings, or prose labels do not define resolvable record identities.
+Resolve stable IDs from their owning boundary-record or supporting-supplement
+sections; a prose mention or an ID from the other kind is not a substitute.
 
 Select exactly one tier-specific block from the template and remove the other
 two. The ordinary task fields, acceptance criteria, verification expectations,

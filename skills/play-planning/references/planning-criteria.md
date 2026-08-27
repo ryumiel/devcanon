@@ -746,17 +746,14 @@ structurally invalid. The declared field selects the lookup kind: boundary-row
 IDs never resolve as supporting-owner supplements, and supplement IDs never
 resolve as boundary rows.
 
-Plan-level record identity uses a narrow canonical anchor grammar outside
-fenced code. A boundary record appears before `## Tasks` and starts with the
-exact H3 text `Boundary row` followed by its ID in backticks. A supporting-owner
-supplement appears inside at most one exact
-`## Supporting-Owner Supplements` section and starts with the exact bullet
-label `Governing Entry ID` followed by its ID in backticks. In both forms,
-the ID is the exact non-empty, no-line-break string selected by the task field;
-record IDs are kind-scoped and do not inherit Task ID's
-`UPPER-ASCII-KEBAB` grammar. Tables, prose mentions, alternate headings or
-labels, and fenced examples do not define resolvable records. These anchors
-define identity and record start only, not a grammar for record bodies.
+Plan-level boundary records and supporting-owner supplements retain their
+existing stable identifiers in their owning plan sections. Each identifier is
+the exact non-empty, no-line-break string selected by the task field. Record
+IDs are kind-scoped and do not inherit Task ID's `UPPER-ASCII-KEBAB` grammar.
+A prose mention or reference from the other record kind does not substitute for
+the uniquely identified record. These identity rules do not define a Markdown
+or record-body grammar; the controller interprets the reviewed plan structure
+and D5 owns semantic completeness.
 
 For producer, validator, adapter, or consumer boundaries, select traceability
 detail from the contract tier. `FULL` or a separately named material authority
