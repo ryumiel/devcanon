@@ -456,6 +456,13 @@ describe("play-subagent-execution task record resolver", () => {
       "EP-A",
     ]);
     expect(result.stderr).toBe("");
+
+    const invalidFenceLookingLines = basePlan.replace(
+      "**Task ID:** TASK-A",
+      "````text `` info\n```more ` info\n**Task ID:** TASK-A\n``",
+    );
+    const failure = await expectFailure(invalidFenceLookingLines);
+    expect(failure.stdout).toBe("");
   });
 
   it("keeps canonical records visible after comment-like fence info strings", async () => {

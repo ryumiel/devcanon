@@ -289,9 +289,13 @@ function matchingBacktickRunEnd(text, start, runLength) {
 function matchingBacktickRunAcrossLines(lines, startLine, runLength) {
   for (let line = startLine + 1; line < lines.length; line++) {
     const text = lines[line];
+    const fence = /^(?: {0,3})(`{3,}|~{3,})(.*)$/.exec(text);
+    const validFence =
+      fence && (fence[1][0] !== "`" || !fence[2].includes("`"));
     if (
       text.trim() === "" ||
-      /^(?: {0,3})(?:#{1,6}(?:\s|$)|`{3,}|~{3,}|[-+*][ \t]+\S)/.test(text)
+      /^(?: {0,3})(?:#{1,6}(?:\s|$)|[-+*][ \t]+\S)/.test(text) ||
+      validFence
     ) {
       return undefined;
     }
