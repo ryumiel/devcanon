@@ -9,6 +9,8 @@ Accepted
 ADR-0016 later refines the `issue-priming-workflow --auto` single-task
 subset of the path described here. ADR-0023 later updates the upstream
 planning precondition to the two-gate `play-planning` return. The
+behavioral planning-tier decision consumed by guardrail #4 is recorded in
+ADR-0035. The
 skip-dispatch decision in this ADR remains authoritative, but statements below
 that the final whole-implementation reviewer runs on every plan should now be
 read together with ADR-0016, and upstream planning-precondition statements
@@ -65,6 +67,8 @@ than a runtime check):
    reclassify the declared tier. Every task must carry the literal
    `**Contract tier:** FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER` field, and the
    controller validates only the declared tier's required assembled context.
+   ADR-0035 owns tier proportionality; this guardrail consumes the declared
+   tier without redefining or reclassifying it.
    Selected Execution Projection entries supply the common relationship
    owner/source, affected participation, task/no-code disposition, and proof
    allocation without restatement in the task. `FULL` requires a structurally

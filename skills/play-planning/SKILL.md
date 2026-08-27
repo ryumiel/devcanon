@@ -503,13 +503,15 @@ expectations.
 
 Every task selects plan-level records only through its two canonical fields.
 `Boundary rows` contains boundary-row IDs and `Supporting-owner supplements`
-contains Entry-ID-keyed supplement IDs. Empty arrays are valid. The declared
-field selects the resolution domain; projection-entry selection remains
-separate. Every requested identifier must resolve exactly once within that
-domain. Unknown, duplicate, stale, ambiguous, and cross-kind identifiers fail
-closed. The executor includes only the selected records in curated context; do
-not copy them into the task contract, recursively traverse them, infer missing
-records, or forward the complete plan to resolve references.
+contains the governing projection Entry IDs that key supporting-owner
+supplements. Empty arrays are valid. Boundary-row IDs are stable non-empty,
+no-line-break strings; supplement references use the existing Entry ID form.
+The declared field selects the resolution domain; projection-entry selection
+remains separate. Every requested identifier must resolve exactly once within
+that domain. Unknown, duplicate, stale, ambiguous, and cross-kind identifiers
+fail closed. The executor includes only the selected records in curated
+context; do not copy them into the task contract, recursively traverse them,
+infer missing records, or forward the complete plan to resolve references.
 Resolve stable IDs from their owning boundary-record or supporting-supplement
 sections; a prose mention or an ID from the other kind is not a substitute.
 

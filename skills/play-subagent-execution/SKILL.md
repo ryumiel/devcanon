@@ -107,12 +107,14 @@ once:
 **Supporting-owner supplements:** []
 ```
 
-Each value is a JSON array of zero or more unique, non-empty string identifiers.
-The controller resolves `Boundary rows` only against boundary records and
-`Supporting-owner supplements` only against supporting-owner supplements. Each
-listed identifier must resolve exactly once in its declared kind. Unknown,
-duplicate, stale, ambiguous, or cross-kind identifiers return
-`BLOCKED/NEEDS_CONTEXT` to planning before dispatch.
+Each value is a JSON array of zero or more unique, non-empty string identifiers
+without line breaks. `Boundary rows` contains stable boundary-row IDs, which do
+not inherit Task ID grammar. `Supporting-owner supplements` contains the
+governing projection Entry IDs that key those supplements and therefore uses
+the existing Entry ID form. The controller resolves each field only against
+its declared record kind. Every listed identifier must resolve exactly once in
+that kind. Unknown, duplicate, stale, ambiguous, or cross-kind identifiers
+return `BLOCKED/NEEDS_CONTEXT` to planning before dispatch.
 
 Use only those resolved IDs to curate the uniquely identified plan-level
 records through the controller's existing context-assembly responsibility. This

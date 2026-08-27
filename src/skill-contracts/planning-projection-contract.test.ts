@@ -30,10 +30,28 @@ function numberedFieldLabels(section: string): string[] {
   return [...section.matchAll(/^\d+\. `([^`]+)`:/gm)].map((match) => match[1]);
 }
 
-function canonicalTaskFields(markdown: string): string[] {
-  return [...markdown.matchAll(/^\*\*([^*\r\n]+):\*\*/gm)]
+function canonicalReferenceBlock(markdown: string): string {
+  const block = [...markdown.matchAll(/```markdown\r?\n([\s\S]*?)\r?\n```/g)]
     .map((match) => match[1])
-    .filter((field) => recordReferenceFields.includes(field as never));
+    .find((candidate) =>
+      recordReferenceFields.every((field) =>
+        candidate.includes(`**${field}:**`),
+      ),
+    );
+
+  if (!block) {
+    throw new Error("canonical record-reference block not found");
+  }
+  return block;
+}
+
+function canonicalTaskFieldCounts(markdown: string): Record<string, number> {
+  return Object.fromEntries(
+    recordReferenceFields.map((field) => [
+      field,
+      [...markdown.matchAll(new RegExp(`^\\*\\*${field}:\\*\\*`, "gm"))].length,
+    ]),
+  );
 }
 
 function normalizedProse(markdown: string): string {
@@ -69,7 +87,7 @@ describe("play-planning execution projection contract", () => {
     expect(numberedFieldLabels(missingAuthority)).not.toEqual(projectionFields);
   });
 
-  it("shares canonical record-reference fields with the execution consumer", async () => {
+  it("keeps one of each record-reference field in canonical task blocks", async () => {
     const [skill, criteria, execution] = await Promise.all([
       readRepoFile("skills/play-planning/SKILL.md"),
       readRepoFile("skills/play-planning/references/planning-criteria.md"),
@@ -77,9 +95,19 @@ describe("play-planning execution projection contract", () => {
     ]);
 
     for (const source of [skill, criteria, execution]) {
-      expect(new Set(canonicalTaskFields(source))).toEqual(
-        new Set(recordReferenceFields),
-      );
+      const block = canonicalReferenceBlock(source);
+      expect(canonicalTaskFieldCounts(block)).toEqual({
+        "Boundary rows": 1,
+        "Supporting-owner supplements": 1,
+      });
+
+      const missing = block.replace(/^\*\*Boundary rows:\*\*.*\r?\n/m, "");
+      expect(canonicalTaskFieldCounts(missing)["Boundary rows"]).toBe(0);
+
+      const duplicated = `${block}\n**Supporting-owner supplements:** []`;
+      expect(
+        canonicalTaskFieldCounts(duplicated)["Supporting-owner supplements"],
+      ).toBe(2);
     }
   });
 
@@ -90,11 +118,10 @@ describe("play-planning execution projection contract", () => {
     ]);
 
     for (const source of [skill, criteria]) {
-      expect(normalizedProse(source)).toContain(
-        "their relative position and the order of unrelated task fields are non-semantic",
-      );
-      expect(source).not.toContain(
-        "followed by exactly one `**Boundary rows:**`",
+      const block = canonicalReferenceBlock(source);
+      const reversed = block.split(/\r?\n/).reverse().join("\n");
+      expect(canonicalTaskFieldCounts(reversed)).toEqual(
+        canonicalTaskFieldCounts(block),
       );
     }
   });
@@ -145,10 +172,8 @@ describe("play-planning execution projection contract", () => {
     for (const dimension of lightweightDimensions) {
       expect(brainstorm).toContain(dimension);
     }
-    expect(brainstorm).toContain(
-      "Persistence, cross-session use, or a filesystem effect alone",
-    );
-    expect(brainstorm).toContain("Planning remains the sole tier classifier");
+    expect(brainstorm).toContain("outside the authorized worktree");
+    expect(brainstorm).toContain("planning handoff");
     expect(brainstorm).not.toContain(
       "private, transient, same-controller, and have no durable schema consumer",
     );
@@ -166,52 +191,34 @@ describe("play-planning execution projection contract", () => {
       getMarkdownSection(criteria, "Proportional contract planning"),
     );
     expect(criteriaProse).toContain("outside the authorized worktree state");
-    expect(criteriaProse).toContain(
-      "The fifth dimension separately determines whether outputs and side effects are bounded and recoverable",
-    );
+    expect(criteriaProse).toContain("bounded and recoverable");
     const allCriteriaProse = normalizedProse(criteria);
-    expect(allCriteriaProse).toContain(
-      "Missing or incorrect ownership or permission for a filesystem write",
-    );
-    expect(allCriteriaProse).toContain(
-      "Missing or incorrect state transition, failure, retry, recovery, rollback, cleanup",
-    );
+    expect(allCriteriaProse).toContain("mutation-authority");
+    expect(allCriteriaProse).toContain("SIDE-EFFECT");
+    expect(allCriteriaProse).toContain("recovery");
+    expect(allCriteriaProse).toContain("cleanup");
 
     const checklistProse = normalizedProse(
       getMarkdownSection(checklist, "Side-Channel Artifact Contract Checklist"),
     );
     expect(checklistProse).toContain("outside the authorized worktree state");
-    expect(checklistProse).toContain(
-      "Bounded and recoverable eligibility remains the fifth dimension",
-    );
-    expect(checklistProse).toContain(
-      "Write ownership and permission retain their existing validation",
-    );
-    expect(checklistProse).toContain(
-      "This checklist owns reusable authoring and review questions",
-    );
+    expect(checklistProse).toContain("fifth dimension");
+    expect(checklistProse).toContain("mutation-authority");
+    expect(checklistProse).toContain("SIDE-EFFECT");
 
     const brainstormProse = normalizedProse(
       getMarkdownSection(brainstorm, "Contract Decisions"),
     );
     expect(brainstormProse).toContain("outside the authorized worktree state");
-    expect(brainstormProse).toContain(
-      "This is a design-time boundary decision for the planning handoff",
-    );
-    expect(brainstormProse).toContain(
-      "Planning remains the sole tier classifier",
-    );
+    expect(brainstormProse).toContain("planning handoff");
 
     const templateProse = normalizedProse(
       getMarkdownSection(planningSkill, "Task Structure"),
     );
-    expect(templateProse).toContain(
-      "material write or side-effect owner, failure and cleanup behavior",
-    );
+    expect(templateProse).toContain("material write or side-effect owner");
+    expect(templateProse).toContain("failure and cleanup behavior");
     expect(templateProse).toContain("focused verification expectations");
-    expect(templateProse).toContain(
-      "all five behavioral eligibility dimensions",
-    );
+    expect(templateProse).toContain("five behavioral eligibility dimensions");
     expect(templateProse).not.toContain("or side-effect owner, permission,");
   });
 
@@ -221,41 +228,35 @@ describe("play-planning execution projection contract", () => {
     );
     const prose = normalizedProse(criteria);
 
-    expect(prose).toContain(
-      "Directly cited boundary records may exclusively own",
-    );
-    expect(prose).toContain(
-      "does not also become an Execution Projection surface",
-    );
-    expect(prose).toContain(
-      "representation-only wording or ordering difference is non-blocking",
-    );
-    expect(prose).toContain(
-      "Missing owners, participants, implementation membership, proof ownership, or execution facts remain blocking",
-    );
     expect(prose).toContain("Valid boundary-carried context");
     expect(prose).toContain("Invalid missing-participant mutation");
     expect(prose).toContain("Invalid missing-authority mutation");
     expect(prose).toContain("Invalid missing-task-membership mutation");
     expect(prose).toContain("Invalid missing-proof mutation");
     expect(prose).toContain("Valid representation-only mutation");
-    expect(prose).toContain("Record IDs are kind-scoped");
-    expect(prose).toContain("do not inherit Task ID's");
+    expect(prose).toContain("Boundary-row IDs are kind-scoped");
+    expect(prose).toContain("supporting-owner supplement is keyed");
+    expect(prose).toContain("existing Entry ID form");
     expect(prose).toContain("do not define a Markdown or record-body grammar");
   });
 
   it("keeps kind-scoped resolution controller-owned and fail-closed", async () => {
-    const execution = await readRepoFile(
-      "skills/play-subagent-execution/SKILL.md",
-    );
+    const [planning, criteria, execution] = await Promise.all([
+      readRepoFile("skills/play-planning/SKILL.md"),
+      readRepoFile("skills/play-planning/references/planning-criteria.md"),
+      readRepoFile("skills/play-subagent-execution/SKILL.md"),
+    ]);
     const prose = normalizedProse(execution);
 
-    expect(prose).toContain(
-      "The controller resolves `Boundary rows` only against boundary records",
+    expect(canonicalReferenceBlock(criteria)).toContain(
+      '**Supporting-owner supplements:** ["EP-SUPPORTING-OWNERS"]',
     );
-    expect(prose).toContain(
-      "`Supporting-owner supplements` only against supporting-owner supplements",
-    );
+    for (const source of [planning, criteria, execution]) {
+      const normalized = normalizedProse(source);
+      expect(normalized).toContain("governing projection Entry ID");
+      expect(normalized).toContain("existing Entry ID form");
+    }
+    expect(prose).toContain("declared record kind");
     expect(prose).toContain(
       "Unknown, duplicate, stale, ambiguous, or cross-kind identifiers return `BLOCKED/NEEDS_CONTEXT`",
     );

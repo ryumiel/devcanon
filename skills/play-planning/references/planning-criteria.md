@@ -536,7 +536,8 @@ task-local structures consume that carrier without repeating it. Add an inverse 
 or reference entry only when it adds a different owner/source, mode,
 implementation disposition, proof boundary, or independently necessary
 execution fact. When an approved relationship has supporting owners, add only
-an Entry-ID-keyed supplement naming each supporting owner, its explicitly
+a supplement keyed by the governing projection Entry ID that names each
+supporting owner, its explicitly
 non-overlapping normative partition, and conflict precedence. The supplement
 must not restate the projection tuple. A valid `LIGHTWEIGHT` compact record adds
 only its independently necessary task-local purpose, inputs and outputs,
@@ -735,7 +736,7 @@ once:
 
 ```markdown
 **Boundary rows:** ["BR-A", "BR-B"]
-**Supporting-owner supplements:** []
+**Supporting-owner supplements:** ["EP-SUPPORTING-OWNERS"]
 ```
 
 Each value is a JSON array containing zero or more unique, non-empty string
@@ -743,17 +744,18 @@ identifiers without line breaks. JSON whitespace and the order of unrelated
 task fields are non-semantic. Missing or repeated fields, invalid JSON,
 non-array values, non-string or empty entries, and duplicate identifiers are
 structurally invalid. The declared field selects the lookup kind: boundary-row
-IDs never resolve as supporting-owner supplements, and supplement IDs never
-resolve as boundary rows.
+IDs never resolve as supporting-owner supplements, and governing projection
+Entry IDs listed for supplements never resolve as boundary rows.
 
-Plan-level boundary records and supporting-owner supplements retain their
-existing stable identifiers in their owning plan sections. Each identifier is
-the exact non-empty, no-line-break string selected by the task field. Record
-IDs are kind-scoped and do not inherit Task ID's `UPPER-ASCII-KEBAB` grammar.
-A prose mention or reference from the other record kind does not substitute for
-the uniquely identified record. These identity rules do not define a Markdown
-or record-body grammar; the controller interprets the reviewed plan structure
-and D5 owns semantic completeness.
+Plan-level boundary records retain their existing stable non-empty,
+no-line-break row IDs in their owning sections. Boundary-row IDs are
+kind-scoped and do not inherit Task ID's `UPPER-ASCII-KEBAB` grammar. Each
+supporting-owner supplement is keyed by exactly one governing projection Entry
+ID, and tasks select that supplement with the same Entry ID; the existing Entry
+ID form therefore applies. A prose mention or reference from the other record
+kind does not substitute for the uniquely identified record. These identity
+rules do not define a Markdown or record-body grammar; the controller
+interprets the reviewed plan structure and D5 owns semantic completeness.
 
 For producer, validator, adapter, or consumer boundaries, select traceability
 detail from the contract tier. `FULL` or a separately named material authority
