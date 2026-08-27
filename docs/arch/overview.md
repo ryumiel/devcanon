@@ -98,8 +98,9 @@ configuration is selected, reads the bundled runtime catalog.
 The runtime catalog is an exact `schema` plus `capabilityProfiles` JSON
 transport object. It is not a second user configuration: source configuration
 continues to own library paths, targets, manifest settings, and the catalog
-that drives rendering. `src/render/devcanon-runtime.ts` projects the selected
-source capability profiles into each enabled target's runtime bundle;
+that drives rendering. During source-driven rendering,
+`src/render/devcanon-runtime.ts` projects the selected source capability
+profiles into each enabled target selected for that render;
 `src/validate/devcanon-runtime.ts` validates the exact `config/` and `scripts/`
 payload before source-driven render or transport. The generated and installed
 copies are derived current-format runtime payloads, not discovery sources for
