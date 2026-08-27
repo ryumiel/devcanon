@@ -16,6 +16,13 @@ interface MarkdownNode {
   readonly children?: readonly MarkdownNode[];
 }
 
+// Validation and target rendering commonly inspect the same exact skill body.
+// Keep only a small LRU of ordinary-sized inputs so reuse cannot grow retained
+// source without bound in a long-lived caller.
+const CACHE_CAPACITY = 128;
+const CACHE_MAX_INPUT_BYTES = 256 * 1024;
+const structureCache = new Map<string, MarkdownStructure>();
+
 /**
  * Opaque structural view of one exact Markdown input.
  *
@@ -28,6 +35,13 @@ export class MarkdownStructure {
   ) {}
 
   static parse(input: string): MarkdownStructure {
+    const cached = structureCache.get(input);
+    if (cached !== undefined) {
+      structureCache.delete(input);
+      structureCache.set(input, cached);
+      return cached;
+    }
+
     const tree = fromMarkdown(input, {
       extensions: [gfm()],
       mdastExtensions: [gfmFromMarkdown()],
@@ -44,7 +58,19 @@ export class MarkdownStructure {
       codeRanges.push(Object.freeze({ start, end }));
     });
 
-    return new MarkdownStructure(Object.freeze(codeRanges));
+    const structure = new MarkdownStructure(Object.freeze(codeRanges));
+    Object.freeze(structure);
+    if (Buffer.byteLength(input, "utf8") <= CACHE_MAX_INPUT_BYTES) {
+      if (structureCache.size >= CACHE_CAPACITY) {
+        const oldestInput = structureCache.keys().next().value;
+        if (oldestInput !== undefined) {
+          structureCache.delete(oldestInput);
+        }
+      }
+      structureCache.set(input, structure);
+    }
+
+    return structure;
   }
 
   blockCodeRanges(): readonly MarkdownSourceRange[] {

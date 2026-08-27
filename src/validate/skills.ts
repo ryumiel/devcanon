@@ -262,6 +262,8 @@ export function collectActiveModelPlaceholderErrors(
     const seenTokens = new Set<string>();
 
     for (const input of inputs) {
+      if (!input.includes("{{model")) continue;
+
       for (const segment of collectActiveMarkdownSegments(input)) {
         for (const match of segment.matchAll(ACTIVE_MODEL_PLACEHOLDER)) {
           const namespace = match[1];

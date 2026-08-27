@@ -69,6 +69,8 @@ export function resolvePlaceholders(
   glossary: PlaceholderGlossary,
   context?: PlaceholderRenderContext,
 ): string {
+  if (!input.includes("{{")) return input;
+
   const out: string[] = [];
   let cursor = 0;
 
