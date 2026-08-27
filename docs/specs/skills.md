@@ -287,10 +287,11 @@ by the ordinary-skill allowlist.
 - Frontmatter `name` must match the stricter skill-name regex above and equal
   the directory name.
 - Skill names must be unique.
-- Every active `{{X:Y}}` placeholder must use `X` ∈ {`model`, `tool`,
-  `file`}. Model `Y` must be exactly `efficient`, `balanced`, or `frontier`;
-  tool and file keys must exist in the corresponding glossary.
-- Model placeholders use the exact capability enum. `toolNames` and
+- Every active `{{X:Y}}` placeholder must use `X` ∈ {`model`,
+  `model-codex`, `tool`, `file`}. Model and model-codex `Y` values must be
+  exactly `efficient`, `balanced`, or `frontier`; tool and file keys must exist
+  in the corresponding glossary.
+- Model and model-codex placeholders use the exact capability enum. `toolNames` and
   `fileArtifacts` keys match `^[a-z0-9][a-z0-9-]*$` (lowercase, digits,
   hyphens; e.g. `task-tracker`, `project-instructions`).
 - Former model tokens, malformed active model tokens, and unknown model

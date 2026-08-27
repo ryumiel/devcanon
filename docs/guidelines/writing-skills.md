@@ -187,12 +187,15 @@ For the full rule, examples, red flags, and mechanical constraints, see
 
 ## 5. Placeholders
 
-Three placeholder namespaces resolve at render time against
+Four placeholder namespaces resolve at render time against
 glossaries in
 [`devcanon.config.yaml`](../../devcanon.config.yaml):
 
 - `{{model:efficient}}`, `{{model:balanced}}`, `{{model:frontier}}` for
-  model-capability references.
+  target-native model-capability references.
+- `{{model-codex:efficient}}`, `{{model-codex:balanced}}`,
+  `{{model-codex:frontier}}` for prose passed to an explicit Codex execution
+  primitive, regardless of the rendered artifact target.
 - `{{tool:<key>}}` for tool names that differ across targets, e.g.
   `{{tool:task-tracker}}` → `TodoWrite` (Claude) / `update_plan`
   (Codex).
@@ -202,7 +205,7 @@ glossaries in
 
 Rules:
 
-- Only `model:`, `tool:`, and `file:` namespaces are permitted;
+- Only `model:`, `model-codex:`, `tool:`, and `file:` namespaces are permitted;
   other namespaces are rejected at render time.
 - Escape with a leading backslash: `\{{tool:task-tracker}}`.
 - Placeholders inside fenced code blocks (backtick or tilde) are

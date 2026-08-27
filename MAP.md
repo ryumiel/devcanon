@@ -201,7 +201,9 @@ Quick navigation index for the DevCanon repository.
 - Where is the skill render orchestrator? -> [`src/render/skill.ts`](src/render/skill.ts)
 - Where is the Claude skill renderer? -> [`src/render/skill-claude.ts`](src/render/skill-claude.ts)
 - Where is the Codex skill renderer (with sidecar)? -> [`src/render/skill-codex.ts`](src/render/skill-codex.ts)
-- Where is the placeholder resolver (`{{model:*}}`, `{{tool:*}}`, `{{file:*}}`)? -> [`src/render/placeholders.ts`](src/render/placeholders.ts)
+- Where is the placeholder resolver (`{{model:*}}`, `{{model-codex:*}}`,
+  `{{tool:*}}`, `{{file:*}}`)? ->
+  [`src/render/placeholders.ts`](src/render/placeholders.ts)
 - Where is the agent capability model resolver? -> [`src/render/capability-profiles.ts`](src/render/capability-profiles.ts)
 - Where is frontmatter parse/serialize? -> [`src/render/frontmatter.ts`](src/render/frontmatter.ts)
 
