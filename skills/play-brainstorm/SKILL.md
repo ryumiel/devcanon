@@ -345,15 +345,26 @@ decompose, sequence, and prove those decisions, but planning must not choose
 missing behavior semantics. Fix any ambiguity that would make implementation choose authority, identity tuple, producer or consumer, cwd/root, freshness proof, mutation/read-only effects, helper or script call shape, lifecycle state, cleanup, approval/posting, external effects, continuation/failure behavior, or forbidden behavior. If a decision cannot be made safely during brainstorming,
 record it as a blocker or as an intentional implementation choice with the owning authority, risk, and proof expectation. Private helper decomposition, internal names, fixtures, and non-contract formatting remain valid planning details after contract semantics are fixed.
 
-For each changed design boundary, record whether the approved facts make it
-load-bearing (durable, public, cross-session, untrusted or security-sensitive,
-or cross-owner) or instead appear eligible for compact treatment because they
-are private, transient, same-controller, and have no durable schema consumer.
+For each changed design boundary, record whether the approved facts establish
+all five behavioral dimensions used by planning: exactly one behavioral owner;
+no public schema or API; no security-sensitive or untrusted boundary; no
+external mutation; and outputs and side effects are bounded and recoverable.
+Record a false or unclear dimension and its stronger-treatment reason without
+assigning a planning tier. Persistence, cross-session use, or a filesystem
+effect alone is not a separate reason to treat a boundary as load-bearing.
+For the external-mutation fact, external means mutation of externally
+controlled or outside the authorized worktree state. A worktree-local
+filesystem output is not external solely because it persists; bounded/recoverable
+eligibility, mutation-authority validation, and applicable lifecycle behavior
+remain separate design facts. Provider, network, user-home, system-wide,
+a write outside the authorized worktree, and other externally controlled
+mutations remain external.
 If no contract, boundary, lifecycle, side effect, generated or side-channel
 artifact, interface, policy, or other non-trivial trigger changes, record that
 task-specific design fact. This is a design-time boundary decision for the
 planning handoff, not a `FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER` classification:
-do not copy the planning checklist or become tier authority.
+do not copy the planning checklist or become tier authority. Planning remains
+the sole tier classifier.
 
 ### Normative ownership topology
 

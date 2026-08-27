@@ -121,54 +121,75 @@ detail. The tier changes how compactly an approved contract may be expressed;
 it never weakens an applicable boundary, omits a known participant, or changes
 what counts as a blocking defect. Ambiguous classification defaults to `FULL`.
 
-- `FULL`: required when any changed contract is durable, public,
-  cross-session, untrusted or security-sensitive, or cross-owner. FULL
+- `FULL`: required for this proportional route when any `LIGHTWEIGHT`
+  eligibility dimension below is false or unclear. FULL
   treatment includes authority and precedence; required and optional inputs;
   outputs; every participant and its traceability; material side-effect
   ownership; lifecycle, failure, recovery, cleanup, and trust-boundary
   behavior; every applicable side-channel obligation; canonical valid and
   invalid examples; projection-owned proof allocation; and task-local
   verification expectations.
-- `LIGHTWEIGHT`: allowed only when all dimensions are true: the mechanism is
-  private, transient, used by the same controller, and has no durable schema
-  consumer. Selected projection entries record its common owner/source,
+- `LIGHTWEIGHT`: allowed only when all five behavioral dimensions are true:
+  exactly one behavioral owner; no public schema or API; no security-sensitive
+  or untrusted boundary; no external mutation; and outputs and side effects are
+  bounded and recoverable. Selected projection entries record its common owner/source,
   participants, relationships, and proof allocation. The compact task record
   adds purpose, inputs and outputs, producer or consumer direction when it is an
   independently necessary execution fact identified by neither the selected
   projection tuple nor an applicable directly cited boundary row, material
-  write or side-effect owner, failure and cleanup
-  behavior, focused verification expectations, and the explicit reason every
-  FULL trigger is absent. Any changed dimension that triggers `FULL` makes
-  LIGHTWEIGHT invalid.
+  write or side-effect owner, failure and cleanup behavior, focused verification
+  expectations, and the explicit reason all five
+  eligibility dimensions are true. Changing any one dimension makes this
+  `LIGHTWEIGHT` route invalid and requires the applicable stronger treatment.
 - `NO-TRIGGER`: allowed only when the task changes no contract, boundary,
   lifecycle, side effect, generated or side-channel artifact, interface,
   policy, or other non-trivial task-contract trigger. State a task-specific
   reason. The ordinary task fields, acceptance criteria, and
   minimum-sufficient proof still apply.
 
-Do not infer LIGHTWEIGHT from a small diff, private implementation naming, or
-an artifact being stored under `.ephemeral/`. Durability and consumers are
-properties of the behavior and data flow, not of file size or path spelling.
-Full treatment remains mandatory for load-bearing durable, public,
-cross-session, untrusted, security-sensitive, and cross-owner contracts.
+Do not infer LIGHTWEIGHT from a small diff, private implementation naming, an
+artifact type, programming language, repository layout, path, or implementation
+mechanism. Persistence or filesystem effects alone do not require `FULL`; judge
+whether the five behavioral dimensions remain true. Missing owners,
+participants, membership, proof, and execution facts remain blocking at every
+tier.
+
+The no-external-mutation dimension concerns mutation of externally controlled
+or outside the authorized worktree state. A filesystem output inside the
+authorized worktree is not external solely because it persists.
+The fifth dimension separately determines whether outputs and side effects are
+bounded and recoverable. Write ownership and permission remain subject to
+existing mutation-authority and `SIDE-EFFECT` validation, while applicable
+lifecycle behavior remains independently required.
 
 ### Proportionality examples
 
-- **Valid `LIGHTWEIGHT` example:** a private transient helper used only by the
-  current controller transforms an already validated in-memory value and has
-  no durable schema consumer. Its projection entry names the controller as
-  owner and records the common participation and proof allocation. Its compact
-  contract adds the transformation purpose, inputs and outputs, identifies any
-  independently necessary producer or consumer direction carried by neither the
-  projection tuple nor an applicable directly cited boundary row, confirms the
-  controller owns its only material in-memory
-  write or side effect, names failure and cleanup behavior and focused
-  verification expectations, and states that FULL is absent because the helper
-  is private, transient, same-controller, trusted, non-security-sensitive, and
-  neither durable, public, cross-session, nor cross-owner.
-- **Invalid durability mutation:** relative to that valid example, change only
-  the output so it persists for a later session. The contract is cross-session
-  and requires `FULL`; retaining LIGHTWEIGHT is blocking.
+- **Valid `LIGHTWEIGHT` example:** one behavioral owner produces a bounded,
+  recoverable filesystem output inside the authorized worktree for
+  private internal behavior. There is no public schema or API, no
+  security-sensitive or untrusted boundary, and no mutation of externally
+  controlled or outside the authorized worktree state. Its compact
+  contract owns task-local inputs, outputs, write owner, failure and cleanup
+  behavior, and focused verification; its projection entry records common
+  participation and proof allocation. Existing mutation-authority permission
+  checks and the fifth dimension's bounded/recoverable requirement still apply.
+  Persistence and the filesystem mechanism do not by themselves require `FULL`.
+- **Invalid behavioral-owner mutation:** relative to that valid example, add a
+  second behavioral owner. Exactly one behavioral owner is no longer true, so
+  this `LIGHTWEIGHT` route is ineligible.
+- **Invalid public-contract mutation:** relative to the valid example, expose
+  the output as a public schema or API. The no-public-contract dimension is
+  false, so this `LIGHTWEIGHT` route is ineligible.
+- **Invalid trust-boundary mutation:** relative to the valid example, accept
+  untrusted input or cross a security-sensitive boundary. The trusted-boundary
+  dimension is false, so this `LIGHTWEIGHT` route is ineligible.
+- **Invalid external-mutation mutation:** relative to the valid example, add a
+  provider, network, user-home, system-wide, a write outside the authorized
+  worktree, or another externally controlled mutation. The no-external-mutation
+  dimension is false, so this `LIGHTWEIGHT` route is ineligible.
+- **Invalid recovery mutation:** relative to the valid example, make only the
+  output or side effect unbounded or unrecoverable. The bounded-recoverable
+  dimension is false, so this `LIGHTWEIGHT` route is ineligible.
 - **Valid `FULL` example:** a durable cross-owner boundary names its authority
   and precedence; required and optional inputs; outputs; every producer,
   validator, adapter, and consumer with participant traceability; the material
@@ -210,7 +231,10 @@ defect class, without stopping after the first gap. Reviewers exclude
 speculative improvements and out-of-remit findings.
 
 Every authored task has a required `**Task ID:** <UPPER-ASCII-KEBAB>` field
-immediately after its heading. The Task ID is a semantic identity assigned
+immediately after its heading. The task record also contains exactly one
+`**Boundary rows:**` field and one `**Supporting-owner supplements:**` field
+using the canonical JSON-array shape defined below; their relative position and
+the order of unrelated task fields are non-semantic. The Task ID is a semantic identity assigned
 once, unique within the plan, independent of task number, order, and display
 title, and preserved unchanged across task insertions, reordering, title edits,
 and review revisions. Missing, duplicate, positional, or changed task IDs block
@@ -246,7 +270,7 @@ Use the first matching row in this exact precedence order:
 
 | Precedence | Class           | Governing defect                                                                                                                          |
 | ---------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| 1          | `SIDE-EFFECT`   | Missing or incorrect ownership or permission for filesystem, provider, network, user-home, or another external mutation                   |
+| 1          | `SIDE-EFFECT`   | Missing or incorrect ownership or permission for a filesystem write, provider, network, user-home, or another external mutation           |
 | 2          | `ARTIFACT`      | Missing or incorrect artifact producer, validator, schema or shape, path, custody, freshness, persistence, cleanup, or consumer contract  |
 | 3          | `LIFECYCLE`     | Missing or incorrect state transition, failure, retry, recovery, rollback, cleanup, continuation, or terminal behavior                    |
 | 4          | `BOUNDARY`      | Missing or incorrect boundary participant, required or optional input, output, error, ordering, or interaction contract not covered above |
@@ -258,6 +282,10 @@ Use the first matching row in this exact precedence order:
 | 10         | `DOCUMENTATION` | Required documentation-impact or adjacent-governance disposition is missing or incorrect                                                  |
 | 11         | `VERIFICATION`  | Verification authority, observable evidence, or minimum-sufficient proof is missing or disproportionate                                   |
 | 12         | `EXECUTION`     | A residual implementer-facing input, output, or required behavior decision is hidden after all more-specific classes are ruled out        |
+
+`SIDE-EFFECT` separately catches missing or incorrect filesystem-write
+ownership or permission. A filesystem write is external only when it mutates
+externally controlled or outside the authorized worktree state.
 
 ### Consolidation, invalidation, and same-digest PASS
 
@@ -467,13 +495,15 @@ purpose, inputs and outputs, producer or consumer direction when independently
 necessary and absent from both the projection tuple and an applicable directly
 cited boundary row, material write or side-effect owner, failure and cleanup
 behavior, focused verification expectations, and
-the explicit reason every FULL trigger is absent. It does not acquire the
-complete table merely because it has private transient helper I/O. Add family
+the explicit reason all five eligibility dimensions are true. It does not
+acquire the complete table merely because it has bounded, recoverable helper
+I/O or filesystem effects. Add family
 detail only for a concrete approved task-local need or an independently
 applicable material authority.
-Ambiguity defaults to `FULL`. Known omissions remain blocking, as do every
-independently triggered side-channel, generated, safety, untrusted, durable,
-public, cross-session, cross-owner, or governance obligation.
+Ambiguity defaults to `FULL`. Known omissions remain blocking, as does any
+false eligibility dimension or independently applicable material authority.
+Persistence, filesystem effects, artifact type, language, repository layout,
+path, or implementation mechanism alone do not activate `FULL`.
 
 For governance or workflow-policy changes, compare the Adjacent Governance
 Policy Set in `docs/guidelines/documentation-checklists.md`. Update only the
@@ -506,14 +536,15 @@ task-local structures consume that carrier without repeating it. Add an inverse 
 or reference entry only when it adds a different owner/source, mode,
 implementation disposition, proof boundary, or independently necessary
 execution fact. When an approved relationship has supporting owners, add only
-an Entry-ID-keyed supplement naming each supporting owner, its explicitly
+a supplement keyed by the governing projection Entry ID that names each
+supporting owner, its explicitly
 non-overlapping normative partition, and conflict precedence. The supplement
 must not restate the projection tuple. A valid `LIGHTWEIGHT` compact record adds
 only its independently necessary task-local purpose, inputs and outputs,
 producer or consumer direction when absent from both the projection tuple and
 an applicable directly cited boundary row, material write or side-effect owner,
 failure and cleanup behavior, and explicit reason
-every FULL trigger is absent; its selected projection entries supply the common
+all five eligibility dimensions are true; its selected projection entries supply the common
 participant, relationship, owner, and proof facts. It need not manufacture
 inverse entries, supporting owners, partitions, consumers, or example families
 that do not exist.
@@ -524,10 +555,10 @@ parity; verification reports mismatch without defining policy. Exact wording or
 diagram-edge proof is required only when the representation itself is an
 intentional product contract. Generated skill packages are derived consumers
 and never plan edit targets. Known omissions remain blocking at every tier.
-Every independently triggered side-channel, generated, safety, untrusted,
-durable, public, cross-session, or cross-owner obligation remains blocking and
-requires `FULL` or its separately named material authority; `LIGHTWEIGHT` never
-waives it.
+Any false eligibility dimension or independently applicable material authority
+remains blocking and requires the applicable stronger treatment;
+`LIGHTWEIGHT` never waives it. Persistence and filesystem effects alone do not
+make a dimension false.
 
 Planning is not ready at every tier when:
 
@@ -559,7 +590,7 @@ purpose, inputs and outputs, independently necessary producer or consumer
 direction absent from both the projection tuple and an applicable directly
 cited boundary row, material write or side-effect owner, failure and cleanup
 behavior, focused verification expectations, or
-explicit absence of every FULL trigger. An absent equivalent inverse
+an explicit statement that all five eligibility dimensions are true. An absent equivalent inverse
 producer-consumer or reference entry alone is not an omission. Unclear tier
 eligibility defaults to `FULL`; the compact route never excuses a known
 consumer or an independently triggered obligation.
@@ -700,6 +731,32 @@ by itself a semantic defect.
 
 ### Boundary-contract traceability
 
+Every executable task carries each canonical record-reference field exactly
+once:
+
+```markdown
+**Boundary rows:** ["BR-A", "BR-B"]
+**Supporting-owner supplements:** ["EP-SUPPORTING-OWNERS"]
+```
+
+Each value is a JSON array containing zero or more unique, non-empty string
+identifiers without line breaks. JSON whitespace and the order of unrelated
+task fields are non-semantic. Missing or repeated fields, invalid JSON,
+non-array values, non-string or empty entries, and duplicate identifiers are
+structurally invalid. The declared field selects the lookup kind: boundary-row
+IDs never resolve as supporting-owner supplements, and governing projection
+Entry IDs listed for supplements never resolve as boundary rows.
+
+Plan-level boundary records retain their existing stable non-empty,
+no-line-break row IDs in their owning sections. Boundary-row IDs are
+kind-scoped and do not inherit Task ID's `UPPER-ASCII-KEBAB` grammar. Each
+supporting-owner supplement is keyed by exactly one governing projection Entry
+ID, and tasks select that supplement with the same Entry ID; the existing Entry
+ID form therefore applies. A prose mention or reference from the other record
+kind does not substitute for the uniquely identified record. These identity
+rules do not define a Markdown or record-body grammar; the controller
+interprets the reviewed plan structure and D5 owns semantic completeness.
+
 For producer, validator, adapter, or consumer boundaries, select traceability
 detail from the contract tier. `FULL` or a separately named material authority
 requires stable boundary row IDs and the complete participant-specific
@@ -720,16 +777,13 @@ independently necessary and absent from the projection tuple, validation,
 failure behavior, and observable
 verification conditions not already present in the projection tuple. Task
 checklists consume the selected projection and applicable boundary rows without
-repeating either mapping. The execution
-consumer includes only supporting-owner supplements or boundary records that
-the task directly cites as `supporting-owner supplement <Entry ID>` or
-`boundary row <stable row ID>`. The literal record-kind label selects the
-resolution domain, so supplement lookup does not include projection entries and
-boundary-row lookup does not include supplements. Each cited identifier resolves
-to exactly one record within its named kind. The consumer does not discover
-inverse references, follow another reference, or infer semantic applicability.
-Plan Review fails a missing or unlabeled required task citation when a task needs
-a distinct supporting-owner supplement or boundary record, an unresolvable or
+repeating either mapping. The execution consumer includes only the records
+selected by the task's canonical fields. Each listed identifier resolves
+exactly once within its declared record kind. Unknown, stale, ambiguous,
+duplicate, and cross-kind identifiers fail closed. The consumer does not
+discover inverse references, recursively follow another reference, infer
+semantic applicability, or forward the complete plan to resolve references.
+Plan Review fails a missing or malformed required field, an unresolvable or
 ambiguous identifier within the named record kind, a missing governing Entry ID
 when a distinct boundary record depends on it, or an independently necessary
 boundary fact, but not a checklist merely because it declines to restate those
@@ -739,23 +793,63 @@ cites the relevant design contract decision or records why that decision is
 non-applicable. A no-code projection disposition names that governing decision
 and explains why implementation work is unnecessary.
 
+Directly cited boundary records may exclusively own independently necessary
+participant-specific inputs, outputs, directions, derived destinations,
+ordering, validation, failure behavior, and observable boundary conditions.
+A consumer, output, destination, or direction already carried by an applicable
+directly cited boundary record does not also become an Execution Projection
+surface unless its projection-owned authority, common relationship, mode,
+implementation membership, or proof ownership differs. Task contracts remain
+the single carrier for task-local files, mutation authority, behavior,
+dependencies, acceptance criteria, risks, and verification expectations.
+Missing owners, participants, implementation membership, proof ownership, or execution facts remain blocking.
+
+Boundary-carrier review examples:
+
+- **Valid boundary-carried context:** a task's `Boundary rows` field selects
+  `BR-DERIVED`. The governing projection entry owns the authoritative common
+  relationship, mode, task membership, and proof. `BR-DERIVED` exclusively
+  owns one participant's direction, inputs, derived output and destination,
+  validation order, and failure behavior. The assembled context is complete;
+  the participant-specific facts are not repeated as projection surfaces.
+- **Invalid missing-participant mutation:** relative to that valid example,
+  remove one required participant from both the projection relationship and
+  the selected boundary record. The semantic omission remains blocking.
+- **Invalid missing-authority mutation:** remove the normative owner/source
+  from the governing projection entry while preserving the boundary facts. The
+  boundary record does not replace projection authority, so the omission
+  remains blocking.
+- **Invalid missing-task-membership mutation:** remove the current Task ID from
+  the governing entry's implementation disposition and proof. Boundary
+  selection does not infer projection membership, so the omission remains
+  blocking.
+- **Invalid missing-proof mutation:** remove proof ownership from the governing
+  entry while preserving the selected boundary record. Boundary facts do not
+  replace projection proof allocation, so the omission remains blocking.
+- **Valid representation-only mutation:** reorder the two canonical reference
+  fields, change unrelated prose, or vary JSON whitespace without changing the
+  decoded IDs or assembled semantic carriers. D5 does not block the equivalent
+  representation, while the exact saved-plan digest still changes and requires
+  a fresh paired review wave.
+
 A valid `LIGHTWEIGHT` boundary record consumes the selected projection entries
 for every actual known participant and independently necessary execution
 relationship, owner/source, and proof allocation. It adds the closed compact
 task-local purpose, inputs and outputs, producer or consumer direction when it
 is independently necessary and not identified by the projection tuple,
 material write or side-effect owner, failure and cleanup behavior, focused
-verification expectations, and explicit reason every FULL trigger is absent.
+verification expectations, and an explicit reason all five eligibility
+dimensions are true.
 It does not require an equivalent inverse producer-consumer or reference entry.
 It is sufficient unless specifically authorized applicable extra detail is
 required by a concrete approved task-local need or an independently applicable
 material authority. Only that named detail applies; it does not activate the
 complete downstream row-consumer shape. A final consumer test does not cover a
 missing producer, validator, or adapter obligation, and it cannot excuse any
-other known consumer omission. Ambiguity defaults to `FULL`. Known omissions
-remain blocking, as do every independently triggered side-channel, generated,
-safety, untrusted, durable, public, cross-session, cross-owner, or governance
-obligation.
+other known consumer omission. Ambiguity defaults to `FULL`. Known omissions,
+false eligibility dimensions, and independently applicable material authority
+remain blocking. Persistence or filesystem effects alone do not require
+`FULL`.
 
 Proof must be executable without prescribing implementation. Name diagnostic
 shape, validation ordering, source inspection target or discovery criteria,
@@ -777,13 +871,13 @@ shapes, artifacts, CLI output, helper I/O, or cross-skill contracts include
 - intentionally out-of-scope invalid families.
 
 A valid `LIGHTWEIGHT` compact record does not require canonical valid and
-invalid example families merely because its private transient mechanism has
-helper I/O. Its focused verification expectations cover its named compact
+invalid example families merely because its bounded, recoverable single-owner
+mechanism has helper I/O. Its focused verification expectations cover its named compact
 contract. A known
 participant or independently necessary execution relationship still cannot be
-omitted, and every independently triggered side-channel, generated, safety,
-untrusted, durable, public, cross-session, or cross-owner obligation remains
-blocking and requires `FULL` or its separately named material authority.
+omitted, and any false eligibility dimension or independently applicable
+material authority remains blocking and requires the applicable stronger
+treatment.
 
 Positive examples match the target post-change contract, not the pre-change
 contract. Invalid examples change exactly one named contract dimension from the
@@ -860,7 +954,7 @@ fields add purpose, inputs and outputs, producer or consumer direction when
 independently necessary and absent from both the projection tuple and an
 applicable directly cited boundary row, material write or side-effect owner,
 failure and cleanup behavior, focused verification
-expectations, and the explicit reason every FULL trigger is absent. It does not
+expectations, and the explicit reason all five eligibility dimensions are true. It does not
 restate the projection tuple, duplicate an equivalent inverse relationship, or
 acquire FULL-only checklist fields or `N/A` entries. Add checklist detail only
 for a concrete approved task-local need or an independently applicable material
@@ -881,9 +975,9 @@ authority requires it. It must not prescribe private implementation choices
 discoverable from the named sources.
 
 Across checklist and operation-map selection, ambiguity defaults to `FULL`.
-Known omissions remain blocking, as do every independently triggered
-side-channel, generated, safety, untrusted, durable, public, cross-session,
-cross-owner, or governance obligation.
+Known omissions, false eligibility dimensions, and independently applicable
+material authority remain blocking. Persistence and filesystem effects alone
+do not require `FULL`.
 
 Compose related work when it shares one subsystem, authority, verification
 route, and safe working context. Split work with different authorities,
@@ -899,9 +993,12 @@ Review-routing hints remain non-authoritative inputs to
 `play-subagent-execution`. Hard-risk triggers from
 `skills/play-subagent-execution/references/review-routing-policy.md` are not
 under-classified; unclear cases default to `spec-and-quality`, and
-foundation-producing tasks are not below `spec-only`. Field order is the task
-heading, required `**Task ID:**`, required `**Contract tier:**`, optional
-`**Mode:** mechanical`, optional review-routing hints, then `**Files:**`.
+foundation-producing tasks are not below `spec-only`. Only the task heading and
+immediately following required `**Task ID:**` field are positional. The required
+`**Boundary rows:**`, `**Supporting-owner supplements:**`, and
+`**Contract tier:**` fields, optional `**Mode:** mechanical`, optional
+review-routing hints, and `**Files:**` may otherwise be ordered without changing
+the task's semantics.
 
 ## Minimum-sufficient proof
 
@@ -975,6 +1072,14 @@ rejects stale or unresolvable Entry IDs, missing authority, omitted
 execution-relevant participants, missing task membership, and uncovered hard
 requirements, but not an equivalent inverse relationship or duplicate proof
 allocation absent from a secondary structure.
+
+When the assembled execution context is semantically complete, a
+representation-only wording or ordering difference is non-blocking. D5 does not
+require repeated singular prose selectors, duplication of facts exclusively
+and correctly carried by an applicable boundary record, or `FULL` treatment
+solely because bounded recoverable output persists or uses the filesystem.
+Missing owners, participants, implementation membership, proof ownership, or
+execution facts remain blocking.
 
 ### Implementer Executability Review
 

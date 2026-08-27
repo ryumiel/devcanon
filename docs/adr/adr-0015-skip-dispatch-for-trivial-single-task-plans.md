@@ -9,6 +9,8 @@ Accepted
 ADR-0016 later refines the `issue-priming-workflow --auto` single-task
 subset of the path described here. ADR-0023 later updates the upstream
 planning precondition to the two-gate `play-planning` return. The
+behavioral planning-tier decision consumed by guardrail #4 is recorded in
+ADR-0035. The
 skip-dispatch decision in this ADR remains authoritative, but statements below
 that the final whole-implementation reviewer runs on every plan should now be
 read together with ADR-0016, and upstream planning-precondition statements
@@ -65,6 +67,8 @@ than a runtime check):
    reclassify the declared tier. Every task must carry the literal
    `**Contract tier:** FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER` field, and the
    controller validates only the declared tier's required assembled context.
+   ADR-0035 owns tier proportionality; this guardrail consumes the declared
+   tier without redefining or reclassifying it.
    Selected Execution Projection entries supply the common relationship
    owner/source, affected participation, task/no-code disposition, and proof
    allocation without restatement in the task. `FULL` requires a structurally
@@ -72,11 +76,15 @@ than a runtime check):
    affected execution consumers/generated outputs, must-preserve and required
    behavior, spec/procedure work, risk surfaces, and verification expectations,
    with no blank fields or unexplained `N/A` fields. `LIGHTWEIGHT` requires its
-   remaining compact task-local fields and an explicit reason every FULL trigger
-   is absent. `NO-TRIGGER` requires a task-specific reason. Both reduced tiers
-   require the reviewed two-gate provenance for the plan being executed. Direct,
-   hand-written, copied, older, or otherwise unreviewed plans without that
-   provenance must use a structurally complete assembled `FULL` context. If
+   remaining compact task-local fields and an explicit reason all five
+   behavioral eligibility dimensions are true. Mutation permission remains
+   subject to mutation-authority and `SIDE-EFFECT` ownership validation;
+   recovery remains governed by bounded-and-recoverable eligibility plus
+   applicable lifecycle behavior. `NO-TRIGGER` requires a task-specific reason.
+   Both reduced tiers require the reviewed two-gate provenance for the plan
+   being executed. Direct, hand-written, copied, older, or otherwise unreviewed
+   plans without that provenance must use a structurally complete assembled
+   `FULL` context. If
    source inspection cannot confirm the tier-appropriate authority,
    source-of-truth, participant, direct relationship, consumer,
    generated-output, or evidence surface, the task contract is invalid.

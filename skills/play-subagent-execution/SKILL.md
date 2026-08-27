@@ -99,22 +99,38 @@ planning. This selection does not decide whether membership or topology is
 semantically truthful or complete. Legacy and pre-projection plans receive no
 inference or bypass.
 
-Append only selected entries and plan-level supporting-owner supplements or
-boundary records that the current task directly cites as
-`supporting-owner supplement <Entry ID>` or
-`boundary row <stable row ID>`. Resolve the identifier only within the named
-record kind; projection-entry selection is separate. Each cited identifier must
-resolve to exactly one record in that domain. Do not discover records merely
-because they mention a selected Entry ID, send the full plan for child
-resolution, recursively follow references, infer missing entries or semantic
-applicability, validate semantic coverage or topology exhaustiveness, or route
-from the projection.
+Every current task must contain each canonical record-reference field exactly
+once:
+
+```markdown
+**Boundary rows:** ["BR-A", "BR-B"]
+**Supporting-owner supplements:** []
+```
+
+Each value is a JSON array of zero or more unique, non-empty string identifiers
+without line breaks. `Boundary rows` contains stable boundary-row IDs, which do
+not inherit Task ID grammar. `Supporting-owner supplements` contains the
+governing projection Entry IDs that key those supplements and therefore uses
+the existing Entry ID form. The controller resolves each field only against
+its declared record kind. Every listed identifier must resolve exactly once in
+that kind. Unknown, duplicate, stale, ambiguous, or cross-kind identifiers
+return `BLOCKED/NEEDS_CONTEXT` to planning before dispatch.
+
+Use only those resolved IDs to curate the uniquely identified plan-level
+records through the controller's existing context-assembly responsibility. This
+is controller interpretation of the reviewed plan contract, not a public helper
+or general Markdown parsing API. Do not
+discover records merely because they mention a selected Entry ID, send the full
+plan for child resolution, recursively follow references, infer missing records
+or semantic applicability, validate semantic coverage or topology
+exhaustiveness, define a record-body grammar, or route from the projection.
 
 Then run the structural task-contract gate against the extracted plan/task
 execution context. Before
 implementer dispatch, reviewer dispatch, final whole-implementation review, or
 skip-dispatch evaluation, assemble the extracted plan/task execution context
-from resolved projection entries, their directly task-cited plan-level records,
+from resolved projection entries, plan-level records curated from the task's
+kind-scoped IDs,
 plan-level Contract Example Discipline obligations or equivalent clearly
 labeled sections/obligations when present, task-local checklist or no-trigger
 status, and any task-local example or verification obligations that refine the
@@ -144,7 +160,7 @@ task-local purpose, inputs and outputs, producer or
 consumer direction when independently necessary and absent from both the
 selected projection tuple and an applicable directly cited boundary row,
 material write or side-effect owner, failure and cleanup behavior, and explicit
-reason every FULL trigger is absent. Selected projection
+reason all five behavioral eligibility dimensions are true. Selected projection
 entries are the only common participant and relationship representation. For
 reviewed plans, D5 owns whether they cover every actual participant and
 independently necessary execution
@@ -162,7 +178,7 @@ labeled section/obligation, apply the shared consumer rule in
 [`references/contract-example-discipline-consumer-rule.md`](references/contract-example-discipline-consumer-rule.md).
 Validate the `LIGHTWEIGHT` structure from the assembled context without
 reclassifying the declared tier. The executor checks the selected entries,
-linked records, and task-local fields structurally; D5 owns semantic coverage
+resolved IDs, curated records, and task-local fields structurally; D5 owns semantic coverage
 for reviewed plans. The controller must not treat
 prompt-mediated consumers as the only consumers or omit guarded-inline D13
 merely because no child prompt is dispatched.
@@ -323,16 +339,16 @@ For the full selection and process diagrams, load
    invocation content. Keep plan-path handling controller-owned; per-task
    implementers receive curated inlined task text, not the plan path.
 2. Extract all authored tasks with their full text, surrounding context,
-   resolved projection entries, directly task-cited plan-level records, declared
+   resolved projection entries, kind-scoped record-reference fields, declared
    contract tier, tier-appropriate contract fields, verification expectations,
    and any mode or route hints.
 3. Assemble the extracted plan/task execution context before implementer
    dispatch, reviewer dispatch, final whole-implementation review, or
-   skip-dispatch evaluation. Include complete supporting-owner supplements or
-   boundary records that the task directly cites as
-   `supporting-owner supplement <Entry ID>` or
-   `boundary row <stable row ID>`. Resolve each identifier only within its named
-   record kind and require exactly one matching record. Include plan-level
+   skip-dispatch evaluation. Resolve the task's canonical identifier lists
+   directly within their declared record kinds, then curate only the uniquely
+   identified supporting-owner supplements and boundary records. Keep
+   kind-scoped resolution separate from semantic applicability and fail closed
+   before dispatch when identity or curation is ambiguous. Include plan-level
    Contract Example Discipline obligations or equivalent clearly labeled
    sections/obligations when present, task-local declared tier and
    tier-appropriate structure, and any task-local example or verification
