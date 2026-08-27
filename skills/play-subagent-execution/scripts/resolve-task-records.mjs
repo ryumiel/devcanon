@@ -231,6 +231,7 @@ function visibleLines(markdown) {
       result.push({
         index,
         text,
+        sourceText,
         blockMarkerFromSourceStart,
         fencedBlockBefore,
       });
@@ -304,16 +305,21 @@ function inlineCodeIdentifier(text, prefix) {
 
 function section(lines, heading) {
   const starts = lines.filter(
-    ({ text, blockMarkerFromSourceStart }) =>
-      text === `## ${heading}` && blockMarkerFromSourceStart,
+    ({ text, sourceText, blockMarkerFromSourceStart }) =>
+      text === `## ${heading}` &&
+      blockMarkerFromSourceStart &&
+      sourceText.startsWith("## "),
   );
   if (starts.length > 1) fail(`duplicate plan section: ${heading}`);
   if (starts.length === 0) return [];
   const start = starts[0].index;
   const end =
     lines.find(
-      ({ index, text, blockMarkerFromSourceStart }) =>
-        index > start && /^## /.test(text) && blockMarkerFromSourceStart,
+      ({ index, text, sourceText, blockMarkerFromSourceStart }) =>
+        index > start &&
+        /^## /.test(text) &&
+        blockMarkerFromSourceStart &&
+        sourceText.startsWith("## "),
     )?.index ?? Number.POSITIVE_INFINITY;
   return lines.filter(({ index }) => index > start && index < end);
 }
@@ -332,8 +338,10 @@ function parseTask(lines, taskId) {
   const taskSection = section(lines, "Tasks");
   if (taskSection.length === 0) fail("missing or empty Tasks section");
   const headings = taskSection.filter(
-    ({ text, blockMarkerFromSourceStart }) =>
-      /^### Task(?:\s|$)/.test(text) && blockMarkerFromSourceStart,
+    ({ text, sourceText, blockMarkerFromSourceStart }) =>
+      /^### Task(?:\s|$)/.test(text) &&
+      blockMarkerFromSourceStart &&
+      sourceText.startsWith("### "),
   );
   if (headings.length === 0) fail("Tasks section contains no task records");
 
@@ -342,8 +350,9 @@ function parseTask(lines, taskId) {
     const recordLines = taskSection.filter(
       (line) => line.index > heading.index && line.index < end,
     );
-    const idFields = recordLines.filter(({ text }) =>
-      text.startsWith("**Task ID:**"),
+    const idFields = recordLines.filter(
+      ({ text, blockMarkerFromSourceStart }) =>
+        blockMarkerFromSourceStart && text.startsWith("**Task ID:**"),
     );
     if (idFields.length !== 1) {
       fail(
@@ -377,7 +386,10 @@ function parseTask(lines, taskId) {
 
 function parseReferenceField(task, label) {
   const prefix = `**${label}:**`;
-  const fields = task.lines.filter(({ text }) => text.startsWith(prefix));
+  const fields = task.lines.filter(
+    ({ text, blockMarkerFromSourceStart }) =>
+      blockMarkerFromSourceStart && text.startsWith(prefix),
+  );
   if (fields.length !== 1) {
     fail(`${label} field must occur exactly once for task ${task.id}`);
   }
@@ -461,8 +473,8 @@ function parseReferenceField(task, label) {
 function recordIdentifiers(lines, tasksStart) {
   const preTasks = lines.filter(({ index }) => index < tasksStart);
   const boundaryIds = preTasks
-    .map(({ text, blockMarkerFromSourceStart }) =>
-      blockMarkerFromSourceStart
+    .map(({ text, sourceText, blockMarkerFromSourceStart }) =>
+      blockMarkerFromSourceStart && sourceText.startsWith("### ")
         ? inlineCodeIdentifier(text, "### Boundary row ")
         : undefined,
     )
@@ -470,7 +482,12 @@ function recordIdentifiers(lines, tasksStart) {
 
   const supplementLines = section(lines, "Supporting-Owner Supplements");
   const supplementIds = supplementLines
-    .filter(({ text }) => text.startsWith("- **Governing Entry ID:**"))
+    .filter(
+      ({ text, sourceText, blockMarkerFromSourceStart }) =>
+        blockMarkerFromSourceStart &&
+        sourceText.startsWith("- ") &&
+        text.startsWith("- **Governing Entry ID:**"),
+    )
     .map(({ text, index }) => {
       const id = inlineCodeIdentifier(text, "- **Governing Entry ID:** ");
       if (id === undefined) {
@@ -527,7 +544,12 @@ if (!taskIdPattern.test(taskId))
   fail(`invalid Task ID: ${diagnosticValue(taskId)}`);
 
 const lines = visibleLines(planText);
-const tasksHeadings = lines.filter(({ text }) => text === "## Tasks");
+const tasksHeadings = lines.filter(
+  ({ text, sourceText, blockMarkerFromSourceStart }) =>
+    text === "## Tasks" &&
+    blockMarkerFromSourceStart &&
+    sourceText.startsWith("## "),
+);
 if (tasksHeadings.length !== 1) fail("plan requires exactly one Tasks section");
 const task = parseTask(lines, taskId);
 const boundaryRowIds = parseReferenceField(task, "Boundary rows");

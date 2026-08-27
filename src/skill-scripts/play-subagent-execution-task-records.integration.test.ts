@@ -341,6 +341,15 @@ describe("play-subagent-execution task record resolver", () => {
         "### Boundary row `BR-A`",
         "<!--\n### ignored -->### Boundary row `BR-A`",
       ),
+      basePlan.replace("## Tasks", "##<!-- --> Tasks"),
+      basePlan.replace(
+        "### Task 1: Resolve records",
+        "###<!-- --> Task 1: Resolve records",
+      ),
+      basePlan.replace(
+        "### Boundary row `BR-A`",
+        "##<!-- --># Boundary row `BR-A`",
+      ),
     ]) {
       const failure = await expectFailure(plan);
       expect(failure.stdout).toBe("");
@@ -360,6 +369,56 @@ describe("play-subagent-execution task record resolver", () => {
     await expect(runHelper(inlineComments)).resolves.toMatchObject({
       stderr: "",
     });
+
+    const syntheticDecoy = basePlan.replace(
+      "## Tasks",
+      "##<!-- --> Tasks\n\n## Tasks",
+    );
+    await expect(runHelper(syntheticDecoy)).resolves.toMatchObject({
+      stderr: "",
+    });
+
+    const internalLabelComments = basePlan
+      .replace(
+        '**Boundary rows:** ["BR-B", "BR-A"]',
+        '**Boundary<!-- --> rows:** ["BR-B", "BR-A"]',
+      )
+      .replace(
+        "- **Governing Entry ID:** `EP-A`",
+        "- **Governing<!-- --> Entry ID:** `EP-A`",
+      );
+    await expect(runHelper(internalLabelComments)).resolves.toMatchObject({
+      stderr: "",
+    });
+  });
+
+  it("does not synthesize fields or supplement anchors from HTML comments", async () => {
+    for (const plan of [
+      basePlan.replace(
+        "**Task ID:** TASK-A",
+        "<!--prefix-->**Task ID:** TASK-A",
+      ),
+      basePlan.replace(
+        '**Boundary rows:** ["BR-B", "BR-A"]',
+        '<!--prefix-->**Boundary rows:** ["BR-B", "BR-A"]',
+      ),
+      basePlan.replace(
+        '**Supporting-owner supplements:** ["EP-A"]',
+        '<!--prefix-->**Supporting-owner supplements:** ["EP-A"]',
+      ),
+      basePlan.replace(
+        "- **Governing Entry ID:** `EP-A`",
+        "<!--prefix-->- **Governing Entry ID:** `EP-A`",
+      ),
+      basePlan.replace(
+        "- **Governing Entry ID:** `EP-A`",
+        "-<!-- --> **Governing Entry ID:** `EP-A`",
+      ),
+    ]) {
+      const failure = await expectFailure(plan);
+      expect(failure.stdout).toBe("");
+      expect(failure.stderr).not.toBe("");
+    }
   });
 
   it("keeps multiline code spans inside their paragraph block", async () => {
