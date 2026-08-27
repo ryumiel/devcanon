@@ -47,9 +47,10 @@ only for passive-runtime payload contents and current-format catalog custody.
 ADR-0024's other deterministic-runtime, resolution, and packaging decisions
 remain accepted.
 
-Route skills use target-rendered full-model bindings. The source capability
-names the profile during rendering; a controller later consumes the literal
-binding for its target and fails closed if it is missing or invalid. It does
+Route skills use execution-target-bound full-model bindings. The source
+capability names the profile during rendering; an explicit Codex spawn uses the
+Codex-bound placeholder in both artifact targets, and a controller later
+consumes that literal binding and fails closed if it is missing or invalid. It does
 not rediscover source configuration or use the sibling passive runtime catalog
 as a model fallback.
 

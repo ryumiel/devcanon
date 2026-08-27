@@ -173,15 +173,15 @@ approval, continuation, mutation, and manifest authority.
 Dispatch exactly one fresh existing response-only `assessor`, balanced/medium,
 source-immutable, with `external_authority: none`, zero handoffs, no network,
 and no inherited turns. Resolve `D18_MODEL` from
-its target-rendered binding: `D18_MODEL` = `{{model:balanced}}`. This is the
-exact full model for this target. A missing, blank, unresolved, or mismatched
+its Codex-bound binding: `D18_MODEL` = `{{model-codex:balanced}}`. This is the
+exact full Codex model. A missing, blank, unresolved, or mismatched
 marker blocks before capture or spawn. Do not search a source checkout, use an
 alias, or fall back to a nearby or ambient model. Choose the next unused
 route-local `d18_<instance_ordinal>` through the lifecycle owner, capture the
 existing source-immutability baseline, then spawn:
 
 ```text
-# D18_MODEL is the target-rendered balanced model
+# D18_MODEL is the Codex-bound balanced model
 Codex.spawn_agent({
   task_name: d18_<instance_ordinal>,
   agent_type: "assessor",
@@ -239,15 +239,15 @@ Each selected topical route is an independent response-only `reviewer`, frontier
 For each selected D7, D8, or D9 route, resolve and validate a complete
 fresh-Codex tuple before its capture: `semantic_role: reviewer`;
 `capability: frontier`; full `model` resolved exactly from
-the target-rendered route binding; independent
+the Codex-bound rendered route binding; independent
 `reasoning_effort: high`; `source_authority: source-immutable`;
 `external_authority: none`; and zero handoffs. Require the role capability,
 every tuple value, and nonblank resolved model; do not infer model or effort
 from an ambient runtime, alias, or inherited conversation.
 
-Target-rendered route bindings: `D7_MODEL` = `{{model:frontier}}`,
-`D8_MODEL` = `{{model:frontier}}`, and `D9_MODEL` = `{{model:frontier}}`.
-Each is the exact full model for this target; their independent effort remains
+Codex-bound route bindings: `D7_MODEL` = `{{model-codex:frontier}}`,
+`D8_MODEL` = `{{model-codex:frontier}}`, and `D9_MODEL` = `{{model-codex:frontier}}`.
+Each is the exact full Codex model; their independent effort remains
 `high`. A missing, blank, unresolved, or mismatched marker blocks before
 capture or spawn. Do not search a source checkout, use an alias, or fall back
 to a nearby or ambient model.
@@ -272,7 +272,7 @@ each selected route:
 
 ```text
 # D7 Code-quality
-# D7_MODEL is the target-rendered frontier model
+# D7_MODEL is the Codex-bound frontier model
 Codex.spawn_agent({
   task_name: d7_<instance_ordinal>,
   agent_type: "reviewer",
@@ -282,7 +282,7 @@ Codex.spawn_agent({
   message: D7_PROMPT,
 })
 # D8 Architecture
-# D8_MODEL is the target-rendered frontier model
+# D8_MODEL is the Codex-bound frontier model
 Codex.spawn_agent({
   task_name: d8_<instance_ordinal>,
   agent_type: "reviewer",
@@ -292,7 +292,7 @@ Codex.spawn_agent({
   message: D8_PROMPT,
 })
 # D9 Spec
-# D9_MODEL is the target-rendered frontier model
+# D9_MODEL is the Codex-bound frontier model
 Codex.spawn_agent({
   task_name: d9_<instance_ordinal>,
   agent_type: "reviewer",
@@ -519,7 +519,7 @@ the cited text. See `references/critic-rationale.md`.
 
 Before D10 capture, resolve and validate its complete fresh-Codex tuple:
 `semantic_role: reviewer`; `capability: frontier`; full `model` resolved
-exactly from the target-rendered D10 binding; independent
+exactly from the Codex-bound rendered D10 binding; independent
 `reasoning_effort: high`; `source_authority: source-immutable`;
 `external_authority: none`; zero handoffs; and no recursion. Build one
 self-contained critic prompt from the current working directory, captured
@@ -536,8 +536,8 @@ completed and superseded rows, so do not reuse it. Resolve `task_name` as
 and be absent from all retained controller ledger task names. Keep critic and
 head identity in the existing ledger dimensions, not in `task_name`.
 
-Target-rendered route binding: `D10_MODEL` = `{{model:frontier}}`. The binding
-is the exact full model for this target; the independent effort remains
+Codex-bound route binding: `D10_MODEL` = `{{model-codex:frontier}}`. The binding
+is the exact full Codex model; the independent effort remains
 `high`. A missing, blank, unresolved, or mismatched marker blocks before
 capture or spawn. Do not search a source checkout, use an alias, or fall back
 to a nearby or ambient model.
@@ -546,7 +546,7 @@ After validation and the existing capture, make exactly one fresh critic
 creation:
 
 ```text
-# D10_MODEL is the target-rendered frontier model
+# D10_MODEL is the Codex-bound frontier model
 Codex.spawn_agent({
   task_name: d10_<instance_ordinal>,
   agent_type: "reviewer",

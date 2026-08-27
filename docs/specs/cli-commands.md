@@ -203,7 +203,8 @@ devcanon render --target <claude|codex>
 
 `--target` limits generated outputs and stale-output cleanup to the selected
 enabled target. Without it, `render` processes every enabled target. Only
-`claude` and `codex` are accepted; another value is an error.
+`claude` and `codex` are accepted; any other supplied value, including an empty
+string, is an error.
 
 ---
 

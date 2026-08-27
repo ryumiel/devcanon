@@ -58,8 +58,9 @@ order:
 4. the packaged `devcanon-runtime` catalog when no source configuration is
    selected.
 
-An explicit or environment path that is missing is an error; it does not fall
-through to a lower-precedence source or the catalog. Likewise, once a source
+An explicit path that is empty or missing, or an environment path that is
+missing, is an error; it does not fall through to a lower-precedence source or
+the catalog. Likewise, once a source
 configuration is selected, YAML or schema failure is reported for that source
 and no fallback occurs. A present current-directory config also wins over the
 catalog and fails closed when invalid.
@@ -289,6 +290,9 @@ the user-facing boundary without replacing that source authority.
 - Skill tokens resolve per target: `{{model:frontier}}` becomes the configured
   `frontier.claude` or `frontier.codex` string. Agent target model fields do not
   accept model placeholders.
+- Codex-bound skill tokens such as `{{model-codex:frontier}}` become the
+  configured `frontier.codex` string in both artifact targets because their
+  consumer is an explicit Codex execution primitive.
 - DevCanon provides no custom, compatibility, transitional, or legacy profiles
   and no automatic translation from v1.
 

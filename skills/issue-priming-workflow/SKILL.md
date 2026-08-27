@@ -216,7 +216,7 @@ or effort and do not escalate this bounded gate into a different route.
 
 Before D1 capture, assemble and validate its complete fresh-Codex tuple:
 `semantic_role: assessor`; `capability: balanced`; `model` resolved exactly
-from the target-rendered D1 binding; independent
+from the Codex-bound rendered D1 binding; independent
 `reasoning_effort: medium`; `source_authority: source-immutable`;
 `external_authority: none`; zero handoffs; and the fully substituted gate
 prompt. Before capture, choose `<instance_ordinal>` as the next positive base-10
@@ -231,14 +231,14 @@ capability to be `balanced`, and require a nonblank resolved full model. Do not
 derive model or effort from conversation history, an ambient runtime, or an
 alias. Only after this validation, create exactly one fresh Codex child:
 
-Target-rendered route binding: `D1_MODEL` = `{{model:balanced}}`. The binding
-is the exact full model for this target; the independent effort remains
+Codex-bound route binding: `D1_MODEL` = `{{model-codex:balanced}}`. The binding
+is the exact full Codex model; the independent effort remains
 `medium`. A missing, blank, unresolved, or mismatched marker blocks before
 capture or spawn. Do not search a source checkout, use an alias, or fall back
 to a nearby or ambient model.
 
 ```text
-# D1_MODEL is the target-rendered balanced model
+# D1_MODEL is the Codex-bound balanced model
 Codex.spawn_agent({
   task_name: d1_<instance_ordinal>,
   agent_type: "assessor",
@@ -344,7 +344,7 @@ grant external mutation.
 For each D2 or D3 leaf, after its guarded prompt inputs have passed validation
 and before capture, assemble its complete fresh-Codex tuple. Set
 `semantic_role: investigator`; `capability: balanced`; resolve `model` exactly
-from the target-rendered D2 or D3 binding; set independent
+from the Codex-bound rendered D2 or D3 binding; set independent
 `reasoning_effort: high`; `source_authority: source-immutable`; and
 `external_authority: none`. D2 declares no network access. D3 preserves its
 dispatch-named network binding and `named-network` evidence qualifier for only
@@ -365,8 +365,8 @@ each to be nonblank, match `^[a-z0-9_]+$`, and be absent from all retained
 controller ledger task names. Keep scope and sibling identity in the existing
 ledger dimensions, not in `task_name`.
 
-Target-rendered route bindings: `D2_MODEL` = `{{model:balanced}}` and
-`D3_MODEL` = `{{model:balanced}}`. Each binding is the exact full model for
+Codex-bound route bindings: `D2_MODEL` = `{{model-codex:balanced}}` and
+`D3_MODEL` = `{{model-codex:balanced}}`. Each binding is the exact full model for
 this target; their independent effort remains `high`. A missing, blank,
 unresolved, or mismatched marker blocks before capture or spawn. Do not search
 a source checkout, use an alias, or fall back to a nearby or ambient model.
@@ -375,7 +375,7 @@ Create each permitted leaf once and only in its selected route:
 
 ```text
 # D2 internal research
-# D2_MODEL is the target-rendered balanced model
+# D2_MODEL is the Codex-bound balanced model
 Codex.spawn_agent({
   task_name: d2_<instance_ordinal>,
   agent_type: "investigator",
@@ -385,7 +385,7 @@ Codex.spawn_agent({
   message: D2_PROMPT,
 })
 # D3 external research
-# D3_MODEL is the target-rendered balanced model
+# D3_MODEL is the Codex-bound balanced model
 Codex.spawn_agent({
   task_name: d3_<instance_ordinal>,
   agent_type: "investigator",

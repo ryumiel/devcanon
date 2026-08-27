@@ -20,7 +20,10 @@ const KNOWN_TARGET_KEYS = new Set<string>(CONFIG_TARGET_FIELDS);
 const KNOWN_CODEX_TARGET_KEYS = new Set<string>(CODEX_CONFIG_TARGET_FIELDS);
 
 export async function findConfigPath(explicitPath?: string): Promise<string> {
-  if (explicitPath) {
+  if (explicitPath !== undefined) {
+    if (explicitPath.length === 0) {
+      throw new UserError("Config path must not be empty.");
+    }
     const resolved = path.resolve(explicitPath);
     if (await pathExists(resolved)) return resolved;
     throw new UserError(

@@ -142,23 +142,27 @@ for the rewrite triggers.
 
 ## Placeholders
 
-Three placeholder namespaces resolve at render time against
+Four placeholder forms resolve at render time against
 glossaries in `devcanon.config.yaml`:
 
 - `{{model:<capability>}}` against `capabilityProfiles` (for example,
   `{{model:frontier}}`).
+- `{{model-codex:<capability>}}` against the Codex member of
+  `capabilityProfiles` for prose that feeds an explicit Codex execution
+  primitive, regardless of the rendered artifact target.
 - `{{tool:<key>}}` against `toolNames` (e.g.
   `{{tool:task-tracker}}`).
 - `{{file:<key>}}` against `fileArtifacts` (e.g.
   `{{file:project-instructions}}`).
 
-All three share the same shape: each glossary entry is a
+The glossaries share the same shape: each entry is a
 `{claude, codex}` pair. During the Claude render pass, the entry's
 `claude` value is substituted; during the Codex pass, the `codex`
-value. The same skill source therefore produces different rendered
-strings in `generated/claude/...` and `generated/codex/...`.
+value. `model-codex` is the bounded exception: it selects the `codex` member in
+both passes because its consumer is explicitly a Codex execution primitive.
 
 Escape with a leading backslash: `\{{model:frontier}}`,
+`\{{model-codex:frontier}}`,
 `\{{tool:task-tracker}}`, `\{{file:project-instructions}}`.
 Placeholders inside fenced code blocks (backtick or tilde) are
 not substituted.
@@ -186,6 +190,8 @@ these invalid forms rather than silently leaving them unresolved.
 - Use `{{model:efficient}}`, `{{model:balanced}}`, and
   `{{model:frontier}}` for model-capability references in shared
   skill bodies.
+- Use `{{model-codex:<capability>}}` only when the rendered value is passed to
+  an explicit Codex execution primitive in both artifact targets.
 - Use `{{tool:<key>}}` and `{{file:<key>}}` for tool and
   artifact names whose spelling differs across targets. Example:
   `{{tool:task-tracker}}` instead of literal `TodoWrite`;

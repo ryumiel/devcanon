@@ -15,35 +15,26 @@ import { renderAll } from "./pipeline.js";
 import { buildGlossary, resolvePlaceholders } from "./placeholders.js";
 
 const TARGETS = ["claude", "codex"] as const;
-const FIXED_ROUTE_OWNER_CONTRACT: Array<{
-  id: string;
-  owner: string;
-  capability?: string;
-  branch?: string;
-}> = [
-  { id: "D1", owner: "issue-priming-workflow" },
-  { id: "D2", owner: "issue-priming-workflow" },
-  { id: "D3", owner: "issue-priming-workflow" },
-  { id: "D4", capability: "efficient", owner: "play-agent-dispatch" },
-  { id: "D4", capability: "balanced", owner: "play-agent-dispatch" },
-  { id: "D4", capability: "frontier", owner: "play-agent-dispatch" },
-  { id: "D5", owner: "play-planning" },
-  { id: "D6", owner: "play-planning" },
-  { id: "D7", owner: "play-review" },
-  { id: "D8", owner: "play-review" },
-  { id: "D9", owner: "play-review" },
-  { id: "D10", owner: "play-review" },
-  { id: "D11", owner: "play-skill-authoring" },
-  { id: "D12", owner: "play-subagent-execution" },
-  { id: "D13", owner: "play-subagent-execution" },
-  { id: "D14", owner: "play-subagent-execution" },
-  { id: "D15", owner: "play-subagent-execution" },
-  { id: "D16", owner: "play-subagent-execution" },
-  { id: "D17", branch: "diagnosis", owner: "pr-merge" },
-  { id: "D17", branch: "exact-fix", owner: "pr-merge" },
-  { id: "D17", branch: "judgment-fix", owner: "pr-merge" },
-  { id: "D18", owner: "play-review" },
-];
+const FIXED_ROUTE_OWNER_CONTRACT = [
+  ["D1", "issue-priming-workflow"],
+  ["D2", "issue-priming-workflow"],
+  ["D3", "issue-priming-workflow"],
+  ["D4", "play-agent-dispatch"],
+  ["D5", "play-planning"],
+  ["D6", "play-planning"],
+  ["D7", "play-review"],
+  ["D8", "play-review"],
+  ["D9", "play-review"],
+  ["D10", "play-review"],
+  ["D11", "play-skill-authoring"],
+  ["D12", "play-subagent-execution"],
+  ["D13", "play-subagent-execution"],
+  ["D14", "play-subagent-execution"],
+  ["D15", "play-subagent-execution"],
+  ["D16", "play-subagent-execution"],
+  ["D17", "pr-merge"],
+  ["D18", "play-review"],
+] as const;
 const ROUTE_OWNER_SKILLS = [
   "issue-priming-workflow",
   "play-agent-dispatch",
@@ -61,7 +52,7 @@ function normalizeContractText(content: string): string {
 function expectNoForbiddenRouteModelTokens(content: string): void {
   expect(content).not.toContain("devcanon.config.yaml");
   expect(content).not.toContain("capabilityProfiles.");
-  expect(content).not.toContain("{{model:");
+  expect(content).not.toMatch(/\{\{model(?:-codex)?:/u);
   expect(content).not.toMatch(/model\s*[=:]\s*capabilityProfiles\.[\w.]+/u);
 }
 
@@ -211,10 +202,13 @@ describe("shipped skill rendering", () => {
         const { body } = parseFrontmatter(
           getSkillOutput(outputs, skill, target).content,
         );
-        const configuredModel = config.capabilityProfiles[capability][target];
+        const normalizedBody = normalizeContractText(body);
+        const configuredModel = config.capabilityProfiles[capability].codex;
 
-        expect(body).toContain(`\`${binding}\` = \`${configuredModel}\``);
-        expect(body).not.toContain(
+        expect(normalizedBody).toContain(
+          `\`${binding}\` = \`${configuredModel}\``,
+        );
+        expect(normalizedBody).not.toContain(
           `\`${binding}\` resolves to \`${config.capabilityProfiles[capability].claude}\``,
         );
       }
@@ -224,14 +218,14 @@ describe("shipped skill rendering", () => {
       const { body } = parseFrontmatter(
         getSkillOutput(outputs, "play-agent-dispatch", target).content,
       );
-      expect(body).toContain("target-rendered Codex model bindings");
+      const normalizedBody = normalizeContractText(body);
+      expect(normalizedBody).toContain("Codex-bound model bindings");
       for (const capability of ["efficient", "balanced", "frontier"] as const) {
-        expect(body).toContain(
-          `\`${capability}\` → \`${config.capabilityProfiles[capability][target]}\``,
+        expect(normalizedBody).toContain(
+          `\`${capability}\` → \`${config.capabilityProfiles[capability].codex}\``,
         );
-        const otherTarget = target === "claude" ? "codex" : "claude";
-        expect(body).not.toContain(
-          `\`${capability}\` → \`${config.capabilityProfiles[capability][otherTarget]}\``,
+        expect(normalizedBody).not.toContain(
+          `\`${capability}\` → \`${config.capabilityProfiles[capability].claude}\``,
         );
       }
     }
@@ -318,10 +312,10 @@ describe("shipped skill rendering", () => {
           }),
         );
         const renderedFiles = new Map<string, string>(bundleFiles.flat());
-        for (const route of FIXED_ROUTE_OWNER_CONTRACT) {
+        for (const [id, owner] of FIXED_ROUTE_OWNER_CONTRACT) {
           expect(
-            renderedFiles.has(`${route.owner}/SKILL.md`),
-            `${target} ${route.id}${route.capability ? ` ${route.capability}` : ""}${route.branch ? ` ${route.branch}` : ""} owner ${route.owner} is rendered`,
+            renderedFiles.has(`${owner}/SKILL.md`),
+            `${target} ${id} owner ${owner} is rendered`,
           ).toBe(true);
         }
 
@@ -374,7 +368,7 @@ describe("shipped skill rendering", () => {
       );
       expect(playReview).toContain("`semantic_role: reviewer`");
       expect(playReview).toContain(d10Spawn);
-      expect(playReview).toContain(config.capabilityProfiles.frontier[target]);
+      expect(playReview).toContain(config.capabilityProfiles.frontier.codex);
       expect(playReview).not.toContain(
         "D10 is one response-only `deep-reviewer`, frontier/xhigh",
       );
@@ -388,7 +382,7 @@ describe("shipped skill rendering", () => {
       for (const route of ["D14", "D15", "D16"] as const) {
         expect(execution).toContain(
           [
-            `# ${route}: ${route}_MODEL is the target-rendered frontier model`,
+            `# ${route}: ${route}_MODEL is the Codex-bound frontier model`,
             "Codex.spawn_agent({",
             `  task_name: ${route.toLowerCase()}_<instance_ordinal>,`,
             '  agent_type: "deep-reviewer",',
@@ -425,7 +419,7 @@ describe("shipped skill rendering", () => {
       );
 
       expect(body).toContain(d18Spawn);
-      expect(body).toContain(config.capabilityProfiles.balanced[target]);
+      expect(body).toContain(config.capabilityProfiles.balanced.codex);
     }
   });
 

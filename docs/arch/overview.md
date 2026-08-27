@@ -143,8 +143,8 @@ remain independent. The evolving complete inventories live in the
 owns the stable decision.
 
 Fresh child controllers consume the full Codex model from the route's
-target-rendered binding and effort from the independent route tuple. Source
-capability profiles supply the binding only during target rendering. The
+Codex-bound rendered binding and effort from the independent route tuple.
+Source capability profiles supply the binding only during rendering. The
 running-session configuration is fixed by ADR-0027; changed required tuple or
 task identity needs a new session. The shared lifecycle procedure owns the
 transition mechanics, while route skills own permitted task-local continuation.

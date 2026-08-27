@@ -72,8 +72,8 @@ resolution follows this precedence for `codex.model`:
 
 Explicit suppression bypasses resolution; it does not alter the model-only
 capability catalog or couple a profile to effort. Fresh route dispatch remains a
-separate controller concern: the selected capability produces a target-rendered
-binding during rendering, then dispatch consumes that literal full model with
+separate controller concern: the selected capability produces a binding for the
+dispatch primitive during rendering, then dispatch consumes that literal full model with
 independent route effort. Dispatch does not rediscover source configuration or
 the sibling runtime catalog to select or replace a model.
 
@@ -86,9 +86,12 @@ Effort remains an explicit target-native field: `claude.effort` or
 field is omitted and the target's ambient behavior applies. Capability
 resolution never supplies, inherits, or changes effort.
 
-Skill prose and top-level string fields in skill target overrides may use only
-the canonical `{{model:efficient}}`, `{{model:balanced}}`, and
-`{{model:frontier}}` tokens. Agent literal target `model` fields reject model
+Skill prose and top-level string fields in skill target overrides may use the
+canonical target-native `{{model:efficient}}`, `{{model:balanced}}`, and
+`{{model:frontier}}` tokens. Prose that passes a value to an explicit Codex
+execution primitive may instead use the corresponding
+`{{model-codex:<capability>}}` form, which selects the Codex catalog member in
+both artifact targets. Agent literal target `model` fields reject model
 placeholders; the agent spec's `codex.model: null` suppression is the only
 non-literal model-source state.
 

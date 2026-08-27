@@ -401,7 +401,7 @@ sandbox, approvals, or `**Mode:** mechanical`. Mechanical mode does not select a
 capability.
 
 The route owner supplies the capability and independent effort. Every fresh
-Codex dispatch resolves its full model from its target-rendered route binding
+Codex dispatch resolves its full model from its Codex-bound rendered route binding
 and passes both model and effort explicitly. Semantic role TOML omits those
 target-local dispatch values. D12
 uses `implementer`, balanced/high; D13 uses `executor`, efficient/medium; and
@@ -411,7 +411,7 @@ mutation authority.
 ### D12-D16 fresh-Codex dispatch contract
 
 For every fresh D12-D16 child, resolve the full model exactly from its
-target-rendered route binding; capability selects the model, while effort
+Codex-bound rendered route binding; capability selects the model, while effort
 remains independent. Before lifecycle capture,
 validate the complete route tuple: route, semantic role, capability, nonblank
 configured full model, independent effort, source and external authority,
@@ -429,10 +429,11 @@ route-specific values below.
 | D15   | `deep-reviewer` / `frontier` / `xhigh` | source-immutable; external none | Independent D15 prompt, captured task head, response-only report              | Provisional/final same-head disposition/fix loop                 |
 | D16   | `deep-reviewer` / `frontier` / `xhigh` | source-immutable; external none | Fresh D16 whole-range prompt, base/head, response-only report                 | Exact ADR-0016 skip or final fix/fresh-review/terminal route     |
 
-Target-rendered route bindings: `D12_MODEL` = `{{model:balanced}}`;
-`D13_MODEL` = `{{model:efficient}}`; `D14_MODEL` = `{{model:frontier}}`;
-`D15_MODEL` = `{{model:frontier}}`; and `D16_MODEL` = `{{model:frontier}}`.
-Each is the exact full model for this target and retains the independent effort
+Codex-bound route bindings: `D12_MODEL` = `{{model-codex:balanced}}`;
+`D13_MODEL` = `{{model-codex:efficient}}`; `D14_MODEL` =
+`{{model-codex:frontier}}`; `D15_MODEL` = `{{model-codex:frontier}}`; and
+`D16_MODEL` = `{{model-codex:frontier}}`.
+Each is the exact full Codex model and retains the independent effort
 declared in its route row. A missing, blank, unresolved, or mismatched marker
 blocks before capture or spawn. Do not search a source checkout, use an alias,
 or fall back to a nearby or ambient model.
@@ -441,7 +442,7 @@ After validation and the existing route-local capture, create exactly one fresh
 child with the actual Codex fields:
 
 ```text
-# D12: D12_MODEL is the target-rendered balanced model
+# D12: D12_MODEL is the Codex-bound balanced model
 Codex.spawn_agent({
   task_name: d12_<instance_ordinal>,
   agent_type: "implementer",
@@ -450,7 +451,7 @@ Codex.spawn_agent({
   fork_turns: "none",
   message: D12_SELF_CONTAINED_PROMPT,
 })
-# D13: D13_MODEL is the target-rendered efficient model
+# D13: D13_MODEL is the Codex-bound efficient model
 Codex.spawn_agent({
   task_name: d13_<instance_ordinal>,
   agent_type: "executor",
@@ -459,7 +460,7 @@ Codex.spawn_agent({
   fork_turns: "none",
   message: D13_SELF_CONTAINED_PROMPT,
 })
-# D14: D14_MODEL is the target-rendered frontier model
+# D14: D14_MODEL is the Codex-bound frontier model
 Codex.spawn_agent({
   task_name: d14_<instance_ordinal>,
   agent_type: "deep-reviewer",
@@ -468,7 +469,7 @@ Codex.spawn_agent({
   fork_turns: "none",
   message: D14_SELF_CONTAINED_PROMPT,
 })
-# D15: D15_MODEL is the target-rendered frontier model
+# D15: D15_MODEL is the Codex-bound frontier model
 Codex.spawn_agent({
   task_name: d15_<instance_ordinal>,
   agent_type: "deep-reviewer",
@@ -477,7 +478,7 @@ Codex.spawn_agent({
   fork_turns: "none",
   message: D15_SELF_CONTAINED_PROMPT,
 })
-# D16: D16_MODEL is the target-rendered frontier model
+# D16: D16_MODEL is the Codex-bound frontier model
 Codex.spawn_agent({
   task_name: d16_<instance_ordinal>,
   agent_type: "deep-reviewer",

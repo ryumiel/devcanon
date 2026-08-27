@@ -47,7 +47,7 @@ input.
 
 Before every D11 RED, GREEN, or REFACTOR capture, resolve and validate the
 complete fresh-Codex tuple: `semantic_role: assessor`; `capability: balanced`;
-full `model` resolved exactly from the target-rendered D11 binding; independent
+full `model` resolved exactly from the Codex-bound rendered D11 binding; independent
 `reasoning_effort: medium`;
 `source_authority: source-immutable`; `external_authority: none`; and zero
 handoffs. Build a self-contained scenario prompt naming the repository root,
@@ -65,8 +65,8 @@ match `^[a-z0-9_]+$`, and be absent from all retained controller ledger task
 names. Keep phase, scenario, and retest identity in the existing ledger
 dimensions, not in `task_name`.
 
-Target-rendered route binding: `D11_MODEL` = `{{model:balanced}}`. The binding
-is the exact full model for this target; the independent effort remains
+Codex-bound route binding: `D11_MODEL` = `{{model-codex:balanced}}`. The binding
+is the exact full Codex model; the independent effort remains
 `medium`. A missing, blank, unresolved, or mismatched marker blocks before
 capture or spawn. Do not search a source checkout, use an alias, or fall back
 to a nearby or ambient model.
@@ -74,7 +74,7 @@ to a nearby or ambient model.
 After validation and the existing capture, create exactly one fresh evaluator:
 
 ```text
-# D11_MODEL is the target-rendered balanced model
+# D11_MODEL is the Codex-bound balanced model
 Codex.spawn_agent({
   task_name: d11_<instance_ordinal>,
   agent_type: "assessor",

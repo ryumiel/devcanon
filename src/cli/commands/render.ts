@@ -13,7 +13,10 @@ export async function renderAction(
 ): Promise<void> {
   const logger = getLogger();
   const globalOpts = command.parent?.opts() ?? {};
-  if (options.target && !["claude", "codex"].includes(options.target)) {
+  if (
+    options.target !== undefined &&
+    !["claude", "codex"].includes(options.target)
+  ) {
     throw new UserError(
       `Invalid target "${options.target}". Must be "claude" or "codex".`,
     );

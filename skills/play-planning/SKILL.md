@@ -749,15 +749,15 @@ remits, responses, and lifecycle state separate.
 
 Before either capture, resolve and validate the two complete fresh-Codex tuples.
 Both use `semantic_role: reviewer`, `capability: frontier`, the full model
-resolved exactly from the target-rendered route binding, independent
+resolved exactly from the Codex-bound rendered route binding, independent
 `reasoning_effort: high`,
 `source_authority: source-immutable`, `external_authority: none`, and zero
 handoffs. Require the reviewer role capability to be `frontier`, every tuple
 field to be present, and the resolved model to be nonblank. Do not derive model
 or effort from the enclosing conversation, an ambient runtime, or an alias.
 
-Target-rendered route bindings: `D5_MODEL` = `{{model:frontier}}` and
-`D6_MODEL` = `{{model:frontier}}`. Each is the exact full model for this
+Codex-bound route bindings: `D5_MODEL` = `{{model-codex:frontier}}` and
+`D6_MODEL` = `{{model-codex:frontier}}`. Each is the exact full Codex model for this
 target; their independent effort remains `high`. A missing, blank, unresolved,
 or mismatched marker blocks before capture or spawn. Do not search a source
 checkout, use an alias, or fall back to a nearby or ambient model.
@@ -783,7 +783,7 @@ After both complete tuples validate and both captures succeed, make exactly one
 fresh creation for each independent session:
 
 ```text
-# D5_MODEL is the target-rendered frontier model
+# D5_MODEL is the Codex-bound frontier model
 Codex.spawn_agent({
   task_name: d5_<instance_ordinal>,
   agent_type: "reviewer",
@@ -792,7 +792,7 @@ Codex.spawn_agent({
   fork_turns: "none",
   message: D5_PLAN_REVIEW_PROMPT,
 })
-# D6_MODEL is the target-rendered frontier model
+# D6_MODEL is the Codex-bound frontier model
 Codex.spawn_agent({
   task_name: d6_<instance_ordinal>,
   agent_type: "reviewer",

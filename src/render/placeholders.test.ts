@@ -63,6 +63,18 @@ describe("resolvePlaceholders", () => {
     },
   );
 
+  it.each(["claude", "codex"] as const)(
+    "substitutes an explicitly Codex-bound model for the %s artifact target",
+    (target) => {
+      const out = resolvePlaceholders(
+        "use {{model-codex:balanced}} for Codex dispatch",
+        target,
+        MODEL_ONLY,
+      );
+      expect(out).toBe("use gpt-5.4 for Codex dispatch");
+    },
+  );
+
   it.each([
     ["efficient", "gpt-5.4-mini"],
     ["balanced", "gpt-5.4"],
@@ -237,6 +249,17 @@ describe("resolvePlaceholders", () => {
       );
     },
   );
+
+  it("rejects an unsupported Codex-bound model capability", () => {
+    expect(() =>
+      resolvePlaceholders("{{model-codex:standard}}", "claude", MODEL_ONLY, {
+        skillName: "codex-bound-models",
+        target: "claude",
+      }),
+    ).toThrow(
+      /codex-bound-models.*claude.*model-codex:standard.*model-codex:efficient.*model-codex:balanced.*model-codex:frontier/iu,
+    );
+  });
 
   it("rejects malformed active model keys with canonical guidance", () => {
     expect(() =>

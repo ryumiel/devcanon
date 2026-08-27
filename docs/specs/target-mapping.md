@@ -35,7 +35,10 @@ not derive from capability.
 
 Skills use the same catalog only through canonical model placeholders in prose
 and supported top-level override strings. Agent target `model` fields accept
-literal strings, not placeholders.
+literal strings, not placeholders. `{{model:<capability>}}` follows the
+artifact target. `{{model-codex:<capability>}}` selects the Codex member in
+both artifact targets and is reserved for a value passed to an explicit Codex
+execution primitive.
 
 ### Claude mapping
 

@@ -204,7 +204,7 @@ or ambient agent.
 
 Before every fresh D17 diagnosis or classified fix, validate the complete route
 tuple: route, semantic role, capability, nonblank full model resolved exactly
-from its target-rendered route binding, independent effort, source/external
+from its Codex-bound rendered route binding, independent effort, source/external
 authority, runtime `task_name`, `fork_turns: "none"`,
 self-contained prompt/context, expected output, and termination. Missing or
 mismatched values block before capture or spawn. Apply the shared
@@ -215,10 +215,11 @@ authorized paths, collected CI evidence, response-only or mutable constraint,
 expected diagnosis/fix report, and the termination below. After validation and
 the existing lifecycle/capture gate, use the actual Codex fields:
 
-Target-rendered route bindings: `D17_DIAGNOSIS_MODEL` = `{{model:balanced}}`;
-`D17_EXACT_FIX_MODEL` = `{{model:efficient}}`; and
-`D17_JUDGMENT_FIX_MODEL` = `{{model:balanced}}`. Each is the exact full model
-for this target and retains the independent effort declared in its classified
+Codex-bound route bindings: `D17_DIAGNOSIS_MODEL` =
+`{{model-codex:balanced}}`; `D17_EXACT_FIX_MODEL` =
+`{{model-codex:efficient}}`; and `D17_JUDGMENT_FIX_MODEL` =
+`{{model-codex:balanced}}`. Each is the exact full Codex model
+for Codex dispatch and retains the independent effort declared in its classified
 route. A missing, blank, unresolved, or mismatched marker blocks before
 capture or spawn. Do not search a source checkout, use an alias, or fall back
 to a nearby or ambient model.
@@ -226,7 +227,7 @@ to a nearby or ambient model.
 ```text
 # Diagnosis: source-immutable, response-only; output is the evidence-only
 # diagnosis. Termination is diagnosis validation, cleanup, then classification.
-# D17_DIAGNOSIS_MODEL is the target-rendered balanced model
+# D17_DIAGNOSIS_MODEL is the Codex-bound balanced model
 Codex.spawn_agent({
   task_name: d17_<instance_ordinal>,
   agent_type: "investigator",
@@ -237,7 +238,7 @@ Codex.spawn_agent({
 })
 # Exact mechanical fix: source-mutable; output is scoped committed fix/report.
 # Termination returns the committed result to the root for verification/push.
-# D17_EXACT_FIX_MODEL is the target-rendered efficient model
+# D17_EXACT_FIX_MODEL is the Codex-bound efficient model
 Codex.spawn_agent({
   task_name: d17_<instance_ordinal>,
   agent_type: "executor",
@@ -248,7 +249,7 @@ Codex.spawn_agent({
 })
 # Judgment-bearing fix: source-mutable; output is scoped committed fix/report.
 # Termination returns the committed result to the root for verification/push.
-# D17_JUDGMENT_FIX_MODEL is the target-rendered balanced model
+# D17_JUDGMENT_FIX_MODEL is the Codex-bound balanced model
 Codex.spawn_agent({
   task_name: d17_<instance_ordinal>,
   agent_type: "implementer",
@@ -259,7 +260,7 @@ Codex.spawn_agent({
 })
 ```
 
-The resolved `D17_*_MODEL` is the full target-rendered model, never an ambient,
+The resolved `D17_*_MODEL` is the full Codex-bound model, never an ambient,
 alias, or universal hard-coded capability string. As its owner allows, D17 may
 continue only an unchanged branch and stable diagnosis/fix task identity through
 the shared lifecycle rule; diagnosis-to-fix classification is a fresh changed

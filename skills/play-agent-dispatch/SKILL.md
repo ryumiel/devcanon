@@ -83,7 +83,7 @@ semantic-role catalog and role-envelope owner. For that exact selected role and
 target, declare its
 `capability`, target-native `effort`, `source_authority`, `external_authority`,
 ordered duplicate-free `claude_tools`, `codex_sandbox`, and `default_network`.
-Resolve Codex `model` from the selected role's exact target-rendered capability
+Resolve Codex `model` from the selected role's exact Codex-bound capability
 binding. Require the selected source capability to match the selected semantic
 role before resolution; a capability-less or mismatched source fails that
 parity check.
@@ -94,12 +94,12 @@ against that same catalog; effort does not imply authority.
 `agents/*.yaml` are governed declarations and parity inputs,
 never semantic authorities; their target-local literal fields are governed
 values under the agent spec, but D4's fresh-Codex selection still resolves its
-full model through the rendered target binding.
+full model through the Codex-bound rendered binding.
 
-For the selected D4 role, the complete target-rendered Codex model bindings are
-`efficient` → `{{model:efficient}}`, `balanced` → `{{model:balanced}}`, and
-`frontier` → `{{model:frontier}}`. The bindings select only the exact full
-model for this target; the separately validated role effort remains
+For the selected D4 role, the complete Codex-bound model bindings are
+`efficient` → `{{model-codex:efficient}}`, `balanced` →
+`{{model-codex:balanced}}`, and `frontier` → `{{model-codex:frontier}}`. The
+bindings select only the exact full Codex model; the separately validated role effort remains
 independent. A missing, blank, unresolved, or mismatched binding blocks before
 spawn. Do not search a source checkout, use a sibling runtime when a rendered
 binding owns this field, or select an alias, nearby, or ambient model.
@@ -131,7 +131,7 @@ Codex.spawn_agent({
 })
 ```
 
-Validate the semantic role, source capability parity, target-rendered full model,
+Validate the semantic role, source capability parity, Codex-bound full model,
 independent matching-Codex-effort parity, source authority, external authority,
 scope, termination, context, approval, tools, sandbox, network, output, and
 prompt inputs before that one creation. Before capture, choose
