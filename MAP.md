@@ -75,6 +75,8 @@ Quick navigation index for the DevCanon repository.
 - Where is the CLI config (dogfooding)? -> [`devcanon.config.yaml`](devcanon.config.yaml)
 - Where are direct skill helper script runtime tests? -> [`src/skill-scripts/`](src/skill-scripts/)
 - Where are shared typed runtime helper modules? -> [`src/runtime/`](src/runtime/)
+- Where is installed passive-runtime sibling catalog loading and validation? ->
+  [`src/runtime/runtime-config.ts`](src/runtime/runtime-config.ts)
 
 ---
 
@@ -172,7 +174,7 @@ Quick navigation index for the DevCanon repository.
 - Where is the config loader? -> [`src/config/load.ts`](src/config/load.ts)
 - Where is the config Zod schema? -> [`src/config/schema.ts`](src/config/schema.ts)
 - Where are the config defaults? -> [`src/config/defaults.ts`](src/config/defaults.ts)
-- Where is runtime configuration selection and catalog validation? ->
+- Where is public runtime configuration selection and catalog validation? ->
   [`src/config/runtime-config.ts`](src/config/runtime-config.ts)
 
 ---

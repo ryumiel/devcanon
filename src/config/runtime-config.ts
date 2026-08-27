@@ -48,7 +48,10 @@ export async function selectRuntimeConfig(
   explicitPath?: string,
   strict = false,
 ): Promise<SelectedRuntimeConfig> {
-  if (explicitPath) {
+  if (explicitPath !== undefined) {
+    if (explicitPath.length === 0) {
+      throw new UserError("Config path must not be empty.");
+    }
     const selectedPath = await requireSourceConfig(explicitPath, "explicit");
     return selectSourceConfig(selectedPath, "explicit", strict);
   }

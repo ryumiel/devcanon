@@ -100,6 +100,27 @@ describe("CLI entrypoint", () => {
     });
   });
 
+  it("rejects an explicitly empty config path without success output", async () => {
+    let failure:
+      | { code?: number; stderr?: string; stdout?: string }
+      | undefined;
+    try {
+      await execFileAsync(
+        tsxEntrypoint(),
+        [cliEntrypoint(), "--config", "", "--json", "config", "path"],
+        { cwd: process.cwd(), shell: process.platform === "win32" },
+      );
+    } catch (error) {
+      failure = error as { code?: number; stderr?: string; stdout?: string };
+    }
+
+    expect(failure).toMatchObject({
+      code: 1,
+      stdout: "",
+      stderr: expect.stringContaining("Config path must not be empty."),
+    });
+  });
+
   it("returns source-schema version through registered plain and JSON config get", async () => {
     const configPath = path.join(process.cwd(), "devcanon.config.yaml");
     const plain = await execFileAsync(
