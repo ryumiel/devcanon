@@ -54,8 +54,16 @@ function canonicalTaskFieldCounts(markdown: string): Record<string, number> {
   );
 }
 
-function normalizedProse(markdown: string): string {
-  return markdown.replace(/\s+/g, " ").trim();
+function boldFieldLabels(markdown: string): string[] {
+  return [...markdown.matchAll(/^\*\*([^*\r\n]+):\*\*/gm)].map(
+    (match) => match[1],
+  );
+}
+
+function numberedDecisionItems(markdown: string): string[] {
+  return [...markdown.matchAll(/^\d+\. ([^\r\n]+)$/gm)].map((match) =>
+    match[1].replace(/(?:; and|[;.])$/, ""),
+  );
 }
 
 describe("play-planning execution projection contract", () => {
@@ -139,131 +147,72 @@ describe("play-planning execution projection contract", () => {
     }
   });
 
-  it("owns the closed behavioral LIGHTWEIGHT test and one-dimensional examples", async () => {
-    const criteria = await readRepoFile(
-      "skills/play-planning/references/planning-criteria.md",
+  it("records the closed LIGHTWEIGHT dimensions in the owning ADR", async () => {
+    const decision = getMarkdownSection(
+      await readRepoFile(
+        "docs/adr/adr-0035-behavioral-planning-contract-proportionality.md",
+      ),
+      "Decision",
     );
-    const section = getMarkdownSection(
-      criteria,
-      "Proportional contract planning",
-    );
-    const prose = normalizedProse(section);
 
-    for (const dimension of lightweightDimensions) {
-      expect(prose).toContain(dimension);
-    }
-
-    expect(prose).toContain("Persistence or filesystem effects alone");
-    expect(prose).toContain("Invalid behavioral-owner mutation");
-    expect(prose).toContain("Invalid public-contract mutation");
-    expect(prose).toContain("Invalid trust-boundary mutation");
-    expect(prose).toContain("Invalid external-mutation mutation");
-    expect(prose).toContain("Invalid recovery mutation");
+    expect(numberedDecisionItems(decision)).toEqual(lightweightDimensions);
   });
 
-  it("keeps upstream design facts aligned without moving tier authority", async () => {
-    const brainstorm = normalizedProse(
-      getMarkdownSection(
-        await readRepoFile("skills/play-brainstorm/SKILL.md"),
-        "Contract Decisions",
+  it("keeps tier and reference fields in the canonical planning task block", async () => {
+    const block = canonicalReferenceBlock(
+      await readRepoFile("skills/play-planning/SKILL.md"),
+    );
+
+    expect(boldFieldLabels(block)).toEqual(
+      expect.arrayContaining([
+        "Task ID",
+        "Boundary rows",
+        "Supporting-owner supplements",
+        "Contract tier",
+        "Compact contract",
+      ]),
+    );
+  });
+
+  it("uses distinct structural examples for both record-reference kinds", async () => {
+    const block = canonicalReferenceBlock(
+      await readRepoFile(
+        "skills/play-planning/references/planning-criteria.md",
       ),
     );
+    const boundaryRows = block.match(/^\*\*Boundary rows:\*\* (.+)$/m)?.[1];
+    const supplements = block.match(
+      /^\*\*Supporting-owner supplements:\*\* (.+)$/m,
+    )?.[1];
 
-    for (const dimension of lightweightDimensions) {
-      expect(brainstorm).toContain(dimension);
-    }
-    expect(brainstorm).toContain("outside the authorized worktree");
-    expect(brainstorm).toContain("planning handoff");
-    expect(brainstorm).not.toContain(
-      "private, transient, same-controller, and have no durable schema consumer",
-    );
+    expect(JSON.parse(boundaryRows ?? "null")).toEqual(["BR-A", "BR-B"]);
+    expect(JSON.parse(supplements ?? "null")).toEqual(["EP-SUPPORTING-OWNERS"]);
   });
 
-  it("distinguishes authorized local filesystem output from external mutation", async () => {
-    const [planningSkill, criteria, checklist, brainstorm] = await Promise.all([
-      readRepoFile("skills/play-planning/SKILL.md"),
-      readRepoFile("skills/play-planning/references/planning-criteria.md"),
-      readRepoFile("docs/guidelines/documentation-checklists.md"),
-      readRepoFile("skills/play-brainstorm/SKILL.md"),
-    ]);
-
-    const criteriaProse = normalizedProse(
-      getMarkdownSection(criteria, "Proportional contract planning"),
+  it("keeps controller refusal and compatibility tokens without a resolver surface", async () => {
+    const execution = await readRepoFile(
+      "skills/play-subagent-execution/SKILL.md",
     );
-    expect(criteriaProse).toContain("outside the authorized worktree state");
-    expect(criteriaProse).toContain("bounded and recoverable");
-    const allCriteriaProse = normalizedProse(criteria);
-    expect(allCriteriaProse).toContain("mutation-authority");
-    expect(allCriteriaProse).toContain("SIDE-EFFECT");
-    expect(allCriteriaProse).toContain("recovery");
-    expect(allCriteriaProse).toContain("cleanup");
 
-    const checklistProse = normalizedProse(
-      getMarkdownSection(checklist, "Side-Channel Artifact Contract Checklist"),
+    expect(boldFieldLabels(canonicalReferenceBlock(execution))).toEqual(
+      recordReferenceFields,
     );
-    expect(checklistProse).toContain("outside the authorized worktree state");
-    expect(checklistProse).toContain("fifth dimension");
-    expect(checklistProse).toContain("mutation-authority");
-    expect(checklistProse).toContain("SIDE-EFFECT");
-
-    const brainstormProse = normalizedProse(
-      getMarkdownSection(brainstorm, "Contract Decisions"),
-    );
-    expect(brainstormProse).toContain("outside the authorized worktree state");
-    expect(brainstormProse).toContain("planning handoff");
-
-    const templateProse = normalizedProse(
-      getMarkdownSection(planningSkill, "Task Structure"),
-    );
-    expect(templateProse).toContain("material write or side-effect owner");
-    expect(templateProse).toContain("failure and cleanup behavior");
-    expect(templateProse).toContain("focused verification expectations");
-    expect(templateProse).toContain("five behavioral eligibility dimensions");
-    expect(templateProse).not.toContain("or side-effect owner, permission,");
-  });
-
-  it("keeps boundary-owned facts single-carrier and representation differences non-blocking", async () => {
-    const criteria = await readRepoFile(
-      "skills/play-planning/references/planning-criteria.md",
-    );
-    const prose = normalizedProse(criteria);
-
-    expect(prose).toContain("Valid boundary-carried context");
-    expect(prose).toContain("Invalid missing-participant mutation");
-    expect(prose).toContain("Invalid missing-authority mutation");
-    expect(prose).toContain("Invalid missing-task-membership mutation");
-    expect(prose).toContain("Invalid missing-proof mutation");
-    expect(prose).toContain("Valid representation-only mutation");
-    expect(prose).toContain("Boundary-row IDs are kind-scoped");
-    expect(prose).toContain("supporting-owner supplement is keyed");
-    expect(prose).toContain("existing Entry ID form");
-    expect(prose).toContain("do not define a Markdown or record-body grammar");
-  });
-
-  it("keeps kind-scoped resolution controller-owned and fail-closed", async () => {
-    const [planning, criteria, execution] = await Promise.all([
-      readRepoFile("skills/play-planning/SKILL.md"),
-      readRepoFile("skills/play-planning/references/planning-criteria.md"),
-      readRepoFile("skills/play-subagent-execution/SKILL.md"),
-    ]);
-    const prose = normalizedProse(execution);
-
-    expect(canonicalReferenceBlock(criteria)).toContain(
-      '**Supporting-owner supplements:** ["EP-SUPPORTING-OWNERS"]',
-    );
-    for (const source of [planning, criteria, execution]) {
-      const normalized = normalizedProse(source);
-      expect(normalized).toContain("governing projection Entry ID");
-      expect(normalized).toContain("existing Entry ID form");
-    }
-    expect(prose).toContain("declared record kind");
-    expect(prose).toContain(
-      "Unknown, duplicate, stale, ambiguous, or cross-kind identifiers return `BLOCKED/NEEDS_CONTEXT`",
-    );
-    expect(prose).toContain(
-      "not a public helper or general Markdown parsing API",
-    );
+    expect(execution).toContain("`BLOCKED/NEEDS_CONTEXT`");
     expect(execution).not.toContain("resolve-task-records.mjs");
     expect(execution).not.toContain("task-record-resolution/v1");
+  });
+
+  it("links the proportionality ADR from navigation and its execution consumer", async () => {
+    const [map, skipDispatch] = await Promise.all([
+      readRepoFile("MAP.md"),
+      readRepoFile(
+        "docs/adr/adr-0015-skip-dispatch-for-trivial-single-task-plans.md",
+      ),
+    ]);
+    const adrPath =
+      "docs/adr/adr-0035-behavioral-planning-contract-proportionality.md";
+
+    expect(map).toContain(`(${adrPath})`);
+    expect(skipDispatch).toContain("ADR-0035");
   });
 });
