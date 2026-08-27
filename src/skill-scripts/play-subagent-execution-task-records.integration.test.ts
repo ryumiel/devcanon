@@ -321,6 +321,60 @@ describe("play-subagent-execution task record resolver", () => {
     }
   });
 
+  it("does not synthesize structural headings by removing HTML comments", async () => {
+    for (const plan of [
+      basePlan.replace("## Tasks", "<!--prefix-->## Tasks"),
+      basePlan.replace(
+        "### Task 1: Resolve records",
+        "<!--prefix-->### Task 1: Resolve records",
+      ),
+      basePlan.replace(
+        "### Boundary row `BR-A`",
+        "<!--prefix-->### Boundary row `BR-A`",
+      ),
+      basePlan.replace("## Tasks", "<!--\n## ignored -->## Tasks"),
+      basePlan.replace(
+        "### Task 1: Resolve records",
+        "<!--\n### ignored -->### Task 1: Resolve records",
+      ),
+      basePlan.replace(
+        "### Boundary row `BR-A`",
+        "<!--\n### ignored -->### Boundary row `BR-A`",
+      ),
+    ]) {
+      const failure = await expectFailure(plan);
+      expect(failure.stdout).toBe("");
+      expect(failure.stderr).not.toBe("");
+    }
+
+    const inlineComments = basePlan
+      .replace("## Tasks", "## Tasks<!-- section note -->")
+      .replace(
+        "### Task 1: Resolve records",
+        "### Task 1: Resolve records<!-- task note -->",
+      )
+      .replace(
+        "### Boundary row `BR-A`",
+        "### Boundary row `BR-A`<!-- boundary note -->",
+      );
+    await expect(runHelper(inlineComments)).resolves.toMatchObject({
+      stderr: "",
+    });
+  });
+
+  it("keeps multiline code spans inside their paragraph block", async () => {
+    const precedingDanglingBacktick = basePlan.replace(
+      "- **Governing Entry ID:** `EP-A`",
+      "Unmatched literal `\n- **Governing Entry ID:** `EP-A`",
+    );
+
+    const result = await runHelper(precedingDanglingBacktick);
+    expect(JSON.parse(result.stdout).supporting_owner_supplement_ids).toEqual([
+      "EP-A",
+    ]);
+    expect(result.stderr).toBe("");
+  });
+
   it("keeps canonical records visible after comment-like fence info strings", async () => {
     const commentLikeFenceInfo = basePlan.replace(
       "## Tasks",
@@ -474,6 +528,45 @@ describe("play-subagent-execution task record resolver", () => {
 
     const unknown = await expectFailure(basePlan, { TASK_ID: "TASK-UNKNOWN" });
     expect(unknown.stdout).toBe("");
+  });
+
+  it("requires Task ID to be the first visible task field", async () => {
+    const proseBeforeId = basePlan.replace(
+      "**Task ID:** TASK-A",
+      "Prose before the identity field.\n\n**Task ID:** TASK-A",
+    );
+    const fieldBeforeId = basePlan
+      .replace('**Boundary rows:** ["BR-B", "BR-A"]\n\n', "")
+      .replace(
+        "**Task ID:** TASK-A",
+        '**Boundary rows:** ["BR-B", "BR-A"]\n\n**Task ID:** TASK-A',
+      );
+
+    for (const plan of [proseBeforeId, fieldBeforeId]) {
+      const failure = await expectFailure(plan);
+      expect(failure.stdout).toBe("");
+      expect(failure.stderr).toContain(
+        "Task ID must be the first visible field",
+      );
+    }
+
+    const commentBeforeId = basePlan.replace(
+      "**Task ID:** TASK-A",
+      "<!-- task note -->\n\n**Task ID:** TASK-A",
+    );
+    await expect(runHelper(commentBeforeId)).resolves.toMatchObject({
+      stderr: "",
+    });
+
+    const fenceBeforeId = basePlan.replace(
+      "**Task ID:** TASK-A",
+      "```text\nrendered content\n```\n\n**Task ID:** TASK-A",
+    );
+    const fencedFailure = await expectFailure(fenceBeforeId);
+    expect(fencedFailure.stdout).toBe("");
+    expect(fencedFailure.stderr).toContain(
+      "Task ID must be the first visible field",
+    );
   });
 
   it("validates root, path, and digest before resolution without writing files or partial stdout", async () => {

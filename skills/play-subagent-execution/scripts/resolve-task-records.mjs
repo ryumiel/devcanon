@@ -141,6 +141,7 @@ function visibleLines(markdown) {
   let fence;
   let htmlComment = false;
   let inlineCodeEnd;
+  let fencedBlockBefore = false;
   for (const [index, sourceText] of sourceLines.entries()) {
     const rawMarker = /^(?: {0,3})(`{3,}|~{3,})(.*)$/.exec(sourceText);
     if (!fence && !htmlComment && rawMarker) {
@@ -149,10 +150,12 @@ function visibleLines(markdown) {
         inlineCodeEnd = undefined;
         htmlComment = false;
         fence = { char, length: rawMarker[1].length };
+        fencedBlockBefore = true;
         continue;
       }
     }
     let text = sourceText;
+    let blockMarkerFromSourceStart = !htmlComment;
     if (!fence) {
       if (inlineCodeEnd && index < inlineCodeEnd.line) continue;
       let visible = inlineCodeEnd ? " " : "";
@@ -204,6 +207,7 @@ function visibleLines(markdown) {
           continue;
         }
         visible += text.slice(cursor, start);
+        if (start === 0) blockMarkerFromSourceStart = false;
         htmlComment = true;
         cursor = start + 4;
       }
@@ -223,7 +227,15 @@ function visibleLines(markdown) {
       }
       continue;
     }
-    if (!fence && text.trim() !== "") result.push({ index, text });
+    if (!fence && text.trim() !== "") {
+      result.push({
+        index,
+        text,
+        blockMarkerFromSourceStart,
+        fencedBlockBefore,
+      });
+      fencedBlockBefore = false;
+    }
   }
   return result;
 }
@@ -266,7 +278,7 @@ function matchingBacktickRunAcrossLines(lines, startLine, runLength) {
     const text = lines[line];
     if (
       text.trim() === "" ||
-      /^(?: {0,3})(?:#{1,6}(?:\s|$)|`{3,}|~{3,})/.test(text)
+      /^(?: {0,3})(?:#{1,6}(?:\s|$)|`{3,}|~{3,}|[-+*][ \t]+\S)/.test(text)
     ) {
       return undefined;
     }
@@ -291,13 +303,18 @@ function inlineCodeIdentifier(text, prefix) {
 }
 
 function section(lines, heading) {
-  const starts = lines.filter(({ text }) => text === `## ${heading}`);
+  const starts = lines.filter(
+    ({ text, blockMarkerFromSourceStart }) =>
+      text === `## ${heading}` && blockMarkerFromSourceStart,
+  );
   if (starts.length > 1) fail(`duplicate plan section: ${heading}`);
   if (starts.length === 0) return [];
   const start = starts[0].index;
   const end =
-    lines.find(({ index, text }) => index > start && /^## /.test(text))
-      ?.index ?? Number.POSITIVE_INFINITY;
+    lines.find(
+      ({ index, text, blockMarkerFromSourceStart }) =>
+        index > start && /^## /.test(text) && blockMarkerFromSourceStart,
+    )?.index ?? Number.POSITIVE_INFINITY;
   return lines.filter(({ index }) => index > start && index < end);
 }
 
@@ -314,8 +331,9 @@ function duplicateIds(ids, kind) {
 function parseTask(lines, taskId) {
   const taskSection = section(lines, "Tasks");
   if (taskSection.length === 0) fail("missing or empty Tasks section");
-  const headings = taskSection.filter(({ text }) =>
-    /^### Task(?:\s|$)/.test(text),
+  const headings = taskSection.filter(
+    ({ text, blockMarkerFromSourceStart }) =>
+      /^### Task(?:\s|$)/.test(text) && blockMarkerFromSourceStart,
   );
   if (headings.length === 0) fail("Tasks section contains no task records");
 
@@ -330,6 +348,14 @@ function parseTask(lines, taskId) {
     if (idFields.length !== 1) {
       fail(
         `task record requires exactly one Task ID field near line ${heading.index + 1}`,
+      );
+    }
+    if (
+      recordLines[0].index !== idFields[0].index ||
+      recordLines[0].fencedBlockBefore
+    ) {
+      fail(
+        `Task ID must be the first visible field near line ${heading.index + 1}`,
       );
     }
     const idMatch = /^\*\*Task ID:\*\* ([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)$/.exec(
@@ -435,7 +461,11 @@ function parseReferenceField(task, label) {
 function recordIdentifiers(lines, tasksStart) {
   const preTasks = lines.filter(({ index }) => index < tasksStart);
   const boundaryIds = preTasks
-    .map(({ text }) => inlineCodeIdentifier(text, "### Boundary row "))
+    .map(({ text, blockMarkerFromSourceStart }) =>
+      blockMarkerFromSourceStart
+        ? inlineCodeIdentifier(text, "### Boundary row ")
+        : undefined,
+    )
     .filter((id) => id !== undefined);
 
   const supplementLines = section(lines, "Supporting-Owner Supplements");
