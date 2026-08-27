@@ -234,7 +234,7 @@ planner-selected `selected_role_id`, `scope`, `termination`, `context_ref`, and
 role-envelope owner. For the exact selected role and target, it derives
 `capability`, route `effort`, `source_authority`,
 `external_authority`, ordered duplicate-free `claude_tools`, `codex_sandbox`,
-and `default_network`. A fresh Codex D4 model is the configured full model from
+and `default_network`. A fresh Codex D4 model is the rendered full model from
 the selected route capability's target-rendered binding; its effort is the
 independent selected route effort. The selected source must match the selected
 role's capability before that render-time binding is used; a capability-less or

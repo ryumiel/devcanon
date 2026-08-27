@@ -30,10 +30,11 @@ The source configuration and the runtime catalog have separate authority. The
 source schema owns library configuration and the capability profiles used for
 rendering. The runtime catalog is an exact, validated transport object that
 contains only its schema identifier and capability profiles. During rendering,
-each enabled target receives a runtime catalog projected from the selected
-source profiles alongside its runtime scripts. Generated previews and installed
-payloads are derived transport outputs, not user configuration or independent
-model-selection authority.
+each enabled target selected for that render receives the same complete paired
+Claude-and-Codex catalog projected from the selected source profiles alongside
+its runtime scripts. Generated previews and installed payloads are derived
+transport outputs, not user configuration or independent model-selection
+authority.
 
 The passive `devcanon-runtime` bundle is current-format-only: its fixed
 validated payload contains `config/` and `scripts/`, and excludes `SKILL.md`

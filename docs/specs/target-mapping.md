@@ -92,8 +92,9 @@ relevant check locally when generated output needs inspection.
 Source skill directories with `SKILL.md`, source agent definitions, source
 runtime TypeScript, renderer code, tests, and the install manifest remain
 authoritative for their respective contracts. The fixed passive runtime bundle
-under `skills/devcanon-runtime/` is a scripts-only source payload, not a source
-skill or generated invocation surface. Its packaged JavaScript under
+under `skills/devcanon-runtime/` is a validated current-format `config/` and
+`scripts/` source payload, not a source skill or generated invocation surface.
+Its packaged JavaScript under
 `scripts/runtime/` is derived support output that stays tracked because
 installed skill bundles need version-aligned helper files, while `src/runtime/`
 owns the deterministic runtime behavior.

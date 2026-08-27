@@ -69,26 +69,37 @@ relative-path resolution. The selected value exposes `version` and the resolved
 source configuration, but not loader-only state such as `configDir`.
 
 The fourth choice is the catalog packaged with
-`skills/devcanon-runtime/config/runtime-config.json`. It is an exact JSON
-envelope containing its schema identifier and the required capability-profile
-catalog; it is not a substitute user configuration and cannot supply library,
-target-home, manifest, or installation settings. The catalog must be a regular,
-non-symlink file with a valid exact shape and no duplicate JSON object keys. An
-invalid packaged catalog is an error, not a reason to search another location.
+`skills/devcanon-runtime/config/runtime-config.json`. It has literal schema
+`devcanon/runtime-config/v1` and a closed top-level
+`{ schema, capabilityProfiles }` object. Its `capabilityProfiles` value uses
+the strict existing source authority in
+[`src/config/schema.ts`](../../src/config/schema.ts); this spec does not repeat
+the profile fields. The catalog is not a substitute user configuration and
+cannot supply library, target-home, manifest, or installation settings. It must
+be a regular, non-symlink file with a valid exact shape and no duplicate JSON
+object keys. An invalid packaged catalog is an error, not a reason to search
+another location.
 
-Existing commands keep their source-configuration discovery contract. In
-particular, `init`, `validate`, `render`, `sync`, `uninstall`, `diff`, `doctor`,
-and `list` do not use the packaged catalog as a fallback when no source
-configuration is available.
+For `config get`, each dotted segment must match
+`[A-Za-z0-9][A-Za-z0-9_-]*`. A key may not contain `__proto__`, `constructor`,
+or `prototype` in any segment. Lookup returns only a string, number, or boolean;
+arrays and containers are not scalar results.
+
+Commands that operate on an existing library retain source-configuration
+discovery. `init` independently creates a source configuration and does not
+perform discovery or fallback. No non-`config` command uses the packaged catalog
+as a fallback.
 
 ### Catalog projection and runtime custody
 
 The source `capabilityProfiles` catalog selects model strings while DevCanon
-renders a target. For every enabled target, the renderer writes a runtime
-catalog containing that selected source catalog beside the target's passive
-runtime scripts. An installed runtime reads only its sibling catalog; it does
-not rediscover the source checkout, the invoking directory, or an ambient
-configuration file.
+renders a target. For each enabled target selected for that render, the renderer
+projects the same complete paired Claude-and-Codex capability-profile catalog
+beside the target's passive runtime scripts. An installed runtime reads only its
+sibling catalog; it does not rediscover the source checkout, the invoking
+directory, or an ambient configuration file. See
+[ADR-0035](../adr/adr-0035-installed-runtime-configuration-discovery.md) for
+the decision rationale and alternatives.
 
 The passive runtime's current payload is exactly its validated `config/` and
 `scripts/` trees, without `SKILL.md` or a Codex invocation sidecar. It is
@@ -114,16 +125,21 @@ not a second authoritative user-configuration file.
   replaced by a lower-precedence source, a nearby catalog, an alias, or an
   ambient model.
 
-### Acceptance and verification
+### Acceptance and verification expectations
 
-- Public inspection observes the precedence and no-fallback behavior above in
+- Public-command coverage must exercise precedence and no-fallback behavior in
   an unrelated current directory, with explicit source configuration, and with
-  invalid selected inputs.
-- Plain and JSON command behavior is verified by the command-action tests;
-  catalog shape, file-kind, and key-safety behavior are verified by the runtime
-  configuration tests.
-- Render and install verification confirms that each target runtime receives
-  its selected catalog and rejects an incomplete payload.
+  invalid selected inputs. The proof owners are
+  [`src/cli/index.test.ts`](../../src/cli/index.test.ts) and
+  [`src/cli/commands/config.test.ts`](../../src/cli/commands/config.test.ts).
+- Catalog shape, file-kind, scalar-key safety, and lookup rejection coverage
+  must remain in
+  [`src/config/runtime-config.test.ts`](../../src/config/runtime-config.test.ts).
+- Render and install coverage must confirm the selected catalog projection and
+  reject incomplete runtime payloads in
+  [`src/render/devcanon-runtime.integration.test.ts`](../../src/render/devcanon-runtime.integration.test.ts)
+  and
+  [`src/install/devcanon-runtime.integration.test.ts`](../../src/install/devcanon-runtime.integration.test.ts).
 
 ---
 

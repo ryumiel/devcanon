@@ -73,11 +73,18 @@ devcanon [--config <path>] [--json] [--strict] config get <key>
 `--json`, it writes one JSON object with `path` and `source`, where `source` is
 `explicit`, `environment`, `cwd`, or `bundled`.
 
-`config get <key>` accepts a safe dotted key and returns only scalar values.
-Plain output prints string values directly and JSON-spells numbers and booleans.
-With `--json`, it writes one JSON object with `path`, `source`, `key`, and
-`value`. Objects, arrays, missing keys, unsafe key syntax, and inherited-key
-paths are errors.
+`config get <key>` accepts dotted segments matching
+`[A-Za-z0-9][A-Za-z0-9_-]*`; it rejects `__proto__`, `constructor`, and
+`prototype` in every segment. It returns only scalar string, number, or boolean
+values. Plain output prints string values directly and JSON-spells numbers and
+booleans. With `--json`, it writes one JSON object with `path`, `source`, `key`,
+and `value`. Containers and arrays, missing keys, unsafe key syntax, and
+inherited-key paths are errors.
+
+When no source configuration is selected, the command reads the packaged
+`devcanon/runtime-config/v1` catalog. Its closed top-level object is
+`{ schema, capabilityProfiles }`; `capabilityProfiles` remains owned by the
+strict source schema rather than this command specification.
 
 Selection, catalog-validation, and key errors use the CLI's ordinary error
 output and exit non-zero; they do not emit a plain or JSON success value.
@@ -90,8 +97,9 @@ catalog fails closed; the command does not use a lower-precedence source or
 fallback model. The full selection, catalog, and source-command boundary is
 owned by [Configuration](configuration.md#runtime-configuration-discovery).
 
-All other DevCanon commands retain source-configuration discovery and do not
-fall back to the packaged catalog.
+Commands operating on an existing library retain source-configuration discovery.
+`init` independently creates configuration and does not discover or fall back.
+No non-`config` command uses the packaged catalog as a fallback.
 
 ---
 
