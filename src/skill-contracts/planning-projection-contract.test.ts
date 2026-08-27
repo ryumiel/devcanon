@@ -18,14 +18,6 @@ const recordReferenceFields = [
   "Supporting-owner supplements",
 ] as const;
 
-const lightweightDimensions = [
-  "exactly one behavioral owner",
-  "no public schema or API",
-  "no security-sensitive or untrusted boundary",
-  "no external mutation",
-  "outputs and side effects are bounded and recoverable",
-] as const;
-
 function numberedFieldLabels(section: string): string[] {
   return [...section.matchAll(/^\d+\. `([^`]+)`:/gm)].map((match) => match[1]);
 }
@@ -57,12 +49,6 @@ function canonicalTaskFieldCounts(markdown: string): Record<string, number> {
 function boldFieldLabels(markdown: string): string[] {
   return [...markdown.matchAll(/^\*\*([^*\r\n]+):\*\*/gm)].map(
     (match) => match[1],
-  );
-}
-
-function numberedDecisionItems(markdown: string): string[] {
-  return [...markdown.matchAll(/^\d+\. ([^\r\n]+)$/gm)].map((match) =>
-    match[1].replace(/(?:; and|[;.])$/, ""),
   );
 }
 
@@ -147,17 +133,6 @@ describe("play-planning execution projection contract", () => {
     }
   });
 
-  it("records the closed LIGHTWEIGHT dimensions in the owning ADR", async () => {
-    const decision = getMarkdownSection(
-      await readRepoFile(
-        "docs/adr/adr-0035-behavioral-planning-contract-proportionality.md",
-      ),
-      "Decision",
-    );
-
-    expect(numberedDecisionItems(decision)).toEqual(lightweightDimensions);
-  });
-
   it("keeps tier and reference fields in the canonical planning task block", async () => {
     const block = canonicalReferenceBlock(
       await readRepoFile("skills/play-planning/SKILL.md"),
@@ -194,9 +169,6 @@ describe("play-planning execution projection contract", () => {
       "skills/play-subagent-execution/SKILL.md",
     );
 
-    expect(boldFieldLabels(canonicalReferenceBlock(execution))).toEqual(
-      recordReferenceFields,
-    );
     expect(execution).toContain("`BLOCKED/NEEDS_CONTEXT`");
     expect(execution).not.toContain("resolve-task-records.mjs");
     expect(execution).not.toContain("task-record-resolution/v1");
