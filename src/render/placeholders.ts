@@ -14,13 +14,12 @@ import { parseMarkdownStructure } from "../utils/markdown-structure.js";
  * Namespace uses letters, digits, underscores, and hyphens.
  * Value uses `[\w-]+` to support kebab-case keys (e.g. `task-tracker`).
  * The captured key is then re-validated per-namespace against the stricter
- * config-time format in `substituteLine`, so e.g. `{{tool:taskTracker}}`
+ * config-time format in `substituteActiveSource`, so e.g.
+ * `{{tool:taskTracker}}`
  * yields a clear "invalid key" error instead of "unknown key".
  */
-const PLACEHOLDER = /(\\)?\{\{([\w-]+):([\w-]+)\}\}/g;
-const ACTIVE_MODEL_PLACEHOLDER =
-  /(?<!\\)\{\{(model|model-codex):([^{}\r\n]*)\}\}/g;
-const SHARED_PLACEHOLDER_VALUE = /^[\w-]+$/;
+const ACTIVE_PLACEHOLDER =
+  /(?:(\\)?\{\{([\w-]+):([\w-]+)\}\}|(?<!\\)\{\{(model|model-codex):([^{}\r\n]*)\}\})/g;
 
 export interface PlaceholderGlossary {
   model: CapabilityProfiles;
@@ -99,62 +98,60 @@ function substituteActiveSource(
   glossary: PlaceholderGlossary,
   context: PlaceholderRenderContext | undefined,
 ): string {
-  validateMalformedModelPlaceholders(source, context);
-  return source.replace(PLACEHOLDER, (_match, esc, namespace, value) => {
-    if (esc) {
-      return `{{${namespace}:${value}}}`;
-    }
-    if (!isSupportedNamespace(namespace)) {
-      throw renderError(
-        `unknown placeholder namespace "${namespace}" — supported: ${SUPPORTED_NAMESPACES.join(", ")}`,
-        context,
-      );
-    }
-    if (namespace === "model" || namespace === "model-codex") {
-      return resolveModelPlaceholder(
-        value,
-        namespace === "model-codex" ? "codex" : target,
-        glossary.model,
-        context,
-        namespace,
-      );
-    }
-    if (!NAMESPACE_KEY_FORMAT[namespace].test(value)) {
-      throw renderError(
-        `invalid ${namespace} placeholder key "${value}" — ${formatKeyHint(namespace)}`,
-        context,
-      );
-    }
-    const configKey = NAMESPACE_CONFIG_KEY[namespace];
-    const dict = glossary[namespace];
-    if (!dict) {
-      throw renderError(
-        `${configKey} not configured — define ${configKey} in ${CONFIG_FILE_NAME}`,
-        context,
-      );
-    }
-    // Object.hasOwn guards against prototype-chain keys such as
-    // "constructor" resolving to Object.prototype and bypassing the
-    // unknown-key check.
-    if (!Object.hasOwn(dict, value)) {
-      throw renderError(
-        `unknown ${namespace} key "${value}" — define it under ${configKey} in config`,
-        context,
-      );
-    }
-    return (dict as ToolNames | FileArtifacts)[value][target];
-  });
-}
-
-function validateMalformedModelPlaceholders(
-  line: string,
-  context: PlaceholderRenderContext | undefined,
-): void {
-  for (const match of line.matchAll(ACTIVE_MODEL_PLACEHOLDER)) {
-    const value = match[2];
-    if (SHARED_PLACEHOLDER_VALUE.test(value)) continue;
-    throw unsupportedModelPlaceholderError(value, context, match[1]);
-  }
+  return source.replace(
+    ACTIVE_PLACEHOLDER,
+    (_match, esc, namespace, value, malformedNamespace, malformedValue) => {
+      if (malformedNamespace !== undefined) {
+        throw unsupportedModelPlaceholderError(
+          malformedValue,
+          context,
+          malformedNamespace,
+        );
+      }
+      if (esc) {
+        return `{{${namespace}:${value}}}`;
+      }
+      if (!isSupportedNamespace(namespace)) {
+        throw renderError(
+          `unknown placeholder namespace "${namespace}" — supported: ${SUPPORTED_NAMESPACES.join(", ")}`,
+          context,
+        );
+      }
+      if (namespace === "model" || namespace === "model-codex") {
+        return resolveModelPlaceholder(
+          value,
+          namespace === "model-codex" ? "codex" : target,
+          glossary.model,
+          context,
+          namespace,
+        );
+      }
+      if (!NAMESPACE_KEY_FORMAT[namespace].test(value)) {
+        throw renderError(
+          `invalid ${namespace} placeholder key "${value}" — ${formatKeyHint(namespace)}`,
+          context,
+        );
+      }
+      const configKey = NAMESPACE_CONFIG_KEY[namespace];
+      const dict = glossary[namespace];
+      if (!dict) {
+        throw renderError(
+          `${configKey} not configured — define ${configKey} in ${CONFIG_FILE_NAME}`,
+          context,
+        );
+      }
+      // Object.hasOwn guards against prototype-chain keys such as
+      // "constructor" resolving to Object.prototype and bypassing the
+      // unknown-key check.
+      if (!Object.hasOwn(dict, value)) {
+        throw renderError(
+          `unknown ${namespace} key "${value}" — define it under ${configKey} in config`,
+          context,
+        );
+      }
+      return (dict as ToolNames | FileArtifacts)[value][target];
+    },
+  );
 }
 
 function resolveModelPlaceholder(

@@ -15,6 +15,15 @@ describe("parseMarkdownStructure", () => {
     ]);
   });
 
+  it("reports multiple block-code ranges in source order", () => {
+    const input = ["```", "first", "```", "", "    second", ""].join("\n");
+
+    expect(parseMarkdownStructure(input).blockCodeRanges()).toEqual([
+      { start: 0, end: 13 },
+      { start: 15, end: 25 },
+    ]);
+  });
+
   it("classifies fenced, indented, and container-nested block code only", () => {
     const literals = [
       "fenced literal",

@@ -83,11 +83,19 @@ export function parseMarkdownStructure(input: string): MarkdownStructure {
 }
 
 function visit(
-  node: MarkdownNode,
+  root: MarkdownNode,
   visitor: (node: MarkdownNode) => void,
 ): void {
-  visitor(node);
-  for (const child of node.children ?? []) {
-    visit(child, visitor);
+  const stack = [root];
+
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (node === undefined) continue;
+    visitor(node);
+
+    const children = node.children ?? [];
+    for (let index = children.length - 1; index >= 0; index -= 1) {
+      stack.push(children[index]);
+    }
   }
 }

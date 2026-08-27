@@ -325,6 +325,12 @@ describe("resolvePlaceholders", () => {
     ).toThrow(/unknown placeholder namespace "path"/i);
   });
 
+  it("reports active placeholder errors in source order", () => {
+    expect(() =>
+      resolvePlaceholders("{{path:x}}\n{{model: bad}}", "claude", GLOSSARY),
+    ).toThrow(/unknown placeholder namespace "path"/i);
+  });
+
   it.each([
     "{{tool:bad key}}",
     "{{file:}}",
