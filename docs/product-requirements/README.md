@@ -23,6 +23,11 @@ and broad requirements should be true, and what uncertainty remains. Roadmaps
 translate stable-enough product intent into target outputs, first usable
 slices, outcome-level sequencing, appetite, and validation signals.
 
+## Product Requirements Index
+
+- [Portable AFDS Toolkit](portable-afds-toolkit.md)
+- [Markdown Structure Parsing](markdown-structure-parsing.md)
+
 ## Lifecycle
 
 1. Create or update a product requirements document when product intent is not

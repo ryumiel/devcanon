@@ -5,7 +5,8 @@ Runtime: Node.js CLI\
 Targets: Claude Code, Codex\
 Install scope: User-wide only\
 Product requirements:\
-[Portable AFDS Toolkit](../product-requirements/portable-afds-toolkit.md)
+[Portable AFDS Toolkit](../product-requirements/portable-afds-toolkit.md),
+[Markdown Structure Parsing](../product-requirements/markdown-structure-parsing.md)
 
 ---
 
@@ -61,6 +62,7 @@ These boundaries apply across DevCanon behavior specs:
 - [AFDS mechanical documentation checks](afds-mechanical-documentation-checks.md)
 - [Configuration format](configuration.md)
 - [Skill specification](skills.md)
+- [Markdown parsing behavior](markdown-parsing.md)
 - [Agent source schema](agents.md)
 - [Target mapping](target-mapping.md)
 - [Install and sync policy](install-and-sync.md)

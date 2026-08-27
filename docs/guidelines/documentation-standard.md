@@ -305,6 +305,14 @@ Production Markdown parsing requires an independently approved product
 requirement and a defined supported grammar. This boundary does not prohibit
 parsing when production behavior genuinely owns that requirement.
 
+The currently approved production boundary is owned by the
+[Markdown Structure Parsing product requirements](../product-requirements/markdown-structure-parsing.md)
+and [Markdown parsing behavior](../specs/markdown-parsing.md). Those artifacts
+define the selected production surfaces and GFM grammar; they do not approve
+generic document schemas or new artifact-specific semantic rules. Any new
+production surface must identify its durable semantic owner before it adopts
+the shared syntax interpretation.
+
 A review finding based only on a hypothetical or unsupported Markdown
 construction is nonblocking unless it:
 
