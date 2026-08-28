@@ -4,7 +4,7 @@ import type {
   FileArtifacts,
   ToolNames,
 } from "../config/schema.js";
-import { collectProseSegments, resolvePlaceholders } from "./placeholders.js";
+import { resolvePlaceholders } from "./placeholders.js";
 
 const CAPABILITY_PROFILES: CapabilityProfiles = {
   efficient: { claude: "haiku", codex: "gpt-5.4-mini" },
@@ -28,23 +28,38 @@ const GLOSSARY = {
 const MODEL_ONLY = { model: CAPABILITY_PROFILES };
 
 describe("resolvePlaceholders", () => {
-  it("iterates prose and fenced-code segments with fenced code immunity", () => {
-    const segments = collectProseSegments(
+  it("substitutes active non-block-code contexts without changing unrelated source", () => {
+    const input = [
+      "# {{model:efficient}} heading",
+      "",
+      "- list {{model:balanced}}",
+      "> quote {{model:frontier}}",
+      "",
+      "`inline {{model:efficient}}`",
+      "[link {{model:balanced}}](https://example.com)",
+      "<span>{{model:frontier}}</span>",
+      "",
+      "```text",
+      "literal {{model:frontier}}",
+      "```",
+    ].join("\n");
+
+    expect(resolvePlaceholders(input, "claude", MODEL_ONLY)).toBe(
       [
-        "Use opus here.",
-        "```ts",
-        'const model = "opus";',
-        "```",
-        "Use sonnet here.",
+        "# haiku heading",
         "",
+        "- list sonnet",
+        "> quote opus",
+        "",
+        "`inline haiku`",
+        "[link sonnet](https://example.com)",
+        "<span>opus</span>",
+        "",
+        "```text",
+        "literal {{model:frontier}}",
+        "```",
       ].join("\n"),
     );
-
-    expect(segments).toHaveLength(2);
-    expect(segments[0]).toContain("Use opus here.");
-    expect(segments[1]).toContain("Use sonnet here.");
-    expect(segments.join("\n")).not.toContain('const model = "opus";');
-    expect(segments.join("\n")).not.toContain("```ts");
   });
 
   it.each([
@@ -171,8 +186,11 @@ describe("resolvePlaceholders", () => {
   it("leaves nested list indented code blocks untouched", () => {
     const input = [
       "- Item",
+      "",
       "      const bulletPreferred = {{model:balanced}}",
+      "",
       "1. Ordered",
+      "",
       "       const orderedPreferred = {{model:frontier}}",
       "",
     ].join("\n");
@@ -185,8 +203,11 @@ describe("resolvePlaceholders", () => {
   it("leaves nested list code blocks untouched when the list marker uses a tab separator", () => {
     const input = [
       "-\tItem",
+      "",
       "        const preferred = {{model:balanced}}",
+      "",
       "1.\tOrdered",
+      "",
       "        const orderedPreferred = {{model:frontier}}",
       "",
     ].join("\n");
@@ -301,6 +322,12 @@ describe("resolvePlaceholders", () => {
   it("throws on an unknown namespace", () => {
     expect(() =>
       resolvePlaceholders("{{path:skills_home}}", "claude", GLOSSARY),
+    ).toThrow(/unknown placeholder namespace "path"/i);
+  });
+
+  it("reports active placeholder errors in source order", () => {
+    expect(() =>
+      resolvePlaceholders("{{path:x}}\n{{model: bad}}", "claude", GLOSSARY),
     ).toThrow(/unknown placeholder namespace "path"/i);
   });
 
