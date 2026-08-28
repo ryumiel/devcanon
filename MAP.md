@@ -21,6 +21,8 @@ Quick navigation index for the DevCanon repository.
 - Where is the roadmap? -> [`docs/roadmap/`](docs/roadmap/)
 - Where is the Portable AFDS Toolkit direction? -> [`docs/roadmap/portable-afds-toolkit.md`](docs/roadmap/portable-afds-toolkit.md)
 - Where are the Portable AFDS Toolkit product requirements? -> [`docs/product-requirements/portable-afds-toolkit.md`](docs/product-requirements/portable-afds-toolkit.md)
+- Where are the Markdown structure parsing product requirements? ->
+  [`docs/product-requirements/markdown-structure-parsing.md`](docs/product-requirements/markdown-structure-parsing.md)
 - Where is AFDS workflow capability governance defined? ->
   [`docs/guidelines/afds-workflow-capability-governance.md`](docs/guidelines/afds-workflow-capability-governance.md)
 - Where is AFDS setup and migration guidance? ->
@@ -50,6 +52,8 @@ Quick navigation index for the DevCanon repository.
 - Where is the manual v1-to-v2 capability migration procedure? ->
   [`docs/guidelines/capability-profiles-v2-migration.md`](docs/guidelines/capability-profiles-v2-migration.md)
 - Where is the skill spec? -> [`docs/specs/skills.md`](docs/specs/skills.md)
+- Where is the supported production Markdown parsing behavior? ->
+  [`docs/specs/markdown-parsing.md`](docs/specs/markdown-parsing.md)
 - Where is the agent schema spec? -> [`docs/specs/agents.md`](docs/specs/agents.md)
 - Where is the exact six-role semantic catalog and role envelope defined? ->
   [`docs/specs/agents.md`](docs/specs/agents.md#semantic-role-catalog)

@@ -164,8 +164,11 @@ both passes because its consumer is explicitly a Codex execution primitive.
 Escape with a leading backslash: `\{{model:frontier}}`,
 `\{{model-codex:frontier}}`,
 `\{{tool:task-tracker}}`, `\{{file:project-instructions}}`.
-Placeholders inside fenced code blocks (backtick or tilde) are
-not substituted.
+Placeholders inside Markdown block code, including fenced and indented block
+code, are not substituted. Ordinary prose and other non-block-code Markdown
+remain active. The exact syntax classification and source-preservation boundary
+is owned by [Markdown parsing behavior](markdown-parsing.md); this specification
+continues to own placeholder forms, resolution, escaping, and diagnostics.
 
 Other namespaces are rejected at render time. Model and glossary-key errors
 have distinct diagnostics:
@@ -297,8 +300,10 @@ by the ordinary-skill allowlist.
 - Former model tokens, malformed active model tokens, and unknown model
   capabilities fail validation with the exact source `SKILL.md` path and
   guidance naming the three canonical tokens and `capabilityProfiles`.
-- The backslash escape and fenced-code exemption are unchanged. Escaped or
-  fenced historical examples remain literal and are not migration failures.
+- The backslash escape and block-code exemption are unchanged. Escaped or
+  block-code historical examples remain literal and are not migration
+  failures. [Markdown parsing behavior](markdown-parsing.md) owns the syntax
+  classification used by this exemption.
 - Broken internal symlinks are errors.
 - `SKILL.md` files estimated above `5,000` GPT tokens using
   `o200k_base`, or at least `500` lines long, emit an advisory
