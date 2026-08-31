@@ -107,6 +107,38 @@ describe("devcanon-runtime source validation", () => {
     expect(await pathExists(sentinel)).toBe(true);
   });
 
+  it("rejects an extra private parser package before generated output is mutated", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    const sentinel = path.join(
+      config.library.generatedDir,
+      "codex",
+      "skills",
+      "sentinel",
+      "marker.txt",
+    );
+    const unexpectedPackage = path.join(
+      runtimeDir,
+      "scripts",
+      "runtime",
+      "node_modules",
+      "unexpected-package",
+    );
+    await mkdir(unexpectedPackage, { recursive: true });
+    await writeFile(
+      path.join(unexpectedPackage, "package.json"),
+      '{"name":"unexpected-package"}\n',
+      "utf-8",
+    );
+    await mkdir(path.dirname(sentinel), { recursive: true });
+    await writeFile(sentinel, "unchanged\n", "utf-8");
+
+    await expect(renderAll(config, true)).rejects.toThrow(UserError);
+    await expect(renderAll(config, true)).rejects.toThrow(
+      /passive runtime support bundle devcanon-runtime is incomplete/i,
+    );
+    expect(await pathExists(sentinel)).toBe(true);
+  });
+
   it("rejects a runtime catalog with an extra envelope field", async () => {
     const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
     await writeFile(

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { lstat, readdir } from "node:fs/promises";
+import { lstat, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -16,6 +16,12 @@ const RUNTIME_BASH_RESOLVER = path.join("scripts", "resolve-bash.mjs");
 const RUNTIME_JS_DIR = path.join("scripts", "runtime");
 const RUNTIME_JS_ENTRYPOINT = path.join(RUNTIME_JS_DIR, "cli.js");
 const RUNTIME_JS_INDEX = path.join(RUNTIME_JS_DIR, "index.js");
+const RUNTIME_NODE_MODULES_DIR = path.join(RUNTIME_JS_DIR, "node_modules");
+const GFM_RUNTIME_PACKAGE_NAMES = [
+  "mdast-util-from-markdown",
+  "mdast-util-gfm",
+  "micromark-extension-gfm",
+] as const;
 const REQUIRED_RUNTIME_JS_FILES = [
   "artifacts.js",
   "bash.js",
@@ -32,6 +38,7 @@ const REQUIRED_RUNTIME_JS_FILES = [
   "issue-priming.js",
   "paths.js",
   "play-review-shared-context.js",
+  "planning-projection.js",
   "pr-merge-worktree.js",
   "pr-review-leases.js",
   "pr-review-manifests.js",
@@ -91,6 +98,11 @@ export async function validateDevcanonRuntime(
     "scripts",
   );
   await requireRealDirectory(
+    path.join(runtimeDir, RUNTIME_NODE_MODULES_DIR),
+    runtimeDir,
+    RUNTIME_NODE_MODULES_DIR,
+  );
+  await requireRealDirectory(
     path.join(runtimeDir, RUNTIME_JS_DIR),
     runtimeDir,
     RUNTIME_JS_DIR,
@@ -101,6 +113,7 @@ export async function validateDevcanonRuntime(
     "config",
   );
   await validateExactRuntimeTree(runtimeDir);
+  await validateGfmRuntimeClosure(runtimeDir);
   await loadRuntimeConfigCatalog(
     path.join(runtimeDir, RUNTIME_CONFIG_RELATIVE_PATH),
   );
@@ -143,9 +156,97 @@ async function validateExactRuntimeTree(runtimeDir: string): Promise<void> {
   );
   await requireExactDirectoryEntries(
     path.join(runtimeDir, RUNTIME_JS_DIR),
-    ["package.json", ...REQUIRED_RUNTIME_JS_FILES],
+    ["node_modules", "package.json", ...REQUIRED_RUNTIME_JS_FILES],
     runtimeDir,
   );
+}
+
+async function validateGfmRuntimeClosure(runtimeDir: string): Promise<void> {
+  const nodeModules = path.join(runtimeDir, RUNTIME_NODE_MODULES_DIR);
+  const packageNames = new Set<string>();
+  for (const packageName of GFM_RUNTIME_PACKAGE_NAMES) {
+    await validateFlatRuntimePackage(
+      nodeModules,
+      packageName,
+      runtimeDir,
+      packageNames,
+    );
+  }
+  await requireExactDirectoryEntries(
+    nodeModules,
+    [...packageNames],
+    runtimeDir,
+  );
+}
+
+async function validateFlatRuntimePackage(
+  nodeModulesDir: string,
+  expectedName: string,
+  runtimeDir: string,
+  packageNames: Set<string>,
+): Promise<void> {
+  if (packageNames.has(expectedName)) return;
+  const packageDir = path.join(nodeModulesDir, expectedName);
+  let manifest: {
+    name?: unknown;
+    dependencies?: unknown;
+    optionalDependencies?: unknown;
+  };
+  try {
+    manifest = JSON.parse(
+      await readFile(path.join(packageDir, "package.json"), "utf8"),
+    ) as typeof manifest;
+  } catch {
+    throw runtimeSourceIncompleteError(
+      runtimeDir,
+      path.relative(runtimeDir, packageDir),
+    );
+  }
+  if (manifest.name !== expectedName) {
+    throw runtimeSourceIncompleteError(
+      runtimeDir,
+      path.relative(runtimeDir, packageDir),
+    );
+  }
+  packageNames.add(expectedName);
+
+  await requireExactDirectoryEntries(
+    packageDir,
+    await packageEntries(packageDir),
+    runtimeDir,
+  );
+  for (const dependency of packageDependencyNames(manifest)) {
+    await validateFlatRuntimePackage(
+      nodeModulesDir,
+      dependency,
+      runtimeDir,
+      packageNames,
+    );
+  }
+}
+
+async function packageEntries(packageDir: string): Promise<string[]> {
+  return (await readdir(packageDir, { withFileTypes: true }))
+    .filter((entry) => entry.name !== "node_modules")
+    .map((entry) => entry.name);
+}
+
+function packageDependencyNames(manifest: {
+  dependencies?: unknown;
+  optionalDependencies?: unknown;
+}): string[] {
+  const dependencies =
+    manifest.dependencies !== null && typeof manifest.dependencies === "object"
+      ? Object.keys(manifest.dependencies)
+      : [];
+  const optionalDependencies =
+    manifest.optionalDependencies !== null &&
+    typeof manifest.optionalDependencies === "object"
+      ? Object.keys(manifest.optionalDependencies)
+      : [];
+  return [...new Set([...dependencies, ...optionalDependencies])]
+    .filter((packageName) => !packageName.startsWith("@types/"))
+    .sort();
 }
 
 async function requireExactDirectoryEntries(

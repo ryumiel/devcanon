@@ -3,6 +3,7 @@ import { runGitWorkspaceCleanupCommand } from "./git-workspace-cleanup.js";
 import { runIssuePrimingCommand } from "./issue-priming.js";
 import { runIssueWorktreeSetupCommand } from "./issue-worktree-setup.js";
 import { RuntimePathError, normalizeRuntimePath, requireDirectEphemeralChild, } from "./paths.js";
+import { runPlanningProjectionCommand } from "./planning-projection.js";
 import { runPlayReviewSharedContextCommand } from "./play-review-shared-context.js";
 import { runPrMergeWorktreeCommand } from "./pr-merge-worktree.js";
 import { runPrReviewLeasesCommand } from "./pr-review-leases.js";
@@ -32,6 +33,8 @@ export async function runRuntimeCommand(args) {
                 return ok(ephemeralChild(rest));
             case "validate-json":
                 return validateJson(rest);
+            case "planning-projection":
+                return await runPlanningProjectionCommand(rest);
             case "review-artifacts":
                 return await runReviewArtifactsCommand(rest);
             case "pr-review-provider-scope-evidence":

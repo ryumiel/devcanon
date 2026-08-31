@@ -24,6 +24,24 @@ const validProfiles = {
   frontier: { claude: "e", codex: "f" },
 };
 
+const planningProjectionPlan = [
+  "## Execution Projection",
+  "",
+  "- **Entry ID:** `EP-RUNTIME-RESULT-PRODUCTION`",
+  '  - **Affected surface or equivalent set:** ["runtime inspector"]',
+  "  - **Owner/source:** `issue #651` — result contract",
+  "  - **Mode:** `authority`",
+  "  - **Implementation disposition:** Tasks [`BUILD-PROJECTION-OPERATION`]",
+  "  - **Proof:** Task `BUILD-PROJECTION-OPERATION` — focused proof",
+  "",
+  "## Tasks",
+  "",
+  "### Task 1: Build projection operation",
+  "",
+  "**Task ID:** BUILD-PROJECTION-OPERATION",
+  "",
+].join("\n");
+
 describe("devcanon-runtime typed entrypoint", () => {
   it("tracks the compiled JavaScript entrypoint as executable", async () => {
     const { stdout } = await execFileAsync("git", [
@@ -97,6 +115,69 @@ describe("devcanon-runtime typed entrypoint", () => {
       expect(JSON.parse(stdout)).toMatchObject({
         normalized: "/var/result.json",
         comparable: "/var/result.json",
+      });
+    } finally {
+      await cleanupTempDir(tempDir);
+    }
+  });
+
+  it("runs planning projection from an isolated copied passive runtime bundle", async () => {
+    const tempDir = await createTempDir();
+    try {
+      const runtimeDir = path.join(tempDir, "devcanon-runtime");
+      const planPath = path.join(tempDir, "plan.md");
+      await cp(path.resolve("skills/devcanon-runtime"), runtimeDir, {
+        recursive: true,
+      });
+      await writeFile(planPath, planningProjectionPlan, "utf-8");
+      const nodeBin = path.join(tempDir, "node-bin");
+      await mkdir(nodeBin);
+      await symlink(process.execPath, path.join(nodeBin, "node"));
+      const isolatedEnv = {
+        PATH: `${nodeBin}:/usr/bin:/bin`,
+        NODE_PATH: "",
+      };
+
+      const script = path.join(runtimeDir, "scripts", "devcanon-runtime.sh");
+      const valid = await execFileAsync(
+        "bash",
+        [
+          script,
+          "runtime",
+          "planning-projection",
+          "inspect",
+          "--path",
+          "plan.md",
+        ],
+        { cwd: tempDir, env: isolatedEnv },
+      );
+      expect(JSON.parse(valid.stdout)).toMatchObject({
+        schema: "planning-projection/v1",
+        plan_path: "plan.md",
+      });
+      expect(valid.stderr).toBe("");
+
+      await writeFile(
+        planPath,
+        planningProjectionPlan.replace("`authority`", "`unsupported mode`"),
+        "utf-8",
+      );
+      await expect(
+        execFileAsync(
+          "bash",
+          [
+            script,
+            "runtime",
+            "planning-projection",
+            "inspect",
+            "--path",
+            "plan.md",
+          ],
+          { cwd: tempDir, env: isolatedEnv },
+        ),
+      ).rejects.toMatchObject({
+        stdout: "",
+        stderr: expect.stringContaining("projection-entry-field-invalid"),
       });
     } finally {
       await cleanupTempDir(tempDir);
