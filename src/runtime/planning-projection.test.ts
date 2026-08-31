@@ -18,11 +18,11 @@ const completePlan = [
   "",
   "### Task 1: Build projection operation",
   "",
-  "**Task ID:** `BUILD-PROJECTION-OPERATION`",
+  "**Task ID:** BUILD-PROJECTION-OPERATION",
   "",
 ].join("\n");
 
-const twoTaskPlan = `${completePlan}\n### Task 2: Second task\n\n**Task ID:** \`SECOND-TASK\`\n`;
+const twoTaskPlan = `${completePlan}\n### Task 2: Second task\n\n**Task ID:** SECOND-TASK\n`;
 
 function entry(id: string, mode: string): string[] {
   return [
@@ -80,7 +80,7 @@ describe("inspectPlanningProjection", () => {
       [
         "### Task 0: Before tasks",
         "",
-        "**Task ID:** `TASK-BEFORE-TASKS`",
+        "**Task ID:** TASK-BEFORE-TASKS",
         "",
         completePlan,
       ].join("\n"),
@@ -184,14 +184,6 @@ describe("inspectPlanningProjection", () => {
       completePlan.replace("## Tasks", "## *Tasks*"),
       "tasks-section-missing",
     ],
-    [
-      "formatted Task heading",
-      completePlan.replace(
-        "### Task 1: Build projection operation",
-        "### *Task 1: Build projection operation*",
-      ),
-      "task-reference-unknown",
-    ],
   ])("requires literal ATX headings for %s", (_, input, code) => {
     expect(() =>
       inspectPlanningProjection(input, "plans/issue-651.md"),
@@ -229,13 +221,13 @@ describe("inspectPlanningProjection", () => {
       completePlan,
       "### Task 2: Second task",
       "",
-      "**Task ID:** `SECOND-TASK`",
+      "**Task ID:** SECOND-TASK",
       "",
       "## Later section",
       "",
       "### Task 3: Ignored task",
       "",
-      "**Task ID:** `IGNORED-TASK`",
+      "**Task ID:** IGNORED-TASK",
       "",
     ].join("\n");
 
@@ -266,15 +258,12 @@ describe("inspectPlanningProjection", () => {
   });
 
   it.each([
-    [
-      "task-id-invalid",
-      twoTaskPlan.replace("`SECOND-TASK`", "`not-a-task-id`"),
-    ],
+    ["task-id-invalid", twoTaskPlan.replace("SECOND-TASK", "not-a-task-id")],
     [
       "task-id-duplicate",
       twoTaskPlan.replace(
-        "**Task ID:** `SECOND-TASK`",
-        "**Task ID:** `SECOND-TASK`\n\n**Task ID:** `SECOND-TASK-AGAIN`",
+        "**Task ID:** SECOND-TASK",
+        "**Task ID:** SECOND-TASK\n\n**Task ID:** SECOND-TASK-AGAIN",
       ),
     ],
   ])("enforces one Task ID definition per task: %s", (code, input) => {
@@ -294,8 +283,8 @@ describe("inspectPlanningProjection", () => {
         "Reviewer existing reviewer — focused proof",
       )
       .replace(
-        "**Task ID:** `BUILD-PROJECTION-OPERATION`",
-        "**Task ID:** `not-a-task-id`\n\nTask content.\n\n**Task ID:** `BUILD-PROJECTION-OPERATION`",
+        "**Task ID:** BUILD-PROJECTION-OPERATION",
+        "**Task ID:** not-a-task-id\n\nTask content.\n\n**Task ID:** BUILD-PROJECTION-OPERATION",
       );
 
     expect(() =>
@@ -303,19 +292,44 @@ describe("inspectPlanningProjection", () => {
     ).toThrow("task-id-invalid");
   });
 
-  it.each(["### Task", "### Task: Unnumbered", "### Task arbitrary text"])(
-    "rejects unnumbered Task headings: %s",
+  it.each([
+    "### Task",
+    "### Task: Unnumbered",
+    "### Task arbitrary text",
+    "### *Task 1: Formatted*",
+  ])(
+    "rejects malformed Task-like headings in the Tasks section: %s",
     (heading) => {
-      const input = completePlan.replace(
-        "### Task 1: Build projection operation",
-        heading,
-      );
+      const input = completePlan
+        .replace(
+          "Tasks [`BUILD-PROJECTION-OPERATION`]",
+          "No code — no implementation task is required",
+        )
+        .replace(
+          "Task `BUILD-PROJECTION-OPERATION`",
+          "Reviewer existing responsibility",
+        )
+        .replace("### Task 1: Build projection operation", heading);
 
       expect(() =>
         inspectPlanningProjection(input, "plans/issue-651.md"),
-      ).toThrow("task-reference-unknown");
+      ).toThrow("task-id-invalid");
     },
   );
+
+  it("rejects a malformed Task-like heading before the Tasks section", () => {
+    const input = [
+      "### Task: Before Tasks",
+      "",
+      "**Task ID:** BEFORE-TASKS",
+      "",
+      completePlan,
+    ].join("\n");
+
+    expect(() =>
+      inspectPlanningProjection(input, "plans/issue-651.md"),
+    ).toThrow("task-heading-before-tasks");
+  });
 
   it("requires Task ID directly after its Task heading", () => {
     const input = completePlan
@@ -337,6 +351,78 @@ describe("inspectPlanningProjection", () => {
     ).toThrow("task-id-invalid");
   });
 
+  it.each([
+    ["plain field label", "Task ID: BUILD-PROJECTION-OPERATION"],
+    ["multiline field", "**Task ID:**\nBUILD-PROJECTION-OPERATION"],
+    ["alternate emphasis", "__Task ID:__ BUILD-PROJECTION-OPERATION"],
+    ["code-formatted value", "**Task ID:** `BUILD-PROJECTION-OPERATION`"],
+  ])("requires exact Task ID source syntax: %s", (_, taskIdField) => {
+    const input = completePlan
+      .replace(
+        "Tasks [`BUILD-PROJECTION-OPERATION`]",
+        "No code — no implementation task is required",
+      )
+      .replace(
+        "Task `BUILD-PROJECTION-OPERATION`",
+        "Reviewer existing responsibility",
+      )
+      .replace("**Task ID:** BUILD-PROJECTION-OPERATION", taskIdField);
+
+    expect(() =>
+      inspectPlanningProjection(input, "plans/issue-651.md"),
+    ).toThrow("task-id-invalid");
+  });
+
+  it("returns the no-code disposition without a task-valued reference", () => {
+    const input = completePlan
+      .replace(
+        "Tasks [`BUILD-PROJECTION-OPERATION`]",
+        "No code — no implementation task is required",
+      )
+      .replace(
+        "Task `BUILD-PROJECTION-OPERATION`",
+        "Reviewer existing responsibility",
+      );
+
+    const result = inspectPlanningProjection(input, "plans/issue-651.md");
+    const projectionEntry = result.projection.entries[0];
+
+    expect(Object.keys(result).sort()).toEqual([
+      "plan_path",
+      "projection",
+      "schema",
+      "tasks",
+    ]);
+    expect(Object.keys(projectionEntry ?? {}).sort()).toEqual([
+      "affected_surfaces",
+      "end",
+      "entry_id",
+      "implementation_task_ids",
+      "mode",
+      "no_code_reason",
+      "owner_source",
+      "proof",
+      "start",
+    ]);
+    expect(projectionEntry).toMatchObject({
+      implementation_task_ids: [],
+      no_code_reason: "no implementation task is required",
+      proof: {
+        owner_type: "reviewer",
+        owner: "existing responsibility",
+        boundary: "focused proof",
+      },
+    });
+    expect(Object.keys(projectionEntry?.proof ?? {}).sort()).toEqual([
+      "boundary",
+      "owner",
+      "owner_type",
+    ]);
+    expect(result.tasks.map((task) => task.task_id)).toEqual([
+      "BUILD-PROJECTION-OPERATION",
+    ]);
+  });
+
   it("accepts every mode without deriving semantics from the plan", () => {
     const modes = [
       "authority",
@@ -354,7 +440,7 @@ describe("inspectPlanningProjection", () => {
       "",
       "### Task 1: Build projection operation",
       "",
-      "**Task ID:** `BUILD-PROJECTION-OPERATION`",
+      "**Task ID:** BUILD-PROJECTION-OPERATION",
       "",
       '**Task references:** ["MISSING-TASK"]',
     ].join("\n");

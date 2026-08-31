@@ -219,9 +219,7 @@ export function inspectPlanningProjection(
   }
 
   const firstTasksHeading = tasksHeadings[0];
-  for (const taskHeading of headings.filter((node) =>
-    isCanonicalTaskHeading(input, node),
-  )) {
+  for (const taskHeading of headings.filter(isTaskLikeHeading)) {
     if (
       firstTasksHeading === undefined ||
       nodeStart(taskHeading) < nodeStart(firstTasksHeading)
@@ -623,12 +621,19 @@ function inspectTasks(
       nodeStart(node) > nodeStart(tasksHeading),
   );
   const tasksEnd = sectionEnd === undefined ? inputEnd : nodeStart(sectionEnd);
-  const canonicalHeadings = children.filter(
+  const taskCandidates = children.filter(
     (node) =>
-      isCanonicalTaskHeading(input, node) &&
+      isTaskLikeHeading(node) &&
       nodeStart(node) > nodeStart(tasksHeading) &&
       nodeStart(node) < tasksEnd,
   );
+  const canonicalHeadings = taskCandidates.filter((node) =>
+    isCanonicalTaskHeading(input, node),
+  );
+  for (const candidate of taskCandidates) {
+    if (isCanonicalTaskHeading(input, candidate)) continue;
+    findings.push({ code: "task-id-invalid", offset: nodeStart(candidate) });
+  }
   const tasks: ProjectionTask[] = [];
   for (let index = 0; index < canonicalHeadings.length; index += 1) {
     const heading = canonicalHeadings[index];
@@ -640,13 +645,13 @@ function inspectTasks(
       (node) =>
         nodeStart(node) > nodeStart(heading) &&
         nodeStart(node) < taskEnd &&
-        isTaskIdParagraph(node),
+        isTaskIdLikeParagraph(node),
     );
-    if (!isTaskIdParagraph(immediateTaskId)) {
+    if (!isTaskIdLikeParagraph(immediateTaskId)) {
       findings.push({ code: "task-id-invalid", offset: nodeStart(heading) });
       continue;
     }
-    const taskId = readTaskId(immediateTaskId);
+    const taskId = readTaskId(input, immediateTaskId);
     if (taskId === undefined) {
       findings.push({
         code: "task-id-invalid",
@@ -672,14 +677,20 @@ function inspectTasks(
   return tasks;
 }
 
-function readTaskId(node: MarkdownNode | undefined): string | undefined {
-  if (!isTaskIdParagraph(node)) return undefined;
-  const match = /^Task ID:\s*(.*?)\s*$/su.exec(nodeText(node));
+function readTaskId(
+  input: string,
+  node: MarkdownNode | undefined,
+): string | undefined {
+  if (!isTaskIdLikeParagraph(node)) return undefined;
+  const match =
+    /^\*\*Task ID:\*\*[\t ]+([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)[\t ]*$/u.exec(
+      input.slice(nodeStart(node), nodeEnd(node)),
+    );
   if (match === null || !IDENTIFIER.test(match[1])) return undefined;
   return match[1];
 }
 
-function isTaskIdParagraph(
+function isTaskIdLikeParagraph(
   node: MarkdownNode | undefined,
 ): node is MarkdownNode {
   return node?.type === "paragraph" && /^Task ID:/u.test(nodeText(node));
@@ -708,12 +719,19 @@ function isLiteralH2(
 
 function isCanonicalTaskHeading(input: string, node: MarkdownNode): boolean {
   return (
-    isHeading(node) &&
-    node.depth === 3 &&
+    isTaskLikeHeading(node) &&
     /^Task\s+\d+(?:[\t :]|$)/u.test(nodeText(node)) &&
     /^###[\t ]+Task\s+\d+(?:[\t :]|$)/u.test(
       input.slice(nodeStart(node), nodeEnd(node)),
     )
+  );
+}
+
+function isTaskLikeHeading(node: MarkdownNode): boolean {
+  return (
+    isHeading(node) &&
+    node.depth === 3 &&
+    /^Task(?:[\t :]|$)/iu.test(nodeText(node))
   );
 }
 

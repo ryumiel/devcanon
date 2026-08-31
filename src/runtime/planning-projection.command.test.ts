@@ -33,7 +33,7 @@ const structuralPlan = [
   "",
   "### Task 1: Build projection operation",
   "",
-  "**Task ID:** `BUILD-PROJECTION-OPERATION`",
+  "**Task ID:** BUILD-PROJECTION-OPERATION",
   "",
 ].join("\n");
 
@@ -83,11 +83,11 @@ describe("planning-projection inspect command", () => {
       "",
       "### Task 1: Build projection operation",
       "",
-      "**Task ID:** `BUILD-PROJECTION-OPERATION`",
+      "**Task ID:** BUILD-PROJECTION-OPERATION",
       "",
       "### Task 2: Package runtime",
       "",
-      "**Task ID:** `PACKAGE-PROJECTION-RUNTIME`",
+      "**Task ID:** PACKAGE-PROJECTION-RUNTIME",
       "",
     ].join("\n");
 
@@ -265,7 +265,7 @@ describe("planning-projection inspect command", () => {
       [
         "### Task 0: Before Tasks",
         "",
-        "**Task ID:** `BEFORE-TASKS`",
+        "**Task ID:** BEFORE-TASKS",
         "",
         structuralPlan,
       ].join("\n"),
@@ -291,13 +291,13 @@ describe("planning-projection inspect command", () => {
     [
       "task-id-invalid",
       noReferenceStructuralPlan.replace(
-        "`BUILD-PROJECTION-OPERATION`",
-        "`not-a-task-id`",
+        "BUILD-PROJECTION-OPERATION",
+        "not-a-task-id",
       ),
     ],
     [
       "task-id-duplicate",
-      `${noReferenceStructuralPlan}\n### Task 2: Duplicate\n\n**Task ID:** \`BUILD-PROJECTION-OPERATION\`\n`,
+      `${noReferenceStructuralPlan}\n### Task 2: Duplicate\n\n**Task ID:** BUILD-PROJECTION-OPERATION\n`,
     ],
     [
       "task-reference-unknown",
