@@ -22,15 +22,48 @@ The repository root is required for the runtime's path-backed inspection.
 ## Outputs
 
 The helper forwards the sibling runtime's stdout, stderr, and exit status
-unchanged. Successful inspection returns the closed `planning-projection/v1`
-JSON object on stdout. Local `--help` writes this exact adjacent document to
-stdout and nothing to stderr.
+unchanged. Successful inspection returns an untrusted closed
+`planning-projection/v1` envelope. The controller accepts success only when it
+has exactly one newline-terminated JSON object on stdout, empty stderr, and
+status 0; local `--help` writes this exact adjacent document to stdout and
+nothing to stderr.
+
+The success root has exactly `schema`, `plan_path`, `projection`, and `tasks`.
+`schema` is the literal `planning-projection/v1`; `plan_path` is a nonempty
+string that exactly equals the guarded repository-relative path. `projection`
+is an object with exactly `start`, `end`, and `entries`; `start` and `end` are
+nonnegative integers with `start < end`, and `entries` is a nonempty array.
+Each entry has exactly `entry_id`, `affected_surfaces`, `owner_source`, `mode`,
+`implementation_task_ids`, `no_code_reason`, `proof`, `start`, and `end`.
+There are unique nonempty `entry_id` values, `owner_source` is a nonempty
+string, `affected_surfaces` is an array of nonempty unique strings; and `mode`
+is `authority`, `reference`,
+`derived representation`, `non-normative summary`, or `verification`.
+
+All range values are nonnegative integers; each entry range has `start < end`
+and lies within the projection range. Its disposition is either nonempty unique task IDs with
+`no_code_reason: null`, or an empty task-ID array with a nonempty no-code
+reason. `proof` is an object with exactly `owner_type`, `owner`, and `boundary`;
+`owner_type` is `task`, `reviewer`, or `controller`, and `owner` and `boundary`
+are nonempty strings. `tasks` is an array of task objects with unique nonempty
+`task_id` values, each with exactly `task_id`, `heading`, `start`, and `end`;
+its strings are
+nonempty, its ranges are nonnegative integers with `start < end`, and every
+task-valued disposition or proof reference must resolve exactly once against
+`tasks`. Every range is within the decoded saved-plan input length.
 
 ## Refusal and failures
 
 Missing, empty, unknown, or extra arguments fail. A missing or incompatible
 sibling runtime, or any runtime failure, fails without a fallback parser,
 global CLI, result file, or retry.
+
+The controller maps a zero-status malformed or unknown success, including an
+extra key, wrong nested type, cardinality or range failure, path mismatch,
+reference inconsistency, or inconsistent result, to `BLOCKED/NEEDS_CONTEXT`. It also maps a zero-status
+channel violation, including extra stdout bytes or nonempty success stderr, to
+`BLOCKED/NEEDS_CONTEXT` before every path-backed consumer. There is no repair,
+fallback, or partial use.
 
 ## Side effects
 

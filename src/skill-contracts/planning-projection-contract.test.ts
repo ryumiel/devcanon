@@ -191,7 +191,64 @@ describe("play-planning execution projection contract", () => {
     expect(helperGate).toBeGreaterThan(digestGate);
     expect(execution).toContain("closed `planning-projection/v1` success");
     expect(execution).toMatch(
-      /malformed,\s+unknown,\s+or inconsistent result/u,
+      /zero-status malformed or unknown success or\s+inconsistent result/u,
+    );
+  });
+
+  it("keeps the path-backed success envelope closed before controller consumption", async () => {
+    const [usage, execution] = await Promise.all([
+      readRepoFile(
+        "skills/play-subagent-execution/references/inspect-plan-projection-usage.md",
+      ),
+      readRepoFile("skills/play-subagent-execution/SKILL.md"),
+    ]);
+    const requiredContractTerms = [
+      "exactly one newline-terminated JSON object on stdout",
+      "empty stderr, and status 0",
+      "`schema`, `plan_path`, `projection`, and `tasks`",
+      "`planning-projection/v1`",
+      "exactly equals the guarded repository-relative path",
+      "`start`, `end`, and `entries`",
+      "`entry_id`, `affected_surfaces`, `owner_source`, `mode`, `implementation_task_ids`, `no_code_reason`, `proof`, `start`, and `end`",
+      "`owner_type`, `owner`, and `boundary`",
+      "`task_id`, `heading`, `start`, and `end`",
+      "unique nonempty `entry_id`",
+      "unique nonempty `task_id`",
+      "nonempty unique strings",
+      "`authority`, `reference`, `derived representation`, `non-normative summary`, or `verification`",
+      "`task`, `reviewer`, or `controller`",
+      "nonempty unique task IDs with `no_code_reason: null`",
+      "empty task-ID array with a nonempty no-code reason",
+      "resolve exactly once against `tasks`",
+      "nonnegative integers",
+    ];
+
+    for (const original of [usage, execution]) {
+      const source = original.replace(/\s+/gu, " ");
+      for (const term of requiredContractTerms) {
+        expect(source).toContain(term);
+      }
+    }
+  });
+
+  it("blocks zero-status malformed and channel-violating path-backed success before every consumer", async () => {
+    const [usage, execution] = await Promise.all([
+      readRepoFile(
+        "skills/play-subagent-execution/references/inspect-plan-projection-usage.md",
+      ),
+      readRepoFile("skills/play-subagent-execution/SKILL.md"),
+    ]);
+
+    for (const original of [usage, execution]) {
+      const source = original.replace(/\s+/gu, " ");
+      expect(source).toContain("zero-status malformed or unknown success");
+      expect(source).toContain("extra stdout bytes");
+      expect(source).toContain("nonempty success stderr");
+      expect(source).toContain("`BLOCKED/NEEDS_CONTEXT`");
+      expect(source).toContain("no repair, fallback, or partial use");
+    }
+    expect(execution.replace(/\s+/gu, " ")).toContain(
+      "before skip evaluation, inline execution, implementer/reviewer dispatch, or final review",
     );
   });
 

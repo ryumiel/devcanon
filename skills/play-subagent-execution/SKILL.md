@@ -77,15 +77,37 @@ Before any implementer dispatch or inline execution, run a structural
 projection gate before fallback or route selection. For a reviewed `Plan: <path>`
 handoff, after the existing path guards and reviewed-digest comparison, invoke
 `inspect-plan-projection.sh --path <repo-relative-plan-path>` with that exact
-guarded path. Accept only a closed `planning-projection/v1` success result: its
-root, projection, entries, proof, and tasks must contain exactly the
-issue-defined fields with valid field shapes, and every selected task reference
-must agree with the returned tasks. Use its projection entries to mechanically
-select entries whose explicit implementation disposition or task-valued proof
-names each returned Task ID. A nonzero helper/runtime status, malformed,
-unknown, or inconsistent result returns `BLOCKED/NEEDS_CONTEXT` before skip
-evaluation, inline execution, implementer/reviewer dispatch, or final review.
-Do not repair, infer, partially consume, or fall back to a delimiter parser.
+guarded path. Treat every zero-status result as untrusted until it satisfies the
+closed `planning-projection/v1` success contract: exactly one newline-terminated
+JSON object on stdout, empty stderr, and status 0; root keys exactly `schema`,
+`plan_path`, `projection`, and `tasks`; literal schema; and a nonempty string
+`plan_path` that exactly equals the guarded repository-relative path.
+`projection` has exactly `start`, `end`, and `entries`, with nonnegative
+integers as range bounds and a nonempty entries array. Each entry has exactly `entry_id`,
+`affected_surfaces`, `owner_source`, `mode`, `implementation_task_ids`,
+`no_code_reason`, `proof`, `start`, and `end`; unique nonempty `entry_id`
+values, nonempty strings and nonempty unique strings where applicable; an
+entry range inside the projection range; and mode `authority`, `reference`,
+`derived representation`, `non-normative summary`, or `verification`.
+
+Each entry's disposition is either nonempty unique task IDs with
+`no_code_reason: null`, or an empty task-ID array with a nonempty no-code
+reason. Its proof has exactly `owner_type`, `owner`, and `boundary`, with
+nonempty owner and boundary strings and owner type `task`, `reviewer`, or
+`controller`. `tasks` is an array of task objects with unique nonempty
+`task_id` values, each with exactly `task_id`, `heading`, `start`, and `end`,
+nonempty strings, and nonnegative integer ranges within the decoded saved-plan
+input. Every task-valued
+disposition or proof reference must resolve exactly once against `tasks`.
+Use validated projection entries to mechanically select entries whose explicit
+implementation disposition or task-valued proof names each returned Task ID.
+
+A nonzero helper/runtime status, zero-status malformed or unknown success or
+inconsistent result, extra stdout bytes, nonempty success stderr, extra key, path mismatch, nested
+type/cardinality/range/reference inconsistency, or other channel violation
+returns `BLOCKED/NEEDS_CONTEXT` before skip evaluation, inline execution,
+implementer/reviewer dispatch, or final review. There is no repair, fallback,
+or partial use; do not infer or fall back to a delimiter parser.
 
 Direct-inline plan intake retains the existing controller-owned structural
 procedure. Require one literal Markdown H2 `## Execution Projection` outside
