@@ -485,7 +485,7 @@ describe("sync", () => {
     const catalogRows = parsePublicHelperCatalog(
       await readFile(path.resolve("contracts/public-helpers.md"), "utf8"),
     );
-    expect(catalogRows).toHaveLength(29);
+    expect(catalogRows).toHaveLength(30);
     const representativeIds = new Set([
       "play-subagent-execution/write-snapshot-manifest",
       "play-agent-dispatch/source-immutability",

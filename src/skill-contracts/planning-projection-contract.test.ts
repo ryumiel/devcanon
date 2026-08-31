@@ -170,8 +170,48 @@ describe("play-planning execution projection contract", () => {
     );
 
     expect(execution).toContain("`BLOCKED/NEEDS_CONTEXT`");
+    expect(execution).toContain("inspect-plan-projection.sh --path");
+    expect(execution).toContain("`planning-projection/v1`");
     expect(execution).not.toContain("resolve-task-records.mjs");
     expect(execution).not.toContain("task-record-resolution/v1");
+  });
+
+  it("adopts the runtime projection only after path guards and digest verification", async () => {
+    const execution = await readRepoFile(
+      "skills/play-subagent-execution/SKILL.md",
+    );
+    const digestGate = execution.indexOf(
+      "Only after the digest comparison passes",
+    );
+    const helperGate = execution.lastIndexOf(
+      "`inspect-plan-projection.sh --path <repo-relative-plan-path>`",
+    );
+
+    expect(digestGate).toBeGreaterThanOrEqual(0);
+    expect(helperGate).toBeGreaterThan(digestGate);
+    expect(execution).toContain("closed `planning-projection/v1` success");
+    expect(execution).toMatch(
+      /malformed,\s+unknown,\s+or inconsistent result/u,
+    );
+  });
+
+  it("preserves direct-inline intake and controller-owned record resolution", async () => {
+    const execution = await readRepoFile(
+      "skills/play-subagent-execution/SKILL.md",
+    );
+    const inlineStart = execution.indexOf(
+      "### Inline content (preserved for direct invocations)",
+    );
+    const inline = execution.slice(inlineStart);
+
+    expect(inlineStart).toBeGreaterThanOrEqual(0);
+    expect(inline).not.toContain("inspect-plan-projection");
+    expect(execution).toContain(
+      "each field only against\nits declared record kind",
+    );
+    expect(execution).toContain(
+      "Do not\ndiscover records merely because they mention a selected Entry ID",
+    );
   });
 
   it("links the proportionality ADR from navigation and its execution consumer", async () => {

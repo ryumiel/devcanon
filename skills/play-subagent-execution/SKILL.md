@@ -10,7 +10,7 @@ codex_sidecar:
 
 ## Public helper mechanics
 
-Use the adjacent [source-immutability usage](references/source-immutability-usage.md), [write-risk-signals usage](references/write-risk-signals-usage.md), [write-snapshot-manifest usage](references/write-snapshot-manifest-usage.md), and [validate-snapshot-manifest usage](references/validate-snapshot-manifest-usage.md). This skill retains D14-D16 lifecycle, blocking, and terminal-handoff policy.
+Use the adjacent [inspect-plan-projection usage](references/inspect-plan-projection-usage.md), [source-immutability usage](references/source-immutability-usage.md), [write-risk-signals usage](references/write-risk-signals-usage.md), [write-snapshot-manifest usage](references/write-snapshot-manifest-usage.md), and [validate-snapshot-manifest usage](references/validate-snapshot-manifest-usage.md). This skill retains D14-D16 lifecycle, blocking, and terminal-handoff policy.
 
 ## Invocation Policy
 
@@ -74,25 +74,38 @@ BLOCKED/NEEDS_CONTEXT with the exact contract gap instead of silently treating
 the missing contract as satisfied.
 
 Before any implementer dispatch or inline execution, run a structural
-projection gate before fallback or route selection. Require one literal
-Markdown H2 `## Execution Projection` outside fenced code, followed by peer H2
-`## Tasks` before any `### Task` heading, and one or more uniquely identified
-entries containing exactly `Entry ID`, `Affected surface or equivalent set`,
-`Owner/source`, `Mode`, `Implementation disposition`, and `Proof`; alternate
-headings, renamed, duplicate, or unknown projection metadata do not substitute.
-Each Entry ID uses the same `UPPER-ASCII-KEBAB` form as Task ID. Other values
-are nonblank: the surface value is a JSON array containing one or more unique,
-nonempty strings, where one member is a singleton and two or more members are
-an equivalent set, array order is non-semantic, and uniqueness uses exact
-decoded-string equality; Mode is `authority`, `reference`,
-`derived representation`, `non-normative summary`, or `verification`;
-disposition is a nonempty duplicate-free `Tasks [...]` ID set or
-`No code — <reason>`; and Proof is exactly one `Task <TASK-ID>`,
-`Reviewer <responsibility>`, or `Controller <responsibility>` owner paired with
-one nonblank boundary. Every Task ID in disposition or Proof resolves to exactly
-one current task. These are structural checks, not
-authority-truth or topology-completeness review.
-For each current task, mechanically select entries whose explicit implementation
+projection gate before fallback or route selection. For a reviewed `Plan: <path>`
+handoff, after the existing path guards and reviewed-digest comparison, invoke
+`inspect-plan-projection.sh --path <repo-relative-plan-path>` with that exact
+guarded path. Accept only a closed `planning-projection/v1` success result: its
+root, projection, entries, proof, and tasks must contain exactly the
+issue-defined fields with valid field shapes, and every selected task reference
+must agree with the returned tasks. Use its projection entries to mechanically
+select entries whose explicit implementation disposition or task-valued proof
+names each returned Task ID. A nonzero helper/runtime status, malformed,
+unknown, or inconsistent result returns `BLOCKED/NEEDS_CONTEXT` before skip
+evaluation, inline execution, implementer/reviewer dispatch, or final review.
+Do not repair, infer, partially consume, or fall back to a delimiter parser.
+
+Direct-inline plan intake retains the existing controller-owned structural
+procedure. Require one literal Markdown H2 `## Execution Projection` outside
+fenced code, followed by peer H2 `## Tasks` before any `### Task` heading, and
+one or more uniquely identified entries containing exactly `Entry ID`,
+`Affected surface or equivalent set`, `Owner/source`, `Mode`,
+`Implementation disposition`, and `Proof`; alternate headings, renamed,
+duplicate, or unknown projection metadata do not substitute. Each Entry ID uses
+the same `UPPER-ASCII-KEBAB` form as Task ID. Other values are nonblank: the
+surface value is a JSON array containing one or more unique, nonempty strings,
+where one member is a singleton and two or more members are an equivalent set,
+array order is non-semantic, and uniqueness uses exact decoded-string equality;
+Mode is `authority`, `reference`, `derived representation`,
+`non-normative summary`, or `verification`; disposition is a nonempty
+duplicate-free `Tasks [...]` ID set or `No code — <reason>`; and Proof is
+exactly one `Task <TASK-ID>`, `Reviewer <responsibility>`, or
+`Controller <responsibility>` owner paired with one nonblank boundary. Every
+Task ID in disposition or Proof resolves to exactly one current task. These are
+structural checks, not authority-truth or topology-completeness review. For
+each current task, mechanically select entries whose explicit implementation
 disposition or task-valued proof names that Task ID. Any missing, duplicate,
 unknown, or ambiguous projection structure returns BLOCKED/NEEDS_CONTEXT to
 planning. This selection does not decide whether membership or topology is
@@ -261,9 +274,13 @@ opening the file. `play-review` findings/nits envelopes use a stricter
 direct-child `.ephemeral/` guard because those paths are echoed through review
 output and reused by wrappers before read or overwrite.
 
-Only after the digest comparison passes does the controller read the plan from the path and proceed with task
-extraction. Per-task implementer subagents continue to receive curated,
-inlined task text — they do NOT receive the path. See § Red Flags below.
+Only after the digest comparison passes does the controller invoke
+`inspect-plan-projection.sh --path <repo-relative-plan-path>` before reading or
+extracting the saved plan. It validates and consumes the closed result as the
+path-backed structural gate described above, then continues its separate
+kind-scoped record resolution and curated execution-context path. Per-task
+implementer subagents continue to receive curated, inlined task text — they do
+NOT receive the path. See § Red Flags below.
 
 After each implementer or reviewer return, controller state carries status,
 changed files, verification result, blockers, and artifact paths instead of
