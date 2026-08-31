@@ -227,6 +227,14 @@ export function inspectPlanningProjection(
   if (tasksHeadings.length === 0) {
     findings.push({ code: "tasks-section-missing", offset: 0 });
   }
+  if (tasksHeadings.length > 1) {
+    for (const heading of tasksHeadings.slice(1)) {
+      findings.push({
+        code: "tasks-section-missing",
+        offset: nodeStart(heading),
+      });
+    }
+  }
 
   const firstTasksHeading = tasksHeadings[0];
   for (const taskHeading of headings.filter(isTaskLikeHeading)) {

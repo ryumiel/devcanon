@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
@@ -152,6 +152,40 @@ describe("runtime build checker", () => {
       await expect(readFile(packageJson, "utf-8")).resolves.toBe(
         '{"private":false}\n',
       );
+      await expect(readFile(sentinel, "utf-8")).resolves.toBe("unchanged\n");
+    } finally {
+      await cleanupTempDir(tempDir);
+    }
+  });
+
+  it("refuses to prepare a substituted approved runtime without mutation", async () => {
+    const tempDir = await createRuntimeBuildRepo();
+    try {
+      const approvedRuntime = path.join(tempDir, runtimeDir);
+      const substitutedRuntime = path.join(tempDir, "substituted-runtime");
+      const sentinel = path.join(
+        substitutedRuntime,
+        "node_modules",
+        "sentinel.js",
+      );
+      await mkdir(path.dirname(sentinel), { recursive: true });
+      await writeFile(sentinel, "unchanged\n", "utf-8");
+      await rm(approvedRuntime, { recursive: true, force: true });
+      await symlink(
+        substitutedRuntime,
+        approvedRuntime,
+        process.platform === "win32" ? "junction" : "dir",
+      );
+
+      await expect(
+        execFileAsync("node", [checkerScript, "--prepare", runtimeDir], {
+          cwd: tempDir,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "runtime parser closure preparation refuses symlink or reparse-point path components",
+        ),
+      });
       await expect(readFile(sentinel, "utf-8")).resolves.toBe("unchanged\n");
     } finally {
       await cleanupTempDir(tempDir);

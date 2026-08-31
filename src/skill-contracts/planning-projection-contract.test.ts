@@ -286,6 +286,44 @@ describe("play-planning execution projection contract", () => {
     );
   });
 
+  it("documents exact source spans and the closed runtime failure contract", async () => {
+    const usage = (
+      await readRepoFile(
+        "skills/play-subagent-execution/references/inspect-plan-projection-usage.md",
+      )
+    ).replace(/\s+/gu, " ");
+    const spanTerms = [
+      "`projection.start` is the start offset of the literal `## Execution Projection` H2 heading",
+      "`projection.end` is the start offset of the peer `## Tasks` H2 heading, excluding that terminator",
+      "Each entry's `start` and `end` are the mdast `listItem.position` offsets for the complete projection entry",
+      "Each task's `start` is the start offset of its canonical `### Task` H3 heading",
+      "its `end` is the start offset of the next canonical Task H3 or the first following H2 section, whichever comes first; otherwise it is `input.length`",
+    ];
+    const failureCodes = [
+      "plan-path-invalid",
+      "plan-unreadable",
+      "execution-projection-missing",
+      "execution-projection-duplicate",
+      "tasks-section-missing",
+      "task-heading-before-tasks",
+      "projection-entry-missing",
+      "projection-entry-field-invalid",
+      "entry-id-duplicate",
+      "task-id-invalid",
+      "task-id-duplicate",
+      "task-reference-unknown",
+    ];
+
+    for (const term of spanTerms) expect(usage).toContain(term);
+    for (const code of failureCodes) expect(usage).toContain(`\`${code}\``);
+    expect(usage).toContain(
+      "Failure writes nothing to stdout, writes exactly one newline-terminated JSON object with exactly `ok: false`, `code`, and `message` to stderr, and exits nonzero",
+    );
+    expect(usage).toContain("first finding in source order");
+    expect(usage).toContain("does not constrain message prose");
+    expect(usage).toContain("does not define precedence for equal offsets");
+  });
+
   it("preserves direct-inline intake and controller-owned record resolution", async () => {
     const execution = await readRepoFile(
       "skills/play-subagent-execution/SKILL.md",

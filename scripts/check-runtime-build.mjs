@@ -2,9 +2,11 @@
 import { spawnSync } from "node:child_process";
 import {
   cp,
+  lstat,
   mkdir,
   readFile,
   readdir,
+  realpath,
   rename,
   rm,
   stat,
@@ -97,6 +99,7 @@ if (untrackedFiles.length > 0) {
 
 async function prepareRuntimeParserClosure(runtimeDirectory) {
   const nodeModules = path.join(runtimeDirectory, "node_modules");
+  await assertSafeRuntimeDeletionTarget(runtimeDirectory, nodeModules);
   await rm(nodeModules, { recursive: true, force: true });
   await mkdir(nodeModules, { recursive: true });
 
@@ -133,6 +136,90 @@ async function prepareRuntimeParserClosure(runtimeDirectory) {
       2,
     )}\n`,
     "utf8",
+  );
+}
+
+async function assertSafeRuntimeDeletionTarget(
+  runtimeDirectory,
+  deletionTarget,
+) {
+  const repositoryRoot = path.resolve(process.cwd());
+  const approvedRuntime = path.resolve(runtimeDirectory);
+  const relativeRuntime = path.relative(repositoryRoot, approvedRuntime);
+  if (!isStrictlyContainedPath(relativeRuntime)) {
+    throw new Error(
+      `runtime parser closure deletion target is outside the repository root: ${approvedRuntime}`,
+    );
+  }
+
+  let component = repositoryRoot;
+  if ((await lstat(component)).isSymbolicLink()) {
+    throw new Error(
+      `runtime parser closure preparation refuses symlink or reparse-point path components: ${component}`,
+    );
+  }
+  for (const segment of relativeRuntime.split(path.sep)) {
+    component = path.join(component, segment);
+    if ((await lstat(component)).isSymbolicLink()) {
+      throw new Error(
+        `runtime parser closure preparation refuses symlink or reparse-point path components: ${component}`,
+      );
+    }
+  }
+
+  const physicalRepositoryRoot = await realpath(repositoryRoot);
+  const physicalRuntime = await realpath(approvedRuntime);
+  if (
+    !isStrictlyContainedPath(
+      path.relative(physicalRepositoryRoot, physicalRuntime),
+    )
+  ) {
+    throw new Error(
+      `runtime parser closure physical runtime is outside the repository root: ${physicalRuntime}`,
+    );
+  }
+
+  const relativeDeletionTarget = path.relative(
+    approvedRuntime,
+    path.resolve(deletionTarget),
+  );
+  if (!isStrictlyContainedPath(relativeDeletionTarget)) {
+    throw new Error(
+      `runtime parser closure deletion target is outside the approved runtime: ${deletionTarget}`,
+    );
+  }
+  let physicalDeletionTarget = path.join(
+    physicalRuntime,
+    relativeDeletionTarget,
+  );
+  try {
+    const targetStat = await lstat(deletionTarget);
+    if (targetStat.isSymbolicLink()) {
+      throw new Error(
+        `runtime parser closure preparation refuses a symlink or reparse-point deletion target: ${deletionTarget}`,
+      );
+    }
+    physicalDeletionTarget = await realpath(deletionTarget);
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+  if (
+    !isStrictlyContainedPath(
+      path.relative(physicalRuntime, physicalDeletionTarget),
+    )
+  ) {
+    throw new Error(
+      `runtime parser closure physical deletion target is outside the approved runtime: ${physicalDeletionTarget}`,
+    );
+  }
+}
+
+function isStrictlyContainedPath(relativePath) {
+  return (
+    relativePath !== "" &&
+    relativePath !== ".." &&
+    !relativePath.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relativePath)
   );
 }
 

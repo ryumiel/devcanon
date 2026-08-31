@@ -45,22 +45,43 @@ is `authority`, `reference`,
 All ranges are zero-based, end-exclusive integer offsets in the decoded input:
 `0 <= projection.start < projection.end <= input.length`,
 `projection.start <= entry.start < entry.end <= projection.end`, and
-`0 <= task.start < task.end <= input.length`. Its disposition is either nonempty unique task IDs with
+`0 <= task.start < task.end <= input.length`. `projection.start` is the start
+offset of the literal `## Execution Projection` H2 heading, and
+`projection.end` is the start offset of the peer `## Tasks` H2 heading,
+excluding that terminator. Each entry's `start` and `end` are the mdast
+`listItem.position` offsets for the complete projection entry. Each task's
+`start` is the start offset of its canonical `### Task` H3 heading, and its
+`end` is the start offset of the next canonical Task H3 or the first following
+H2 section, whichever comes first; otherwise it is `input.length`.
+
+An entry's disposition is either nonempty unique task IDs with
 `no_code_reason: null`, or an empty task-ID array with a nonempty no-code
 reason. `proof` is an object with exactly `owner_type`, `owner`, and `boundary`;
 `owner_type` is `task`, `reviewer`, or `controller`, and `owner` and `boundary`
 are nonempty strings. `tasks` is an array of task objects with unique nonempty
 `task_id` values, each with exactly `task_id`, `heading`, `start`, and `end`;
-its strings are
-nonempty, its ranges are nonnegative integers with `start < end`, and every
-task-valued disposition or proof reference must resolve exactly once against
-`tasks`. Every range is within the decoded saved-plan input length.
+its strings are nonempty, its ranges are nonnegative integers with
+`start < end`, and every task-valued disposition or proof reference must
+resolve exactly once against `tasks`. Every range is within the decoded
+saved-plan input length.
 
 ## Refusal and failures
 
 Missing, empty, unknown, or extra arguments fail. A missing or incompatible
 sibling runtime, or any runtime failure, fails without a fallback parser,
 global CLI, result file, or retry.
+
+Failure writes nothing to stdout, writes exactly one newline-terminated JSON
+object with exactly `ok: false`, `code`, and `message` to stderr, and exits
+nonzero. The closed failure-code set is `plan-path-invalid`, `plan-unreadable`,
+`execution-projection-missing`, `execution-projection-duplicate`,
+`tasks-section-missing`, `task-heading-before-tasks`,
+`projection-entry-missing`, `projection-entry-field-invalid`,
+`entry-id-duplicate`, `task-id-invalid`, `task-id-duplicate`, and
+`task-reference-unknown`. A duplicate literal peer `## Tasks` heading makes
+the Tasks terminator ambiguous and uses `tasks-section-missing`. The runtime
+reports the first finding in source order. This contract does not constrain
+message prose and does not define precedence for equal offsets.
 
 The controller maps a zero-status malformed or unknown success, including an
 extra key, wrong nested type, bad identifier, empty affected surfaces, or invalid range,

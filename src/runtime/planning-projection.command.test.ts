@@ -325,4 +325,34 @@ describe("planning-projection inspect command", () => {
       });
     },
   );
+
+  it("fails closed when a second literal Tasks H2 would hide later tasks", async () => {
+    const input = [
+      structuralPlan,
+      "## Tasks",
+      "",
+      "### Task 2: Must not be omitted",
+      "",
+      "**Task ID:** MUST-NOT-BE-OMITTED",
+      "",
+    ].join("\n");
+
+    await withPlan(input, async (planPath) => {
+      const result = await runRuntimeCommand([
+        "planning-projection",
+        "inspect",
+        "--path",
+        planPath,
+      ]);
+
+      expect(result.exitCode).toBeGreaterThan(0);
+      expect(result.stdout).toBe("");
+      expect(result.stderr.endsWith("\n")).toBe(true);
+      expect(JSON.parse(result.stderr)).toMatchObject({
+        ok: false,
+        code: "tasks-section-missing",
+        message: expect.any(String),
+      });
+    });
+  });
 });

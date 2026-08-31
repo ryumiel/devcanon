@@ -212,6 +212,22 @@ describe("inspectPlanningProjection", () => {
     ).toHaveLength(1);
   });
 
+  it("rejects a duplicate literal Tasks H2 before it can omit later tasks", () => {
+    const input = [
+      completePlan,
+      "## Tasks",
+      "",
+      "### Task 2: Must not be omitted",
+      "",
+      "**Task ID:** MUST-NOT-BE-OMITTED",
+      "",
+    ].join("\n");
+
+    expect(() =>
+      inspectPlanningProjection(input, "plans/issue-651.md"),
+    ).toThrow("tasks-section-missing");
+  });
+
   it("decodes affected surfaces from their exact JSON source value", () => {
     const input = completePlan.replace(
       '["runtime inspector"]',
