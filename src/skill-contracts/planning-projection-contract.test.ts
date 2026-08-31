@@ -210,6 +210,7 @@ describe("play-planning execution projection contract", () => {
       "exactly equals the guarded repository-relative path",
       "`start`, `end`, and `entries`",
       "`entry_id`, `affected_surfaces`, `owner_source`, `mode`, `implementation_task_ids`, `no_code_reason`, `proof`, `start`, and `end`",
+      "`owner_source` is a nonempty string",
       "`owner_type`, `owner`, and `boundary`",
       "`task_id`, `heading`, `start`, and `end`",
       "unique nonempty `entry_id`",

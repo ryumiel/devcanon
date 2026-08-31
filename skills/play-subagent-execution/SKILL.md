@@ -86,7 +86,8 @@ JSON object on stdout, empty stderr, and status 0; root keys exactly `schema`,
 integers as range bounds and a nonempty entries array. Each entry has exactly `entry_id`,
 `affected_surfaces`, `owner_source`, `mode`, `implementation_task_ids`,
 `no_code_reason`, `proof`, `start`, and `end`; unique nonempty `entry_id`
-values, with both `entry_id` and `task_id` strings matching the UPPER-ASCII-KEBAB
+values; `owner_source` is a nonempty string; and both `entry_id` and `task_id`
+strings match the UPPER-ASCII-KEBAB
 grammar `^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*$`; a nonempty array of nonempty unique
 strings for `affected_surfaces`; and mode `authority`, `reference`,
 `derived representation`, `non-normative summary`, or `verification`.
