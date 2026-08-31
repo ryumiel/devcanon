@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { lstat, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -17,11 +18,8 @@ const RUNTIME_JS_DIR = path.join("scripts", "runtime");
 const RUNTIME_JS_ENTRYPOINT = path.join(RUNTIME_JS_DIR, "cli.js");
 const RUNTIME_JS_INDEX = path.join(RUNTIME_JS_DIR, "index.js");
 const RUNTIME_NODE_MODULES_DIR = path.join(RUNTIME_JS_DIR, "node_modules");
-const GFM_RUNTIME_PACKAGE_NAMES = [
-  "mdast-util-from-markdown",
-  "mdast-util-gfm",
-  "micromark-extension-gfm",
-] as const;
+const GFM_RUNTIME_CLOSURE_HASH =
+  "80fb9c6089fe984ceabc5ea8a0be2c2d7a47d12c699c7a7207577e59b1ec1d8b";
 const REQUIRED_RUNTIME_JS_FILES = [
   "artifacts.js",
   "bash.js",
@@ -113,7 +111,14 @@ export async function validateDevcanonRuntime(
     "config",
   );
   await validateExactRuntimeTree(runtimeDir);
-  await validateGfmRuntimeClosure(runtimeDir);
+  try {
+    await validateExactGfmRuntimeClosure(runtimeDir);
+  } catch (error) {
+    if (error instanceof UserError) {
+      throw error;
+    }
+    throw runtimeSourceIncompleteError(runtimeDir, RUNTIME_NODE_MODULES_DIR);
+  }
   await loadRuntimeConfigCatalog(
     path.join(runtimeDir, RUNTIME_CONFIG_RELATIVE_PATH),
   );
@@ -161,92 +166,63 @@ async function validateExactRuntimeTree(runtimeDir: string): Promise<void> {
   );
 }
 
-async function validateGfmRuntimeClosure(runtimeDir: string): Promise<void> {
-  const nodeModules = path.join(runtimeDir, RUNTIME_NODE_MODULES_DIR);
-  const packageNames = new Set<string>();
-  for (const packageName of GFM_RUNTIME_PACKAGE_NAMES) {
-    await validateFlatRuntimePackage(
-      nodeModules,
-      packageName,
-      runtimeDir,
-      packageNames,
-    );
-  }
-  await requireExactDirectoryEntries(
-    nodeModules,
-    [...packageNames],
-    runtimeDir,
-  );
-}
-
-async function validateFlatRuntimePackage(
-  nodeModulesDir: string,
-  expectedName: string,
+async function validateExactGfmRuntimeClosure(
   runtimeDir: string,
-  packageNames: Set<string>,
 ): Promise<void> {
-  if (packageNames.has(expectedName)) return;
-  const packageDir = path.join(nodeModulesDir, expectedName);
-  let manifest: {
-    name?: unknown;
-    dependencies?: unknown;
-    optionalDependencies?: unknown;
-  };
-  try {
-    manifest = JSON.parse(
-      await readFile(path.join(packageDir, "package.json"), "utf8"),
-    ) as typeof manifest;
-  } catch {
-    throw runtimeSourceIncompleteError(
-      runtimeDir,
-      path.relative(runtimeDir, packageDir),
-    );
+  const runtimeJsDir = path.join(runtimeDir, RUNTIME_JS_DIR);
+  const hash = createHash("sha256");
+  for (const entry of ["package.json", "node_modules"]) {
+    await hashRuntimeClosureEntry(path.join(runtimeJsDir, entry), entry, hash);
   }
-  if (manifest.name !== expectedName) {
-    throw runtimeSourceIncompleteError(
-      runtimeDir,
-      path.relative(runtimeDir, packageDir),
-    );
+  if (hash.digest("hex") !== GFM_RUNTIME_CLOSURE_HASH) {
+    throw runtimeSourceIncompleteError(runtimeDir, RUNTIME_NODE_MODULES_DIR);
   }
-  packageNames.add(expectedName);
+}
 
-  await requireExactDirectoryEntries(
-    packageDir,
-    await packageEntries(packageDir),
-    runtimeDir,
+async function hashRuntimeClosureEntry(
+  entryPath: string,
+  relativePath: string,
+  hash: ReturnType<typeof createHash>,
+): Promise<void> {
+  const entry = await lstat(entryPath).catch(() => undefined);
+  if (entry === undefined) {
+    throw new Error(`missing closure entry: ${relativePath}`);
+  }
+  if (entry.isDirectory()) {
+    hashRuntimeClosureField(hash, "directory", relativePath);
+    const entries = await readdir(entryPath, { withFileTypes: true });
+    entries.sort((left, right) => left.name.localeCompare(right.name));
+    for (const child of entries) {
+      await hashRuntimeClosureEntry(
+        path.join(entryPath, child.name),
+        path.posix.join(relativePath, child.name),
+        hash,
+      );
+    }
+    return;
+  }
+  if (!entry.isFile()) {
+    throw new Error(`unsupported closure entry: ${relativePath}`);
+  }
+  hashRuntimeClosureField(hash, "file", relativePath);
+  hashRuntimeClosureField(
+    hash,
+    "bytes",
+    relativePath,
+    await readFile(entryPath),
   );
-  for (const dependency of packageDependencyNames(manifest)) {
-    await validateFlatRuntimePackage(
-      nodeModulesDir,
-      dependency,
-      runtimeDir,
-      packageNames,
-    );
+}
+
+function hashRuntimeClosureField(
+  hash: ReturnType<typeof createHash>,
+  ...fields: Array<string | Buffer>
+): void {
+  for (const field of fields) {
+    const bytes = Buffer.isBuffer(field) ? field : Buffer.from(field, "utf-8");
+    hash.update(String(bytes.length));
+    hash.update(":");
+    hash.update(bytes);
   }
-}
-
-async function packageEntries(packageDir: string): Promise<string[]> {
-  return (await readdir(packageDir, { withFileTypes: true }))
-    .filter((entry) => entry.name !== "node_modules")
-    .map((entry) => entry.name);
-}
-
-function packageDependencyNames(manifest: {
-  dependencies?: unknown;
-  optionalDependencies?: unknown;
-}): string[] {
-  const dependencies =
-    manifest.dependencies !== null && typeof manifest.dependencies === "object"
-      ? Object.keys(manifest.dependencies)
-      : [];
-  const optionalDependencies =
-    manifest.optionalDependencies !== null &&
-    typeof manifest.optionalDependencies === "object"
-      ? Object.keys(manifest.optionalDependencies)
-      : [];
-  return [...new Set([...dependencies, ...optionalDependencies])]
-    .filter((packageName) => !packageName.startsWith("@types/"))
-    .sort();
 }
 
 async function requireExactDirectoryEntries(

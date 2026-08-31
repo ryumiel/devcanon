@@ -51,9 +51,28 @@ if (untracked.status !== 0) {
   process.exit(untracked.status ?? 1);
 }
 
-const untrackedFiles = untracked.stdout.trim();
+const ignored = runGit([
+  "ls-files",
+  "--others",
+  "--ignored",
+  "--exclude-standard",
+  "--",
+  runtimePath,
+]);
+if (ignored.status !== 0) {
+  process.stderr.write(ignored.stderr);
+  process.exit(ignored.status ?? 1);
+}
+
+const untrackedFiles = [untracked.stdout, ignored.stdout]
+  .flatMap((output) => output.trim().split("\n"))
+  .filter(Boolean)
+  .filter((pathValue, index, paths) => paths.indexOf(pathValue) === index)
+  .join("\n");
 if (untrackedFiles.length > 0) {
-  console.error(`runtime build produced untracked files under ${runtimePath}:`);
+  console.error(
+    `runtime build produced untracked or ignored files under ${runtimePath}:`,
+  );
   console.error(untrackedFiles);
   process.exit(1);
 }
@@ -155,7 +174,11 @@ async function runtimePackageFilter(sourcePath) {
   const name = path.basename(sourcePath);
   if (name === "node_modules") return false;
   if ((await stat(sourcePath)).isDirectory()) return true;
-  return name === "package.json" || /\.(?:c?js|mjs|json)$/u.test(name);
+  return (
+    name === "package.json" ||
+    name.toLowerCase() === "license" ||
+    /\.(?:c?js|mjs|json)$/u.test(name)
+  );
 }
 
 function packageDependencies(manifest) {

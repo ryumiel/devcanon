@@ -112,6 +112,19 @@ describe("devcanon-runtime sync", () => {
         "utf-8",
       ),
     ).resolves.toContain('"schema": "devcanon/runtime-config/v1"');
+    await expect(
+      readFile(
+        path.join(
+          installedRuntime,
+          "scripts",
+          "runtime",
+          "node_modules",
+          "mdast-util-from-markdown",
+          "license",
+        ),
+        "utf-8",
+      ),
+    ).resolves.toContain("MIT License");
 
     const manifest = JSON.parse(
       await readFile(config.manifest.path, "utf-8"),

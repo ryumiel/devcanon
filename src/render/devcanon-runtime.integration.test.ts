@@ -93,6 +93,21 @@ describe("devcanon-runtime rendering", () => {
     expect(await readFile(runtimeScriptPath, "utf-8")).toContain(
       "resolve-entrypoint",
     );
+    for (const targetRuntimeDir of [claudeRuntimeDir, codexRuntimeDir]) {
+      await expect(
+        readFile(
+          path.join(
+            targetRuntimeDir,
+            "scripts",
+            "runtime",
+            "node_modules",
+            "mdast-util-from-markdown",
+            "license",
+          ),
+          "utf-8",
+        ),
+      ).resolves.toContain("MIT License");
+    }
     expect((await stat(runtimeScriptPath)).mode & 0o777).toBe(
       (
         await stat(

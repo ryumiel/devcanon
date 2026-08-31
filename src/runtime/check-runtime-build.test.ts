@@ -46,7 +46,31 @@ describe("runtime build checker", () => {
         execFileAsync("node", [checkerScript, runtimeDir], { cwd: tempDir }),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining(
-          "runtime build produced untracked files",
+          "runtime build produced untracked or ignored files",
+        ),
+      });
+    } finally {
+      await cleanupTempDir(tempDir);
+    }
+  });
+
+  it("fails when generated runtime files are ignored", async () => {
+    const tempDir = await createRuntimeBuildRepo();
+    try {
+      await writeFile(path.join(tempDir, ".gitignore"), "node_modules/\n");
+      await mkdir(path.join(tempDir, runtimeDir, "node_modules", "parser"), {
+        recursive: true,
+      });
+      await writeFile(
+        path.join(tempDir, runtimeDir, "node_modules", "parser", "extra.js"),
+        "extra\n",
+      );
+
+      await expect(
+        execFileAsync("node", [checkerScript, runtimeDir], { cwd: tempDir }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "runtime build produced untracked or ignored files",
         ),
       });
     } finally {
