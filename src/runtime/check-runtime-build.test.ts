@@ -26,6 +26,27 @@ async function createRuntimeBuildRepo(): Promise<string> {
 }
 
 describe("runtime build checker", () => {
+  it("tracks every private runtime notice with the canonical lowercase filename", async () => {
+    const { stdout } = await execFileAsync("git", [
+      "ls-files",
+      "--",
+      `${runtimeDir}/node_modules`,
+    ]);
+    const notices = stdout
+      .trim()
+      .split("\n")
+      .filter((entry) => /\/license(?:\.[a-z0-9]+)?$/iu.test(entry));
+
+    expect(notices).not.toEqual([]);
+    expect(notices).toEqual(
+      notices.map((entry) =>
+        entry.replace(/\/license(?:\.[a-z0-9]+)?$/iu, "/license"),
+      ),
+    );
+    expect(notices).toContain(`${runtimeDir}/node_modules/debug/license`);
+    expect(notices).not.toContain(`${runtimeDir}/node_modules/debug/LICENSE`);
+  });
+
   it("passes when generated runtime files match the git index", async () => {
     const tempDir = await createRuntimeBuildRepo();
     try {
