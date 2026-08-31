@@ -137,20 +137,8 @@ export async function runPlanningProjectionCommand(
 }
 
 async function readPlan(planPath: string): Promise<string> {
-  if (
-    planPath.length === 0 ||
-    path.isAbsolute(planPath) ||
-    planPath.includes("\\") ||
-    planPath.split("/").includes("..")
-  ) {
-    throw new ProjectionFailure("plan-path-invalid", 0);
-  }
-
   const root = process.cwd();
-  const candidate = path.resolve(root, planPath);
-  if (path.relative(root, candidate).startsWith(`..${path.sep}`)) {
-    throw new ProjectionFailure("plan-path-invalid", 0);
-  }
+  const candidate = resolveRepositoryPlanPath(planPath, root, process.platform);
 
   try {
     await assertNoSymlinkOrReparsePoint(root, candidate);
@@ -166,6 +154,35 @@ async function readPlan(planPath: string): Promise<string> {
     }
     throw new ProjectionFailure("plan-unreadable", 0);
   }
+}
+
+export function resolveRepositoryPlanPath(
+  planPath: string,
+  root: string,
+  platform: NodeJS.Platform,
+): string {
+  const pathApi = platform === "win32" ? path.win32 : path.posix;
+  const segments = planPath
+    .split(platform === "win32" ? /[\\/]/u : /\//u)
+    .filter(Boolean);
+  if (
+    planPath.length === 0 ||
+    pathApi.isAbsolute(planPath) ||
+    segments.includes("..")
+  ) {
+    throw new ProjectionFailure("plan-path-invalid", 0);
+  }
+
+  const candidate = pathApi.resolve(root, planPath);
+  const relative = pathApi.relative(root, candidate);
+  if (
+    relative === ".." ||
+    relative.startsWith(`..${pathApi.sep}`) ||
+    pathApi.isAbsolute(relative)
+  ) {
+    throw new ProjectionFailure("plan-path-invalid", 0);
+  }
+  return candidate;
 }
 
 export function inspectPlanningProjection(
@@ -309,16 +326,25 @@ function inspectEntries(
   }
 
   const entries: ProjectionEntry[] = [];
+  const entryIds: Array<{ entry_id: string; offset: number }> = [];
   const taskReferences: TaskReference[] = [];
-  const ids = new Set<string>();
   for (const entryNode of entryNodes) {
-    const entry = parseEntry(entryNode, findings, input, taskReferences);
+    const entry = parseEntry(
+      entryNode,
+      findings,
+      input,
+      taskReferences,
+      entryIds,
+    );
     if (entry === undefined) continue;
-    if (ids.has(entry.entry_id)) {
-      findings.push({ code: "entry-id-duplicate", offset: entry.start });
-    }
-    ids.add(entry.entry_id);
     entries.push(entry);
+  }
+  const ids = new Set<string>();
+  for (const entryId of entryIds) {
+    if (ids.has(entryId.entry_id)) {
+      findings.push({ code: "entry-id-duplicate", offset: entryId.offset });
+    }
+    ids.add(entryId.entry_id);
   }
   return { entries, taskReferences };
 }
@@ -328,6 +354,7 @@ function parseEntry(
   findings: Finding[],
   input: string,
   taskReferences: TaskReference[],
+  entryIds: Array<{ entry_id: string; offset: number }>,
 ): ProjectionEntry | undefined {
   if (entryNode.type !== "listItem") {
     findings.push({
@@ -418,6 +445,10 @@ function parseEntry(
   const modeValue = mode.value.trim();
   const parsedDisposition = parseDisposition(disposition.value);
   const parsedProof = parseProof(proof.value);
+
+  if (IDENTIFIER.test(entryIdentifier)) {
+    entryIds.push({ entry_id: entryIdentifier, offset: nodeStart(entryNode) });
+  }
 
   if (parsedDisposition !== undefined) {
     for (const taskId of parsedDisposition.taskIds) {
@@ -602,12 +633,18 @@ function inspectTasks(
     const heading = canonicalHeadings[index];
     const nextTask = canonicalHeadings[index + 1];
     const taskEnd = nextTask === undefined ? tasksEnd : nodeStart(nextTask);
+    const headingIndex = children.indexOf(heading);
+    const immediateTaskId = children[headingIndex + 1];
     const taskIdNodes = children.filter(
       (node) =>
         nodeStart(node) > nodeStart(heading) &&
         nodeStart(node) < taskEnd &&
         isTaskIdParagraph(node),
     );
+    if (!isTaskIdParagraph(immediateTaskId)) {
+      findings.push({ code: "task-id-invalid", offset: nodeStart(heading) });
+      continue;
+    }
     if (taskIdNodes.length !== 1) {
       findings.push({
         code: taskIdNodes.length > 1 ? "task-id-duplicate" : "task-id-invalid",
@@ -615,7 +652,7 @@ function inspectTasks(
       });
       continue;
     }
-    const taskId = readTaskId(taskIdNodes[0]);
+    const taskId = readTaskId(immediateTaskId);
     if (taskId === undefined) {
       findings.push({ code: "task-id-invalid", offset: nodeStart(heading) });
       continue;
@@ -668,8 +705,8 @@ function isCanonicalTaskHeading(input: string, node: MarkdownNode): boolean {
   return (
     isHeading(node) &&
     node.depth === 3 &&
-    /^Task(?:[\t :]|$)/u.test(nodeText(node)) &&
-    /^###[\t ]+Task(?:[\t :]|$)/u.test(
+    /^Task\s+\d+(?:[\t :]|$)/u.test(nodeText(node)) &&
+    /^###[\t ]+Task\s+\d+(?:[\t :]|$)/u.test(
       input.slice(nodeStart(node), nodeEnd(node)),
     )
   );

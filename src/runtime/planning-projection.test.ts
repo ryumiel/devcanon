@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { inspectPlanningProjection } from "./planning-projection.js";
+import {
+  inspectPlanningProjection,
+  resolveRepositoryPlanPath,
+} from "./planning-projection.js";
 
 const completePlan = [
   "## Execution Projection",
@@ -20,6 +23,17 @@ const completePlan = [
 ].join("\n");
 
 const twoTaskPlan = `${completePlan}\n### Task 2: Second task\n\n**Task ID:** \`SECOND-TASK\`\n`;
+
+function entry(id: string, mode: string): string[] {
+  return [
+    `- **Entry ID:** \`${id}\``,
+    '  - **Affected surface or equivalent set:** ["syntactically valid"]',
+    "  - **Owner/source:** deliberately nonsensical owner text",
+    `  - **Mode:** \`${mode}\``,
+    "  - **Implementation disposition:** Tasks [`BUILD-PROJECTION-OPERATION`]",
+    "  - **Proof:** Task `BUILD-PROJECTION-OPERATION` — syntactic proof",
+  ];
+}
 
 describe("inspectPlanningProjection", () => {
   it("returns the closed projection result without changing its input", () => {
@@ -129,6 +143,18 @@ describe("inspectPlanningProjection", () => {
     ).toThrow("task-reference-unknown");
   });
 
+  it("reports a duplicate Entry ID before a later invalid field in that entry", () => {
+    const duplicate = entry("EP-RUNTIME-RESULT-PRODUCTION", "invalid mode");
+    const input = completePlan.replace(
+      "## Tasks",
+      `${duplicate.join("\n")}\n\n## Tasks`,
+    );
+
+    expect(() =>
+      inspectPlanningProjection(input, "plans/issue-651.md"),
+    ).toThrow("entry-id-duplicate");
+  });
+
   it.each([
     [
       "Setext projection",
@@ -155,6 +181,20 @@ describe("inspectPlanningProjection", () => {
     expect(() =>
       inspectPlanningProjection(input, "plans/issue-651.md"),
     ).toThrow(code);
+  });
+
+  it("ignores blockquoted peer-heading lookalikes", () => {
+    const input = [
+      "> ## Execution Projection",
+      ">",
+      "> ## Tasks",
+      "",
+      completePlan,
+    ].join("\n");
+
+    expect(
+      inspectPlanningProjection(input, "plans/issue-651.md").tasks,
+    ).toHaveLength(1);
   });
 
   it("decodes affected surfaces from their exact JSON source value", () => {
@@ -226,6 +266,80 @@ describe("inspectPlanningProjection", () => {
     expect(() =>
       inspectPlanningProjection(input, "plans/issue-651.md"),
     ).toThrow(code);
+  });
+
+  it.each(["### Task", "### Task: Unnumbered", "### Task arbitrary text"])(
+    "rejects unnumbered Task headings: %s",
+    (heading) => {
+      const input = completePlan.replace(
+        "### Task 1: Build projection operation",
+        heading,
+      );
+
+      expect(() =>
+        inspectPlanningProjection(input, "plans/issue-651.md"),
+      ).toThrow("task-reference-unknown");
+    },
+  );
+
+  it("requires Task ID directly after its Task heading", () => {
+    const input = completePlan
+      .replace(
+        "Tasks [`BUILD-PROJECTION-OPERATION`]",
+        "No code — no implementation task is required",
+      )
+      .replace(
+        "Task `BUILD-PROJECTION-OPERATION`",
+        "Reviewer existing responsibility",
+      )
+      .replace(
+        "\n\n**Task ID:**",
+        "\n\nTask content comes before the identifier.\n\n**Task ID:**",
+      );
+
+    expect(() =>
+      inspectPlanningProjection(input, "plans/issue-651.md"),
+    ).toThrow("task-id-invalid");
+  });
+
+  it("accepts every mode without deriving semantics from the plan", () => {
+    const modes = [
+      "authority",
+      "reference",
+      "derived representation",
+      "non-normative summary",
+      "verification",
+    ];
+    const input = [
+      "## Execution Projection",
+      "",
+      ...modes.flatMap((mode, index) => entry(`EP-MODE-${index + 1}`, mode)),
+      "",
+      "## Tasks",
+      "",
+      "### Task 1: Build projection operation",
+      "",
+      "**Task ID:** `BUILD-PROJECTION-OPERATION`",
+      "",
+      '**Task references:** ["MISSING-TASK"]',
+    ].join("\n");
+
+    expect(
+      inspectPlanningProjection(
+        input,
+        "plans/issue-651.md",
+      ).projection.entries.map((projectionEntry) => projectionEntry.mode),
+    ).toEqual(modes);
+  });
+
+  it("resolves native Windows-relative paths without treating backslashes as traversal", () => {
+    expect(
+      resolveRepositoryPlanPath(
+        "plans\\execution\\issue-651.md",
+        "C:\\repo",
+        "win32",
+      ),
+    ).toBe("C:\\repo\\plans\\execution\\issue-651.md");
   });
 
   it("ignores semantic policy and excluded record material", () => {
