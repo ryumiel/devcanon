@@ -155,6 +155,21 @@ describe("inspectPlanningProjection", () => {
     ).toThrow("entry-id-duplicate");
   });
 
+  it("reports a duplicate Entry ID before a later additional entry field", () => {
+    const duplicate = [
+      ...entry("EP-RUNTIME-RESULT-PRODUCTION", "authority"),
+      "  - **Additional field:** later finding",
+    ];
+    const input = completePlan.replace(
+      "## Tasks",
+      `${duplicate.join("\n")}\n\n## Tasks`,
+    );
+
+    expect(() =>
+      inspectPlanningProjection(input, "plans/issue-651.md"),
+    ).toThrow("entry-id-duplicate");
+  });
+
   it.each([
     [
       "Setext projection",
@@ -266,6 +281,26 @@ describe("inspectPlanningProjection", () => {
     expect(() =>
       inspectPlanningProjection(input, "plans/issue-651.md"),
     ).toThrow(code);
+  });
+
+  it("reports an invalid immediate Task ID before a later Task ID", () => {
+    const input = completePlan
+      .replace(
+        "Tasks [`BUILD-PROJECTION-OPERATION`]",
+        "No code — no implementation task is required",
+      )
+      .replace(
+        "Task `BUILD-PROJECTION-OPERATION` — focused proof",
+        "Reviewer existing reviewer — focused proof",
+      )
+      .replace(
+        "**Task ID:** `BUILD-PROJECTION-OPERATION`",
+        "**Task ID:** `not-a-task-id`\n\nTask content.\n\n**Task ID:** `BUILD-PROJECTION-OPERATION`",
+      );
+
+    expect(() =>
+      inspectPlanningProjection(input, "plans/issue-651.md"),
+    ).toThrow("task-id-invalid");
   });
 
   it.each(["### Task", "### Task: Unnumbered", "### Task arbitrary text"])(

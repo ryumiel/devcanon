@@ -400,10 +400,11 @@ function parseEntry(
       });
     }
   }
-  if (fields.size !== required.length) {
+  for (const [fieldName, field] of fields) {
+    if (required.includes(fieldName)) continue;
     findings.push({
       code: "projection-entry-field-invalid",
-      offset: nodeStart(entryNode),
+      offset: field.offset,
     });
   }
   if (required.some((fieldName) => !fields.has(fieldName))) return undefined;
@@ -645,16 +646,20 @@ function inspectTasks(
       findings.push({ code: "task-id-invalid", offset: nodeStart(heading) });
       continue;
     }
+    const taskId = readTaskId(immediateTaskId);
+    if (taskId === undefined) {
+      findings.push({
+        code: "task-id-invalid",
+        offset: nodeStart(immediateTaskId),
+      });
+    }
     if (taskIdNodes.length !== 1) {
       findings.push({
         code: taskIdNodes.length > 1 ? "task-id-duplicate" : "task-id-invalid",
         offset: nodeStart(taskIdNodes[1] ?? heading),
       });
-      continue;
     }
-    const taskId = readTaskId(immediateTaskId);
-    if (taskId === undefined) {
-      findings.push({ code: "task-id-invalid", offset: nodeStart(heading) });
+    if (taskId === undefined || taskIdNodes.length !== 1) {
       continue;
     }
     tasks.push({
