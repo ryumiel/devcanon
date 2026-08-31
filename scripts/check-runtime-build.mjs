@@ -1,6 +1,15 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import {
+  cp,
+  mkdir,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 
@@ -15,6 +24,15 @@ const GFM_RUNTIME_PACKAGES = [
   "mdast-util-gfm",
   "micromark-extension-gfm",
 ];
+
+if (
+  prepare &&
+  path.resolve(runtimePath) !== path.resolve(DEFAULT_RUNTIME_PATH)
+) {
+  throw new Error(
+    `runtime parser closure preparation is limited to ${DEFAULT_RUNTIME_PATH}`,
+  );
+}
 
 if (prepare) {
   await prepareRuntimeParserClosure(runtimePath);
@@ -94,11 +112,13 @@ async function prepareRuntimeParserClosure(runtimeDirectory) {
     await collectPackageClosure(packageName, sourceDirectory, packages);
   }
   for (const [packageName, sourceDirectory] of packages) {
-    await cp(sourceDirectory, path.join(nodeModules, packageName), {
+    const packageDirectory = path.join(nodeModules, packageName);
+    await cp(sourceDirectory, packageDirectory, {
       recursive: true,
       dereference: true,
       filter: runtimePackageFilter,
     });
+    await canonicalizeRuntimePackageLicense(packageDirectory);
   }
 
   await writeFile(
@@ -114,6 +134,26 @@ async function prepareRuntimeParserClosure(runtimeDirectory) {
     )}\n`,
     "utf8",
   );
+}
+
+async function canonicalizeRuntimePackageLicense(packageDirectory) {
+  const notices = (await readdir(packageDirectory, { withFileTypes: true }))
+    .filter(
+      (entry) =>
+        entry.isFile() && /^license(?:\.[a-z0-9]+)?$/iu.test(entry.name),
+    )
+    .map((entry) => entry.name);
+  if (notices.length > 1) {
+    throw new Error(
+      `approved GFM runtime package has multiple license notices: ${packageDirectory}`,
+    );
+  }
+  if (notices[0] !== undefined && notices[0] !== "license") {
+    await rename(
+      path.join(packageDirectory, notices[0]),
+      path.join(packageDirectory, "license"),
+    );
+  }
 }
 
 async function collectPackageClosure(packageName, sourceDirectory, packages) {
@@ -176,7 +216,7 @@ async function runtimePackageFilter(sourcePath) {
   if ((await stat(sourcePath)).isDirectory()) return true;
   return (
     name === "package.json" ||
-    name.toLowerCase() === "license" ||
+    /^license(?:\.[a-z0-9]+)?$/iu.test(name) ||
     /\.(?:c?js|mjs|json)$/u.test(name)
   );
 }

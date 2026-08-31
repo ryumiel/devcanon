@@ -19,7 +19,7 @@ const RUNTIME_JS_ENTRYPOINT = path.join(RUNTIME_JS_DIR, "cli.js");
 const RUNTIME_JS_INDEX = path.join(RUNTIME_JS_DIR, "index.js");
 const RUNTIME_NODE_MODULES_DIR = path.join(RUNTIME_JS_DIR, "node_modules");
 const GFM_RUNTIME_CLOSURE_HASH =
-  "80fb9c6089fe984ceabc5ea8a0be2c2d7a47d12c699c7a7207577e59b1ec1d8b";
+  "9b6f647bee8535828b969ff3f92eb063459f7f921796440f4de0ed5aa36e2c5b";
 const REQUIRED_RUNTIME_JS_FILES = [
   "artifacts.js",
   "bash.js",

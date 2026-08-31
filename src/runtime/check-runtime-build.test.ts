@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
@@ -73,6 +73,34 @@ describe("runtime build checker", () => {
           "runtime build produced untracked or ignored files",
         ),
       });
+    } finally {
+      await cleanupTempDir(tempDir);
+    }
+  });
+
+  it("refuses to prepare a runtime outside the approved payload without mutation", async () => {
+    const tempDir = await createRuntimeBuildRepo();
+    try {
+      const outsideRuntime = path.join(tempDir, "outside-runtime");
+      const packageJson = path.join(outsideRuntime, "package.json");
+      const sentinel = path.join(outsideRuntime, "node_modules", "sentinel.js");
+      await mkdir(path.dirname(sentinel), { recursive: true });
+      await writeFile(packageJson, '{"private":false}\n', "utf-8");
+      await writeFile(sentinel, "unchanged\n", "utf-8");
+
+      await expect(
+        execFileAsync("node", [checkerScript, "--prepare", outsideRuntime], {
+          cwd: tempDir,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "runtime parser closure preparation is limited to",
+        ),
+      });
+      await expect(readFile(packageJson, "utf-8")).resolves.toBe(
+        '{"private":false}\n',
+      );
+      await expect(readFile(sentinel, "utf-8")).resolves.toBe("unchanged\n");
     } finally {
       await cleanupTempDir(tempDir);
     }

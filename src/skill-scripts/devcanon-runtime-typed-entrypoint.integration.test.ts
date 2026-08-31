@@ -13,10 +13,17 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { cleanupTempDir, createTempDir } from "../__test-helpers__/fixtures.js";
+import { retainedMitLicenseNoticePaths } from "../__test-helpers__/runtime-conformance.js";
 
 const execFileAsync = promisify(execFile);
 const runtimeScript = path.resolve(
   "skills/devcanon-runtime/scripts/devcanon-runtime.sh",
+);
+const runtimeCli = path.resolve(
+  "skills/devcanon-runtime/scripts/runtime/cli.js",
+);
+const runtimeBootstrapCli = path.resolve(
+  "skills/devcanon-runtime/scripts/runtime/bootstrap-cli.js",
 );
 const validProfiles = {
   efficient: { claude: "a", codex: "b" },
@@ -230,6 +237,100 @@ describe("devcanon-runtime typed entrypoint", () => {
           schema: "planning-projection/v1",
           plan_path: "plan.md",
         });
+      } finally {
+        await cleanupTempDir(tempDir);
+      }
+    },
+  );
+
+  it.each(pollutedRuntimeEnvironments)(
+    "keeps the direct typed entrypoint deterministic with %j",
+    async (env) => {
+      const tempDir = await createTempDir();
+      try {
+        const planPath = path.join(tempDir, "plan.md");
+        await writeFile(planPath, planningProjectionPlan, "utf-8");
+
+        await expect(
+          execFileAsync(process.execPath, [runtimeCli, "contract"], {
+            cwd: tempDir,
+            env: { ...process.env, ...env },
+          }),
+        ).resolves.toMatchObject({
+          stdout:
+            '{"command_group":"devcanon-runtime","major_version":1,"helper_foundation":true}\n',
+          stderr: "",
+        });
+        await expect(
+          execFileAsync(
+            process.execPath,
+            [runtimeCli, "planning-projection", "inspect", "--path", "plan.md"],
+            { cwd: tempDir, env: { ...process.env, ...env } },
+          ),
+        ).resolves.toMatchObject({ stderr: "" });
+      } finally {
+        await cleanupTempDir(tempDir);
+      }
+    },
+  );
+
+  it.each(pollutedRuntimeEnvironments)(
+    "keeps the bootstrap typed-launch path deterministic with %j",
+    async (env) => {
+      const tempDir = await createTempDir();
+      try {
+        const runtimeDir = path.join(tempDir, "devcanon-runtime");
+        const planPath = path.join(tempDir, "plan.md");
+        await cp(path.resolve("skills/devcanon-runtime"), runtimeDir, {
+          recursive: true,
+        });
+        await writeFile(planPath, planningProjectionPlan, "utf-8");
+        const wrapper = path.join(runtimeDir, "scripts", "devcanon-runtime.sh");
+        await writeFile(
+          wrapper,
+          [
+            "#!/usr/bin/env sh",
+            'script_dir="$(cd "$(dirname "$0")" && pwd -P)"',
+            '[ "$1" = "runtime" ] && shift',
+            'exec node "$script_dir/runtime/cli.js" "$@"',
+            "",
+          ].join("\n"),
+          "utf-8",
+        );
+
+        await expect(
+          execFileAsync(
+            process.execPath,
+            [
+              runtimeBootstrapCli,
+              "--runtime-dir",
+              runtimeDir,
+              "--",
+              "contract",
+            ],
+            { cwd: tempDir, env: { ...process.env, ...env } },
+          ),
+        ).resolves.toMatchObject({
+          stdout:
+            '{"command_group":"devcanon-runtime","major_version":1,"helper_foundation":true}\n',
+          stderr: "",
+        });
+        await expect(
+          execFileAsync(
+            process.execPath,
+            [
+              runtimeBootstrapCli,
+              "--runtime-dir",
+              runtimeDir,
+              "--",
+              "planning-projection",
+              "inspect",
+              "--path",
+              "plan.md",
+            ],
+            { cwd: tempDir, env: { ...process.env, ...env } },
+          ),
+        ).resolves.toMatchObject({ stderr: "" });
       } finally {
         await cleanupTempDir(tempDir);
       }
@@ -573,19 +674,10 @@ describe("devcanon-runtime typed entrypoint", () => {
         writeTextAtomically: expect.any(Function),
       });
       await expect(
-        readFile(
-          path.join(
-            tempDir,
-            "devcanon-runtime",
-            "scripts",
-            "runtime",
-            "node_modules",
-            "mdast-util-from-markdown",
-            "license",
-          ),
-          "utf-8",
+        retainedMitLicenseNoticePaths(
+          path.join(tempDir, "devcanon-runtime", "scripts", "runtime"),
         ),
-      ).resolves.toContain("MIT License");
+      ).resolves.toContain(path.join("node_modules", "ms", "license"));
     } finally {
       await cleanupTempDir(tempDir);
     }

@@ -8,6 +8,7 @@ import {
   createTempDir,
   makeResolvedConfig,
 } from "../__test-helpers__/fixtures.js";
+import { retainedMitLicenseNoticePaths } from "../__test-helpers__/runtime-conformance.js";
 import { renderAll } from "../render/pipeline.js";
 import { UserError } from "../utils/errors.js";
 import { pathExists } from "../utils/fs.js";
@@ -155,6 +156,17 @@ describe("devcanon-runtime source validation", () => {
     await expect(validateDevcanonRuntime(runtimeDir)).rejects.toThrow(
       /passive runtime support bundle devcanon-runtime is incomplete/i,
     );
+  });
+
+  it("retains notices for every private MIT parser package", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    await validateDevcanonRuntime(runtimeDir);
+
+    await expect(
+      retainedMitLicenseNoticePaths(
+        path.join(runtimeDir, "scripts", "runtime"),
+      ),
+    ).resolves.toContain(path.join("node_modules", "ms", "license"));
   });
 
   it("rejects a deep extra private parser file", async () => {

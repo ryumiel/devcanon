@@ -10,6 +10,7 @@ import {
   makeResolvedConfig,
 } from "../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../__test-helpers__/logger.js";
+import { retainedMitLicenseNoticePaths } from "../__test-helpers__/runtime-conformance.js";
 import type { ResolvedConfig } from "../config/schema.js";
 import { pathExists } from "../utils/fs.js";
 import { renderDevcanonRuntimeForTarget } from "./devcanon-runtime.js";
@@ -95,18 +96,10 @@ describe("devcanon-runtime rendering", () => {
     );
     for (const targetRuntimeDir of [claudeRuntimeDir, codexRuntimeDir]) {
       await expect(
-        readFile(
-          path.join(
-            targetRuntimeDir,
-            "scripts",
-            "runtime",
-            "node_modules",
-            "mdast-util-from-markdown",
-            "license",
-          ),
-          "utf-8",
+        retainedMitLicenseNoticePaths(
+          path.join(targetRuntimeDir, "scripts", "runtime"),
         ),
-      ).resolves.toContain("MIT License");
+      ).resolves.toContain(path.join("node_modules", "ms", "license"));
     }
     expect((await stat(runtimeScriptPath)).mode & 0o777).toBe(
       (

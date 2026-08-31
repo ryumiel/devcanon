@@ -136,7 +136,7 @@ export async function dispatchRuntimeOverride(
         : ["runtime", ...childArguments];
     const child = spawn(command, args, {
       detached: process.platform !== "win32",
-      env: process.env,
+      env: runtimeEnvironment(process.env),
       stdio: "inherit",
     });
     const signalHandlers = new Map<NodeJS.Signals, () => void>();
@@ -161,6 +161,15 @@ export async function dispatchRuntimeOverride(
       resolve({ exitCode, signal });
     });
   });
+}
+
+function runtimeEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const {
+    DEBUG: _debug,
+    NODE_OPTIONS: _nodeOptions,
+    ...sanitized
+  } = environment;
+  return sanitized;
 }
 
 function forwardSignalToChild(
