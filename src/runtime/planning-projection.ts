@@ -64,7 +64,11 @@ interface ProjectionEntry {
   readonly proof: ProjectionProof;
   readonly start: number;
   readonly end: number;
-  readonly reference_offsets: readonly number[];
+}
+
+interface TaskReference {
+  readonly task_id: string;
+  readonly offset: number;
 }
 
 interface ProjectionTask {
@@ -80,7 +84,7 @@ export interface PlanningProjectionResult {
   readonly projection: {
     readonly start: number;
     readonly end: number;
-    readonly entries: readonly Omit<ProjectionEntry, "reference_offsets">[];
+    readonly entries: readonly ProjectionEntry[];
   };
   readonly tasks: readonly ProjectionTask[];
 }
@@ -174,11 +178,11 @@ export function inspectPlanningProjection(
   }) as MarkdownNode;
   const children = root.children ?? [];
   const headings = children.filter(isHeading);
-  const projectionHeadings = headings.filter(
-    (node) => node.depth === 2 && nodeText(node) === "Execution Projection",
+  const projectionHeadings = headings.filter((node) =>
+    isLiteralH2(input, node, "Execution Projection"),
   );
-  const tasksHeadings = headings.filter(
-    (node) => node.depth === 2 && nodeText(node) === "Tasks",
+  const tasksHeadings = headings.filter((node) =>
+    isLiteralH2(input, node, "Tasks"),
   );
   const findings: Finding[] = [];
 
@@ -198,7 +202,9 @@ export function inspectPlanningProjection(
   }
 
   const firstTasksHeading = tasksHeadings[0];
-  for (const taskHeading of headings.filter(isCanonicalTaskHeading)) {
+  for (const taskHeading of headings.filter((node) =>
+    isCanonicalTaskHeading(input, node),
+  )) {
     if (
       firstTasksHeading === undefined ||
       nodeStart(taskHeading) < nodeStart(firstTasksHeading)
@@ -224,17 +230,19 @@ export function inspectPlanningProjection(
 
   const projectionStart = nodeStart(projectionHeading);
   const projectionEnd = nodeStart(firstTasksHeading);
-  const entries = inspectEntries(
+  const { entries, taskReferences } = inspectEntries(
     children,
     projectionStart,
     projectionEnd,
     findings,
+    input,
   );
   const tasks = inspectTasks(
     children,
     firstTasksHeading,
     input.length,
     findings,
+    input,
   );
 
   const taskIds = new Set<string>();
@@ -244,19 +252,11 @@ export function inspectPlanningProjection(
     }
     taskIds.add(task.task_id);
   }
-  for (const entry of entries) {
-    for (const offset of entry.reference_offsets) {
-      const reference = entry.implementation_task_ids.find(
-        (taskId) => !taskIds.has(taskId),
-      );
-      if (reference !== undefined) {
-        findings.push({ code: "task-reference-unknown", offset });
-      }
-    }
-    if (entry.proof.owner_type === "task" && !taskIds.has(entry.proof.owner)) {
+  for (const reference of taskReferences) {
+    if (!taskIds.has(reference.task_id)) {
       findings.push({
         code: "task-reference-unknown",
-        offset: entry.reference_offsets.at(-1) ?? entry.start,
+        offset: reference.offset,
       });
     }
   }
@@ -268,9 +268,7 @@ export function inspectPlanningProjection(
     projection: {
       start: projectionStart,
       end: projectionEnd,
-      entries: entries.map(
-        ({ reference_offsets: _referenceOffsets, ...entry }) => entry,
-      ),
+      entries,
     },
     tasks,
   };
@@ -281,7 +279,8 @@ function inspectEntries(
   projectionStart: number,
   projectionEnd: number,
   findings: Finding[],
-): ProjectionEntry[] {
+  input: string,
+): { entries: ProjectionEntry[]; taskReferences: TaskReference[] } {
   for (const child of children) {
     if (
       nodeStart(child) > projectionStart &&
@@ -306,13 +305,14 @@ function inspectEntries(
       code: "projection-entry-missing",
       offset: projectionStart,
     });
-    return [];
+    return { entries: [], taskReferences: [] };
   }
 
   const entries: ProjectionEntry[] = [];
+  const taskReferences: TaskReference[] = [];
   const ids = new Set<string>();
   for (const entryNode of entryNodes) {
-    const entry = parseEntry(entryNode, findings);
+    const entry = parseEntry(entryNode, findings, input, taskReferences);
     if (entry === undefined) continue;
     if (ids.has(entry.entry_id)) {
       findings.push({ code: "entry-id-duplicate", offset: entry.start });
@@ -320,12 +320,14 @@ function inspectEntries(
     ids.add(entry.entry_id);
     entries.push(entry);
   }
-  return entries;
+  return { entries, taskReferences };
 }
 
 function parseEntry(
   entryNode: MarkdownNode,
   findings: Finding[],
+  input: string,
+  taskReferences: TaskReference[],
 ): ProjectionEntry | undefined {
   if (entryNode.type !== "listItem") {
     findings.push({
@@ -335,10 +337,13 @@ function parseEntry(
     return undefined;
   }
 
-  const fields = new Map<string, { value: string; offset: number }>();
+  const fields = new Map<
+    string,
+    { value: string; offset: number; source: string }
+  >();
   const entryChildren = entryNode.children ?? [];
   const firstField = entryChildren[0];
-  if (firstField !== undefined) addField(firstField, fields, findings);
+  if (firstField !== undefined) addField(firstField, fields, findings, input);
   for (const child of entryChildren.slice(1)) {
     if (child.type !== "list") {
       findings.push({
@@ -347,7 +352,9 @@ function parseEntry(
       });
       continue;
     }
-    for (const field of child.children ?? []) addField(field, fields, findings);
+    for (const field of child.children ?? []) {
+      addField(field, fields, findings, input);
+    }
   }
 
   const required = [
@@ -374,28 +381,55 @@ function parseEntry(
   }
   if (required.some((fieldName) => !fields.has(fieldName))) return undefined;
 
-  const entryId = fields.get("Entry ID") as { value: string; offset: number };
+  const entryId = fields.get("Entry ID") as {
+    value: string;
+    offset: number;
+    source: string;
+  };
   const affected = fields.get("Affected surface or equivalent set") as {
     value: string;
     offset: number;
+    source: string;
   };
   const owner = fields.get("Owner/source") as {
     value: string;
     offset: number;
+    source: string;
   };
-  const mode = fields.get("Mode") as { value: string; offset: number };
+  const mode = fields.get("Mode") as {
+    value: string;
+    offset: number;
+    source: string;
+  };
   const disposition = fields.get("Implementation disposition") as {
     value: string;
     offset: number;
+    source: string;
   };
-  const proof = fields.get("Proof") as { value: string; offset: number };
+  const proof = fields.get("Proof") as {
+    value: string;
+    offset: number;
+    source: string;
+  };
 
   const entryIdentifier = entryId.value.trim();
-  const affectedSurfaces = parseAffectedSurfaces(affected.value);
+  const affectedSurfaces = parseAffectedSurfaces(affected.source);
   const ownerSource = owner.value.trim();
   const modeValue = mode.value.trim();
   const parsedDisposition = parseDisposition(disposition.value);
   const parsedProof = parseProof(proof.value);
+
+  if (parsedDisposition !== undefined) {
+    for (const taskId of parsedDisposition.taskIds) {
+      taskReferences.push({ task_id: taskId, offset: disposition.offset });
+    }
+  }
+  if (parsedProof?.proof.owner_type === "task") {
+    taskReferences.push({
+      task_id: parsedProof.proof.owner,
+      offset: proof.offset,
+    });
+  }
 
   let invalid = false;
   for (const [valid, offset] of [
@@ -429,17 +463,14 @@ function parseEntry(
     proof: parsedProof.proof,
     start: nodeStart(entryNode),
     end: nodeEnd(entryNode),
-    reference_offsets: [
-      ...parsedDisposition.taskIds.map(() => disposition.offset),
-      ...(parsedProof.proof.owner_type === "task" ? [proof.offset] : []),
-    ],
   };
 }
 
 function addField(
   node: MarkdownNode,
-  fields: Map<string, { value: string; offset: number }>,
+  fields: Map<string, { value: string; offset: number; source: string }>,
   findings: Finding[],
+  input: string,
 ): void {
   const children = node.children ?? [];
   const paragraph =
@@ -473,12 +504,21 @@ function addField(
     });
     return;
   }
-  fields.set(name, { value, offset: nodeStart(node) });
+  fields.set(name, {
+    value,
+    offset: nodeStart(node),
+    source: input.slice(nodeStart(paragraph), nodeEnd(paragraph)),
+  });
 }
 
-function parseAffectedSurfaces(value: string): string[] | undefined {
+function parseAffectedSurfaces(source: string): string[] | undefined {
+  const match =
+    /^\*\*Affected surface or equivalent set:\*\*[ \t]*([\s\S]*)$/u.exec(
+      source,
+    );
+  if (match === null) return undefined;
   try {
-    const parsed = JSON.parse(value) as unknown;
+    const parsed = JSON.parse(match[1]) as unknown;
     if (
       !Array.isArray(parsed) ||
       parsed.length === 0 ||
@@ -542,44 +582,65 @@ function inspectTasks(
   tasksHeading: MarkdownNode,
   inputEnd: number,
   findings: Finding[],
+  input: string,
 ): ProjectionTask[] {
-  const canonicalHeadings = children.filter(isCanonicalTaskHeading);
+  const sectionEnd = children.find(
+    (node) =>
+      isHeading(node) &&
+      node.depth === 2 &&
+      nodeStart(node) > nodeStart(tasksHeading),
+  );
+  const tasksEnd = sectionEnd === undefined ? inputEnd : nodeStart(sectionEnd);
+  const canonicalHeadings = children.filter(
+    (node) =>
+      isCanonicalTaskHeading(input, node) &&
+      nodeStart(node) > nodeStart(tasksHeading) &&
+      nodeStart(node) < tasksEnd,
+  );
   const tasks: ProjectionTask[] = [];
   for (let index = 0; index < canonicalHeadings.length; index += 1) {
     const heading = canonicalHeadings[index];
-    if (nodeStart(heading) < nodeStart(tasksHeading)) continue;
-    const headingIndex = children.indexOf(heading);
-    const idNode = children[headingIndex + 1];
-    const taskId = readTaskId(idNode);
+    const nextTask = canonicalHeadings[index + 1];
+    const taskEnd = nextTask === undefined ? tasksEnd : nodeStart(nextTask);
+    const taskIdNodes = children.filter(
+      (node) =>
+        nodeStart(node) > nodeStart(heading) &&
+        nodeStart(node) < taskEnd &&
+        isTaskIdParagraph(node),
+    );
+    if (taskIdNodes.length !== 1) {
+      findings.push({
+        code: taskIdNodes.length > 1 ? "task-id-duplicate" : "task-id-invalid",
+        offset: nodeStart(taskIdNodes[1] ?? heading),
+      });
+      continue;
+    }
+    const taskId = readTaskId(taskIdNodes[0]);
     if (taskId === undefined) {
       findings.push({ code: "task-id-invalid", offset: nodeStart(heading) });
       continue;
     }
-    const nextTask = canonicalHeadings[index + 1];
-    const nextH2 = children.find(
-      (node) =>
-        isHeading(node) &&
-        node.depth === 2 &&
-        nodeStart(node) > nodeStart(heading),
-    );
     tasks.push({
       task_id: taskId,
       heading: nodeText(heading),
       start: nodeStart(heading),
-      end: Math.min(
-        nextTask === undefined ? inputEnd : nodeStart(nextTask),
-        nextH2 === undefined ? inputEnd : nodeStart(nextH2),
-      ),
+      end: taskEnd,
     });
   }
   return tasks;
 }
 
 function readTaskId(node: MarkdownNode | undefined): string | undefined {
-  if (node?.type !== "paragraph") return undefined;
+  if (!isTaskIdParagraph(node)) return undefined;
   const match = /^Task ID:\s*(.*?)\s*$/su.exec(nodeText(node));
   if (match === null || !IDENTIFIER.test(match[1])) return undefined;
   return match[1];
+}
+
+function isTaskIdParagraph(
+  node: MarkdownNode | undefined,
+): node is MarkdownNode {
+  return node?.type === "paragraph" && /^Task ID:/u.test(nodeText(node));
 }
 
 function isHeading(
@@ -588,11 +649,29 @@ function isHeading(
   return node.type === "heading" && node.depth !== undefined;
 }
 
-function isCanonicalTaskHeading(node: MarkdownNode): boolean {
+function isLiteralH2(
+  input: string,
+  node: MarkdownNode,
+  heading: string,
+): boolean {
+  return (
+    isHeading(node) &&
+    node.depth === 2 &&
+    nodeText(node) === heading &&
+    new RegExp(`^##[\\t ]+${heading}[\\t ]*$`, "u").test(
+      input.slice(nodeStart(node), nodeEnd(node)),
+    )
+  );
+}
+
+function isCanonicalTaskHeading(input: string, node: MarkdownNode): boolean {
   return (
     isHeading(node) &&
     node.depth === 3 &&
-    /^Task\s+\d+(?::|$)/u.test(nodeText(node))
+    /^Task(?:[\t :]|$)/u.test(nodeText(node)) &&
+    /^###[\t ]+Task(?:[\t :]|$)/u.test(
+      input.slice(nodeStart(node), nodeEnd(node)),
+    )
   );
 }
 

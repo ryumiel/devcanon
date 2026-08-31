@@ -19,6 +19,34 @@ async function withPlan<T>(
   }
 }
 
+const structuralPlan = [
+  "## Execution Projection",
+  "",
+  "- **Entry ID:** `EP-RUNTIME-RESULT-PRODUCTION`",
+  '  - **Affected surface or equivalent set:** ["runtime inspector"]',
+  "  - **Owner/source:** `issue #651` — result contract",
+  "  - **Mode:** `authority`",
+  "  - **Implementation disposition:** Tasks [`BUILD-PROJECTION-OPERATION`]",
+  "  - **Proof:** Task `BUILD-PROJECTION-OPERATION` — focused proof",
+  "",
+  "## Tasks",
+  "",
+  "### Task 1: Build projection operation",
+  "",
+  "**Task ID:** `BUILD-PROJECTION-OPERATION`",
+  "",
+].join("\n");
+
+const noReferenceStructuralPlan = structuralPlan
+  .replace(
+    "Tasks [`BUILD-PROJECTION-OPERATION`]",
+    "No code — no implementation task is required",
+  )
+  .replace(
+    "Task `BUILD-PROJECTION-OPERATION`",
+    "Reviewer existing responsibility",
+  );
+
 describe("runtime command helpers", () => {
   it("inspects a complete saved execution projection with sliceable ranges", async () => {
     const input = [
@@ -200,6 +228,85 @@ describe("runtime command helpers", () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+
+  it.each([
+    [
+      "execution-projection-missing",
+      structuralPlan.replace("## Execution Projection", "## Projection"),
+    ],
+    [
+      "execution-projection-duplicate",
+      `${structuralPlan}\n## Execution Projection\n`,
+    ],
+    [
+      "tasks-section-missing",
+      structuralPlan.slice(0, structuralPlan.indexOf("## Tasks")),
+    ],
+    [
+      "task-heading-before-tasks",
+      [
+        "### Task 0: Before Tasks",
+        "",
+        "**Task ID:** `BEFORE-TASKS`",
+        "",
+        structuralPlan,
+      ].join("\n"),
+    ],
+    [
+      "projection-entry-missing",
+      structuralPlan.replace(/- \*\*Entry ID:[\s\S]+?focused proof\n\n/u, ""),
+    ],
+    [
+      "projection-entry-field-invalid",
+      structuralPlan.replace("`authority`", "`unsupported mode`"),
+    ],
+    [
+      "entry-id-duplicate",
+      structuralPlan.replace(
+        "## Tasks",
+        `${structuralPlan.slice(
+          structuralPlan.indexOf("- **Entry ID:"),
+          structuralPlan.indexOf("\n\n## Tasks"),
+        )}\n\n## Tasks`,
+      ),
+    ],
+    [
+      "task-id-invalid",
+      noReferenceStructuralPlan.replace(
+        "`BUILD-PROJECTION-OPERATION`",
+        "`not-a-task-id`",
+      ),
+    ],
+    [
+      "task-id-duplicate",
+      `${noReferenceStructuralPlan}\n### Task 2: Duplicate\n\n**Task ID:** \`BUILD-PROJECTION-OPERATION\`\n`,
+    ],
+    [
+      "task-reference-unknown",
+      structuralPlan.replace("BUILD-PROJECTION-OPERATION`]", "UNKNOWN-TASK`]"),
+    ],
+  ])(
+    "emits the closed %s failure envelope at the command boundary",
+    async (code, input) => {
+      await withPlan(input, async (planPath) => {
+        const result = await runRuntimeCommand([
+          "planning-projection",
+          "inspect",
+          "--path",
+          planPath,
+        ]);
+
+        expect(result.exitCode).toBeGreaterThan(0);
+        expect(result.stdout).toBe("");
+        expect(result.stderr.endsWith("\n")).toBe(true);
+        expect(JSON.parse(result.stderr)).toMatchObject({
+          ok: false,
+          code,
+          message: expect.any(String),
+        });
+      });
+    },
+  );
 
   it("reports a stable command contract", async () => {
     await expect(runRuntimeCommand(["contract"])).resolves.toEqual({
