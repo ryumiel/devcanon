@@ -265,6 +265,20 @@ describe("inspectPlanningProjection", () => {
     expect(task?.end).toBe(input.length);
   });
 
+  it("keeps an ordinary Taskforce H3 inside the preceding Task span", () => {
+    const input = completePlan
+      .trimEnd()
+      .concat("\n\n### Taskforce Notes\n\nOrdinary task content.\n");
+
+    const task = inspectPlanningProjection(input, "plans/issue-651.md")
+      .tasks[0];
+
+    expect(task?.task_id).toBe("BUILD-PROJECTION-OPERATION");
+    expect(input.slice(task?.start, task?.end)).toContain(
+      "### Taskforce Notes",
+    );
+  });
+
   it.each([
     ["task-id-invalid", twoTaskPlan.replace("SECOND-TASK", "not-a-task-id")],
     [

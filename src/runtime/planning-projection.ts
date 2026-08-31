@@ -765,7 +765,11 @@ function isCanonicalTaskHeading(input: string, node: MarkdownNode): boolean {
 }
 
 function isTaskLikeHeading(node: MarkdownNode): boolean {
-  return isHeading(node) && node.depth === 3 && /^Task/iu.test(nodeText(node));
+  return (
+    isHeading(node) &&
+    node.depth === 3 &&
+    /^Task(?!\p{L})/iu.test(nodeText(node))
+  );
 }
 
 function nodeText(node: MarkdownNode): string {

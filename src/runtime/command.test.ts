@@ -11,6 +11,16 @@ describe("runtime command helpers", () => {
     });
   });
 
+  it("registers the planning-projection runtime command group", async () => {
+    const result = await runRuntimeCommand(["planning-projection"]);
+
+    expect(result).toMatchObject({ exitCode: 1, stdout: "" });
+    expect(JSON.parse(result.stderr)).toMatchObject({
+      ok: false,
+      code: "plan-path-invalid",
+    });
+  });
+
   it("returns a stable failure envelope for an unknown config subcommand", async () => {
     await expect(runRuntimeCommand(["config", "replace"])).resolves.toEqual({
       exitCode: 1,
