@@ -35,13 +35,17 @@ is an object with exactly `start`, `end`, and `entries`; `start` and `end` are
 nonnegative integers with `start < end`, and `entries` is a nonempty array.
 Each entry has exactly `entry_id`, `affected_surfaces`, `owner_source`, `mode`,
 `implementation_task_ids`, `no_code_reason`, `proof`, `start`, and `end`.
-There are unique nonempty `entry_id` values, `owner_source` is a nonempty
-string, `affected_surfaces` is an array of nonempty unique strings; and `mode`
+There are unique nonempty `entry_id` values, and both `entry_id` and `task_id`
+are strings matching the UPPER-ASCII-KEBAB grammar
+`^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*$`; `owner_source` is a nonempty string;
+`affected_surfaces` is a nonempty array of nonempty unique strings; and `mode`
 is `authority`, `reference`,
 `derived representation`, `non-normative summary`, or `verification`.
 
-All range values are nonnegative integers; each entry range has `start < end`
-and lies within the projection range. Its disposition is either nonempty unique task IDs with
+All ranges are zero-based, end-exclusive integer offsets in the decoded input:
+`0 <= projection.start < projection.end <= input.length`,
+`projection.start <= entry.start < entry.end <= projection.end`, and
+`0 <= task.start < task.end <= input.length`. Its disposition is either nonempty unique task IDs with
 `no_code_reason: null`, or an empty task-ID array with a nonempty no-code
 reason. `proof` is an object with exactly `owner_type`, `owner`, and `boundary`;
 `owner_type` is `task`, `reviewer`, or `controller`, and `owner` and `boundary`
@@ -59,8 +63,9 @@ sibling runtime, or any runtime failure, fails without a fallback parser,
 global CLI, result file, or retry.
 
 The controller maps a zero-status malformed or unknown success, including an
-extra key, wrong nested type, cardinality or range failure, path mismatch,
-reference inconsistency, or inconsistent result, to `BLOCKED/NEEDS_CONTEXT`. It also maps a zero-status
+extra key, wrong nested type, bad identifier, empty affected surfaces, or invalid range,
+path mismatch, reference inconsistency, or inconsistent result, to
+`BLOCKED/NEEDS_CONTEXT`. It also maps a zero-status
 channel violation, including extra stdout bytes or nonempty success stderr, to
 `BLOCKED/NEEDS_CONTEXT` before every path-backed consumer. There is no repair,
 fallback, or partial use.

@@ -252,6 +252,39 @@ describe("play-planning execution projection contract", () => {
     );
   });
 
+  it("keeps identifier, surface, and range parity in the path-backed result contract", async () => {
+    const [usage, execution] = await Promise.all([
+      readRepoFile(
+        "skills/play-subagent-execution/references/inspect-plan-projection-usage.md",
+      ),
+      readRepoFile("skills/play-subagent-execution/SKILL.md"),
+    ]);
+    const requiredConstraints = [
+      "UPPER-ASCII-KEBAB grammar",
+      "`^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*$`",
+      "nonempty array of nonempty unique strings",
+      "zero-based, end-exclusive integer offsets",
+      "`0 <= projection.start < projection.end <= input.length`",
+      "`projection.start <= entry.start < entry.end <= projection.end`",
+      "`0 <= task.start < task.end <= input.length`",
+      "bad identifier, empty affected surfaces, or invalid range",
+    ];
+
+    for (const original of [usage, execution]) {
+      const source = original.replace(/\s+/gu, " ");
+      for (const constraint of requiredConstraints) {
+        expect(source).toContain(constraint);
+      }
+      expect(source).toContain("`BLOCKED/NEEDS_CONTEXT`");
+    }
+    expect(usage.replace(/\s+/gu, " ")).toContain(
+      "before every path-backed consumer",
+    );
+    expect(execution.replace(/\s+/gu, " ")).toContain(
+      "before skip evaluation, inline execution, implementer/reviewer dispatch, or final review",
+    );
+  });
+
   it("preserves direct-inline intake and controller-owned record resolution", async () => {
     const execution = await readRepoFile(
       "skills/play-subagent-execution/SKILL.md",

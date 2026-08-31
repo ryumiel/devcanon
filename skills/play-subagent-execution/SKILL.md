@@ -86,8 +86,9 @@ JSON object on stdout, empty stderr, and status 0; root keys exactly `schema`,
 integers as range bounds and a nonempty entries array. Each entry has exactly `entry_id`,
 `affected_surfaces`, `owner_source`, `mode`, `implementation_task_ids`,
 `no_code_reason`, `proof`, `start`, and `end`; unique nonempty `entry_id`
-values, nonempty strings and nonempty unique strings where applicable; an
-entry range inside the projection range; and mode `authority`, `reference`,
+values, with both `entry_id` and `task_id` strings matching the UPPER-ASCII-KEBAB
+grammar `^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*$`; a nonempty array of nonempty unique
+strings for `affected_surfaces`; and mode `authority`, `reference`,
 `derived representation`, `non-normative summary`, or `verification`.
 
 Each entry's disposition is either nonempty unique task IDs with
@@ -96,15 +97,18 @@ reason. Its proof has exactly `owner_type`, `owner`, and `boundary`, with
 nonempty owner and boundary strings and owner type `task`, `reviewer`, or
 `controller`. `tasks` is an array of task objects with unique nonempty
 `task_id` values, each with exactly `task_id`, `heading`, `start`, and `end`,
-nonempty strings, and nonnegative integer ranges within the decoded saved-plan
-input. Every task-valued
+and nonempty strings. All ranges are zero-based, end-exclusive integer offsets
+in the decoded saved-plan input: `0 <= projection.start < projection.end <= input.length`,
+`projection.start <= entry.start < entry.end <= projection.end`, and
+`0 <= task.start < task.end <= input.length`. Every task-valued
 disposition or proof reference must resolve exactly once against `tasks`.
 Use validated projection entries to mechanically select entries whose explicit
 implementation disposition or task-valued proof names each returned Task ID.
 
 A nonzero helper/runtime status, zero-status malformed or unknown success or
-inconsistent result, extra stdout bytes, nonempty success stderr, extra key, path mismatch, nested
-type/cardinality/range/reference inconsistency, or other channel violation
+inconsistent result, extra stdout bytes, nonempty success stderr, extra key, bad identifier, empty
+affected surfaces, or invalid range, path mismatch, nested type/cardinality/reference
+inconsistency, or other channel violation
 returns `BLOCKED/NEEDS_CONTEXT` before skip evaluation, inline execution,
 implementer/reviewer dispatch, or final review. There is no repair, fallback,
 or partial use; do not infer or fall back to a delimiter parser.
