@@ -195,7 +195,8 @@ export function inspectPlanningProjection(
   }) as MarkdownNode;
   const children = root.children ?? [];
   const headings = children.filter(isHeading);
-  const projectionHeadings = headings.filter((node) =>
+  const projectionCandidates = headings.filter(isProjectionLikeHeading);
+  const projectionHeadings = projectionCandidates.filter((node) =>
     isLiteralH2(input, node, "Execution Projection"),
   );
   const tasksHeadings = headings.filter((node) =>
@@ -211,6 +212,15 @@ export function inspectPlanningProjection(
       findings.push({
         code: "execution-projection-duplicate",
         offset: nodeStart(heading),
+      });
+    }
+  }
+  if (projectionHeadings.length > 0) {
+    for (const candidate of projectionCandidates) {
+      if (isLiteralH2(input, candidate, "Execution Projection")) continue;
+      findings.push({
+        code: "execution-projection-duplicate",
+        offset: nodeStart(candidate),
       });
     }
   }
@@ -442,8 +452,11 @@ function parseEntry(
   const affectedSurfaces = parseAffectedSurfaces(affected.source);
   const ownerSource = owner.value.trim();
   const modeValue = mode.value.trim();
-  const parsedDisposition = parseDisposition(disposition.value);
-  const parsedProof = parseProof(proof.value);
+  const parsedDisposition = parseDisposition(
+    disposition.value,
+    disposition.source,
+  );
+  const parsedProof = parseProof(proof.value, proof.source);
 
   if (IDENTIFIER.test(entryIdentifier)) {
     entryIds.push({ entry_id: entryIdentifier, offset: nodeStart(entryNode) });
@@ -567,10 +580,18 @@ function parseAffectedSurfaces(source: string): string[] | undefined {
 
 function parseDisposition(
   value: string,
+  source: string,
 ): { taskIds: string[]; noCodeReason: string | null } | undefined {
   const tasks = /^Tasks\s+\[([^\]]+)\]$/u.exec(value.trim());
   if (tasks !== null) {
-    const taskIds = tasks[1].split(",").map((taskId) => taskId.trim());
+    const sourceMatch =
+      /^\*\*Implementation disposition:\*\* Tasks \[((?:`[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*`)(?:, `[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*`)*)\][\t ]*$/u.exec(
+        source,
+      );
+    if (sourceMatch === null) return undefined;
+    const taskIds = [...sourceMatch[1].matchAll(/`([^`]+)`/gu)].map(
+      (match) => match[1],
+    );
     if (
       taskIds.some((taskId) => !IDENTIFIER.test(taskId)) ||
       new Set(taskIds).size !== taskIds.length
@@ -584,7 +605,10 @@ function parseDisposition(
   return { taskIds: [], noCodeReason: noCode[1].trim() };
 }
 
-function parseProof(value: string): { proof: ProjectionProof } | undefined {
+function parseProof(
+  value: string,
+  source: string,
+): { proof: ProjectionProof } | undefined {
   const match = /^(Task|Reviewer|Controller)\s+(.+?)\s+—\s+(.+)$/u.exec(
     value.trim(),
   );
@@ -598,10 +622,15 @@ function parseProof(value: string): { proof: ProjectionProof } | undefined {
   ) {
     return undefined;
   }
+  const taskSource =
+    /^\*\*Proof:\*\* Task `([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)` — [^\r\n]*\S[^\r\n]*[\t ]*$/u.exec(
+      source,
+    );
+  if (ownerType === "task" && taskSource === null) return undefined;
   return {
     proof: {
       owner_type: ownerType,
-      owner: owner.trim(),
+      owner: taskSource?.[1] ?? owner.trim(),
       boundary: boundary.trim(),
     },
   };
@@ -717,22 +746,26 @@ function isLiteralH2(
   );
 }
 
+function isProjectionLikeHeading(node: MarkdownNode): boolean {
+  return (
+    isHeading(node) &&
+    node.depth === 2 &&
+    nodeText(node) === "Execution Projection"
+  );
+}
+
 function isCanonicalTaskHeading(input: string, node: MarkdownNode): boolean {
   return (
     isTaskLikeHeading(node) &&
-    /^Task\s+\d+(?:[\t :]|$)/u.test(nodeText(node)) &&
-    /^###[\t ]+Task\s+\d+(?:[\t :]|$)/u.test(
+    /^Task [1-9][0-9]*: [^\r\n]*\S[^\r\n]*$/u.test(nodeText(node)) &&
+    /^### Task [1-9][0-9]*: [^\r\n]*\S[^\r\n]*$/u.test(
       input.slice(nodeStart(node), nodeEnd(node)),
     )
   );
 }
 
 function isTaskLikeHeading(node: MarkdownNode): boolean {
-  return (
-    isHeading(node) &&
-    node.depth === 3 &&
-    /^Task(?:[\t :]|$)/iu.test(nodeText(node))
-  );
+  return isHeading(node) && node.depth === 3 && /^Task/iu.test(nodeText(node));
 }
 
 function nodeText(node: MarkdownNode): string {

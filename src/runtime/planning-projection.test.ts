@@ -190,6 +190,14 @@ describe("inspectPlanningProjection", () => {
     ).toThrow(code);
   });
 
+  it("rejects a formatted root projection heading alongside a canonical one", () => {
+    const input = `${completePlan}\n## *Execution Projection*\n`;
+
+    expect(() =>
+      inspectPlanningProjection(input, "plans/issue-651.md"),
+    ).toThrow("execution-projection-duplicate");
+  });
+
   it("ignores blockquoted peer-heading lookalikes", () => {
     const input = [
       "> ## Execution Projection",
@@ -293,6 +301,9 @@ describe("inspectPlanningProjection", () => {
   });
 
   it.each([
+    "### Task1: Missing space",
+    "### Task 1 Missing colon",
+    "### Task-1: Punctuation-adjacent",
     "### Task",
     "### Task: Unnumbered",
     "### Task arbitrary text",
@@ -371,6 +382,25 @@ describe("inspectPlanningProjection", () => {
     expect(() =>
       inspectPlanningProjection(input, "plans/issue-651.md"),
     ).toThrow("task-id-invalid");
+  });
+
+  it.each([
+    [
+      "implementation disposition",
+      "Tasks [`BUILD-PROJECTION-OPERATION`]",
+      "Tasks [BUILD-PROJECTION-OPERATION]",
+    ],
+    [
+      "task-valued proof",
+      "Task `BUILD-PROJECTION-OPERATION` — focused proof",
+      "Task BUILD-PROJECTION-OPERATION — focused proof",
+    ],
+  ])("requires inline-code task IDs in the %s", (_, expected, replacement) => {
+    const input = completePlan.replace(expected, replacement);
+
+    expect(() =>
+      inspectPlanningProjection(input, "plans/issue-651.md"),
+    ).toThrow("projection-entry-field-invalid");
   });
 
   it("returns the no-code disposition without a task-valued reference", () => {
