@@ -23,3 +23,6 @@
 # Scripts and hooks — force LF
 *.sh text eol=lf
 scripts/hooks/* text eol=lf
+
+# Packaged runtime license notices — preserve closure-hash bytes across platforms
+skills/devcanon-runtime/scripts/runtime/node_modules/**/license text eol=lf

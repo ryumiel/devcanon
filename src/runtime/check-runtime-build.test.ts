@@ -26,6 +26,37 @@ async function createRuntimeBuildRepo(): Promise<string> {
 }
 
 describe("runtime build checker", () => {
+  it("forces LF for every canonical private runtime notice in the Git tree", async () => {
+    const { stdout: noticeOutput } = await execFileAsync("git", [
+      "ls-files",
+      "--",
+      `${runtimeDir}/node_modules/**/license`,
+    ]);
+    const notices = noticeOutput.trim().split("\n").filter(Boolean);
+    const { stdout: attributeOutput } = await execFileAsync("git", [
+      "check-attr",
+      "text",
+      "eol",
+      "--",
+      ...notices,
+    ]);
+
+    expect(notices).not.toEqual([]);
+    const attributes = new Map(
+      attributeOutput
+        .trim()
+        .split("\n")
+        .map((line) => {
+          const [entry, attribute, value] = line.split(": ");
+          return [`${entry}:${attribute}`, value];
+        }),
+    );
+    for (const notice of notices) {
+      expect(attributes.get(`${notice}:text`)).toBe("set");
+      expect(attributes.get(`${notice}:eol`)).toBe("lf");
+    }
+  });
+
   it("tracks every private runtime notice with the canonical lowercase filename", async () => {
     const { stdout } = await execFileAsync("git", [
       "ls-files",
