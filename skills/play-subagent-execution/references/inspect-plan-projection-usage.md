@@ -71,9 +71,10 @@ Missing, empty, unknown, or extra arguments fail. A missing or incompatible
 sibling runtime, or any runtime failure, fails without a fallback parser,
 global CLI, result file, or retry.
 
-Failure writes nothing to stdout, writes exactly one newline-terminated JSON
-object with exactly `ok: false`, `code`, and `message` to stderr, and exits
-nonzero. The closed failure-code set is `plan-path-invalid`, `plan-unreadable`,
+Failure from the typed runtime operation writes nothing to stdout, writes
+exactly one newline-terminated JSON object with exactly `ok: false`, `code`,
+and `message` to stderr, and exits nonzero. The closed failure-code set is
+`plan-path-invalid`, `plan-unreadable`,
 `execution-projection-missing`, `execution-projection-duplicate`,
 `tasks-section-missing`, `task-heading-before-tasks`,
 `projection-entry-missing`, `projection-entry-field-invalid`,

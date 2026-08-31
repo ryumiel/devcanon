@@ -317,7 +317,7 @@ describe("play-planning execution projection contract", () => {
     for (const term of spanTerms) expect(usage).toContain(term);
     for (const code of failureCodes) expect(usage).toContain(`\`${code}\``);
     expect(usage).toContain(
-      "Failure writes nothing to stdout, writes exactly one newline-terminated JSON object with exactly `ok: false`, `code`, and `message` to stderr, and exits nonzero",
+      "Failure from the typed runtime operation writes nothing to stdout, writes exactly one newline-terminated JSON object with exactly `ok: false`, `code`, and `message` to stderr, and exits nonzero",
     );
     expect(usage).toContain("first finding in source order");
     expect(usage).toContain("does not constrain message prose");
