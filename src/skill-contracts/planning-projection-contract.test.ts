@@ -152,6 +152,24 @@ describe("play-planning execution projection contract", () => {
     );
   });
 
+  it("keeps path and digest guards caller-specific at the shared inspector boundary", async () => {
+    const usage = (
+      await readRepoFile(
+        "skills/play-subagent-execution/references/inspect-plan-projection-usage.md",
+      )
+    ).replace(/\s+/gu, " ");
+
+    expect(usage).toContain(
+      "Planning preflight owns guarded saved-path validation and the initial expected exact-byte digest before invocation, plus the post-inspection rehash",
+    );
+    expect(usage).toContain(
+      "Executor intake owns its guarded path validation and reviewed-digest gate before invocation",
+    );
+    expect(usage).not.toContain(
+      "The controller retains path guards and reviewed-digest verification before invocation",
+    );
+  });
+
   it("stops structural failures inside planning before reviewer dispatch", async () => {
     const planning = (
       await readRepoFile("skills/play-planning/SKILL.md")

@@ -12,8 +12,10 @@ Run `bash "$PLAY_SUBAGENT_EXECUTION_DIR/scripts/inspect-plan-projection.sh" --pa
 ## Inputs
 
 Exactly one nonempty repository-relative plan path is required through `--path`.
-It accepts no optional arguments and reads no stdin. The controller retains path
-guards and reviewed-digest verification before invocation.
+It accepts no optional arguments and reads no stdin. Planning preflight owns
+guarded saved-path validation and the initial expected exact-byte digest before
+invocation, plus the post-inspection rehash. Executor intake owns its guarded
+path validation and reviewed-digest gate before invocation.
 
 ## Working directory
 
