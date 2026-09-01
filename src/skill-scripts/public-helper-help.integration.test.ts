@@ -74,7 +74,7 @@ describe("cataloged public helper help", () => {
         "utf8",
       ),
     );
-    expect(rows).toHaveLength(29);
+    expect(rows).toHaveLength(30);
 
     const fixtureRoot = await createTempDir();
     tempDirs.push(fixtureRoot);

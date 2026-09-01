@@ -1,11 +1,12 @@
 import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   canCreateSymlinks,
   cleanupTempDir,
   copyDevcanonRuntimeFixture,
   createAgentFixture,
+  createLightweightDevcanonRuntimeFixture,
   createSkillFixture,
   createTempDir,
   makeAgentYaml,
@@ -29,6 +30,22 @@ import { renderAll, renderLoaded } from "./pipeline.js";
 
 const symlinkAvailable = await canCreateSymlinks();
 
+vi.mock("../validate/devcanon-runtime.js", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../validate/devcanon-runtime.js")>();
+  const { validateLightweightDevcanonRuntimeFixture } = await import(
+    "../__test-helpers__/fixtures.js"
+  );
+  return {
+    ...actual,
+    validateDevcanonRuntime: (runtimeDir: string) =>
+      validateLightweightDevcanonRuntimeFixture(
+        runtimeDir,
+        actual.validateDevcanonRuntime,
+      ),
+  };
+});
+
 describe("renderAll", () => {
   let tempDir: string;
   let config: ResolvedConfig;
@@ -42,7 +59,7 @@ describe("renderAll", () => {
     // Create skills and agents directories expected by makeResolvedConfig
     await mkdir(config.library.skillsDir, { recursive: true });
     await mkdir(config.library.agentsDir, { recursive: true });
-    await copyDevcanonRuntimeFixture(config.library.skillsDir);
+    await createLightweightDevcanonRuntimeFixture(config.library.skillsDir);
   });
 
   afterEach(async () => {

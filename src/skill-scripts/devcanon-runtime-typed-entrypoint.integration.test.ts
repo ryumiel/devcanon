@@ -13,16 +13,46 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { cleanupTempDir, createTempDir } from "../__test-helpers__/fixtures.js";
+import { retainedMitLicenseNoticePaths } from "../__test-helpers__/runtime-conformance.js";
 
 const execFileAsync = promisify(execFile);
 const runtimeScript = path.resolve(
   "skills/devcanon-runtime/scripts/devcanon-runtime.sh",
+);
+const runtimeCli = path.resolve(
+  "skills/devcanon-runtime/scripts/runtime/cli.js",
+);
+const runtimeBootstrapCli = path.resolve(
+  "skills/devcanon-runtime/scripts/runtime/bootstrap-cli.js",
 );
 const validProfiles = {
   efficient: { claude: "a", codex: "b" },
   balanced: { claude: "c", codex: "d" },
   frontier: { claude: "e", codex: "f" },
 };
+
+const planningProjectionPlan = [
+  "## Execution Projection",
+  "",
+  "- **Entry ID:** `EP-RUNTIME-RESULT-PRODUCTION`",
+  '  - **Affected surface or equivalent set:** ["runtime inspector"]',
+  "  - **Owner/source:** `issue #651` — result contract",
+  "  - **Mode:** `authority`",
+  "  - **Implementation disposition:** Tasks [`BUILD-PROJECTION-OPERATION`]",
+  "  - **Proof:** Task `BUILD-PROJECTION-OPERATION` — focused proof",
+  "",
+  "## Tasks",
+  "",
+  "### Task 1: Build projection operation",
+  "",
+  "**Task ID:** BUILD-PROJECTION-OPERATION",
+  "",
+].join("\n");
+
+const pollutedRuntimeEnvironments = [
+  { NODE_OPTIONS: "--conditions=browser", DEBUG: "*" },
+  { NODE_OPTIONS: "--conditions=development", DEBUG: "*" },
+] as const;
 
 describe("devcanon-runtime typed entrypoint", () => {
   it("tracks the compiled JavaScript entrypoint as executable", async () => {
@@ -102,6 +132,210 @@ describe("devcanon-runtime typed entrypoint", () => {
       await cleanupTempDir(tempDir);
     }
   });
+
+  it("runs planning projection from an isolated copied passive runtime bundle", async () => {
+    const tempDir = await createTempDir();
+    try {
+      const runtimeDir = path.join(tempDir, "devcanon-runtime");
+      const planPath = path.join(tempDir, "plan.md");
+      await cp(path.resolve("skills/devcanon-runtime"), runtimeDir, {
+        recursive: true,
+      });
+      await writeFile(planPath, planningProjectionPlan, "utf-8");
+      const nodeBin = path.join(tempDir, "node-bin");
+      await mkdir(nodeBin);
+      await symlink(process.execPath, path.join(nodeBin, "node"));
+      const isolatedEnv = {
+        PATH: `${nodeBin}:/usr/bin:/bin`,
+        NODE_PATH: "",
+      };
+
+      const script = path.join(runtimeDir, "scripts", "devcanon-runtime.sh");
+      const valid = await execFileAsync(
+        "bash",
+        [
+          script,
+          "runtime",
+          "planning-projection",
+          "inspect",
+          "--path",
+          "plan.md",
+        ],
+        { cwd: tempDir, env: isolatedEnv },
+      );
+      expect(JSON.parse(valid.stdout)).toMatchObject({
+        schema: "planning-projection/v1",
+        plan_path: "plan.md",
+      });
+      expect(valid.stderr).toBe("");
+
+      await writeFile(
+        planPath,
+        planningProjectionPlan.replace("`authority`", "`unsupported mode`"),
+        "utf-8",
+      );
+      await expect(
+        execFileAsync(
+          "bash",
+          [
+            script,
+            "runtime",
+            "planning-projection",
+            "inspect",
+            "--path",
+            "plan.md",
+          ],
+          { cwd: tempDir, env: isolatedEnv },
+        ),
+      ).rejects.toMatchObject({
+        stdout: "",
+        stderr: expect.stringContaining("projection-entry-field-invalid"),
+      });
+    } finally {
+      await cleanupTempDir(tempDir);
+    }
+  });
+
+  it.each(pollutedRuntimeEnvironments)(
+    "keeps contract and planning projection deterministic with %j",
+    async (env) => {
+      const tempDir = await createTempDir();
+      try {
+        const runtimeDir = path.join(tempDir, "devcanon-runtime");
+        const planPath = path.join(tempDir, "plan.md");
+        await cp(path.resolve("skills/devcanon-runtime"), runtimeDir, {
+          recursive: true,
+        });
+        await writeFile(planPath, planningProjectionPlan, "utf-8");
+        const script = path.join(runtimeDir, "scripts", "devcanon-runtime.sh");
+
+        await expect(
+          execFileAsync("bash", [script, "runtime", "contract"], {
+            cwd: tempDir,
+            env: { ...process.env, ...env },
+          }),
+        ).resolves.toMatchObject({
+          stdout:
+            '{"command_group":"devcanon-runtime","major_version":1,"helper_foundation":true}\n',
+          stderr: "",
+        });
+
+        const projection = await execFileAsync(
+          "bash",
+          [
+            script,
+            "runtime",
+            "planning-projection",
+            "inspect",
+            "--path",
+            "plan.md",
+          ],
+          { cwd: tempDir, env: { ...process.env, ...env } },
+        );
+        expect(projection.stderr).toBe("");
+        expect(JSON.parse(projection.stdout)).toMatchObject({
+          schema: "planning-projection/v1",
+          plan_path: "plan.md",
+        });
+      } finally {
+        await cleanupTempDir(tempDir);
+      }
+    },
+  );
+
+  it.each(pollutedRuntimeEnvironments)(
+    "keeps the direct typed entrypoint deterministic with %j",
+    async (env) => {
+      const tempDir = await createTempDir();
+      try {
+        const planPath = path.join(tempDir, "plan.md");
+        await writeFile(planPath, planningProjectionPlan, "utf-8");
+
+        await expect(
+          execFileAsync(process.execPath, [runtimeCli, "contract"], {
+            cwd: tempDir,
+            env: { ...process.env, ...env },
+          }),
+        ).resolves.toMatchObject({
+          stdout:
+            '{"command_group":"devcanon-runtime","major_version":1,"helper_foundation":true}\n',
+          stderr: "",
+        });
+        await expect(
+          execFileAsync(
+            process.execPath,
+            [runtimeCli, "planning-projection", "inspect", "--path", "plan.md"],
+            { cwd: tempDir, env: { ...process.env, ...env } },
+          ),
+        ).resolves.toMatchObject({ stderr: "" });
+      } finally {
+        await cleanupTempDir(tempDir);
+      }
+    },
+  );
+
+  it.each(pollutedRuntimeEnvironments)(
+    "keeps the bootstrap typed-launch path deterministic with %j",
+    async (env) => {
+      const tempDir = await createTempDir();
+      try {
+        const runtimeDir = path.join(tempDir, "devcanon-runtime");
+        const planPath = path.join(tempDir, "plan.md");
+        await cp(path.resolve("skills/devcanon-runtime"), runtimeDir, {
+          recursive: true,
+        });
+        await writeFile(planPath, planningProjectionPlan, "utf-8");
+        const wrapper = path.join(runtimeDir, "scripts", "devcanon-runtime.sh");
+        await writeFile(
+          wrapper,
+          [
+            "#!/usr/bin/env sh",
+            'script_dir="$(cd "$(dirname "$0")" && pwd -P)"',
+            '[ "$1" = "runtime" ] && shift',
+            'exec node "$script_dir/runtime/cli.js" "$@"',
+            "",
+          ].join("\n"),
+          "utf-8",
+        );
+
+        await expect(
+          execFileAsync(
+            process.execPath,
+            [
+              runtimeBootstrapCli,
+              "--runtime-dir",
+              runtimeDir,
+              "--",
+              "contract",
+            ],
+            { cwd: tempDir, env: { ...process.env, ...env } },
+          ),
+        ).resolves.toMatchObject({
+          stdout:
+            '{"command_group":"devcanon-runtime","major_version":1,"helper_foundation":true}\n',
+          stderr: "",
+        });
+        await expect(
+          execFileAsync(
+            process.execPath,
+            [
+              runtimeBootstrapCli,
+              "--runtime-dir",
+              runtimeDir,
+              "--",
+              "planning-projection",
+              "inspect",
+              "--path",
+              "plan.md",
+            ],
+            { cwd: tempDir, env: { ...process.env, ...env } },
+          ),
+        ).resolves.toMatchObject({ stderr: "" });
+      } finally {
+        await cleanupTempDir(tempDir);
+      }
+    },
+  );
 
   it("reads config path and values from the copied sibling catalog outside the repository", async () => {
     const tempDir = await createTempDir();
@@ -439,6 +673,11 @@ describe("devcanon-runtime typed entrypoint", () => {
         validateRuntimeSchema: expect.any(Function),
         writeTextAtomically: expect.any(Function),
       });
+      await expect(
+        retainedMitLicenseNoticePaths(
+          path.join(tempDir, "devcanon-runtime", "scripts", "runtime"),
+        ),
+      ).resolves.toContain(path.join("node_modules", "ms", "license"));
     } finally {
       await cleanupTempDir(tempDir);
     }

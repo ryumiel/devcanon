@@ -1,8 +1,15 @@
+import { constants } from "node:fs";
 import {
+  access,
   chmod,
   cp,
+  link,
+  lstat,
   mkdir,
   mkdtemp,
+  readFile,
+  readdir,
+  readlink,
   rm,
   stat,
   symlink,
@@ -14,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import { stringify as yamlStringify } from "yaml";
 import type { ManifestBoundary, ResolvedConfig } from "../config/schema.js";
 import type { LoadedAgent } from "../models/types.js";
+import type { ValidatedDevcanonRuntime } from "../validate/devcanon-runtime.js";
 
 type CodexSource = NonNullable<LoadedAgent["source"]["codex"]>;
 
@@ -98,6 +106,196 @@ export async function copyDevcanonRuntimeFixture(
     path.join(skillsDir, "devcanon-runtime"),
     { recursive: true },
   );
+}
+
+const LIGHTWEIGHT_RUNTIME_MARKER =
+  "devcanon-test-only-lightweight-runtime/v1\n";
+const LIGHTWEIGHT_RUNTIME_WRAPPER =
+  "#!/usr/bin/env bash\nset -euo pipefail\nexit 0\n";
+const LIGHTWEIGHT_RUNTIME_RESOLVER = "export {};\n";
+const LIGHTWEIGHT_RUNTIME_CATALOG = `${JSON.stringify(
+  {
+    schema: "devcanon/runtime-config/v1",
+    capabilityProfiles: CANONICAL_CAPABILITY_PROFILES,
+  },
+  null,
+  2,
+)}\n`;
+
+/** Test-only passive runtime for policy tests that do not own package fidelity. */
+export async function createLightweightDevcanonRuntimeFixture(
+  skillsDir: string,
+): Promise<void> {
+  const runtimeDir = path.join(skillsDir, "devcanon-runtime");
+  const configDir = path.join(runtimeDir, "config");
+  const scriptsDir = path.join(runtimeDir, "scripts");
+  const runtimeScriptsDir = path.join(scriptsDir, "runtime");
+  await mkdir(configDir, { recursive: true });
+  await mkdir(runtimeScriptsDir, { recursive: true });
+  await writeFile(
+    path.join(configDir, "runtime-config.json"),
+    LIGHTWEIGHT_RUNTIME_CATALOG,
+    "utf-8",
+  );
+  const wrapper = path.join(scriptsDir, "devcanon-runtime.sh");
+  await writeFile(wrapper, LIGHTWEIGHT_RUNTIME_WRAPPER, "utf-8");
+  await chmod(wrapper, 0o755);
+  await writeFile(
+    path.join(scriptsDir, "resolve-bash.mjs"),
+    LIGHTWEIGHT_RUNTIME_RESOLVER,
+    "utf-8",
+  );
+  await writeFile(
+    path.join(runtimeScriptsDir, ".lightweight-runtime-fixture"),
+    LIGHTWEIGHT_RUNTIME_MARKER,
+    "utf-8",
+  );
+}
+
+/** Accepts only the exact lightweight fixture; malformed cases stay real. */
+export async function validateLightweightDevcanonRuntimeFixture(
+  runtimeDir: string,
+  validateReal: (runtimeDir: string) => Promise<ValidatedDevcanonRuntime>,
+): Promise<ValidatedDevcanonRuntime> {
+  if (!(await isExactLightweightRuntimeFixture(runtimeDir))) {
+    return validateReal(runtimeDir);
+  }
+  return Object.freeze({
+    runtimeDir,
+    closureRecords: [],
+  }) as unknown as ValidatedDevcanonRuntime;
+}
+
+async function isExactLightweightRuntimeFixture(
+  runtimeDir: string,
+): Promise<boolean> {
+  try {
+    const configDir = path.join(runtimeDir, "config");
+    const scriptsDir = path.join(runtimeDir, "scripts");
+    const runtimeScriptsDir = path.join(scriptsDir, "runtime");
+    if (!(await hasExactEntries(runtimeDir, ["config", "scripts"]))) {
+      return false;
+    }
+    if (!(await hasExactEntries(configDir, ["runtime-config.json"]))) {
+      return false;
+    }
+    if (
+      !(await hasExactEntries(scriptsDir, [
+        "devcanon-runtime.sh",
+        "resolve-bash.mjs",
+        "runtime",
+      ])) ||
+      !(await hasExactEntries(runtimeScriptsDir, [
+        ".lightweight-runtime-fixture",
+      ]))
+    ) {
+      return false;
+    }
+    const wrapper = path.join(scriptsDir, "devcanon-runtime.sh");
+    await access(wrapper, constants.X_OK);
+    return (
+      (await readFile(wrapper, "utf-8")) === LIGHTWEIGHT_RUNTIME_WRAPPER &&
+      (await readFile(path.join(scriptsDir, "resolve-bash.mjs"), "utf-8")) ===
+        LIGHTWEIGHT_RUNTIME_RESOLVER &&
+      (await readFile(
+        path.join(runtimeScriptsDir, ".lightweight-runtime-fixture"),
+        "utf-8",
+      )) === LIGHTWEIGHT_RUNTIME_MARKER &&
+      (await readFile(path.join(configDir, "runtime-config.json"), "utf-8")) ===
+        LIGHTWEIGHT_RUNTIME_CATALOG
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function hasExactEntries(
+  directory: string,
+  expected: readonly string[],
+): Promise<boolean> {
+  const entries = await readdir(directory, { withFileTypes: true });
+  return (
+    entries.length === expected.length &&
+    entries.every(
+      (entry) => !entry.isSymbolicLink() && expected.includes(entry.name),
+    )
+  );
+}
+
+/**
+ * Creates an immutable runtime fixture using hard-linked files. Tests using
+ * this helper may remove entries, but must not write or chmod linked files.
+ */
+export async function linkDevcanonRuntimeFixture(
+  skillsDir: string,
+): Promise<void> {
+  await linkImmutableFixtureTree(
+    DEV_CANON_RUNTIME_SOURCE_DIR,
+    path.join(skillsDir, "devcanon-runtime"),
+  );
+}
+
+async function linkImmutableFixtureTree(
+  source: string,
+  destination: string,
+): Promise<void> {
+  const limit = createFixtureIoLimit(128);
+  await linkFixtureTree(source, destination, limit);
+}
+
+async function linkFixtureTree(
+  source: string,
+  destination: string,
+  limit: FixtureIoLimit,
+): Promise<void> {
+  const sourceStat = await limit(() => lstat(source));
+  if (sourceStat.isDirectory()) {
+    await limit(() =>
+      mkdir(destination, { recursive: true, mode: sourceStat.mode }),
+    );
+    const entries = await limit(() => readdir(source));
+    await Promise.all(
+      entries.map((entry) =>
+        linkFixtureTree(
+          path.join(source, entry),
+          path.join(destination, entry),
+          limit,
+        ),
+      ),
+    );
+    return;
+  }
+  if (sourceStat.isSymbolicLink()) {
+    const target = await limit(() => readlink(source));
+    await limit(() => symlink(target, destination));
+    return;
+  }
+  try {
+    await limit(() => link(source, destination));
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (!code || !["EXDEV", "ENOTSUP", "EPERM"].includes(code)) throw error;
+    await limit(() => cp(source, destination));
+  }
+}
+
+type FixtureIoLimit = <T>(operation: () => Promise<T>) => Promise<T>;
+
+function createFixtureIoLimit(concurrency: number): FixtureIoLimit {
+  let active = 0;
+  const waiters: Array<() => void> = [];
+  return async <T>(operation: () => Promise<T>): Promise<T> => {
+    if (active >= concurrency) {
+      await new Promise<void>((resolve) => waiters.push(resolve));
+    }
+    active += 1;
+    try {
+      return await operation();
+    } finally {
+      active -= 1;
+      waiters.shift()?.();
+    }
+  };
 }
 
 export async function createAgentFixture(

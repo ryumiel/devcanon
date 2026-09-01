@@ -53,6 +53,12 @@ export async function runRuntimeCommand(
         return ok(ephemeralChild(rest));
       case "validate-json":
         return validateJson(rest);
+      case "planning-projection": {
+        const { runPlanningProjectionCommand } = await import(
+          "./planning-projection.js"
+        );
+        return await runPlanningProjectionCommand(rest);
+      }
       case "review-artifacts":
         return await runReviewArtifactsCommand(rest);
       case "pr-review-provider-scope-evidence":

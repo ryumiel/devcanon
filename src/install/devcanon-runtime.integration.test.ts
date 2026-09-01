@@ -23,6 +23,7 @@ import {
 } from "../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../__test-helpers__/logger.js";
 import type { TestLoggerResult } from "../__test-helpers__/logger.js";
+import { retainedMitLicenseNoticePaths } from "../__test-helpers__/runtime-conformance.js";
 import type { InstallMode, ResolvedConfig } from "../config/schema.js";
 import { pathExists } from "../utils/fs.js";
 import { sync } from "./sync.js";
@@ -83,6 +84,18 @@ describe("devcanon-runtime sync", () => {
     expect(packed.files.map((file) => file.path)).toContain(
       "skills/devcanon-runtime/config/runtime-config.json",
     );
+    const packedPaths = packed.files.map((file) => file.path);
+    const noticePaths = await retainedMitLicenseNoticePaths(
+      path.resolve("skills/devcanon-runtime/scripts/runtime"),
+    );
+    for (const noticePath of noticePaths) {
+      expect(packedPaths).toContain(
+        path.posix.join(
+          "skills/devcanon-runtime/scripts/runtime",
+          ...noticePath.split(path.sep),
+        ),
+      );
+    }
   });
 
   it("installs runtime files in copy mode and records the runtime manifest hash", async () => {
@@ -112,6 +125,11 @@ describe("devcanon-runtime sync", () => {
         "utf-8",
       ),
     ).resolves.toContain('"schema": "devcanon/runtime-config/v1"');
+    await expect(
+      retainedMitLicenseNoticePaths(
+        path.join(installedRuntime, "scripts", "runtime"),
+      ),
+    ).resolves.toContain(path.join("node_modules", "ms", "license"));
 
     const manifest = JSON.parse(
       await readFile(config.manifest.path, "utf-8"),

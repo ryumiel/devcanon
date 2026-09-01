@@ -14,6 +14,7 @@ import { UserError } from "../utils/errors.js";
 import { ensureDir, readdir, writeTextFile } from "../utils/fs.js";
 import { loadAndValidateAgents } from "../validate/agents.js";
 import {
+  type ValidatedDevcanonRuntime,
   devcanonRuntimeDir,
   validateDevcanonRuntime,
 } from "../validate/devcanon-runtime.js";
@@ -26,6 +27,7 @@ import {
 import { renderClaudeAgent } from "./claude.js";
 import { renderCodexAgent } from "./codex.js";
 import {
+  hashDevcanonRuntimePayload,
   renderDevcanonRuntimeForTarget,
   writeRenderedDevcanonRuntime,
 } from "./devcanon-runtime.js";
@@ -76,7 +78,30 @@ export async function renderAll(
   targetFilter?: "claude" | "codex",
 ): Promise<RenderResult> {
   const runtimeDir = devcanonRuntimeDir(config.library.skillsDir);
-  await validateDevcanonRuntime(runtimeDir);
+  const validatedRuntime = await validateDevcanonRuntime(runtimeDir);
+  return renderAllWithValidatedRuntime(
+    config,
+    validatedRuntime,
+    writeToGenerated,
+    strict,
+    targetFilter,
+  );
+}
+
+/** @internal Reuses validation evidence only within one owning operation. */
+export async function renderAllWithValidatedRuntime(
+  config: ResolvedConfig,
+  validatedRuntime: ValidatedDevcanonRuntime,
+  writeToGenerated = true,
+  strict = false,
+  targetFilter?: "claude" | "codex",
+): Promise<RenderResult> {
+  const runtimeDir = devcanonRuntimeDir(config.library.skillsDir);
+  if (path.resolve(validatedRuntime.runtimeDir) !== path.resolve(runtimeDir)) {
+    throw new Error(
+      "Validated devcanon-runtime evidence does not match config.",
+    );
+  }
   const skills = await loadAndValidateSkills(config.library.skillsDir);
   const agents = await loadAndValidateAgents(config.library.agentsDir, skills, {
     strict,
@@ -92,6 +117,7 @@ export async function renderAll(
     targetFilter,
     cleanStaleGenerated: true,
     runtimeDir,
+    validatedRuntime,
   });
 }
 
@@ -110,6 +136,7 @@ interface RenderLoadedInternalOptions<
 > extends RenderLoadedOptions<TSkills, TAgents> {
   cleanStaleGenerated: boolean;
   runtimeDir?: string;
+  validatedRuntime?: ValidatedDevcanonRuntime;
 }
 
 async function renderLoadedInternal<
@@ -124,6 +151,7 @@ async function renderLoadedInternal<
   cleanStaleGenerated = false,
   targetFilter,
   runtimeDir,
+  validatedRuntime,
 }: RenderLoadedInternalOptions<TSkills, TAgents>): Promise<
   RenderResult<TSkills, TAgents>
 > {
@@ -146,6 +174,9 @@ async function renderLoadedInternal<
     extraFiles: Map<string, string>;
   }> = [];
   const runtimeWrites: RenderedSkill[] = [];
+  const runtimeContentHash = runtimeDir
+    ? await hashDevcanonRuntimePayload(runtimeDir, config, validatedRuntime)
+    : undefined;
 
   for (const target of targets) {
     if (!config.targets[target].enabled) continue;
@@ -178,6 +209,7 @@ async function renderLoadedInternal<
         runtimeDir,
         target,
         config,
+        runtimeContentHash,
       );
       assertRenderedOutputPath(config, rendered);
       runtimeWrites.push(rendered);

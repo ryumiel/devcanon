@@ -1,5 +1,12 @@
 import { execFile } from "node:child_process";
-import { chmod, cp, mkdir, readFile, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  cp,
+  mkdir,
+  readFile,
+  readdir,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { expect } from "vitest";
@@ -239,4 +246,26 @@ export async function expectFileBytesEqual(
   expectedPath: string,
 ): Promise<void> {
   expect(await readFile(actualPath)).toEqual(await readFile(expectedPath));
+}
+
+export async function retainedMitLicenseNoticePaths(
+  runtimeDirectory: string,
+): Promise<string[]> {
+  const nodeModules = path.join(runtimeDirectory, "node_modules");
+  const notices: string[] = [];
+  for (const entry of await readdir(nodeModules, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const packageDirectory = path.join(nodeModules, entry.name);
+    const packageJson = JSON.parse(
+      await readFile(path.join(packageDirectory, "package.json"), "utf-8"),
+    ) as { license?: unknown };
+    if (packageJson.license !== "MIT") continue;
+    expect(await readdir(packageDirectory)).toContain("license");
+    const noticePath = path.join("node_modules", entry.name, "license");
+    await expect(
+      readFile(path.join(runtimeDirectory, noticePath), "utf-8"),
+    ).resolves.toMatch(/permission is hereby granted/iu);
+    notices.push(noticePath);
+  }
+  return notices.sort();
 }

@@ -125,6 +125,7 @@ run_typed_runtime() {
   local js_entrypoint="$script_dir/runtime/cli.js"
   [ -f "$js_entrypoint" ] || runtime_error "devcanon-runtime JS entrypoint missing: $js_entrypoint"
   command -v node >/dev/null 2>&1 || runtime_error "node is required for devcanon-runtime typed helpers"
+  unset DEBUG NODE_OPTIONS
   exec node "$js_entrypoint" "$@"
 }
 

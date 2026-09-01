@@ -84,7 +84,7 @@ export async function dispatchRuntimeOverride(rawPath, childArguments) {
             : ["runtime", ...childArguments];
         const child = spawn(command, args, {
             detached: process.platform !== "win32",
-            env: process.env,
+            env: runtimeEnvironment(process.env),
             stdio: "inherit",
         });
         const signalHandlers = new Map();
@@ -109,6 +109,10 @@ export async function dispatchRuntimeOverride(rawPath, childArguments) {
             resolve({ exitCode, signal });
         });
     });
+}
+function runtimeEnvironment(environment) {
+    const { DEBUG: _debug, NODE_OPTIONS: _nodeOptions, ...sanitized } = environment;
+    return sanitized;
 }
 function forwardSignalToChild(child, signal) {
     try {

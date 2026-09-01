@@ -1,5 +1,7 @@
-import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   canCreateSymlinks,
@@ -8,12 +10,14 @@ import {
   createTempDir,
   makeResolvedConfig,
 } from "../__test-helpers__/fixtures.js";
+import { retainedMitLicenseNoticePaths } from "../__test-helpers__/runtime-conformance.js";
 import { renderAll } from "../render/pipeline.js";
 import { UserError } from "../utils/errors.js";
 import { pathExists } from "../utils/fs.js";
 import { validateDevcanonRuntime } from "./devcanon-runtime.js";
 
 const symlinkAvailable = await canCreateSymlinks();
+const execFileAsync = promisify(execFile);
 
 describe("devcanon-runtime source validation", () => {
   let tempDir: string;
@@ -105,6 +109,169 @@ describe("devcanon-runtime source validation", () => {
       /passive runtime support bundle devcanon-runtime is incomplete/i,
     );
     expect(await pathExists(sentinel)).toBe(true);
+  });
+
+  it("rejects an extra private parser package before generated output is mutated", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    const sentinel = path.join(
+      config.library.generatedDir,
+      "codex",
+      "skills",
+      "sentinel",
+      "marker.txt",
+    );
+    const unexpectedPackage = path.join(
+      runtimeDir,
+      "scripts",
+      "runtime",
+      "node_modules",
+      "unexpected-package",
+    );
+    await mkdir(unexpectedPackage, { recursive: true });
+    await writeFile(
+      path.join(unexpectedPackage, "package.json"),
+      '{"name":"unexpected-package"}\n',
+      "utf-8",
+    );
+    await mkdir(path.dirname(sentinel), { recursive: true });
+    await writeFile(sentinel, "unchanged\n", "utf-8");
+
+    await expect(renderAll(config, true)).rejects.toThrow(UserError);
+    await expect(renderAll(config, true)).rejects.toThrow(
+      /passive runtime support bundle devcanon-runtime is incomplete/i,
+    );
+    expect(await pathExists(sentinel)).toBe(true);
+  });
+
+  it("rejects a missing required private parser file", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    await rm(
+      path.join(
+        runtimeDir,
+        "scripts",
+        "runtime",
+        "node_modules",
+        "mdast-util-from-markdown",
+        "index.js",
+      ),
+    );
+
+    await expect(validateDevcanonRuntime(runtimeDir)).rejects.toThrow(
+      /passive runtime support bundle devcanon-runtime is incomplete/i,
+    );
+  });
+
+  it("retains notices for every private MIT parser package", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    await validateDevcanonRuntime(runtimeDir);
+
+    await expect(
+      retainedMitLicenseNoticePaths(
+        path.join(runtimeDir, "scripts", "runtime"),
+      ),
+    ).resolves.toContain(path.join("node_modules", "ms", "license"));
+  });
+
+  it("validates the fixed parser closure with locale-independent entry ordering", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    const validationModule = path.resolve("src/validate/devcanon-runtime.ts");
+
+    await expect(
+      execFileAsync(
+        process.execPath,
+        [
+          "--import",
+          "tsx",
+          "--input-type=module",
+          "--eval",
+          `const { validateDevcanonRuntime } = await import(${JSON.stringify(validationModule)}); await validateDevcanonRuntime(${JSON.stringify(runtimeDir)});`,
+        ],
+        {
+          env: {
+            ...process.env,
+            LANG: "cs_CZ.UTF-8",
+            LC_ALL: "cs_CZ.UTF-8",
+          },
+        },
+      ),
+    ).resolves.toMatchObject({ stdout: "" });
+  });
+
+  it("rejects a deep extra private parser file", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    await writeFile(
+      path.join(
+        runtimeDir,
+        "scripts",
+        "runtime",
+        "node_modules",
+        "mdast-util-from-markdown",
+        "lib",
+        "unexpected.js",
+      ),
+      "export {};\n",
+      "utf-8",
+    );
+
+    await expect(validateDevcanonRuntime(runtimeDir)).rejects.toThrow(
+      /passive runtime support bundle devcanon-runtime is incomplete/i,
+    );
+  });
+
+  it.skipIf(!symlinkAvailable)(
+    "rejects a deep symlink in the private parser closure",
+    async () => {
+      const runtimeDir = path.join(
+        config.library.skillsDir,
+        "devcanon-runtime",
+      );
+      const entrypoint = path.join(
+        runtimeDir,
+        "scripts",
+        "runtime",
+        "node_modules",
+        "mdast-util-from-markdown",
+        "index.js",
+      );
+      const externalFile = path.join(tempDir, "external-parser.js");
+      await writeFile(externalFile, "export {};\n", "utf-8");
+      await rm(entrypoint);
+      await symlink(externalFile, entrypoint, "file");
+
+      await expect(validateDevcanonRuntime(runtimeDir)).rejects.toThrow(
+        /passive runtime support bundle devcanon-runtime is incomplete/i,
+      );
+    },
+  );
+
+  it("rejects a manifest-expanded private parser package", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    const nodeModules = path.join(
+      runtimeDir,
+      "scripts",
+      "runtime",
+      "node_modules",
+    );
+    const packagePath = path.join(
+      nodeModules,
+      "mdast-util-gfm",
+      "package.json",
+    );
+    const packageJson = JSON.parse(await readFile(packagePath, "utf-8")) as {
+      dependencies: Record<string, string>;
+    };
+    packageJson.dependencies["unexpected-package"] = "1.0.0";
+    await writeFile(packagePath, JSON.stringify(packageJson), "utf-8");
+    await mkdir(path.join(nodeModules, "unexpected-package"));
+    await writeFile(
+      path.join(nodeModules, "unexpected-package", "package.json"),
+      '{"name":"unexpected-package"}\n',
+      "utf-8",
+    );
+
+    await expect(validateDevcanonRuntime(runtimeDir)).rejects.toThrow(
+      /passive runtime support bundle devcanon-runtime is incomplete/i,
+    );
   });
 
   it("rejects a runtime catalog with an extra envelope field", async () => {

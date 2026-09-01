@@ -10,6 +10,7 @@ import {
   makeResolvedConfig,
 } from "../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../__test-helpers__/logger.js";
+import { retainedMitLicenseNoticePaths } from "../__test-helpers__/runtime-conformance.js";
 import type { ResolvedConfig } from "../config/schema.js";
 import { pathExists } from "../utils/fs.js";
 import { renderDevcanonRuntimeForTarget } from "./devcanon-runtime.js";
@@ -93,6 +94,13 @@ describe("devcanon-runtime rendering", () => {
     expect(await readFile(runtimeScriptPath, "utf-8")).toContain(
       "resolve-entrypoint",
     );
+    for (const targetRuntimeDir of [claudeRuntimeDir, codexRuntimeDir]) {
+      await expect(
+        retainedMitLicenseNoticePaths(
+          path.join(targetRuntimeDir, "scripts", "runtime"),
+        ),
+      ).resolves.toContain(path.join("node_modules", "ms", "license"));
+    }
     expect((await stat(runtimeScriptPath)).mode & 0o777).toBe(
       (
         await stat(
