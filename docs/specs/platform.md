@@ -65,6 +65,30 @@ When a remaining Bash-only helper cannot find verified Git Bash, install or
 repair Git for Windows or rerun from a supported POSIX environment; do not
 bypass the helper or infer success from missing output.
 
+### Runtime package and isolation boundary
+
+The runtime's portable-execution proof has three distinct environments on every
+supported platform. A package manager may be used only to create a clean
+fixture: install the packed tarball and its declared CLI dependencies into a
+temporary prefix. The next phase uses the package-local `devcanon` CLI from
+that prefix to initialize, validate, render, and sync a temporary library. It
+must not resolve a package manager, globally registered CLI, source checkout,
+or ambient dependency tree.
+
+The final phase copies the resulting composed passive runtime to a second
+isolated directory. Its wrapper, typed runtime, resolver, and trusted bootstrap
+must execute there without `node_modules`, a global `devcanon` executable, or
+ambient package resolution. Manually assembling a runtime payload does not
+prove this boundary.
+
+For the same canonical inputs and `artifact_origin`, clean independent builds
+must produce byte-identical runtime bundle, manifest, and third-party-license
+artifacts. Failure of package preparation, package-local CLI execution, copied
+runtime isolation, attribution, or same-origin reproducibility fails the
+production or proof flow. ADR-0024 owns artifact construction and attribution;
+this section owns the platform-independent execution boundary and must not be
+weakened by an implementation choice.
+
 ### PR-review session creation
 
 The numbered transaction guarantees and failure equivalence classes are owned

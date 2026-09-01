@@ -176,6 +176,14 @@ managed, version-aligned sibling `devcanon-runtime` through its owning helper
 adapter. It must not discover or invoke a separately installed `devcanon`
 executable from `PATH`.
 
+That sibling delivers parser behavior through the composed prebuilt ESM bundle
+at `scripts/runtime/devcanon-runtime.mjs`. The generated artifact is accepted
+before composition and transport; this delivery requirement does not select a
+bundler, alter the GFM grammar, or add per-invocation hashing. The runtime
+artifact architecture and verification regimes remain owned by
+[ADR-0024](../adr/adr-0024-shared-support-skill-runtime.md), and the runtime
+catalog carried alongside it remains owned by ADR-0035.
+
 The passive runtime may provide deterministic syntax facts or findings. The
 owning skill continues to own the public helper contract and all judgment or
 workflow policy. [ADR-0024](../adr/adr-0024-shared-support-skill-runtime.md)
@@ -216,8 +224,9 @@ wrapping, and all unrelated source remain unchanged.
 ### MP-SC-006: Future Installed Consumer
 
 Given a separately approved installed artifact checker, its helper resolves
-the sibling passive runtime and does not require a global `devcanon`
-executable. Parser support alone does not approve or create that checker.
+the sibling passive runtime's prebuilt ESM bundle and does not require a global
+`devcanon` executable. Parser support alone does not approve or create that
+checker.
 
 ## Acceptance Criteria
 
@@ -257,10 +266,11 @@ an exhaustive CommonMark/GFM parser suite or add unsupported representation
 requirements solely for test completeness.
 
 A future installed runtime consumer must additionally verify its actual
-parser-backed operation from an isolated copied bundle without a source
+parser-backed operation from the second isolated copied runtime produced by the
+clean source-build and packed-tarball proof. That execution has no source
 checkout, package manager, ambient `node_modules`, or global `devcanon`
-executable. That verification belongs to the separately approved runtime
-implementation, not the initial source-side migration.
+executable. This is an implementation-owned proof for issue #654, not the
+initial source-side migration.
 
 ## Evidence Pointers
 

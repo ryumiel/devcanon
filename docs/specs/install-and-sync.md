@@ -28,9 +28,11 @@ root, then keep the checkout at a stable path because it remains both the CLI
 source and the default configuration root.
 
 CLI registration and managed-output synchronization are separate operations.
-`pnpm run setup:cli` builds and registers the CLI; it does not render or
-install skills or agents. `devcanon sync` renders and installs managed outputs
-from the selected configuration; it does not build or register the CLI.
+`pnpm run setup:cli` builds and verifies the source-build runtime artifact
+before registering the CLI; it does not render or install skills or agents.
+`devcanon sync` accepts a verified prebuilt runtime artifact, renders and
+installs managed outputs from the selected configuration, and does not build
+the runtime or register the CLI.
 
 ---
 
@@ -65,10 +67,39 @@ Each bound managed record must include:
 - content hash
 - timestamp
 
-`devcanon-runtime` is a fixed passive bundle with validated top-level `config/`
-and `scripts/` trees. Its v1 record uses `type: "skill"` only as the existing
-skills-home transport identity; it is not a source skill and has neither
-`SKILL.md` nor a Codex invocation sidecar.
+`devcanon-runtime` is a composed passive bundle. Its v1 record uses
+`type: "skill"` only as the existing skills-home transport identity; it is not
+a source skill and has neither `SKILL.md` nor a Codex invocation sidecar.
+
+### Passive-runtime composition and transport
+
+The manifest record's `sourcePath` for `devcanon-runtime` remains the authored
+`skills/devcanon-runtime/` root. It does not name a generated artifact root or
+the source-sibling runtime copy. Its `generated path` names the rendered
+composition, whose full-tree content hash covers both the authored leaves and
+the accepted generated leaves; the accepted build manifest supplies generated
+artifact provenance. The architecture, closed build manifest, and verification
+regimes are owned by
+[ADR-0024](../adr/adr-0024-shared-support-skill-runtime.md); catalog custody
+and projection remain owned by
+[ADR-0035](../adr/adr-0035-installed-runtime-configuration-discovery.md).
+
+After validation accepts the explicit provider, the rendered passive-runtime
+tree contains exactly:
+
+```text
+config/runtime-config.json
+scripts/devcanon-runtime.sh
+scripts/resolve-bash.mjs
+scripts/runtime/devcanon-runtime.mjs
+scripts/runtime/runtime-manifest.json
+scripts/runtime/THIRD_PARTY_LICENSES
+```
+
+The rendered composition is the sole symlink target. Copy installation copies
+that same composed tree, and `diff` compares the installed runtime against its
+rendered full-tree identity. Existing collision, overwrite, effective-mode,
+and copy-versus-symlink behavior is unchanged.
 
 ### Manifest identity and boundary
 
@@ -207,9 +238,10 @@ mutate, and invalid or residual-lock state fails actionably with exit 1.
 warning path rather than a healthy result; its overall exit behavior remains
 unchanged unless another check independently reports an error.
 
-After its accepted manifest identity checks, `diff` validates the fixed passive
-runtime support bundle through its read-only source-driven render projection.
-`uninstall` remains source-independent and does not validate the source bundle.
+After its accepted manifest identity checks, `diff` accepts and validates the
+explicit prebuilt provider artifact through its read-only source-driven composed
+render projection. `uninstall` remains source-independent and does not validate
+the authored root, provider artifact, or rendered runtime.
 
 ### Managed component collisions
 
@@ -273,9 +305,10 @@ backups or manifest churn.
 1. load config
 2. inspect the manifest purely
 3. for an invalid dry manifest, stop with the manifest error before runtime
-   validation. Every other sync validates the fixed passive runtime support
-   bundle before non-dry recovery, normalization or binding, rendering, or an
-   install mutation.
+   validation. Every other sync accepts and validates the explicitly provided
+   prebuilt passive-runtime artifact before non-dry recovery, normalization or
+   binding, composition, rendering, or an install mutation. Sync never builds
+   that artifact or resolves ambient dependencies.
 4. for a non-dry invalid manifest, perform explicit recovery; only
    recovered-clean state continues. Every pre-I5-unrecovered or
    recovered-cleanup-degraded result stops before each later effect.
@@ -379,12 +412,11 @@ generated or source root. If the original symlink spelling can no longer be
 reconstructed without unbounded guessing, identity verification fails closed and
 keeps the manifest record.
 
-For the passive `devcanon-runtime` bundle, the exact current payload has
-top-level `config/` and `scripts/` trees and no `SKILL.md`. Copy identity
-validates and hashes both the catalog and scripts payload against the recorded
-content hash; it has no legacy fallback or migration path. Symlink identity
-continues to verify the expected target path, while `diff` also checks the
-resolved runtime payload against the rendered hash.
+For the passive `devcanon-runtime` bundle, copy identity validates and hashes
+the exact composed payload against the recorded full-tree content hash; it has
+no legacy scripts-only fallback or migration path. Symlink identity continues
+to verify the rendered composition as its expected target, while `diff` also
+checks the resolved runtime payload against the rendered hash.
 
 During uninstall, a valid manifest record whose installed path is already
 missing is treated as removed only after target-home containment and symlink
@@ -410,7 +442,8 @@ manifest. The command is symmetric to `sync` for tool retirement and
 target wipes.
 
 Uninstall is source-independent: it does not validate or otherwise read the
-fixed passive runtime support bundle from the source library.
+authored root, generated artifact provider, or rendered passive runtime from
+the source library.
 
 Behavior:
 
@@ -449,3 +482,5 @@ explicit.
 - [Target mapping](target-mapping.md) -- generated output rules
 - [CLI commands](cli-commands.md) -- `sync` and `diff` command details
 - [Platform](platform.md) -- symlink requirements and path rules
+- [Shared Passive Runtime Support Bundle](../adr/adr-0024-shared-support-skill-runtime.md)
+  -- artifact architecture and verification regimes

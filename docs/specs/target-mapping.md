@@ -94,13 +94,30 @@ relevant check locally when generated output needs inspection.
 
 Source skill directories with `SKILL.md`, source agent definitions, source
 runtime TypeScript, renderer code, tests, and the install manifest remain
-authoritative for their respective contracts. The fixed passive runtime bundle
-under `skills/devcanon-runtime/` is a validated current-format `config/` and
-`scripts/` source payload, not a source skill or generated invocation surface.
-Its packaged JavaScript under
-`scripts/runtime/` is derived support output that stays tracked because
-installed skill bundles need version-aligned helper files, while `src/runtime/`
-owns the deterministic runtime behavior.
+authoritative for their respective contracts. Passive-runtime authority is
+partitioned as follows:
+
+- `skills/devcanon-runtime/` is the authored runtime root. Its catalog,
+  wrapper, and resolver are source authority; it is not a source skill or a
+  generated invocation surface.
+- `dist/devcanon-runtime/source-build/` and
+  `dist/devcanon-runtime/package/` are separate generated provider roots. They
+  are neither authored authority nor interchangeable provider-selection hints.
+- `skills/devcanon-runtime/scripts/runtime/` contains ignored, byte-identical
+  source-build sibling copies solely for source sibling adapters. It is derived
+  output, not an authored root, provider, or transport payload.
+- Render combines the authored root with the explicitly accepted provider into
+  a generated composed runtime tree. That composition is the only runtime tree
+  that symlink installation may target.
+- Installed copy and symlink outputs are derived managed representations of the
+  rendered composition. The manifest and install rules, not an installed tree,
+  establish managed identity.
+
+All generated provider artifacts, source-sibling copies, rendered previews,
+and installed outputs are uncommitted derived evidence. Package inclusion of
+the package provider root does not make it a Git-tracked source artifact.
+ADR-0024 owns provider custody and composition architecture; ADR-0035 owns
+the catalog transported in that composition.
 
 Do not hand-edit generated preview files to change behavior. If generated
 preview drift appears in a worktree, regenerate from source or fix the
