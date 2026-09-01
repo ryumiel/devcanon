@@ -199,6 +199,62 @@ describe("play-subagent-execution inspect-plan-projection helper", () => {
     },
   );
 
+  it("honors an override-only runtime layout and preserves its channels", async () => {
+    const tempDir = await createTempDir();
+    tempDirs.push(tempDir);
+    const helperRoot = path.join(tempDir, "isolated");
+    const helperPath = path.join(helperRoot, helperRelativePath);
+    const usagePath = path.join(helperRoot, usageRelativePath);
+    await mkdir(path.dirname(helperPath), { recursive: true });
+    await mkdir(path.dirname(usagePath), { recursive: true });
+    await cp(path.resolve(helperRelativePath), helperPath);
+    await cp(path.resolve(usageRelativePath), usagePath);
+    await chmod(helperPath, 0o755);
+
+    const overrideSkillsRoot = path.join(tempDir, "override-skills");
+    await createRuntimeFixture(overrideSkillsRoot);
+    const runtimeOverride = path.join(overrideSkillsRoot, "devcanon-runtime");
+    const callLog = path.join(tempDir, "override-calls.log");
+    const stderr =
+      '{"ok":false,"code":"execution-projection-missing","message":"missing"}\n';
+
+    const result = await runHelper(
+      helperPath,
+      ["--path", ".ephemeral/651-plan.md"],
+      {
+        DEVCANON_RUNTIME_DIR: runtimeOverride,
+        RUNTIME_CALL_LOG: callLog,
+        RUNTIME_STDERR: stderr,
+        RUNTIME_EXIT_CODE: "23",
+      },
+    );
+
+    expect(result).toEqual({ code: 23, stdout: "", stderr });
+    expect(await readFile(callLog, "utf8")).toBe(
+      "runtime planning-projection inspect --path .ephemeral/651-plan.md\n",
+    );
+  });
+
+  it("lets an invalid override shadow a valid sibling with the stable refusal", async () => {
+    const tempDir = await createTempDir();
+    tempDirs.push(tempDir);
+    const helperPath = await createSourceLayout(path.join(tempDir, "source"));
+    const invalidOverride = path.join(tempDir, "invalid-runtime");
+
+    const result = await runHelper(
+      helperPath,
+      ["--path", ".ephemeral/651-plan.md"],
+      { DEVCANON_RUNTIME_DIR: invalidOverride },
+    );
+
+    expect(result).toEqual({
+      code: 1,
+      stdout: "",
+      stderr:
+        "devcanon-runtime resolver missing for play-subagent-execution projection inspection\n",
+    });
+  });
+
   it("refuses every argument form except one nonempty --path and derives help from the adjacent usage document", async () => {
     const tempDir = await createTempDir();
     tempDirs.push(tempDir);

@@ -11,12 +11,12 @@ import {
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   canCreateSymlinks,
   cleanupTempDir,
-  copyDevcanonRuntimeFixture,
   createAgentFixture,
+  createLightweightDevcanonRuntimeFixture,
   createSkillFixture,
   createTempDir,
   makeAgentYaml,
@@ -40,6 +40,22 @@ import { uninstall } from "./uninstall.js";
 
 const symlinkAvailable = await canCreateSymlinks();
 
+vi.mock("../validate/devcanon-runtime.js", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../validate/devcanon-runtime.js")>();
+  const { validateLightweightDevcanonRuntimeFixture } = await import(
+    "../__test-helpers__/fixtures.js"
+  );
+  return {
+    ...actual,
+    validateDevcanonRuntime: (runtimeDir: string) =>
+      validateLightweightDevcanonRuntimeFixture(
+        runtimeDir,
+        actual.validateDevcanonRuntime,
+      ),
+  };
+});
+
 describe("uninstall", () => {
   let tempDir: string;
   let restoreLogger: () => void;
@@ -47,7 +63,7 @@ describe("uninstall", () => {
 
   beforeEach(async () => {
     tempDir = await createTempDir();
-    await copyDevcanonRuntimeFixture(path.join(tempDir, "skills"));
+    await createLightweightDevcanonRuntimeFixture(path.join(tempDir, "skills"));
     const installed = installTestLogger();
     restoreLogger = installed.restore;
     testLogger = installed.testLogger;

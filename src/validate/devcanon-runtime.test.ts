@@ -1,5 +1,7 @@
+import { execFile } from "node:child_process";
 import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   canCreateSymlinks,
@@ -15,6 +17,7 @@ import { pathExists } from "../utils/fs.js";
 import { validateDevcanonRuntime } from "./devcanon-runtime.js";
 
 const symlinkAvailable = await canCreateSymlinks();
+const execFileAsync = promisify(execFile);
 
 describe("devcanon-runtime source validation", () => {
   let tempDir: string;
@@ -167,6 +170,31 @@ describe("devcanon-runtime source validation", () => {
         path.join(runtimeDir, "scripts", "runtime"),
       ),
     ).resolves.toContain(path.join("node_modules", "ms", "license"));
+  });
+
+  it("validates the fixed parser closure with locale-independent entry ordering", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    const validationModule = path.resolve("src/validate/devcanon-runtime.ts");
+
+    await expect(
+      execFileAsync(
+        process.execPath,
+        [
+          "--import",
+          "tsx",
+          "--input-type=module",
+          "--eval",
+          `const { validateDevcanonRuntime } = await import(${JSON.stringify(validationModule)}); await validateDevcanonRuntime(${JSON.stringify(runtimeDir)});`,
+        ],
+        {
+          env: {
+            ...process.env,
+            LANG: "cs_CZ.UTF-8",
+            LC_ALL: "cs_CZ.UTF-8",
+          },
+        },
+      ),
+    ).resolves.toMatchObject({ stdout: "" });
   });
 
   it("rejects a deep extra private parser file", async () => {

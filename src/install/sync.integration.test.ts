@@ -19,9 +19,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   canCreateSymlinks,
   cleanupTempDir,
-  copyDevcanonRuntimeFixture,
   createAgentFixture,
   createConfigFile,
+  createLightweightDevcanonRuntimeFixture,
   createSkillFixture,
   createTempDir,
   makeAgentYaml,
@@ -67,6 +67,22 @@ vi.mock("./symlink.js", async (importOriginal) => {
   };
 });
 
+vi.mock("../validate/devcanon-runtime.js", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../validate/devcanon-runtime.js")>();
+  const { validateLightweightDevcanonRuntimeFixture } = await import(
+    "../__test-helpers__/fixtures.js"
+  );
+  return {
+    ...actual,
+    validateDevcanonRuntime: (runtimeDir: string) =>
+      validateLightweightDevcanonRuntimeFixture(
+        runtimeDir,
+        actual.validateDevcanonRuntime,
+      ),
+  };
+});
+
 const symlinkAvailable = await canCreateSymlinks();
 
 function normalizePackagedShellBytes(bytes: Buffer): Buffer {
@@ -84,7 +100,10 @@ function normalizePackagedShellBytes(bytes: Buffer): Buffer {
 const execFileAsync = promisify(execFile);
 
 async function seedPassiveRuntime(config: ResolvedConfig): Promise<void> {
-  await copyDevcanonRuntimeFixture(config.library.skillsDir);
+  const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+  if (!(await pathExists(runtimeDir))) {
+    await createLightweightDevcanonRuntimeFixture(config.library.skillsDir);
+  }
 }
 
 async function canCreateFifo(): Promise<boolean> {
@@ -144,7 +163,7 @@ describe("sync", () => {
 
   beforeEach(async () => {
     tempDir = await createTempDir();
-    await copyDevcanonRuntimeFixture(path.join(tempDir, "skills"));
+    await createLightweightDevcanonRuntimeFixture(path.join(tempDir, "skills"));
     const installed = installTestLogger();
     restoreLogger = installed.restore;
     testLogger = installed.testLogger;
@@ -1850,11 +1869,6 @@ describe("sync", () => {
     const config = makeResolvedConfig(tempDir);
     await mkdir(config.library.skillsDir, { recursive: true });
     await mkdir(config.library.agentsDir, { recursive: true });
-    await cp(
-      path.resolve("skills/devcanon-runtime"),
-      path.join(config.library.skillsDir, "devcanon-runtime"),
-      { recursive: true },
-    );
     await createSkillFixture(config.library.skillsDir, "ordinary-skill");
     const keepSource = await createAgentFixture(
       config.library.agentsDir,

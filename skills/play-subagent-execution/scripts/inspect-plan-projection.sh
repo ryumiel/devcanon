@@ -26,13 +26,17 @@ physical_script_dir="$(cd "$(dirname "$script_path")" && pwd -P)"
 logical_runtime="$logical_script_dir/../../devcanon-runtime/scripts/devcanon-runtime.sh"
 physical_runtime="$physical_script_dir/../../devcanon-runtime/scripts/devcanon-runtime.sh"
 
-if [ -x "$logical_runtime" ]; then
+if [ -n "${DEVCANON_RUNTIME_DIR:-}" ]; then
+  runtime_resolver="$DEVCANON_RUNTIME_DIR/scripts/devcanon-runtime.sh"
+elif [ -x "$logical_runtime" ]; then
   runtime_resolver="$logical_runtime"
 elif [ -x "$physical_runtime" ]; then
   runtime_resolver="$physical_runtime"
 else
-  fail "devcanon-runtime resolver missing for play-subagent-execution projection inspection"
+  runtime_resolver=""
 fi
+[ -x "$runtime_resolver" ] ||
+  fail "devcanon-runtime resolver missing for play-subagent-execution projection inspection"
 
 runtime_entrypoint="$(
   "$runtime_resolver" resolve-entrypoint --from "$script_path" \

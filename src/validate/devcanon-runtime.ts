@@ -57,13 +57,22 @@ export const REQUIRED_RUNTIME_FILES = [
 ] as const;
 const execFileAsync = promisify(execFile);
 
+declare const validatedDevcanonRuntimeBrand: unique symbol;
+
+export interface ValidatedDevcanonRuntime {
+  readonly runtimeDir: string;
+  /** @internal Deterministic fixed-closure evidence for this operation. */
+  readonly closureRecords: readonly RuntimeClosureRecord[];
+  readonly [validatedDevcanonRuntimeBrand]: true;
+}
+
 export function devcanonRuntimeDir(skillsDir: string): string {
   return path.join(skillsDir, DEVCANON_RUNTIME_SKILL_NAME);
 }
 
 export async function validateDevcanonRuntime(
   runtimeDir: string,
-): Promise<void> {
+): Promise<ValidatedDevcanonRuntime> {
   try {
     if (!(await lstat(runtimeDir)).isDirectory()) {
       throw runtimeSourceMissingError(runtimeDir);
@@ -111,8 +120,9 @@ export async function validateDevcanonRuntime(
     "config",
   );
   await validateExactRuntimeTree(runtimeDir);
+  let closureRecords: readonly RuntimeClosureRecord[];
   try {
-    await validateExactGfmRuntimeClosure(runtimeDir);
+    closureRecords = await validateExactGfmRuntimeClosure(runtimeDir);
   } catch (error) {
     if (error instanceof UserError) {
       throw error;
@@ -127,6 +137,11 @@ export async function validateDevcanonRuntime(
   if (!(await hasExecutableBit(entrypoint))) {
     throw runtimeSourceIncompleteError(runtimeDir, RUNTIME_ENTRYPOINT);
   }
+
+  return Object.freeze({
+    runtimeDir,
+    closureRecords,
+  }) as ValidatedDevcanonRuntime;
 }
 
 async function requireRealDirectory(
@@ -168,49 +183,103 @@ async function validateExactRuntimeTree(runtimeDir: string): Promise<void> {
 
 async function validateExactGfmRuntimeClosure(
   runtimeDir: string,
-): Promise<void> {
+): Promise<readonly RuntimeClosureRecord[]> {
   const runtimeJsDir = path.join(runtimeDir, RUNTIME_JS_DIR);
   const hash = createHash("sha256");
+  const limit = createRuntimeIoLimit(32);
+  const closureRecords: RuntimeClosureRecord[] = [];
   for (const entry of ["package.json", "node_modules"]) {
-    await hashRuntimeClosureEntry(path.join(runtimeJsDir, entry), entry, hash);
+    const records = await collectRuntimeClosureRecords(
+      path.join(runtimeJsDir, entry),
+      entry,
+      limit,
+    );
+    closureRecords.push(...records);
+    for (const record of records) {
+      hashRuntimeClosureField(hash, record.kind, record.relativePath);
+      if (record.bytes) {
+        hashRuntimeClosureField(
+          hash,
+          "bytes",
+          record.relativePath,
+          record.bytes,
+        );
+      }
+    }
   }
   if (hash.digest("hex") !== GFM_RUNTIME_CLOSURE_HASH) {
     throw runtimeSourceIncompleteError(runtimeDir, RUNTIME_NODE_MODULES_DIR);
   }
+  return Object.freeze(closureRecords);
 }
 
-async function hashRuntimeClosureEntry(
+export interface RuntimeClosureRecord {
+  readonly kind: "directory" | "file";
+  readonly relativePath: string;
+  readonly mode: string;
+  readonly bytes?: Buffer;
+}
+
+async function collectRuntimeClosureRecords(
   entryPath: string,
   relativePath: string,
-  hash: ReturnType<typeof createHash>,
-): Promise<void> {
-  const entry = await lstat(entryPath).catch(() => undefined);
+  limit: RuntimeIoLimit,
+): Promise<RuntimeClosureRecord[]> {
+  const entry = await limit(() => lstat(entryPath)).catch(() => undefined);
   if (entry === undefined) {
     throw new Error(`missing closure entry: ${relativePath}`);
   }
   if (entry.isDirectory()) {
-    hashRuntimeClosureField(hash, "directory", relativePath);
-    const entries = await readdir(entryPath, { withFileTypes: true });
-    entries.sort((left, right) => left.name.localeCompare(right.name));
-    for (const child of entries) {
-      await hashRuntimeClosureEntry(
-        path.join(entryPath, child.name),
-        path.posix.join(relativePath, child.name),
-        hash,
-      );
-    }
-    return;
+    const entries = await limit(() =>
+      readdir(entryPath, { withFileTypes: true }),
+    );
+    entries.sort((left, right) =>
+      left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+    );
+    const children = await Promise.all(
+      entries.map((child) =>
+        collectRuntimeClosureRecords(
+          path.join(entryPath, child.name),
+          path.posix.join(relativePath, child.name),
+          limit,
+        ),
+      ),
+    );
+    return [
+      { kind: "directory", relativePath, mode: String(entry.mode) },
+      ...children.flat(),
+    ];
   }
   if (!entry.isFile()) {
     throw new Error(`unsupported closure entry: ${relativePath}`);
   }
-  hashRuntimeClosureField(hash, "file", relativePath);
-  hashRuntimeClosureField(
-    hash,
-    "bytes",
-    relativePath,
-    await readFile(entryPath),
-  );
+  return [
+    {
+      kind: "file",
+      relativePath,
+      mode: String(entry.mode),
+      bytes: await limit(() => readFile(entryPath)),
+    },
+  ];
+}
+
+type RuntimeIoLimit = <T>(operation: () => Promise<T>) => Promise<T>;
+
+function createRuntimeIoLimit(concurrency: number): RuntimeIoLimit {
+  let active = 0;
+  const waiters: Array<() => void> = [];
+  return async <T>(operation: () => Promise<T>): Promise<T> => {
+    if (active >= concurrency) {
+      await new Promise<void>((resolve) => waiters.push(resolve));
+    }
+    active += 1;
+    try {
+      return await operation();
+    } finally {
+      active -= 1;
+      waiters.shift()?.();
+    }
+  };
 }
 
 function hashRuntimeClosureField(

@@ -1,4 +1,5 @@
 import { cp, rm } from "node:fs/promises";
+import { cloneTree } from "../utils/clone-tree.js";
 import { getLogger } from "../utils/output.js";
 
 export async function copyFile(src: string, dst: string): Promise<void> {
@@ -15,4 +16,9 @@ export async function copyDirectory(src: string, dst: string): Promise<void> {
   }
   await cp(src, dst, { recursive: true, force: true, verbatimSymlinks: true });
   getLogger().verbose(`  Copied directory ${src} -> ${dst}`);
+}
+
+export async function cloneDirectory(src: string, dst: string): Promise<void> {
+  await cloneTree(src, dst);
+  getLogger().verbose(`  Cloned directory ${src} -> ${dst}`);
 }

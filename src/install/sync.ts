@@ -7,7 +7,11 @@ import type {
   ResolvedConfig,
 } from "../config/schema.js";
 import type { PlanAction, SyncOptions } from "../models/types.js";
-import { type RenderMutation, renderAll } from "../render/pipeline.js";
+import {
+  type RenderMutation,
+  renderAll,
+  renderAllWithValidatedRuntime,
+} from "../render/pipeline.js";
 import { UserError } from "../utils/errors.js";
 import { ensureDir } from "../utils/fs.js";
 import { getLogger } from "../utils/output.js";
@@ -15,7 +19,8 @@ import {
   devcanonRuntimeDir,
   validateDevcanonRuntime,
 } from "../validate/devcanon-runtime.js";
-import { copyDirectory, copyFile } from "./copy.js";
+import { DEVCANON_RUNTIME_SKILL_NAME } from "../validate/skills.js";
+import { cloneDirectory, copyDirectory, copyFile } from "./copy.js";
 import { verifyManagedOutputIdentity } from "./identity.js";
 import {
   type ManagedPathIdentity,
@@ -85,7 +90,9 @@ export async function sync(
       dryInvalidManifestHint(inspection.message, config.manifest.path),
     );
   }
-  await validateDevcanonRuntime(devcanonRuntimeDir(config.library.skillsDir));
+  const validatedRuntime = await validateDevcanonRuntime(
+    devcanonRuntimeDir(config.library.skillsDir),
+  );
 
   // A manifest must be accepted before rendering can create generated output
   // or an install action can touch a configured home.
@@ -180,12 +187,14 @@ export async function sync(
   // Render the selected target without materializing generated output, then
   // validate active selected outputs alongside retained active/passive records
   // before any migration or generated-tree write.
-  const { outputs: filteredOutputs, mutationInventory } = await renderAll(
-    config,
-    false,
-    options.strict,
-    options.target,
-  );
+  const { outputs: prospectiveOutputs, mutationInventory } =
+    await renderAllWithValidatedRuntime(
+      config,
+      validatedRuntime,
+      false,
+      options.strict,
+      options.target,
+    );
   assertReconciledForeignGeneratedMutationReservations(
     reconciledForeignRecords,
     mutationInventory,
@@ -205,7 +214,7 @@ export async function sync(
               : "passive",
         }),
       ),
-      ...filteredOutputs.map(
+      ...prospectiveOutputs.map(
         (output): ManagedPathIdentity => ({
           target: output.target,
           type: output.type,
@@ -229,12 +238,9 @@ export async function sync(
     }
 
     // Render outputs (filter by target, propagate strict mode)
-    const { outputs } = await renderAll(
-      config,
-      !options.dryRun,
-      options.strict,
-      options.target,
-    );
+    const outputs = options.dryRun
+      ? prospectiveOutputs
+      : (await renderAll(config, true, options.strict, options.target)).outputs;
     // Filter for install planning (renderAll already filtered, but keep for clarity)
     const filteredOutputs = outputs;
 
@@ -713,14 +719,22 @@ async function executeAction(
               (err as NodeJS.ErrnoException).code === "EPERM" &&
               config.platform.windowsSymlinkFallback === "copy"
             ) {
-              await copyDirectory(sourceDir, action.installedPath);
+              if (action.name === DEVCANON_RUNTIME_SKILL_NAME) {
+                await cloneDirectory(sourceDir, action.installedPath);
+              } else {
+                await copyDirectory(sourceDir, action.installedPath);
+              }
               actualInstallMode = "copy";
             } else {
               throw err;
             }
           }
         } else {
-          await copyDirectory(sourceDir, action.installedPath);
+          if (action.name === DEVCANON_RUNTIME_SKILL_NAME) {
+            await cloneDirectory(sourceDir, action.installedPath);
+          } else {
+            await copyDirectory(sourceDir, action.installedPath);
+          }
         }
       }
 
