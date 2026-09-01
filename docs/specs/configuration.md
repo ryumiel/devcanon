@@ -93,13 +93,16 @@ as a fallback.
 
 ### Runtime artifact-provider selection
 
+This section defines required target behavior whose implementation is deferred.
+It does not describe the current fixed-bundle implementation.
+
 Source-configuration selection and runtime artifact selection are separate
-inputs. The common CLI receives exactly one explicit internal runtime provider:
-source development, including `pnpm dev` and the `setup:cli` shim, supplies the
-`source-build` provider; the npm `bin` entrypoint supplies the `package`
-provider. The selected provider supplies its generated runtime root to the
-commands that validate, compose, render, initialize, or transport the passive
-runtime.
+inputs. The target common CLI receives exactly one explicit internal runtime
+provider: source development, including `pnpm dev` and the `setup:cli` shim,
+supplies the `source-build` provider; the npm `bin` entrypoint supplies the
+`package` provider. The selected provider supplies its generated runtime root
+to the commands that validate, compose, render, initialize, or transport the
+passive runtime.
 
 Provider identity is never inferred from `.git`, the current directory,
 configuration-path shape, the presence of another artifact root, or any other
@@ -123,9 +126,10 @@ directory, or an ambient configuration file. See
 [ADR-0035](../adr/adr-0035-installed-runtime-configuration-discovery.md) for
 the decision rationale and alternatives.
 
-The passive runtime's current payload is the validated composed tree selected
-by the explicit provider, without `SKILL.md` or a Codex invocation sidecar. It
-is current-format-only: a scripts-only runtime is invalid and is neither
+The current implementation validates and transports its fixed passive-runtime
+tree without `SKILL.md` or a Codex invocation sidecar. The required deferred
+provider behavior instead validates the composed tree selected by the explicit
+provider. Under both forms, a scripts-only runtime is invalid and is neither
 upgraded nor given installation, sync, identity, or uninstall compatibility
 guarantees. The runtime catalog is transport data for the generated or
 installed runtime, not a second authoritative user-configuration file.

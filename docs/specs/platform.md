@@ -67,19 +67,77 @@ bypass the helper or infer success from missing output.
 
 ### Runtime package and isolation boundary
 
-The runtime's portable-execution proof has three distinct environments on every
-supported platform. A package manager may be used only to create a clean
-fixture: install the packed tarball and its declared CLI dependencies into a
-temporary prefix. The next phase uses the package-local `devcanon` CLI from
-that prefix to initialize, validate, render, and sync a temporary library. It
-must not resolve a package manager, globally registered CLI, source checkout,
-or ambient dependency tree.
+The following portable-execution acceptance proof is required target behavior;
+its implementation is deferred with the prebuilt runtime. It has three distinct
+environments on every supported platform.
 
-The final phase copies the resulting composed passive runtime to a second
-isolated directory. Its wrapper, typed runtime, resolver, and trusted bootstrap
-must execute there without `node_modules`, a global `devcanon` executable, or
-ambient package resolution. Manually assembling a runtime payload does not
-prove this boundary.
+1. A package manager may create only a clean fixture by installing the packed
+   tarball and its declared CLI dependencies into a temporary prefix.
+2. With package-manager and global-CLI access removed, the package-local
+   `devcanon` executable from that prefix initializes, validates, renders, and
+   syncs a temporary library. The executable must not resolve a source checkout
+   or an ambient dependency tree.
+3. The proof copies the resulting composed passive runtime, without manual
+   assembly, to a second isolated directory. From a working directory outside
+   both the checkout and install prefix, it invokes the copied runtime using
+   the test process's current Node executable. Child processes receive a
+   constructed allowlisted environment rather than inherited process state.
+   `NODE_PATH`, `NODE_OPTIONS`, `DEVCANON_RUNTIME_DIR`, and uncontrolled npm,
+   pnpm, Corepack, and Yarn variables are explicitly absent; `PATH` exposes no
+   package manager or global `devcanon`; no ancestor or working directory
+   contains `node_modules`; and the copied payload is the only runtime input.
+
+In the final phase on every platform, Node invokes
+`scripts/runtime/devcanon-runtime.mjs` directly for the `runtime contract`,
+typed-runtime, resolver, and `bootstrap` surfaces. The contract command must
+exit zero and emit exactly the documented single-line JSON descriptor with the
+`devcanon-runtime` command group and supported integer major. Each successful
+typed command must produce its documented stdout, stderr, and exit status;
+malformed or extra output fails the proof. Trusted bootstrap must dispatch the
+validated copied entrypoint, preserve exact arguments and exit status, and
+reject an override or target outside the copied runtime before child execution.
+Before execution, the harness must assert that no `node_modules` directory is
+reachable through the copied entrypoint's or working directory's ancestor
+chains; successful execution under that condition and the sanitized
+environment is the ambient-resolution proof.
+
+On POSIX, the same final phase additionally invokes
+`scripts/devcanon-runtime.sh` and proves that its contract and bootstrap
+stdout bytes, stderr bytes, and exit status each match the corresponding direct
+`.mjs` call exactly. The shell file is only a delegation proof; direct Node
+execution remains the cross-platform proof surface.
+
+On native Windows, the fixture, package-local CLI phase, and copied-runtime
+phase run from a native Node test process and invoke neither Bash nor any `.sh`
+file. Runtime contract and trusted-bootstrap acceptance use the direct `.mjs`
+surface. The child environment allowlist contains only controlled values for
+`SystemRoot`, `WINDIR`, `SystemDrive`, `ComSpec`, `HOME`, `TEMP`, `TMP`,
+`PATHEXT`, and `PATH`, plus `DEVCANON_GIT_BASH` only in the positive resolver
+case. Additional platform variables require an explicit test-owned reason;
+inherited `npm_*`, `NPM_CONFIG_*`, `PNPM_*`, `COREPACK_*`, and `YARN_*`
+variables are omitted. The suite explicitly verifies that `NODE_PATH`,
+`NODE_OPTIONS`, and `DEVCANON_RUNTIME_DIR` are absent.
+
+After tarball installation, package-local CLI execution, and copied-runtime
+setup, every native-Windows acceptance run exercises both resolver subcases:
+
+- **Verified Git for Windows:** the harness supplies a controlled real
+  Git-for-Windows installation through an absolute `DEVCANON_GIT_BASH` and a
+  controlled `PATH`. Resolution must exit zero, emit exactly one LF-terminated
+  absolute `bash.exe` path on stdout, emit empty stderr, and prove the required
+  Bash, `cygpath`, and Git capabilities through that selected installation.
+- **Actionable refusal:** the harness unsets `DEVCANON_GIT_BASH`, uses a
+  controlled `PATH` with no valid Git-for-Windows installation, and provides
+  explicit WindowsApps or WSL-launcher decoys and unusable Git-derived
+  candidates for every applicable rejection path. Resolution must exit
+  non-zero, emit empty stdout, emit exactly the specified actionable diagnostic
+  on stderr, and select none of the decoys or unusable candidates.
+
+Command assertions must identify the copied entrypoint, outside-checkout
+working directory, allowlisted environment, exact contract output, exact
+stdout/stderr bytes and exit status, and absence of ambient resolution.
+Manually assembling a runtime payload or invoking a checkout-local helper does
+not prove this boundary.
 
 For the same canonical inputs and `artifact_origin`, clean independent builds
 must produce byte-identical runtime bundle, manifest, and third-party-license

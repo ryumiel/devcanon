@@ -4,13 +4,10 @@
 
 ## Repository CLI setup
 
-`pnpm run setup:cli` is the package-level operation that builds DevCanon,
-builds and verifies the explicitly selected `source-build` runtime artifact,
-and then globally registers the authoritative checkout as `devcanon`. Run it
-from the checkout root after dependencies are installed. It is not a
-`devcanon` application subcommand and does not render or install managed
-outputs. A missing, stale, or corrupt source-build artifact stops setup before
-registration and directs the operator to `pnpm run build:runtime`.
+`pnpm run setup:cli` currently builds DevCanon and globally registers the
+authoritative checkout as `devcanon`. Run it from the checkout root after
+dependencies are installed. It is not a `devcanon` application subcommand and
+does not render or install managed outputs.
 
 Before this operation, the platform's global executable directory must be on
 `PATH`. On macOS, Linux, and WSL, this is pnpm's user-global bin directory; if
@@ -24,24 +21,31 @@ The package manifest owns the exact script, the required Node.js version
 CLI points at the checkout, so operators must retain that checkout at a stable
 path as the source library and default configuration root.
 
-This setup and its focused integration verification support macOS, Linux, and
-Windows.
+The current setup and its focused integration verification support macOS,
+Linux, and Windows.
 
-The npm `bin` entrypoint instead injects the `package` provider. The common
-compiled CLI accepts exactly one explicit provider and does not infer it from
-the checkout, current directory, configured path, or another filesystem
-artifact. A package artifact that cannot pass verification is an incomplete or
-corrupt package; commands that consume or verify the runtime provider stop and
-direct the operator to reinstall, while source-independent `uninstall` remains
-available. The provider and verification architecture is defined by
+Required target behavior, whose implementation is deferred, adds the prebuilt
+runtime provider boundary to this setup. Before registration, `setup:cli` must
+build and verify the explicitly selected `source-build` runtime artifact. A
+missing, stale, or corrupt artifact must stop setup before registration and
+direct the operator to `pnpm run build:runtime`.
+
+Under that target behavior, the npm `bin` entrypoint instead injects the
+`package` provider. The common compiled CLI accepts exactly one explicit
+provider and does not infer it from the checkout, current directory, configured
+path, or another filesystem artifact. A package artifact that cannot pass
+verification is an incomplete or corrupt package; commands that consume or
+verify the runtime provider stop and direct the operator to reinstall, while
+source-independent `uninstall` remains available. The provider and
+verification architecture is defined by
 [ADR-0024](../adr/adr-0024-shared-support-skill-runtime.md), while
-[Configuration](configuration.md#runtime-artifact-provider-selection) owns
-the observable provider-selection boundary.
+[Configuration](configuration.md#runtime-artifact-provider-selection) owns the
+observable provider-selection boundary.
 
-`prepack` is the sole package-production gate: it creates and verifies the
-package provider's prebuilt runtime before `npm pack` collects the package.
-Build, package, and provider implementation remain deferred to a separate
-implementation change.
+The target `prepack` behavior is the sole package-production gate: it creates
+and verifies the package provider's prebuilt runtime before `npm pack` collects
+the package. Build, package, provider, and setup integration remain deferred to
+a separate implementation change.
 
 ---
 
@@ -58,25 +62,39 @@ Creates:
 - config file
 - source directories
 - sample skill
-- packaged `skills/devcanon-runtime/` authored passive runtime root
+- packaged fixed `skills/devcanon-runtime/` passive runtime bundle
 - sample agent
 
-Passive runtime support bundle behavior:
+Required composed-runtime behavior, whose implementation is deferred:
 
-- DevCanon composes the fresh-library runtime destination from the authored
-  passive runtime root at `skills/devcanon-runtime/` and the accepted prebuilt
-  provider artifact
-- the current-format-only composed bundle contains the validated catalog,
+- the packaged authored root has exactly
+  `config/runtime-config.json`, `scripts/devcanon-runtime.sh`, and
+  `scripts/resolve-bash.mjs`; `scripts/runtime/` is derived and is not authored
+  authority
+- for a fresh library, DevCanon verifies the explicit provider, writes the
+  three authored leaves without overwriting an existing authored path, and
+  atomically materializes the complete derived `scripts/runtime/` subtree
+- the resulting current-format composed bundle contains the validated catalog,
   wrapper and resolver, plus the prebuilt ESM runtime, build manifest, and
   third-party licenses; it has no `SKILL.md` or Codex invocation sidecar
-- an existing matching `skills/devcanon-runtime/` path is preserved
-- an existing non-matching `skills/devcanon-runtime/` path causes `init` to
-  fail with repair guidance; DevCanon does not overwrite the existing support
-  runtime bundle path
+- if `skills/devcanon-runtime/` already exists, matching authored leaves are
+  preserved; missing, changed, or unexpected authored content fails with
+  repair guidance and is never overwritten
+- after provider verification, an existing derived `scripts/runtime/` subtree
+  may be atomically replaced as a unit; generated leaves are neither reconciled
+  individually nor promoted to authored authority
+- `validate` and `render` classify the three authored leaves separately from
+  the derived subtree, verify the latter against the explicitly selected
+  provider, and accept that verified subtree instead of flagging it as
+  unexpected authored content
+- a missing, partial, unexpected, stale, or provider-mismatched derived subtree
+  fails validation; a mutation-capable composition step repairs it only by
+  atomic replacement from the verified provider
 - a scripts-only legacy runtime is not an accepted payload and is not upgraded
   or reconciled by `init`
 - generated outputs remain disposable render results, not authoritative source
-  files
+  files; the packed-tarball flow can run package-local `init` and then
+  `validate` against the same explicit package provider
 
 ---
 
@@ -152,19 +170,18 @@ Scaffold behavior:
 
 ## `validate`
 
-Validate config, the explicit runtime provider and its accepted prebuilt
-artifact, the composed passive runtime, declaration-bearing skills, and
-agents. The passive runtime bundle is not included in the source-skill count.
+Validate config, the current fixed passive runtime bundle,
+declaration-bearing skills, and agents. The passive runtime bundle is not
+included in the source-skill count.
 
 ```bash
 devcanon validate
 ```
 
-Current behavior:
+Current implemented behavior:
 
-- after config validation, the explicit provider and prebuilt runtime artifact
-  are validated before composition and declaration-bearing source skills; the
-  passive runtime is validated separately and is not included in the
+- after config validation, the fixed passive runtime is validated separately
+  before declaration-bearing source skills and is not included in the
   source-skill count
 - version 1 config fails with a dedicated migration diagnostic; version 2
   `modelTiers` fails with a dedicated `capabilityProfiles` replacement
@@ -189,6 +206,12 @@ Current behavior:
 - the current skill drift checks cover configured model tokens and
   target-specific path segments in shared prose; configured capability model
   strings are included in the model drift set
+
+Required target behavior, whose implementation is deferred, validates the
+explicit provider and its prebuilt runtime artifact after config validation and
+before composition, passive-runtime validation, and declaration-bearing source
+skills. It applies the authored-versus-derived classification described under
+`init`; provider validation ordering is not current implemented behavior.
 
 For human output, `validate` groups skill warnings into a readable warning
 report after the skill status line. The skill status line includes the number
@@ -228,12 +251,12 @@ enabled target. Without it, `render` processes every enabled target. Only
 `claude` and `codex` are accepted; any other supplied value, including an empty
 string, is an error.
 
-Before writing a rendered passive-runtime tree, `render` accepts and validates
-the explicit provider artifact, then composes the authored runtime root with
-it. It never selects an artifact from filesystem hints or builds an artifact
-as a fallback. Source-build verification failures direct the operator to
-`pnpm run build:runtime`; package verification failures direct the operator to
-reinstall. The rendered payload and manifest identity are owned by
+Required target behavior, whose implementation is deferred, makes `render`
+accept and validate the explicit provider artifact before it writes a composed
+passive-runtime tree. It never selects an artifact from filesystem hints or
+builds an artifact as a fallback. Source-build verification failures direct the
+operator to `pnpm run build:runtime`; package verification failures direct the
+operator to reinstall. The rendered payload and manifest identity are owned by
 [Install and sync](install-and-sync.md#passive-runtime-composition-and-transport).
 
 ---
@@ -293,11 +316,13 @@ before manual correction or removal. A lock already removed receives no lock
 removal instruction. These ordered secondary actions do not replace the
 primary failure, and every unrecovered result exits 1.
 `sync` first inspects the manifest purely. An invalid `sync --dry-run` retains
-that manifest-error precedence and exits before runtime validation. Every other
-sync accepts and validates the explicit prebuilt provider artifact before
-non-dry recovery, normalization or binding, composition, rendering, or install
-mutation. Installed `sync` only verifies and transports the prebuilt artifact:
-it never builds it or resolves ambient dependencies.
+that manifest-error precedence and exits before runtime validation. Under the
+required deferred provider behavior, every other sync accepts and validates the
+explicit prebuilt provider artifact before non-dry recovery, normalization or
+binding, composition, rendering, or install mutation. Installed `sync` only
+verifies and transports the prebuilt artifact: it never builds it or resolves
+ambient dependencies. This provider addition is target behavior, not a claim
+about the current implementation.
 
 For a non-dry invalid manifest, explicit recovery disposition follows, and only
 recovered-clean state may continue. Sync then
@@ -385,11 +410,12 @@ Reports:
 Changed agent files use a line-based patch. Skill-directory changes are
 reported as status summaries.
 
-`diff` performs pure manifest inspection and, after its accepted manifest
-identity checks, accepts and validates the explicit prebuilt provider artifact
-through its source-driven composed render projection. It never recovers or
-mutates the manifest, and invalid or residual-lock state fails actionably with
-exit 1 before runtime validation or reporting differences.
+`diff` performs pure manifest inspection and never recovers or mutates the
+manifest; invalid or residual-lock state fails actionably with exit 1 before
+runtime validation or reporting differences. Under the required deferred
+provider behavior, it then accepts and validates the explicit prebuilt provider
+artifact through its source-driven composed render projection. That provider
+addition is not current implemented behavior.
 
 ---
 

@@ -5,11 +5,13 @@
 Accepted
 
 [ADR-0035](adr-0035-installed-runtime-configuration-discovery.md) remains the
-sole owner of current-format runtime-catalog custody and projection. This
-revision of ADR-0024 narrows and supersedes ADR-0035's older generic
-passive-runtime payload-content claim to that catalog-only partition. ADR-0024
-is the decision owner for all other passive-runtime artifact custody,
-provenance, composition, integrity, package lifecycle, and compatibility.
+sole owner of runtime-catalog schema, contents, custody, target-local
+projection, and configuration-selection behavior. This revision of ADR-0024
+supersedes ADR-0035's older generic passive-runtime payload-content claim;
+ADR-0035's authority is now the catalog-only partition. ADR-0024 is the
+decision owner for every non-catalog part of passive-runtime artifact custody,
+provenance, composition, integrity, provider and package lifecycle, transport,
+isolation, and compatibility.
 
 ## Context
 
@@ -40,12 +42,11 @@ The runtime is passive infrastructure, not a source skill or human workflow
 entry point. Its composed payload contains neither `SKILL.md` nor a Codex
 invocation sidecar.
 
-ADR-0035 is the sole owner of current-format runtime-catalog custody and
-target-local catalog projection. The catalog remains part of the composed
-runtime payload, but its schema, contents, projection, and configuration
-selection behavior are governed by ADR-0035. If catalog custody or projection
-would overlap with this ADR, ADR-0035 takes precedence; no other overlap is
-permitted.
+ADR-0035 is the sole owner of runtime-catalog schema, contents, custody,
+target-local projection, and configuration-selection behavior. The catalog
+remains part of the composed runtime payload. ADR-0035 takes precedence only
+within that catalog partition; ADR-0024 owns composition and transport of the
+whole payload and every non-catalog artifact concern.
 
 This decision does not choose a bundler, its configuration, or private runtime
 decomposition. The dependent behavior specifications define the observable
@@ -105,6 +106,30 @@ scripts/runtime/devcanon-runtime.mjs
 scripts/runtime/runtime-manifest.json
 scripts/runtime/THIRD_PARTY_LICENSES
 ```
+
+The three leaves under `config/` and directly under `scripts/` are authored
+authority. `scripts/runtime/` is one derived composed subtree whose three
+leaves come from the explicitly selected provider; those leaves never become
+authored source merely because `init`, build, or another composition step
+materializes them beneath `skills/devcanon-runtime/`.
+
+For a fresh library, `init` first verifies the selected provider, writes the
+three authored leaves without overwriting an existing authored path, and
+atomically materializes the complete derived `scripts/runtime/` subtree. If
+the runtime root already exists, `init` preserves matching authored leaves and
+fails actionably for missing, changed, or unexpected authored content. A
+verified derived subtree may be atomically replaced as a unit from the
+selected provider; no individual generated leaf is reconciled in place.
+
+Later validation and render classify the same paths by custody. They validate
+the three authored leaves as authored input, recognize only the closed
+three-leaf `scripts/runtime/` subtree as derived input, and verify every
+derived byte against the explicitly selected provider. A missing, partial,
+unexpected, stale, or mismatched derived subtree is invalid and is replaced
+only by an authorized atomic recomposition; it is neither treated as authored
+content nor rejected merely because generated leaves exist below the authored
+root. This makes the package-provider flow `init` then `validate` satisfiable
+without weakening existing-path protection for authored content.
 
 `pnpm run build:runtime` also materializes byte-identical, ignored source-build
 copies of the three generated leaves under
@@ -223,10 +248,29 @@ unsigned UTF-8 path bytes. Canonical input bytes concatenate records framed as:
 4. content bytes.
 
 The virtual `.devcanon-runtime/production-dependencies.json` record is compact
-UTF-8 JSON followed by one LF. It contains an array sorted by package name and
-version; each object has keys in this exact order: `name`, `version`,
-`integrity`, and `dependencies`. `dependencies` contains resolved
-`name@version` strings sorted by unsigned UTF-8 bytes.
+UTF-8 JSON followed by one LF. It contains one object per resolved production
+package instance. Each object has keys in this exact order: `id`, `name`,
+`version`, `integrity`, and `dependencies`. `id` is the complete canonical
+resolved-instance key from the pinned lockfile, including peer-resolution
+context, normalized as a machine-path-independent UTF-8 string. IDs are unique
+within the closure.
+
+`dependencies` is an array of closed edge objects with keys in this exact
+order: `key`, `name`, `alias`, `kind`, and `target_id`. `key` is the exact
+lockfile dependency-map key; `name` is the exact resolved package name;
+`alias` is the exact normalized lockfile alias selector or `null` when the edge
+is not aliased; `kind` is exactly `dependency` or `optional` according to the
+lockfile edge; and `target_id` is the exact canonical `id` of the resolved
+target package instance. Every `target_id` must name a package record in the
+same closure. Within one package record, the tuple (`kind`, `key`, `name`,
+`alias`) is unique, and duplicate complete edge records are invalid.
+
+Edges sort by the unsigned UTF-8 bytes of their compact JSON encoding using the
+closed key order above, which is a total order over the complete edge tuple.
+Package records sort by `id` using unsigned UTF-8 bytes; duplicate IDs are
+invalid. Record and edge ordering therefore remain total even when several
+instances share a package name and version, and an aliased or optional edge
+cannot collapse into a different lockfile edge.
 
 The virtual `.devcanon-runtime/bundler.json` record uses the same closed,
 canonical JSON rules for bundler identity, version, `node24`, and normalized
@@ -280,12 +324,24 @@ managed composed runtime payload.
 
 A clean-checkout source-build and packed-tarball proof may use a package manager
 only to install the packed tarball and declared CLI dependencies into a
-temporary prefix. The execution phase removes package-manager and global-CLI access,
-uses the package-local CLI to initialize, validate, render, and sync a
+temporary prefix. The execution phase removes package-manager and global-CLI
+access, uses the package-local CLI to initialize, validate, render, and sync a
 temporary library, then copies the resulting composed passive runtime to a
-second isolated directory. In that copied-runtime phase, wrapper, typed-runtime,
-resolver, and trusted-bootstrap execution must work without ambient
-`node_modules`. Manually assembling a test payload is not valid proof.
+second isolated directory. In that copied-runtime phase, every platform uses
+the current Node executable to invoke the bundled `.mjs` runtime and trusted
+bootstrap directly from a working directory outside the checkout, with
+`NODE_PATH`, `NODE_OPTIONS`, `DEVCANON_RUNTIME_DIR`, uncontrolled
+package-manager state, package-manager access, global CLI access, and ambient
+`node_modules` unavailable. POSIX additionally proves byte-for-byte stdout and
+stderr equivalence plus exact exit-status equality between the `.sh` adapter
+and the same `.mjs` surface. Native Windows invokes neither Bash nor a `.sh`
+file. After copied-runtime setup, it exercises both resolver subcases: verified
+resolution through a controlled real Git-for-Windows installation, and
+actionable refusal with the override unset plus controlled decoy and unusable
+candidates. The proof asserts the documented contract descriptor and major,
+exact exit and stdout/stderr behavior, no invalid candidate selection, and
+failure of ambient dependency resolution. Manually assembling a test payload
+is not valid proof.
 
 For identical canonical inputs and the same `artifact_origin`, independent
 builds must emit byte-identical bundle, manifest, and licenses artifacts.
