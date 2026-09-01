@@ -207,11 +207,11 @@ version; `node_target` is exactly `node24`; and every digest is lowercase
 invalid origin, version or target, and stale or corrupt digest values are
 rejected before composition or transport.
 
-`input_sha256` covers production runtime source, bundle configuration and
-options, relevant root dependency declarations, the resolved production runtime
-dependency subgraph, and the pinned bundler resolution. It excludes timestamps,
-machine paths, unrelated lockfile records, and unrelated development
-dependencies.
+`input_sha256` covers the producing DevCanon package version, production runtime
+source, bundle configuration and options, relevant root dependency declarations,
+the resolved production runtime dependency subgraph, and the pinned bundler
+resolution. It excludes timestamps, machine paths, unrelated lockfile records,
+and unrelated development dependencies.
 
 Each input record uses a repo-relative POSIX UTF-8 path and exact content
 bytes. Reserved virtual records are under `.devcanon-runtime/`. Records sort by
