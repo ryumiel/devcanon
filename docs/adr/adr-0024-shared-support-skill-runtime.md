@@ -158,9 +158,11 @@ Adapters retain the explicit `DEVCANON_RUNTIME_DIR` override for tests,
 diagnostics, and packaging validation. Without that override, they derive the
 logical sibling runtime from their script location and may try its physical
 resolved sibling for symlink installation. A missing compatible sibling fails
-before validation or state mutation. The override remains test, diagnostic, or
-packaging input until the fixed sibling bootstrap has structurally validated it;
-it must never locate or load that bootstrap.
+before validation or state mutation. Direct Node-first and resolver adapters
+that do not use trusted bootstrap retain this existing override-resolution
+behavior. For trusted-bootstrap consumers only, the override remains test,
+diagnostic, or packaging input until the fixed sibling bootstrap has
+structurally validated it; it must never locate or load that bootstrap.
 
 For trusted bootstrap, the thin adapter owns only closed command selection,
 fixed sibling bootstrap location, and exact argument forwarding. The bootstrap
@@ -292,8 +294,9 @@ Failure to reproduce byte-identical artifacts fails production and proof.
   making package installs depend on source-only inputs.
 - The composed full-tree identity preserves existing managed copy and symlink
   behavior while preventing generated leaves from becoming authored authority.
-- A later implementation must add the dependent behavior-spec and executable
-  proof work without changing this ADR's ownership boundary or catalog
+- The dependent six behavior-spec documentation updates are current #653 work
+  in Task 2 of this workflow. GitHub issue #654 owns source implementation and
+  executable proof without changing this ADR's ownership boundary or catalog
   partition.
 
 ## Alternatives considered
