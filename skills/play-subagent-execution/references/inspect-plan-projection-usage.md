@@ -98,6 +98,13 @@ Inspection is read-only and creates no files.
 
 ## Workflow boundary
 
-[Play subagent execution workflow context](../SKILL.md) owns path/digest
-guards, result validation and interpretation, record resolution, semantic
-checks, and terminal workflow behavior.
+This public helper has two authorized callers over the same strict runtime
+grammar: `play-planning` uses it for planning preflight before a D5/D6 paired
+review wave, and [Play subagent execution workflow context](../SKILL.md) uses it
+again for executor intake after its expected-digest gate. For each invocation,
+the caller owns its path guards, lifecycle, closed-result validation, and
+failure handling. Planning additionally owns inspection/digest/reviewer
+ordering and invalidation after plan mutation; executor intake owns record
+resolution, semantic checks, and terminal execution behavior. Neither boundary
+adds a parser, changes `planning-projection/v1`, or transfers caller-owned
+failure policy into this read-only helper.

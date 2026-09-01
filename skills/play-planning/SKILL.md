@@ -766,6 +766,38 @@ neither tool exists, the path cannot be read, hashing fails, or the extracted
 field is not lowercase 64-hex, stop before reviewer dispatch. The digest is
 controller-local state and creates no result artifact.
 
+Next perform the planning-preflight use of the existing public
+`play-subagent-execution/inspect-plan-projection` helper. Resolve
+`PLAY_SUBAGENT_EXECUTION_DIR` to the loaded or installed
+`play-subagent-execution` skill bundle, resolve its executable helper to
+`$PLAY_SUBAGENT_EXECUTION_DIR/scripts/inspect-plan-projection.sh`, and resolve
+its contract to the adjacent readable
+`$PLAY_SUBAGENT_EXECUTION_DIR/references/inspect-plan-projection-usage.md`.
+Run the helper from the planning worktree root with exactly:
+
+```bash
+bash "$PLAY_SUBAGENT_EXECUTION_DIR/scripts/inspect-plan-projection.sh" --path <repo-relative-plan-path>
+```
+
+This is an explicitly authorized planning-preflight boundary before either
+reviewer capture or dispatch. Accept only the usage contract's closed
+`planning-projection/v1` success: status 0, exactly one newline-terminated JSON
+object on stdout, empty stderr, the exact guarded plan path, the exact closed
+root and nested fields and types, valid identifiers and ranges, and internally
+consistent task references. A nonzero inspection or a zero-status malformed,
+unknown, inconsistent, or channel-violating result stops planning before
+reviewer dispatch. Preserve its useful runtime failure diagnostic, but do not
+repair or partially consume the result. Do not dispatch D5 or D6 and do not
+hand the invalid plan to `play-subagent-execution`.
+
+The helper and sibling `planning-projection/v1` runtime operation are the only
+structural parser for this boundary. Do not add or perform a planning-local
+Markdown parse, relax the runtime grammar, or special-case peer headings inside
+the projection region. Immediately after successful inspection, rehash the
+exact saved plan bytes and require the value to equal the expected digest. A
+mismatch invalidates the inspection and digest and stops before freezing or
+dispatching the pair.
+
 Prepare one immutable tuple containing the saved plan path, selected design
 input, optional comment evidence, validated criteria path, validated readiness
 path and recorded readiness result, expected exact plan digest, `review_wave`
@@ -774,9 +806,9 @@ path and recorded readiness result, expected exact plan digest, `review_wave`
 complete controller-local record set defined by the closed lifecycle below for
 every verified wave-one `CURRENT` gap. Always pass the same optional comment
 evidence to both when present; omit it from both when absent. Freeze the tuple
-before either capture and pass the identical tuple to
-D5 and D6 without per-reviewer additions, while keeping their questions,
-remits, responses, and lifecycle state separate.
+after inspection and before either capture. Freeze the D5/D6 tuple and pass the
+identical tuple to D5 and D6 without per-reviewer additions, while keeping their
+questions, remits, responses, and lifecycle state separate.
 
 Before either capture, resolve and validate the two complete fresh-Codex tuples.
 Both use `semantic_role: reviewer`, `capability: frontier`, the full model
@@ -851,6 +883,13 @@ across distinct semantic tasks. A genuinely new semantic task may receive a
 new unique Task ID that does not appear in the retained baseline. Keep this
 comparison in controller memory; do not create a baseline artifact or
 persistent ID mechanism.
+
+Every controller-authorized correction or other plan-byte mutation invalidates
+the prior projection inspection, expected digest, join digest, and both D5/D6
+verdicts. Discard those stale values and rerun guarded saved-path validation,
+exact-byte SHA-256, and canonical projection inspection before freezing a fresh
+tuple and beginning another available paired review wave. No retained
+inspection, digest, or verdict survives a byte mutation.
 
 Each reviewer must independently compute SHA-256 over the exact plan bytes it
 reads and compare that digest to the supplied expected digest before returning.
@@ -939,6 +978,13 @@ mismatch invalidates both verdicts, as does any plan-byte edit; start a fresh
 pair within the remaining budget only when neither route had a missing tuple or
 native exact-pair rejection; otherwise stop via the existing unavailable review
 outcome.
+
+The final successful projection inspection, D5 PASS, D6 PASS, join rehash, and
+pre-handoff rehash all cover the same saved bytes. Only then may the controller
+emit the handoff notices: `Plan written to <repo-relative-path>.` and
+`Reviewed digest: <sha256>` name that inspected path and its identical-byte
+digest. Any mismatch or later byte mutation invalidates the inspection, digest,
+both verdicts, and notices before they can authorize handoff.
 
 For wave one, `prior_verified_gaps` is explicitly none/inapplicable. For each
 verified wave-one `CURRENT` gap, the controller-local wave-two record contains
