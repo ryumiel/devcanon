@@ -4,11 +4,12 @@
 
 Accepted
 
-[ADR-0035](adr-0035-installed-runtime-configuration-discovery.md) partially
-supersedes this ADR only for current-format runtime-catalog custody and
-projection. This ADR remains the decision owner for passive-runtime artifact
-custody, provenance, composition, integrity, package lifecycle, and
-compatibility.
+[ADR-0035](adr-0035-installed-runtime-configuration-discovery.md) remains the
+sole owner of current-format runtime-catalog custody and projection. This
+revision of ADR-0024 narrows and supersedes ADR-0035's older generic
+passive-runtime payload-content claim to that catalog-only partition. ADR-0024
+is the decision owner for all other passive-runtime artifact custody,
+provenance, composition, integrity, package lifecycle, and compatibility.
 
 ## Context
 
@@ -47,8 +48,9 @@ would overlap with this ADR, ADR-0035 takes precedence; no other overlap is
 permitted.
 
 This decision does not choose a bundler, its configuration, or private runtime
-decomposition. Implementation of this contract, including behavior-spec and
-source changes, remains a later implementation concern.
+decomposition. The current GitHub issue #653 workflow retains its dependent
+behavior-spec documentation. Bundler, build, runtime, renderer, and installer
+source implementation are reserved for GitHub issue #654.
 
 ### Artifact custody and explicit providers
 
@@ -123,7 +125,9 @@ render, `init` copy, and installed transport. Consumers accept only verified
 artifacts. Ordinary installed helper execution relies on that accepted payload;
 it does not add per-invocation hashing.
 
-### Entrypoints and compatibility
+### Runtime Packaging and Resolution
+
+#### Entrypoints and compatibility
 
 The public adapter surface remains thin and unchanged:
 
@@ -133,6 +137,11 @@ The public adapter surface remains thin and unchanged:
   `node scripts/runtime/devcanon-runtime.mjs bootstrap ...`.
 - `scripts/resolve-bash.mjs` remains the direct cross-platform resolver and
   launches the same bundle with `runtime resolve-bash`.
+
+Existing public Node-first helper adapters that invoke the runtime directly
+target `devcanon-runtime.mjs runtime ...` internally. They preserve their
+public arguments, help, stdout and stderr, error, and resolution contracts.
+This decision neither enumerates nor changes those consumer adapters.
 
 The `scripts/runtime/` location preserves the module-relative
 `../../config/runtime-config.json` catalog lookup. `contract`,
@@ -247,8 +256,11 @@ ambient dependencies.
 `prepack` is the sole package-production gate. It builds the normal CLI
 distribution, creates package-origin runtime artifacts, verifies them, and only
 then allows `npm pack` to collect files. No other package lifecycle hook may
-produce package artifacts. The npm tarball includes only the package-origin
-runtime root and must exclude source-build artifacts.
+produce package artifacts. The npm tarball includes the authored
+`skills/devcanon-runtime/` leaves needed for composition and, among generated
+roots, only `dist/devcanon-runtime/package/`. It excludes
+`dist/devcanon-runtime/source-build/` and the ignored source-build sibling
+copies under `skills/devcanon-runtime/scripts/runtime/`.
 
 `THIRD_PARTY_LICENSES` has one LF-normalized deterministic entry for every
 package in the bundler-reported production closure. Entries sort by package
