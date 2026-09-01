@@ -113,9 +113,10 @@ package failure directs the operator to reinstall the package. The provider
 does not select source configuration, replace the catalog fallback, or change
 the catalog authority owned by
 [ADR-0035](../adr/adr-0035-installed-runtime-configuration-discovery.md).
-ADR-0024 owns generated-root custody and integrity details.
+The [Passive Runtime Contract](passive-runtime.md#provider-acceptance) owns
+generated-root custody, integrity, and the behavior after selection.
 
-### Catalog projection and runtime custody
+### Catalog projection and runtime consumption
 
 The source `capabilityProfiles` catalog selects model strings while DevCanon
 renders a target. For each enabled target selected for that render, the renderer
@@ -132,7 +133,10 @@ provider behavior instead validates the composed tree selected by the explicit
 provider. Under both forms, a scripts-only runtime is invalid and is neither
 upgraded nor given installation, sync, identity, or uninstall compatibility
 guarantees. The runtime catalog is transport data for the generated or
-installed runtime, not a second authoritative user-configuration file.
+installed runtime, not a second authoritative user-configuration file. This
+specification and ADR-0035 own its schema, semantic projection inputs, and
+selection behavior; PR-ART-02A and PR-ART-02B own physical stage custody and
+overwrite behavior.
 
 ### Installed passive-runtime command contract
 

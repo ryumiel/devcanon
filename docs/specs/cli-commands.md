@@ -36,16 +36,17 @@ provider and does not infer it from the checkout, current directory, configured
 path, or another filesystem artifact. A package artifact that cannot pass
 verification is an incomplete or corrupt package; commands that consume or
 verify the runtime provider stop and direct the operator to reinstall, while
-source-independent `uninstall` remains available. The provider and
-verification architecture is defined by
-[ADR-0024](../adr/adr-0024-shared-support-skill-runtime.md), while
+source-independent `uninstall` remains available. Provider acceptance is
+defined by the [Passive Runtime Contract](passive-runtime.md#provider-acceptance),
+while
 [Configuration](configuration.md#runtime-artifact-provider-selection) owns the
 observable provider-selection boundary.
 
 The target `prepack` behavior is the sole package-production gate: it creates
 and verifies the package provider's prebuilt runtime before `npm pack` collects
-the package. Build, package, provider, and setup integration remain deferred to
-a separate implementation change.
+the package. PR-PKG-01 and PR-PKG-02 own its lifecycle and inventory. Build,
+package, provider, and setup integration remain deferred to a separate
+implementation change.
 
 ---
 
@@ -67,29 +68,14 @@ Creates:
 
 Required composed-runtime behavior, whose implementation is deferred:
 
-- the packaged authored root has exactly
-  `config/runtime-config.json`, `scripts/devcanon-runtime.sh`, and
-  `scripts/resolve-bash.mjs`; `scripts/runtime/` is derived and is not authored
-  authority
-- for a fresh library, DevCanon verifies the explicit provider, writes the
-  three authored leaves without overwriting an existing authored path, and
-  atomically materializes the complete derived `scripts/runtime/` subtree
-- the resulting current-format composed bundle contains the validated catalog,
-  wrapper and resolver, plus the prebuilt ESM runtime, build manifest, and
-  third-party licenses; it has no `SKILL.md` or Codex invocation sidecar
-- if `skills/devcanon-runtime/` already exists, matching authored leaves are
-  preserved; missing, changed, or unexpected authored content fails with
-  repair guidance and is never overwritten
-- after provider verification, an existing derived `scripts/runtime/` subtree
-  may be atomically replaced as a unit; generated leaves are neither reconciled
-  individually nor promoted to authored authority
-- `validate` and `render` classify the three authored leaves separately from
-  the derived subtree, verify the latter against the explicitly selected
-  provider, and accept that verified subtree instead of flagging it as
-  unexpected authored content
-- a missing, partial, unexpected, stale, or provider-mismatched derived subtree
-  fails validation; a mutation-capable composition step repairs it only by
-  atomic replacement from the verified provider
+- fresh `init` performs
+  [PR-LIFE-04](passive-runtime.md#lifecycle-and-repair-transitions) and produces
+  the new-library payload under the central artifact-custody policy
+- `init` is not a refresh command for an existing configured library; the
+  explicit repair surface is `devcanon render`
+- the resulting payload has the exact closed inventory in
+  [Artifact custody](passive-runtime.md#artifact-custody), with neither
+  `SKILL.md` nor a Codex invocation sidecar
 - a scripts-only legacy runtime is not an accepted payload and is not upgraded
   or reconciled by `init`
 - generated outputs remain disposable render results, not authoritative source
@@ -210,8 +196,10 @@ Current implemented behavior:
 Required target behavior, whose implementation is deferred, validates the
 explicit provider and its prebuilt runtime artifact after config validation and
 before composition, passive-runtime validation, and declaration-bearing source
-skills. It applies the authored-versus-derived classification described under
-`init`; provider validation ordering is not current implemented behavior.
+skills. It remains read-only and follows
+[PR-LIFE-05](passive-runtime.md#lifecycle-and-repair-transitions): invalid
+derived runtime state fails with `devcanon render` repair guidance. Provider
+validation ordering is not current implemented behavior.
 
 For human output, `validate` groups skill warnings into a readable warning
 report after the skill status line. The skill status line includes the number
@@ -253,8 +241,12 @@ string, is an error.
 
 Required target behavior, whose implementation is deferred, makes `render`
 accept and validate the explicit provider artifact before it writes a composed
-passive-runtime tree. It never selects an artifact from filesystem hints or
-builds an artifact as a fallback. Source-build verification failures direct the
+passive-runtime tree. Under
+[PR-LIFE-06](passive-runtime.md#lifecycle-and-repair-transitions), `render` is
+also the explicit repair path for missing, stale, or provider-mismatched
+derived runtime state and replaces the subtree atomically before writing
+generated output. It never selects an artifact from filesystem hints or builds
+an artifact as a fallback. Source-build verification failures direct the
 operator to `pnpm run build:runtime`; package verification failures direct the
 operator to reinstall. The rendered payload and manifest identity are owned by
 [Install and sync](install-and-sync.md#passive-runtime-composition-and-transport).
@@ -319,10 +311,14 @@ primary failure, and every unrecovered result exits 1.
 that manifest-error precedence and exits before runtime validation. Under the
 required deferred provider behavior, every other sync accepts and validates the
 explicit prebuilt provider artifact before non-dry recovery, normalization or
-binding, composition, rendering, or install mutation. Installed `sync` only
-verifies and transports the prebuilt artifact: it never builds it or resolves
-ambient dependencies. This provider addition is target behavior, not a claim
-about the current implementation.
+binding, composition, rendering, or install mutation. Under PR-LIFE-07 and
+PR-LIFE-08, dry run previews any required derived-subtree replacement without
+mutation, while non-dry sync reuses the renderer-owned compositor and may
+atomically repair that subtree before transport. Installed `sync` only verifies
+and transports the prebuilt artifact: it never builds it or resolves ambient
+dependencies. These transitions are owned by the
+[Passive Runtime Contract](passive-runtime.md#lifecycle-and-repair-transitions)
+and are target behavior, not claims about the current implementation.
 
 For a non-dry invalid manifest, explicit recovery disposition follows, and only
 recovered-clean state may continue. Sync then
@@ -414,8 +410,10 @@ reported as status summaries.
 manifest; invalid or residual-lock state fails actionably with exit 1 before
 runtime validation or reporting differences. Under the required deferred
 provider behavior, it then accepts and validates the explicit prebuilt provider
-artifact through its source-driven composed render projection. That provider
-addition is not current implemented behavior.
+artifact through its source-driven composed render projection. It remains
+read-only and does not repair invalid derived runtime state; PR-LIFE-09 owns
+that failure and repair guidance. That provider addition is not current
+implemented behavior.
 
 ---
 

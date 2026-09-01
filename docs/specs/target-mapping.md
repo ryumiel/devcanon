@@ -95,30 +95,22 @@ relevant check locally when generated output needs inspection.
 Source skill directories with `SKILL.md`, source agent definitions, source
 runtime TypeScript, renderer code, tests, and the install manifest remain
 authoritative for their respective contracts. Passive-runtime authority is
-partitioned as follows:
-
-- `skills/devcanon-runtime/` is the authored runtime root. Its catalog,
-  wrapper, and resolver are source authority; it is not a source skill or a
-  generated invocation surface.
-- `dist/devcanon-runtime/source-build/` and
-  `dist/devcanon-runtime/package/` are separate generated provider roots. They
-  are neither authored authority nor interchangeable provider-selection hints.
-- `skills/devcanon-runtime/scripts/runtime/` contains ignored, byte-identical
-  source-build sibling copies solely for source sibling adapters. It is derived
-  output, not an authored root, provider, or transport payload.
-- Render combines the authored root with the explicitly accepted provider into
-  a generated composed runtime tree. That composition is the only runtime tree
-  that symlink installation may target.
-- Installed copy and symlink outputs are derived managed representations of the
-  rendered composition. The manifest and install rules, not an installed tree,
-  establish managed identity.
+partitioned by the
+[artifact-custody matrix](passive-runtime.md#artifact-custody). For this
+mapping surface, render consumes the accepted provider and ADR-0035-owned
+catalog projection to create the generated composition. That composition is
+the only runtime tree a symlink installation may target; installed copy and
+symlink outputs remain derived managed representations whose identity comes
+from the manifest and install rules.
 
 All generated provider artifacts, source-sibling copies, rendered previews,
 and installed outputs are uncommitted derived evidence. Package inclusion of
 the package provider root does not make it a Git-tracked source artifact.
-ADR-0024 owns provider custody and composition architecture;
+[The passive-runtime behavior spec](passive-runtime.md) owns provider custody
+and composition behavior; ADR-0024 records the architecture rationale, and
 [ADR-0035](../adr/adr-0035-installed-runtime-configuration-discovery.md) owns
-the catalog transported in that composition.
+the transported catalog's schema, semantic contents, projection inputs, and
+selection behavior.
 
 Do not hand-edit generated preview files to change behavior. If generated
 preview drift appears in a worktree, regenerate from source or fix the

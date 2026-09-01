@@ -160,9 +160,9 @@ skill retains workflow policy, interpretation, escalation, and approval.
   expectations.
 - [Skill specification](../specs/skills.md) remains the semantic owner for
   skill placeholders and drift validation.
-- [ADR-0024](../adr/adr-0024-shared-support-skill-runtime.md) owns passive
-  runtime packaging, sibling resolution, and the prohibition on global CLI
-  discovery for installed helper behavior.
+- [Passive Runtime Contract](../specs/passive-runtime.md) owns passive runtime
+  packaging, sibling resolution, and the prohibition on global CLI discovery
+  for installed helper behavior; ADR-0024 records the architecture rationale.
 - Repository policy separately governs approval of production dependencies and
   architecture-affecting implementation choices.
 

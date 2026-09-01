@@ -180,15 +180,15 @@ That sibling delivers parser behavior through the composed prebuilt ESM bundle
 at `scripts/runtime/devcanon-runtime.mjs`. The generated artifact is accepted
 before composition and transport; this delivery requirement does not select a
 bundler, alter the GFM grammar, or add per-invocation hashing. The runtime
-artifact architecture and verification regimes remain owned by
-[ADR-0024](../adr/adr-0024-shared-support-skill-runtime.md), and the runtime
+artifact delivery and verification behavior remains owned by the
+[Passive Runtime Contract](passive-runtime.md), and the runtime
 catalog carried alongside it remains owned by
 [ADR-0035](../adr/adr-0035-installed-runtime-configuration-discovery.md).
 
 The passive runtime may provide deterministic syntax facts or findings. The
 owning skill continues to own the public helper contract and all judgment or
-workflow policy. [ADR-0024](../adr/adr-0024-shared-support-skill-runtime.md)
-remains authoritative for runtime packaging, resolution, and compatibility.
+workflow policy. The passive-runtime spec remains authoritative for runtime
+packaging, resolution, and compatibility; ADR-0024 records the rationale.
 
 ## Behavior Scenarios
 
@@ -283,9 +283,9 @@ initial source-side migration.
 - [Skill Specification, Placeholders](skills.md#placeholders): placeholder
   forms, escaping, active validation, and block-code exemption - accepted
   behavior owner.
-- [ADR-0024, Runtime Packaging and Resolution](../adr/adr-0024-shared-support-skill-runtime.md#runtime-packaging-and-resolution):
+- [Passive Runtime Contract, Runtime resolution](passive-runtime.md#runtime-resolution):
   installed helpers use the version-aligned sibling passive runtime rather than
-  a global CLI - accepted architecture owner.
+  a global CLI - accepted behavior owner.
 - [`src/utils/markdown-structure.ts`](../../src/utils/markdown-structure.ts):
   shared GFM block-code range adapter used by production consumers - current
   source evidence.

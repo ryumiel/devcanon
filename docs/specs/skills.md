@@ -275,13 +275,14 @@ ignored.
 
 The managed passive `devcanon-runtime` bundle is the explicit non-declaration
 exception: it has no `SKILL.md` and instead contains validated top-level
-`config/` and `scripts/` trees. Its exact payload and transport behavior are
-owned by [Install and sync](install-and-sync.md) and
-[ADR-0024](../adr/adr-0024-shared-support-skill-runtime.md), not by the
+`config/` and `scripts/` trees. Its exact payload is owned by the
+[Passive Runtime Contract](passive-runtime.md), while managed transport is
+owned by [Install and sync](install-and-sync.md); neither belongs to the
 ordinary-skill allowlist.
 [ADR-0035](../adr/adr-0035-installed-runtime-configuration-discovery.md) owns
-only the runtime-catalog schema, contents, custody, projection, and
-configuration-selection partition within that composed payload.
+only the runtime-catalog schema, semantic contents, projection inputs, and
+configuration-selection partition within that composed payload; the
+passive-runtime spec owns physical custody and overwrite policy.
 
 ---
 

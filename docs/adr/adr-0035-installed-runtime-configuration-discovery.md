@@ -38,17 +38,19 @@ its runtime scripts. Generated previews and installed payloads are derived
 transport outputs, not user configuration or independent model-selection
 authority.
 
-Within the composed passive runtime, this ADR owns only
-`config/runtime-config.json`: its closed schema and contents, source-to-target
-projection, catalog custody, and selection by the public configuration
-inspection commands. It does not define the rest of the payload or how the
-whole payload is composed, verified, packaged, transported, isolated, or kept
-compatible.
+For every `config/runtime-config.json` instance, this ADR owns the closed schema,
+semantic contents, source-to-target projection inputs, and selection by the
+public configuration inspection commands. It does not own physical path or
+stage custody, overwrite policy, or how the whole payload is composed,
+verified, packaged, transported, isolated, or kept compatible. Those physical
+catalog-instance rules belong to the passive-runtime behavior contract.
 
 [ADR-0024](adr-0024-shared-support-skill-runtime.md) supersedes this ADR's older
-generic claim over passive-runtime payload contents. ADR-0024 owns exact
-whole-payload composition and every non-catalog artifact concern; this ADR
-takes precedence only for the catalog partition described above.
+generic claim over passive-runtime payload contents. The
+[Passive Runtime Contract](../specs/passive-runtime.md) owns exact physical
+whole-payload behavior, including catalog-instance custody, and every
+non-catalog artifact concern; this ADR takes precedence only for the catalog
+schema, semantics, projection-input, and selection partition described above.
 
 This ADR also partially supersedes
 [ADR-0005](adr-0005-per-target-skill-rendering.md)'s namespace scope-lock by
@@ -66,11 +68,12 @@ configuration or use the sibling passive runtime catalog as a model fallback.
 - A source configuration can project different valid model strings to both
   targets without making installed skills depend on the source checkout.
 - Whole-payload composition and transport include the catalog partition under
-  ADR-0024's contract without transferring catalog authority to that ADR.
+  the passive-runtime contract without transferring catalog authority to it.
 - Catalog corruption, an invalid selected source configuration, and a missing
   rendered route binding fail closed rather than selecting an ambient value.
 - A catalog-less runtime cannot satisfy this configuration-discovery contract;
-  replacement and compatibility behavior remain owned by ADR-0024.
+  replacement and compatibility behavior remain owned by the passive-runtime
+  contract.
 
 ## Alternatives considered
 
@@ -85,7 +88,7 @@ configuration or use the sibling passive runtime catalog as a model fallback.
   boundary from validation and identity checks.
 - **Let this ADR define scripts-only migration or whole-payload
   compatibility.** Rejected because those are non-catalog artifact concerns
-  owned by ADR-0024.
+  owned by the passive-runtime contract.
 
 ## See also
 
@@ -93,3 +96,4 @@ configuration or use the sibling passive runtime catalog as a model fallback.
 - [CLI commands](../specs/cli-commands.md#config-path-and-config-get)
 - [Architecture overview](../arch/overview.md#configuration-discovery-and-runtime-catalog-boundary)
 - [Shared Passive Runtime Support Bundle](adr-0024-shared-support-skill-runtime.md)
+- [Passive Runtime Artifact and Lifecycle Contract](../specs/passive-runtime.md)

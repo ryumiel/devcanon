@@ -84,28 +84,21 @@ This subsection defines required target provider behavior whose implementation
 is deferred. Current fixed-bundle validation and transport remain in force
 until that provider-backed composition is implemented.
 
-The manifest record's `sourcePath` for `devcanon-runtime` remains the authored
-`skills/devcanon-runtime/` root. It does not name a generated artifact root or
-the source-sibling runtime copy. Its `generated path` names the rendered
-composition, whose full-tree content hash covers both the authored leaves and
-the accepted generated leaves; the accepted build manifest supplies generated
-artifact provenance. The architecture, closed build manifest, and verification
-regimes are owned by
-[ADR-0024](../adr/adr-0024-shared-support-skill-runtime.md); catalog custody
-and projection remain owned by
-[ADR-0035](../adr/adr-0035-installed-runtime-configuration-discovery.md).
+The manifest record's `sourcePath` for `devcanon-runtime` remains
+`skills/devcanon-runtime/`. That locator does not classify every descendant as
+authored; the passive-runtime artifact matrix owns all stage-specific custody.
+It does not name a generated artifact root or the source-sibling runtime copy.
+Its `generated path` names PR-ART-06, whose full-tree content hash covers the
+complete rendered composition; the accepted build manifest supplies generated
+artifact provenance. The
+[Passive Runtime Contract](passive-runtime.md) owns physical custody,
+composition, closed build manifest, and verification behavior. ADR-0024 records
+the architectural rationale, while ADR-0035 and Configuration own catalog
+schema, semantic contents, projection inputs, and selection behavior.
 
 Under the target behavior, after validation accepts the explicit provider, the
-rendered passive-runtime tree contains exactly:
-
-```text
-config/runtime-config.json
-scripts/devcanon-runtime.sh
-scripts/resolve-bash.mjs
-scripts/runtime/devcanon-runtime.mjs
-scripts/runtime/runtime-manifest.json
-scripts/runtime/THIRD_PARTY_LICENSES
-```
+rendered passive-runtime tree has the exact closed inventory in
+[PR-ART-06](passive-runtime.md#artifact-custody).
 
 The rendered composition is the sole symlink target. Copy installation copies
 that same composed tree, and `diff` compares the installed runtime against its
@@ -321,8 +314,10 @@ backups or manifest churn.
    before non-dry recovery, normalization or binding, rendering, or an install
    mutation. Under the required deferred provider behavior, that validation
    first accepts the explicitly provided prebuilt passive-runtime artifact
-   before composition and the same later effects. Sync never builds that
-   artifact or resolves ambient dependencies.
+   before composition and the same later effects. Dry run uses the read-only
+   PR-LIFE-07 projection and only previews derived-subtree repair. Non-dry sync
+   uses PR-LIFE-08 and may atomically repair that subtree before writable
+   render. Sync never builds the artifact or resolves ambient dependencies.
 4. for a non-dry invalid manifest, perform explicit recovery; only
    recovered-clean state continues. Every pre-I5-unrecovered or
    recovered-cleanup-degraded result stops before each later effect.

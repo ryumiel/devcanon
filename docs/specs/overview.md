@@ -65,6 +65,7 @@ These boundaries apply across DevCanon behavior specs:
 - [Markdown parsing behavior](markdown-parsing.md)
 - [Agent source schema](agents.md)
 - [Target mapping](target-mapping.md)
+- [Passive runtime artifact and lifecycle contract](passive-runtime.md)
 - [Install and sync policy](install-and-sync.md)
 - [CLI command reference](cli-commands.md)
 - [Error handling and logging](error-handling.md)
