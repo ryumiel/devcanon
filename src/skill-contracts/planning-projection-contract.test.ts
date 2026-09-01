@@ -53,6 +53,136 @@ function boldFieldLabels(markdown: string): string[] {
 }
 
 describe("play-planning execution projection contract", () => {
+  it("owns the canonical traceability, projection, and tasks order", async () => {
+    const criteria = await readRepoFile(
+      "skills/play-planning/references/planning-criteria.md",
+    );
+    const projection = getMarkdownSection(
+      criteria,
+      "Contract and traceability criteria",
+    ).replace(/\s+/gu, " ");
+
+    expect(projection).toContain(
+      "any `## Traceability Matrix` precedes `## Execution Projection`",
+    );
+    expect(projection).toContain(
+      "`## Execution Projection` is the final peer H2 before `## Tasks`",
+    );
+    expect(projection).toContain(
+      "only projection entries occur between those two headings",
+    );
+  });
+
+  it("preflights exact saved bytes before freezing and dispatching a paired review wave", async () => {
+    const planning = await readRepoFile("skills/play-planning/SKILL.md");
+    const normalized = planning.replace(/\s+/gu, " ");
+    const pathGuard = normalized.indexOf(
+      "validate the retained plan path as the guarded readable regular file",
+    );
+    const digest = normalized.indexOf(
+      "compute SHA-256 over the exact saved plan bytes",
+      pathGuard,
+    );
+    const inspection = normalized.indexOf(
+      'inspect-plan-projection.sh" --path <repo-relative-plan-path>',
+      digest,
+    );
+    const freeze = normalized.indexOf("Freeze the D5/D6 tuple", inspection);
+    const reviewerDispatch = normalized.indexOf(
+      "After both complete tuples validate and both captures succeed",
+      freeze,
+    );
+
+    expect(pathGuard).toBeGreaterThanOrEqual(0);
+    expect(digest).toBeGreaterThan(pathGuard);
+    expect(inspection).toBeGreaterThan(digest);
+    expect(freeze).toBeGreaterThan(inspection);
+    expect(reviewerDispatch).toBeGreaterThan(freeze);
+    expect(normalized).toContain("planning-preflight");
+    expect(normalized).toContain("closed `planning-projection/v1` success");
+    expect(normalized).toContain("before either reviewer capture or dispatch");
+  });
+
+  it("invalidates inspection, digest, and both verdicts after every plan-byte mutation", async () => {
+    const planning = (
+      await readRepoFile("skills/play-planning/SKILL.md")
+    ).replace(/\s+/gu, " ");
+
+    expect(planning).toContain(
+      "invalidates the prior projection inspection, expected digest, join digest, and both D5/D6 verdicts",
+    );
+    expect(planning).toContain(
+      "rerun guarded saved-path validation, exact-byte SHA-256, and canonical projection inspection before freezing a fresh tuple",
+    );
+  });
+
+  it("binds the successful inspection, paired verdicts, final rehash, and notices to identical bytes", async () => {
+    const planning = (
+      await readRepoFile("skills/play-planning/SKILL.md")
+    ).replace(/\s+/gu, " ");
+
+    expect(planning).toContain(
+      "final successful projection inspection, D5 PASS, D6 PASS, join rehash, and pre-handoff rehash all cover the same saved bytes",
+    );
+    expect(planning).toContain(
+      "`Plan written to <repo-relative-path>.` and `Reviewed digest: <sha256>` name that inspected path and its identical-byte digest",
+    );
+  });
+
+  it("reuses one public inspector with distinct planning-preflight and executor-intake boundaries", async () => {
+    const [planning, usage] = await Promise.all([
+      readRepoFile("skills/play-planning/SKILL.md"),
+      readRepoFile(
+        "skills/play-subagent-execution/references/inspect-plan-projection-usage.md",
+      ),
+    ]);
+    const normalizedPlanning = planning.replace(/\s+/gu, " ");
+    const normalizedUsage = usage.replace(/\s+/gu, " ");
+
+    expect(normalizedPlanning).toContain(
+      "public `play-subagent-execution/inspect-plan-projection` helper",
+    );
+    expect(normalizedPlanning).toContain(
+      "Do not add or perform a planning-local Markdown parse",
+    );
+    expect(normalizedUsage).toContain("planning preflight");
+    expect(normalizedUsage).toContain("executor intake");
+    expect(normalizedUsage).toContain(
+      "caller owns its path guards, lifecycle, closed-result validation, and failure handling",
+    );
+  });
+
+  it("keeps path and digest guards caller-specific at the shared inspector boundary", async () => {
+    const usage = (
+      await readRepoFile(
+        "skills/play-subagent-execution/references/inspect-plan-projection-usage.md",
+      )
+    ).replace(/\s+/gu, " ");
+
+    expect(usage).toContain(
+      "Planning preflight owns guarded saved-path validation and the initial expected exact-byte digest before invocation, plus the post-inspection rehash",
+    );
+    expect(usage).toContain(
+      "Executor intake owns its guarded path validation and reviewed-digest gate before invocation",
+    );
+    expect(usage).not.toContain(
+      "The controller retains path guards and reviewed-digest verification before invocation",
+    );
+  });
+
+  it("stops structural failures inside planning before reviewer dispatch", async () => {
+    const planning = (
+      await readRepoFile("skills/play-planning/SKILL.md")
+    ).replace(/\s+/gu, " ");
+
+    expect(planning).toContain(
+      "A nonzero inspection or a zero-status malformed, unknown, inconsistent, or channel-violating result stops planning before reviewer dispatch",
+    );
+    expect(planning).toContain(
+      "Do not dispatch D5 or D6 and do not hand the invalid plan to `play-subagent-execution`",
+    );
+  });
+
   it("keeps one exact six-field projection structure", async () => {
     const criteria = await readRepoFile(
       "skills/play-planning/references/planning-criteria.md",

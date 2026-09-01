@@ -623,7 +623,11 @@ the owning design or decision surface, not invitations to guess.
 Every executable plan contains exactly one literal Markdown H2
 `## Execution Projection` outside fenced code, followed by the peer H2
 `## Tasks` before any `### Task` heading. The peer heading terminates the
-projection section. The approved design owns the project-specific truth; the
+projection section. The ordering invariant is that any
+`## Traceability Matrix` precedes `## Execution Projection`;
+`## Execution Projection` is the final peer H2 before `## Tasks`, and only
+projection entries occur between those two headings. The approved design owns
+the project-specific truth; the
 projection is its single plan-local representation of the common relationship
 tuple. It does not create authority, execution order, task routes, proof actors,
 retained evidence, or review state. The same entry shape applies to `FULL`,
@@ -905,9 +909,10 @@ logs, or agent-local plans instead of an update to the owning durable artifact.
 ### Hard-requirement traceability
 
 When the design has `## Hard Requirements`, write a `## Traceability Matrix`
-before tasks. Every requirement maps to current task coverage and acceptance
-criteria. The matrix does not reallocate or repeat the Execution Projection's
-proof allocation; task-local verification expectations and
+before `## Execution Projection`, never between that section and `## Tasks`.
+Every requirement maps to current task coverage and acceptance criteria. The
+matrix does not reallocate or repeat the Execution Projection's proof
+allocation; task-local verification expectations and
 minimum-sufficient proof show how that acceptance is demonstrated. Incidental
 modal prose, examples, comments, or live evidence do not create additional hard
 requirements. An uncovered hard requirement remains blocking.

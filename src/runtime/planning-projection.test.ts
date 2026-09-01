@@ -36,6 +36,43 @@ function entry(id: string, mode: string): string[] {
 }
 
 describe("inspectPlanningProjection", () => {
+  it("accepts Traceability Matrix before the final projection H2 and Tasks", () => {
+    const input = [
+      "## Traceability Matrix",
+      "",
+      "| Requirement | Task |",
+      "| --- | --- |",
+      "| R1 | BUILD-PROJECTION-OPERATION |",
+      "",
+      completePlan,
+    ].join("\n");
+
+    expect(
+      inspectPlanningProjection(input, "plans/issue-655.md").tasks.map(
+        (task) => task.task_id,
+      ),
+    ).toEqual(["BUILD-PROJECTION-OPERATION"]);
+  });
+
+  it("rejects Traceability Matrix inside the projection region before Tasks", () => {
+    const input = completePlan.replace(
+      "## Tasks",
+      [
+        "## Traceability Matrix",
+        "",
+        "| Requirement | Task |",
+        "| --- | --- |",
+        "| R1 | BUILD-PROJECTION-OPERATION |",
+        "",
+        "## Tasks",
+      ].join("\n"),
+    );
+
+    expect(() =>
+      inspectPlanningProjection(input, "plans/issue-655.md"),
+    ).toThrow("projection-entry-field-invalid");
+  });
+
   it("returns the closed projection result without changing its input", () => {
     const input = completePlan;
 
