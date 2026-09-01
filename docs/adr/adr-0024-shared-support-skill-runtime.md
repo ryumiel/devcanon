@@ -48,9 +48,9 @@ would overlap with this ADR, ADR-0035 takes precedence; no other overlap is
 permitted.
 
 This decision does not choose a bundler, its configuration, or private runtime
-decomposition. The current GitHub issue #653 workflow retains its dependent
-behavior-spec documentation. Bundler, build, runtime, renderer, and installer
-source implementation are reserved for GitHub issue #654.
+decomposition. The dependent behavior specifications define the observable
+contract. Bundler, build, runtime, renderer, and installer source implementation
+and executable proof remain deferred to a separate implementation change.
 
 ### Artifact custody and explicit providers
 
@@ -235,6 +235,13 @@ options through this input; this decision does not select that implementation.
 
 ### Verification regimes and failures
 
+Provider verification begins at the injected generated root. The root must be a
+readable physical directory, not a symlink or reparse point. Every path segment
+beneath it must remain physically contained by that root without symlink or
+reparse traversal; each of the three expected leaves must be a readable regular
+non-link file; and any missing or unexpected entry fails closed. These checks
+complete before manifest parsing, hashing, composition, or transport.
+
 The explicit provider selects one verification regime:
 
 - **Source-build:** recompute `input_sha256`, then verify the bundle and
@@ -294,10 +301,10 @@ Failure to reproduce byte-identical artifacts fails production and proof.
   making package installs depend on source-only inputs.
 - The composed full-tree identity preserves existing managed copy and symlink
   behavior while preventing generated leaves from becoming authored authority.
-- The dependent six behavior-spec documentation updates are current #653 work
-  in Task 2 of this workflow. GitHub issue #654 owns source implementation and
-  executable proof without changing this ADR's ownership boundary or catalog
-  partition.
+- The six dependent behavior specifications define observable behavior. Source
+  implementation and executable proof remain deferred to a separate
+  implementation change without changing this ADR's ownership boundary or
+  catalog partition.
 
 ## Alternatives considered
 

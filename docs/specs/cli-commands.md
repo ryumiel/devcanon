@@ -31,15 +31,17 @@ The npm `bin` entrypoint instead injects the `package` provider. The common
 compiled CLI accepts exactly one explicit provider and does not infer it from
 the checkout, current directory, configured path, or another filesystem
 artifact. A package artifact that cannot pass verification is an incomplete or
-corrupt package; commands stop and direct the operator to reinstall. The
-provider and verification architecture is defined by
+corrupt package; commands that consume or verify the runtime provider stop and
+direct the operator to reinstall, while source-independent `uninstall` remains
+available. The provider and verification architecture is defined by
 [ADR-0024](../adr/adr-0024-shared-support-skill-runtime.md), while
 [Configuration](configuration.md#runtime-artifact-provider-selection) owns
 the observable provider-selection boundary.
 
 `prepack` is the sole package-production gate: it creates and verifies the
 package provider's prebuilt runtime before `npm pack` collects the package.
-Build, package, and provider implementation remain deferred to issue #654.
+Build, package, and provider implementation remain deferred to a separate
+implementation change.
 
 ---
 
