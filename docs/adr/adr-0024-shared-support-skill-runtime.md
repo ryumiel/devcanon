@@ -5,189 +5,298 @@
 Accepted
 
 [ADR-0035](adr-0035-installed-runtime-configuration-discovery.md) partially
-supersedes this ADR only for passive-runtime payload contents and current-format
-catalog custody. All other decisions in this ADR remain accepted.
+supersedes this ADR only for current-format runtime-catalog custody and
+projection. This ADR remains the decision owner for passive-runtime artifact
+custody, provenance, composition, integrity, package lifecycle, and
+compatibility.
 
 ## Context
 
-DevCanon skills increasingly need deterministic helpers for behavior that is
-larger than prompt prose and more structured than a small shell adapter. Review
-artifact validation, manifest normalization, lease state transitions, issue
-worktree setup, and worktree cleanup all involve schemas, path normalization,
-Git state, atomic file updates, and cross-platform behavior.
+`devcanon-runtime` must operate as a version-aligned sibling bundle without a
+source checkout, package manager, ambient `node_modules`, or a global
+`devcanon` executable. The passive sibling model and its public adapters are
+already accepted, but a tracked JavaScript-and-dependency-closure payload would
+make artifact provenance, package contents, integrity, and reproduction
+ambiguous.
 
-ADR-0019 established that deterministic mechanics should move out of
-`SKILL.md` prose and into executable helper scripts owned by the relevant
-skill. It also deliberately deferred a general shared runtime layer because the
-render and sync model only packaged skill-owned files. That local-script model
-is still right for narrow helpers, but it does not scale well when multiple
-skills need the same typed validation, state transition, or platform adapter.
-Large Bash, JQ, and PowerShell state machines are also expensive to keep
-portable and slow to validate on Windows.
+The runtime needs a prebuilt ESM artifact while keeping the authored runtime
+inputs, generated build artifacts, rendered payload, and installed copies
+separate. The architecture must allow source-development and package execution
+to select distinct, verifiable artifacts without inferring their origin from
+the filesystem. It must also preserve the catalog boundary: the runtime carries
+a target-local catalog, but it does not own catalog content or projection.
 
 ## Decision
 
-DevCanon accepts one fixed passive runtime support bundle,
-`devcanon-runtime`, for deterministic helper mechanics whose complexity or
-reuse exceeds an owning skill's local `scripts/` boundary. It is not a source
-skill or human workflow entry point, and it must not own review judgment,
-planning judgment, GitHub posting approval, issue routing, or user-facing
-workflow policy. Its fixed payload contains only `scripts/`; it must contain
-neither `SKILL.md` nor a Codex invocation sidecar.
+### Authority and scope
 
-Skill prose remains authoritative for workflow policy, escalation rules,
-operator approval, and the command surface presented to the agent. Runtime code
-is authoritative only for deterministic executable mechanics such as:
+This ADR is the sole architectural owner of the passive-runtime artifact
+contract. It defines custody, explicit provider provenance, exact composition,
+manifest integrity, verification regimes, package and attribution lifecycle,
+isolation proof, reproducibility, and compatibility.
 
-- schema validation and normalization;
-- path-shape, symlink, and file-kind guards;
-- Git-derived facts and range checks;
-- state-machine transitions;
-- temporary-file writes and atomic replacement;
-- parseable stdout and stderr contracts;
-- platform-specific adapter behavior hidden behind a stable command surface.
+The runtime is passive infrastructure, not a source skill or human workflow
+entry point. Its composed payload contains neither `SKILL.md` nor a Codex
+invocation sidecar.
 
-Use an owning skill's local `scripts/` directory when the helper is specific to
-one skill, has a small command surface, does not encode shared schemas or state
-machines, and can stay portable without substantial duplicated shell logic. Use
-`devcanon-runtime` when the helper is shared by multiple skills, needs typed
-schema handling, owns nontrivial state transitions, needs consistent
-cross-platform behavior, or would otherwise duplicate complex Bash, JQ,
-PowerShell, or path-resolution logic.
+ADR-0035 is the sole owner of current-format runtime-catalog custody and
+target-local catalog projection. The catalog remains part of the composed
+runtime payload, but its schema, contents, projection, and configuration
+selection behavior are governed by ADR-0035. If catalog custody or projection
+would overlap with this ADR, ADR-0035 takes precedence; no other overlap is
+permitted.
 
-Runtime-backed skills keep thin shell or PowerShell shims only for launch,
-argument forwarding, environment discovery, and compatibility with existing
-skill-facing command names. Those shims must not reimplement the runtime's
-state machines or validation policy.
+This decision does not choose a bundler, its configuration, or private runtime
+decomposition. Implementation of this contract, including behavior-spec and
+source changes, remains a later implementation concern.
 
-## Runtime Packaging and Resolution
+### Artifact custody and explicit providers
 
-`devcanon-runtime` is resolved as a sibling passive runtime bundle from source
-skills, generated previews, and installed skill homes. These layouts preserve
-the existing sibling adapter layout, so a consumer under:
+`skills/devcanon-runtime/` is the authoritative authored root. Its authored
+leaves are:
 
 ```text
-<skills-root>/<consumer-skill>/scripts/<adapter>
+config/runtime-config.json
+scripts/devcanon-runtime.sh
+scripts/resolve-bash.mjs
 ```
 
-resolves the default runtime under:
+The CLI distribution owns exactly two non-overlapping generated roots:
 
 ```text
-<skills-root>/devcanon-runtime/
+dist/devcanon-runtime/source-build/
+dist/devcanon-runtime/package/
 ```
 
-Rendered previews copy the passive `scripts/` payload; installed bundles use
-the same sibling skills-home layout through the existing copy or symlink modes.
-The v1 manifest records the bundle with `type: "skill"` only as that existing
-skills-home transport identity. It does not make the bundle a source skill or
-add `SKILL.md` or an invocation sidecar. Passive-runtime copy identity validates
-the fixed payload and its content hash only; it has no legacy fallback or
-migration behavior.
+Each generated root contains exactly these leaves:
 
-Adapters that use the established override-resolution path retain its explicit
-`DEVCANON_RUNTIME_DIR` behavior for tests, diagnostics, and packaging
-validation. Without an override, they derive the logical sibling path from the
-adapter script location, then may try the physical resolved sibling path for
-symlink install modes. If no compatible runtime exists, the adapter fails before
-performing validation or state mutation.
+```text
+devcanon-runtime.mjs
+runtime-manifest.json
+THIRD_PARTY_LICENSES
+```
 
-For adapters using the trusted bootstrap, the adapter must
-first locate the fixed sibling `devcanon-runtime` bootstrap without consulting
-`DEVCANON_RUNTIME_DIR`. `skills/pr-review/scripts/review-leases.sh` is the
-current consumer; it requires the fixed sibling passive runtime bundle to be
-present in isolated fixtures before it can use an override. The thin shell
-adapter owns only its closed command selection, sibling bootstrap location, and
-exact argument forwarding. The packaged Node bootstrap owns platform-specific
-path grammar, raw traversal rejection, final-component `lstat`, physical
-`realpath` containment, and child dispatch. In particular, it rejects an exact
-raw `..` component before path normalization and rejects a final symlink,
-junction, or reparse point before dereference. It then proves the real runtime
-entrypoint is within the real runtime directory using relative-path semantics,
-not a string prefix.
+Source development, including `pnpm dev` and the shim created by `setup:cli`,
+injects the `source-build` provider. The npm `bin` entrypoint injects the
+`package` provider. The common compiled CLI requires exactly one explicit
+internal provider and passes its selected generated root to validation and to
+the render, `init`, and installation consumers. It must not infer provider
+identity from `.git`, the current directory, configured path shape, the
+presence of another artifact root, or any other filesystem heuristic.
 
-The override is therefore inert test, diagnostic, and packaging input until
-the fixed bootstrap has structurally validated it. It must never be used to
-find or load the bootstrap that validates it. Fixtures that exercise this
-override must package the fixed passive runtime bundle as a sibling, just as source,
-rendered, copied, managed, and symlink-installed layouts do. The dispatcher
-keeps the original override value in the child environment and launches the
-validated child itself; it does not return an override path through shell
-command substitution. The shell and typed executable entrypoints are
-independently validated; the bootstrap dispatches the platform-appropriate
-validated target without ambient shell lookup.
+`setup:cli` builds and verifies the selected `source-build` artifact before it
+registers the shim. A missing, inferred, invalid, mismatched, stale, or corrupt
+provider artifact fails closed before the caller's continuation: source-build
+failures direct the operator to `pnpm run build:runtime`; package failures
+identify an incomplete or corrupt package and direct the operator to reinstall.
 
-This decision records the trusted-bootstrap contract for adapters that use it.
-The `review-leases.sh` packaging and diagnostic prerequisite does not activate
-discovery, Phase 2, or any review workflow.
+### Composed runtime and managed identity
 
-The passive runtime bundle participates in render hashing, generated previews,
-sync planning, manifest inspection, collision checks, and managed installation
-through the existing skill transport lifecycle. Consumers must not depend on a
-separately installed `devcanon` binary on `PATH` for runtime behavior, because
-installed skills must keep their managed helper version aligned with the
-rendered bundle that invoked them.
+After accepting the selected provider, render and `init` compose the authored
+root with its generated artifacts into exactly this payload:
 
-Runtime commands declare a compatibility contract. Consumers that depend on a
-runtime command must either validate the command's reported contract version or
-call a stable entry point whose version compatibility is enforced by the
-runtime. At minimum, each command group exposes a machine-readable contract
-descriptor containing the command group name and an integer major version, and
-mutating consumers reject unknown major versions before changing files or
-state. Content hashes remain install-plan evidence that managed runtime files
-match the rendered source; they are not a substitute for command-level
-compatibility checks.
+```text
+config/runtime-config.json
+scripts/devcanon-runtime.sh
+scripts/resolve-bash.mjs
+scripts/runtime/devcanon-runtime.mjs
+scripts/runtime/runtime-manifest.json
+scripts/runtime/THIRD_PARTY_LICENSES
+```
 
-## Source Validation and Command Ordering
+`pnpm run build:runtime` also materializes byte-identical, ignored source-build
+copies of the three generated leaves under
+`skills/devcanon-runtime/scripts/runtime/`. Those sibling copies are derived
+from `dist/devcanon-runtime/source-build/`, are never committed, and exist only
+so source sibling adapters can run. They are not an authored root, a provider
+selection mechanism, or an independent transport payload.
 
-Sync begins with pure manifest inspection. An invalid dry sync retains the
-manifest-error result and does not validate the runtime. Every other sync
-validates the fixed passive runtime support bundle before non-dry manifest
-recovery, normalization or binding, rendering, or installed-output mutation.
-`diff` likewise inspects the manifest before its read-only source-driven render
-validates the bundle. `uninstall` remains source-independent and does not
-validate the source bundle.
+The rendered composed tree is the sole symlink target. The install manifest
+continues to record `skills/devcanon-runtime/` as `sourcePath`; its generated
+path identifies the rendered composition; its content hash covers the full
+composed tree; and generated-artifact provenance comes from the accepted build
+manifest. Existing copy, symlink, diff, collision, overwrite, and uninstall
+semantics remain unchanged. In particular, uninstall remains source-independent.
 
-## Node.js Runtime Requirement
+Validation and provider acceptance precede package acceptance, source-driven
+render, `init` copy, and installed transport. Consumers accept only verified
+artifacts. Ordinary installed helper execution relies on that accepted payload;
+it does not add per-invocation hashing.
 
-Runtime-backed helpers may require Node.js, matching DevCanon's supported Node
-engine. This requirement applies only to helpers that explicitly opt into
-`devcanon-runtime`. It does not make Node.js a prerequisite for all skill
-execution, and it does not require the installed `devcanon` CLI.
+### Entrypoints and compatibility
 
-This decision supersedes ADR-0019's earlier restriction that the shared review
-artifact validator remain shell/JQ self-contained and not require Node.js
-solely to validate review artifacts. A review-artifact validator or other
-helper may become Node-backed only when it is launched through the packaged
-passive runtime bundle and preserves its documented skill-facing command
-surface.
-ADR-0019 otherwise remains authoritative for local deterministic script
-ownership.
+The public adapter surface remains thin and unchanged:
+
+- `devcanon-runtime.sh runtime ...` launches
+  `node scripts/runtime/devcanon-runtime.mjs runtime ...`.
+- `devcanon-runtime.sh bootstrap ...` launches
+  `node scripts/runtime/devcanon-runtime.mjs bootstrap ...`.
+- `scripts/resolve-bash.mjs` remains the direct cross-platform resolver and
+  launches the same bundle with `runtime resolve-bash`.
+
+The `scripts/runtime/` location preserves the module-relative
+`../../config/runtime-config.json` catalog lookup. `contract`,
+`resolve-entrypoint`, trusted-bootstrap behavior, typed command schemas, error
+ownership, passive sibling resolution, and the no-global-CLI requirement remain
+unchanged. Runtime judgment stays outside the runtime: skill prose owns
+workflow policy, escalation, operator approval, review judgment, planning
+judgment, GitHub posting approval, and issue-routing policy.
+
+The runtime's Markdown parsing grammar and behavior, and the public runtime
+command semantics, remain unchanged by this artifact contract.
+
+Adapters retain the explicit `DEVCANON_RUNTIME_DIR` override for tests,
+diagnostics, and packaging validation. Without that override, they derive the
+logical sibling runtime from their script location and may try its physical
+resolved sibling for symlink installation. A missing compatible sibling fails
+before validation or state mutation. The override remains test, diagnostic, or
+packaging input until the fixed sibling bootstrap has structurally validated it;
+it must never locate or load that bootstrap.
+
+For trusted bootstrap, the thin adapter owns only closed command selection,
+fixed sibling bootstrap location, and exact argument forwarding. The bootstrap
+owns platform path grammar, raw traversal rejection, final-component `lstat`,
+physical `realpath` containment, and child dispatch. It rejects an exact raw
+`..` component before normalization and rejects a final symlink, junction, or
+reparse point before dereference. It proves the real entrypoint is within the
+real runtime directory by relative-path semantics rather than string prefix,
+then dispatches the independently validated platform target without ambient
+shell lookup.
+
+Runtime command groups continue to expose a machine-readable contract
+descriptor with the group name and an integer major version. Mutating consumers
+reject an unknown major before changing files or state. Managed content hashes
+prove transport identity, not command compatibility.
+
+Runtime-backed helpers may require the supported Node.js engine only when they
+explicitly opt into `devcanon-runtime`. That requirement neither applies to all
+skills nor requires an installed `devcanon` CLI.
+
+### Closed build manifest and canonical inputs
+
+Every generated root contains a closed `runtime-manifest.json` object with
+exactly these fields and no others:
+
+```json
+{
+  "schema": "devcanon-runtime-build/v1",
+  "devcanon_version": "2.0.0",
+  "artifact_origin": "source-build",
+  "input_sha256": "<64 lowercase hexadecimal characters>",
+  "bundle_sha256": "<64 lowercase hexadecimal characters>",
+  "licenses_sha256": "<64 lowercase hexadecimal characters>",
+  "node_target": "node24"
+}
+```
+
+`schema` is exactly `devcanon-runtime-build/v1`. `artifact_origin` is exactly
+`source-build` or `package`; `devcanon_version` equals the producing CLI/package
+version; `node_target` is exactly `node24`; and every digest is lowercase
+64-hex SHA-256 over exact bytes. Unknown, missing, empty, or mismatched fields,
+invalid origin, version or target, and stale or corrupt digest values are
+rejected before composition or transport.
+
+`input_sha256` covers production runtime source, bundle configuration and
+options, relevant root dependency declarations, the resolved production runtime
+dependency subgraph, and the pinned bundler resolution. It excludes timestamps,
+machine paths, unrelated lockfile records, and unrelated development
+dependencies.
+
+Each input record uses a repo-relative POSIX UTF-8 path and exact content
+bytes. Reserved virtual records are under `.devcanon-runtime/`. Records sort by
+unsigned UTF-8 path bytes. Canonical input bytes concatenate records framed as:
+
+1. unsigned 64-bit big-endian path-byte length;
+2. path bytes;
+3. unsigned 64-bit big-endian content-byte length; and
+4. content bytes.
+
+The virtual `.devcanon-runtime/production-dependencies.json` record is compact
+UTF-8 JSON followed by one LF. It contains an array sorted by package name and
+version; each object has keys in this exact order: `name`, `version`,
+`integrity`, and `dependencies`. `dependencies` contains resolved
+`name@version` strings sorted by unsigned UTF-8 bytes.
+
+The virtual `.devcanon-runtime/bundler.json` record uses the same closed,
+canonical JSON rules for bundler identity, version, `node24`, and normalized
+options. The selected implementation records its identity and normalized
+options through this input; this decision does not select that implementation.
+
+### Verification regimes and failures
+
+The explicit provider selects one verification regime:
+
+- **Source-build:** recompute `input_sha256`, then verify the bundle and
+  license digests. Missing, stale, or corrupt artifacts fail closed with
+  `pnpm run build:runtime` guidance.
+- **Package:** require `artifact_origin: "package"`, then verify the
+  DevCanon version, Node target, bundle digest, and license digest. A missing,
+  mismatched, or corrupt artifact fails closed as an incomplete package with
+  reinstall guidance. Package verification does not claim to reconstruct the
+  unavailable source or lockfile inputs.
+
+Provider identity and artifact integrity validate before package acceptance,
+source-driven render, `init` copy, or transport. Invalid manifests, omitted
+payload leaves, unverified or stale transport inputs, and a provider/artifact
+origin mismatch are failures, not fallback conditions. Installed `sync` only
+verifies and transports prebuilt artifacts; it never builds them or resolves
+ambient dependencies.
+
+### Package lifecycle, attribution, and isolation proof
+
+`prepack` is the sole package-production gate. It builds the normal CLI
+distribution, creates package-origin runtime artifacts, verifies them, and only
+then allows `npm pack` to collect files. No other package lifecycle hook may
+produce package artifacts. The npm tarball includes only the package-origin
+runtime root and must exclude source-build artifacts.
+
+`THIRD_PARTY_LICENSES` has one LF-normalized deterministic entry for every
+package in the bundler-reported production closure. Entries sort by package
+name and version, retain complete required license and notice text, and are not
+deduplicated across package identities. Missing attribution is a production and
+proof failure. The licenses artifact is included in the npm tarball and the
+managed composed runtime payload.
+
+A clean-checkout source-build and packed-tarball proof may use a package manager
+only to install the packed tarball and declared CLI dependencies into a
+temporary prefix. The execution phase removes package-manager and global-CLI access,
+uses the package-local CLI to initialize, validate, render, and sync a
+temporary library, then copies the resulting composed passive runtime to a
+second isolated directory. In that copied-runtime phase, wrapper, typed-runtime,
+resolver, and trusted-bootstrap execution must work without ambient
+`node_modules`. Manually assembling a test payload is not valid proof.
+
+For identical canonical inputs and the same `artifact_origin`, independent
+builds must emit byte-identical bundle, manifest, and licenses artifacts.
+Failure to reproduce byte-identical artifacts fails production and proof.
 
 ## Consequences
 
-- Shared deterministic behavior can move from duplicated shell state machines
-  into typed, directly tested runtime code.
-- Windows validation can focus on runtime-backed platform behavior instead of
-  repeating every POSIX shell-path test in Windows CI.
-- Render and sync transport the runtime as the fixed passive bundle before
-  runtime-backed consumer helpers can use it.
-- Installed runtime-backed skill bundles are no longer purely shell-only; they
-  must fail explicitly when Node.js or a compatible packaged runtime is
-  unavailable.
-- Passive behavior remains explicit: the runtime is reusable infrastructure,
-  not a new agent-facing workflow or source skill.
+- Rendered previews, installed helpers, source sibling copies, `init`, the
+  common CLI, the npm `bin`, setup shims, tarballs, and installers have a
+  single artifact architecture to consume, while their implementation remains
+  deferred.
+- The two provider regimes make source-development failures actionable without
+  making package installs depend on source-only inputs.
+- The composed full-tree identity preserves existing managed copy and symlink
+  behavior while preventing generated leaves from becoming authored authority.
+- A later implementation must add the dependent behavior-spec and executable
+  proof work without changing this ADR's ownership boundary or catalog
+  partition.
 
 ## Alternatives considered
 
-- Keep all helpers under owning skill `scripts/` directories. Rejected because
-  duplicated shell and PowerShell state machines increase drift risk and make
-  cross-platform validation slow and fragile.
-- Depend on the installed `devcanon` binary for helper behavior. Rejected
-  because managed skill bundles need version-aligned helper files and should
-  not rely on whichever CLI happens to be on `PATH`.
-- Copy compiled helper code into every consumer skill. Rejected because it
-  keeps packaging simple at the cost of duplicated support code and unclear
-  update boundaries.
-- Use Python as the shared runtime. Rejected because DevCanon already requires
-  Node.js, while Python availability and dependency management would add a
-  second runtime contract for installed helpers.
+- Keep a tracked JavaScript-and-`node_modules` payload. Rejected because it
+  conflates authored and generated custody, obscures package provenance, and
+  prevents a compact reproducibility contract.
+- Infer source or package provenance from the checkout or artifact path.
+  Rejected because ambient filesystem state is neither reliable nor a durable
+  authority boundary.
+- Allow package verification to recompute source-only inputs. Rejected because
+  packaged artifacts intentionally exclude those inputs and the resulting
+  check would make a false integrity claim.
+- Produce package artifacts from several lifecycle hooks. Rejected because a
+  single prepack gate is necessary to prove the tarball's runtime contents.
+- Duplicate runtime-catalog custody here. Rejected because ADR-0035 already
+  owns target-local catalog projection and a duplicate normative partition
+  would drift.
