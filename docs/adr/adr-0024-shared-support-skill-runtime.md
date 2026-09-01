@@ -112,11 +112,13 @@ payload accepted before transport rather than adding per-invocation hashing.
 
 Every provider root carries a closed manifest over the producing DevCanon
 version, provider origin, supported Node target, canonical inputs, bundle, and
-license artifact. Input identity includes the production runtime source,
-normalized bundler identity and options, relevant dependency declarations, the
-resolved production dependency closure, and the pinned bundler resolution. It
-excludes timestamps, machine paths, unrelated lockfile records, and unrelated
-development dependencies.
+license artifact. Input identity includes every first-party artifact-producing
+code and configuration input capable of affecting emitted artifacts or input
+selection, including the production runtime source, normalized bundler identity
+and options, relevant dependency declarations, the resolved production
+dependency closure, and the pinned bundler resolution. It excludes timestamps,
+machine paths, unrelated lockfile records, and unrelated development
+dependencies.
 
 Resolved package instances use unique, machine-independent lockfile identities
 including peer-resolution context. Dependency edges retain their complete

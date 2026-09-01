@@ -94,17 +94,21 @@ relevant check locally when generated output needs inspection.
 
 Source skill directories with `SKILL.md`, source agent definitions, source
 runtime TypeScript, renderer code, tests, and the install manifest remain
-authoritative for their respective contracts. Passive-runtime authority is
-partitioned by the
+authoritative for their respective contracts. The passive-runtime classification
+below is required provider-backed target behavior whose implementation is
+deferred. The current tracked fixed payload remains governed by existing
+contributor guidance until that implementation replaces it. Target
+passive-runtime authority is partitioned by the
 [artifact-custody matrix](passive-runtime.md#artifact-custody). For this
-mapping surface, render consumes the accepted provider and ADR-0035-owned
-catalog projection to create the generated composition. That composition is
-the only runtime tree a symlink installation may target; installed copy and
-symlink outputs remain derived managed representations whose identity comes
-from the manifest and install rules.
+mapping surface, render consumes the accepted provider and the selected source
+configuration's catalog projection under ADR-0035 to create the generated
+composition. That composition is the only runtime tree a symlink installation
+may target; installed copy and symlink outputs remain derived managed
+representations whose identity comes from the manifest and install rules.
 
-All generated provider artifacts, source-sibling copies, rendered previews,
-and installed outputs are uncommitted derived evidence. Package inclusion of
+Under that deferred provider-backed target behavior, all generated provider
+artifacts, source-sibling copies, rendered previews, and installed outputs are
+uncommitted derived evidence. Package inclusion of
 the package provider root does not make it a Git-tracked source artifact.
 [The passive-runtime behavior spec](passive-runtime.md) owns provider custody
 and composition behavior; ADR-0024 records the architecture rationale, and
