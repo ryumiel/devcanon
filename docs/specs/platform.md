@@ -85,9 +85,9 @@ For the same canonical inputs and `artifact_origin`, clean independent builds
 must produce byte-identical runtime bundle, manifest, and third-party-license
 artifacts. Failure of package preparation, package-local CLI execution, copied
 runtime isolation, attribution, or same-origin reproducibility fails the
-production or proof flow. ADR-0024 owns artifact construction and attribution;
-this section owns the platform-independent execution boundary and must not be
-weakened by an implementation choice.
+production or proof flow. Supported-platform acceptance consumes ADR-0024's
+sole isolation and reproducibility architecture ownership; implementation
+choices must not weaken that accepted contract.
 
 ### PR-review session creation
 

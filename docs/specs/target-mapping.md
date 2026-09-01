@@ -116,7 +116,8 @@ partitioned as follows:
 All generated provider artifacts, source-sibling copies, rendered previews,
 and installed outputs are uncommitted derived evidence. Package inclusion of
 the package provider root does not make it a Git-tracked source artifact.
-ADR-0024 owns provider custody and composition architecture; ADR-0035 owns
+ADR-0024 owns provider custody and composition architecture;
+[ADR-0035](../adr/adr-0035-installed-runtime-configuration-discovery.md) owns
 the catalog transported in that composition.
 
 Do not hand-edit generated preview files to change behavior. If generated

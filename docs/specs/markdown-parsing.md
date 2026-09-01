@@ -182,7 +182,8 @@ before composition and transport; this delivery requirement does not select a
 bundler, alter the GFM grammar, or add per-invocation hashing. The runtime
 artifact architecture and verification regimes remain owned by
 [ADR-0024](../adr/adr-0024-shared-support-skill-runtime.md), and the runtime
-catalog carried alongside it remains owned by ADR-0035.
+catalog carried alongside it remains owned by
+[ADR-0035](../adr/adr-0035-installed-runtime-configuration-discovery.md).
 
 The passive runtime may provide deterministic syntax facts or findings. The
 owning skill continues to own the public helper contract and all judgment or

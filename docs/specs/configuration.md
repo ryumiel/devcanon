@@ -108,8 +108,9 @@ provider/origin-mismatched artifact fails before the command continues; a
 source-build failure directs the operator to `pnpm run build:runtime`, and a
 package failure directs the operator to reinstall the package. The provider
 does not select source configuration, replace the catalog fallback, or change
-the catalog authority owned by ADR-0035. ADR-0024 owns generated-root custody
-and integrity details.
+the catalog authority owned by
+[ADR-0035](../adr/adr-0035-installed-runtime-configuration-discovery.md).
+ADR-0024 owns generated-root custody and integrity details.
 
 ### Catalog projection and runtime custody
 

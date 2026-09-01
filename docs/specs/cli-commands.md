@@ -61,8 +61,8 @@ Creates:
 
 Passive runtime support bundle behavior:
 
-- fresh libraries receive the authored passive runtime root at
-  `skills/devcanon-runtime/` and compose it with the accepted prebuilt
+- DevCanon composes the fresh-library runtime destination from the authored
+  passive runtime root at `skills/devcanon-runtime/` and the accepted prebuilt
   provider artifact
 - the current-format-only composed bundle contains the validated catalog,
   wrapper and resolver, plus the prebuilt ESM runtime, build manifest, and
