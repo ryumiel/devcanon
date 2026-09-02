@@ -1,19 +1,22 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
 );
 const { produceProvider, verifySourceProvider } = await import(
-  path.join(repositoryRoot, "dist/runtime-build/producer.js")
+  pathToFileURL(path.join(repositoryRoot, "dist/runtime-build/producer.js"))
+    .href
 );
 const { verifyProvider } = await import(
-  path.join(repositoryRoot, "dist/runtime-build/provider.js")
+  pathToFileURL(path.join(repositoryRoot, "dist/runtime-build/provider.js"))
+    .href
 );
 const { reconcileDevcanonRuntimeSubtree } = await import(
-  path.join(repositoryRoot, "dist/render/devcanon-runtime.js")
+  pathToFileURL(path.join(repositoryRoot, "dist/render/devcanon-runtime.js"))
+    .href
 );
 
 const packageJson = JSON.parse(

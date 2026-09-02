@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { cp, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -12,7 +12,7 @@ const isolatedCheckTimeoutMs = 55_000;
 const isolatedTestTimeoutMs = 60_000;
 
 async function createIsolatedCheckout(): Promise<string> {
-  const checkout = await mkdtemp(path.join(os.tmpdir(), "devcanon-runtime-"));
+  const checkout = await mkdtemp(path.join(os.tmpdir(), "devcanon-runtime-#"));
   const { stdout } = await execFileAsync("git", ["ls-files", "-z"], {
     cwd: repositoryRoot,
   });
@@ -45,6 +45,26 @@ async function runIsolatedRuntimeCheck(checkout: string) {
 }
 
 describe("runtime build checker", () => {
+  it("prepares the runtime before each independently invoked project test", async () => {
+    const packageJson = JSON.parse(
+      await readFile(path.resolve("package.json"), "utf8"),
+    ) as { scripts?: Record<string, string> };
+
+    expect(packageJson.scripts?.["test:prepare-runtime"]).toBe(
+      "pnpm run build:runtime",
+    );
+    for (const [scriptName, project] of Object.entries({
+      "test:unit": "unit",
+      "test:integration:posix": "integration-posix",
+      "test:integration:render-install": "integration-render-install",
+      "test:integration:windows": "integration-windows-helper",
+    })) {
+      expect(packageJson.scripts?.[scriptName]).toBe(
+        `pnpm run test:prepare-runtime && vitest run --project ${project}`,
+      );
+    }
+  });
+
   it("verifies the derived three-leaf source sibling without a node_modules closure", async () => {
     await expect(execFileAsync("node", [checker])).resolves.toMatchObject({
       stderr: "",
@@ -65,7 +85,7 @@ describe("runtime build checker", () => {
   });
 
   it(
-    "materializes and checks source runtime from a clean ignored-output state",
+    "materializes and checks source runtime from a clean URL-sensitive ignored-output state",
     async () => {
       const checkout = await createIsolatedCheckout();
       const sourceProvider = path.join(
