@@ -59,6 +59,7 @@
     "@types/diff": "^7.0.2",
     "@types/node": "^22.15.21",
     "cross-spawn": "^7.0.6",
+    "esbuild": "0.27.4",
     "markdownlint-cli2": "^0.18.1",
     "prettier": "^3.5.3",
     "smol-toml": "^1.6.1",
