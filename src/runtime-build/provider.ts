@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { constants } from "node:fs";
+import { constants, type Stats } from "node:fs";
 import { access, lstat, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 
@@ -25,9 +25,27 @@ export interface AcceptedProvider {
   readonly root: string;
   readonly origin: ArtifactOrigin;
   readonly manifest: Readonly<RuntimeManifest>;
-  readonly bundle: Buffer;
-  readonly manifestBytes: Buffer;
-  readonly licenses: Buffer;
+  readonly bundle: ImmutableProviderBytes;
+  readonly manifestBytes: ImmutableProviderBytes;
+  readonly licenses: ImmutableProviderBytes;
+}
+
+/** Captured bytes cannot be mutated through an accepted-provider snapshot. */
+export class ImmutableProviderBytes {
+  readonly #bytes: Buffer;
+
+  constructor(bytes: Uint8Array) {
+    this.#bytes = Buffer.from(bytes);
+    Object.freeze(this);
+  }
+
+  copy(): Buffer {
+    return Buffer.from(this.#bytes);
+  }
+
+  toString(encoding: BufferEncoding = "utf8"): string {
+    return this.#bytes.toString(encoding);
+  }
 }
 
 export interface VerifyProviderOptions {
@@ -52,7 +70,7 @@ const manifestKeys = [
 export async function verifyProvider(
   options: VerifyProviderOptions,
 ): Promise<AcceptedProvider> {
-  await assertClosedProviderRoot(options.root);
+  const rootIdentity = await assertClosedProviderRoot(options.root);
   const bundle = await readProviderLeaf(options.root, PROVIDER_LEAVES.bundle);
   const manifestBytes = await readProviderLeaf(
     options.root,
@@ -63,6 +81,7 @@ export async function verifyProvider(
     PROVIDER_LEAVES.licenses,
   );
   const manifest = parseManifest(manifestBytes);
+  await assertUnchangedRoot(options.root, rootIdentity);
 
   if (manifest.artifact_origin !== options.origin) {
     throw new Error(
@@ -100,9 +119,9 @@ export async function verifyProvider(
     root: options.root,
     origin: options.origin,
     manifest: Object.freeze({ ...manifest }),
-    bundle: Buffer.from(bundle),
-    manifestBytes: Buffer.from(manifestBytes),
-    licenses: Buffer.from(licenses),
+    bundle: new ImmutableProviderBytes(bundle),
+    manifestBytes: new ImmutableProviderBytes(manifestBytes),
+    licenses: new ImmutableProviderBytes(licenses),
   });
 }
 
@@ -110,7 +129,7 @@ export function sha256(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
-async function assertClosedProviderRoot(root: string): Promise<void> {
+async function assertClosedProviderRoot(root: string): Promise<StatsIdentity> {
   const rootStat = await lstat(root).catch(() => undefined);
   if (
     rootStat === undefined ||
@@ -124,7 +143,7 @@ async function assertClosedProviderRoot(root: string): Promise<void> {
   await access(root, constants.R_OK).catch(() => {
     throw new Error("runtime provider root must be readable");
   });
-  const entries = await readdir(root);
+  const entries = (await readdir(root)).sort();
   const expected = Object.values(PROVIDER_LEAVES).sort();
   if (
     entries.length !== expected.length ||
@@ -134,6 +153,7 @@ async function assertClosedProviderRoot(root: string): Promise<void> {
       "runtime provider root must contain exactly the required files",
     );
   }
+  return identity(rootStat);
 }
 
 async function readProviderLeaf(root: string, leaf: string): Promise<Buffer> {
@@ -151,7 +171,43 @@ async function readProviderLeaf(root: string, leaf: string): Promise<Buffer> {
   await access(leafPath, constants.R_OK).catch(() => {
     throw new Error(`runtime provider ${leaf} must be readable`);
   });
-  return readFile(leafPath);
+  const before = identity(leafStat);
+  const bytes = await readFile(leafPath);
+  const after = await lstat(leafPath).catch(() => undefined);
+  if (
+    after === undefined ||
+    !after.isFile() ||
+    after.isSymbolicLink() ||
+    !sameIdentity(before, identity(after))
+  ) {
+    throw new Error(`runtime provider ${leaf} changed while being read`);
+  }
+  return bytes;
+}
+
+type StatsIdentity = { dev: number; ino: number };
+
+function identity(value: { dev: number; ino: number }): StatsIdentity {
+  return { dev: value.dev, ino: value.ino };
+}
+
+function sameIdentity(left: StatsIdentity, right: StatsIdentity): boolean {
+  return left.dev === right.dev && left.ino === right.ino;
+}
+
+async function assertUnchangedRoot(
+  root: string,
+  before: StatsIdentity,
+): Promise<void> {
+  const after = await lstat(root).catch(() => undefined);
+  if (
+    after === undefined ||
+    !after.isDirectory() ||
+    after.isSymbolicLink() ||
+    !sameIdentity(before, identity(after))
+  ) {
+    throw new Error("runtime provider root changed while being read");
+  }
 }
 
 function parseManifest(bytes: Buffer): RuntimeManifest {

@@ -74,6 +74,31 @@ describe("verifyProvider", () => {
     ).resolves.toMatchObject({ origin: "package" });
   });
 
+  it("rejects an explicit origin mismatch", async () => {
+    const root = await createProvider("package");
+    await expect(
+      verifyProvider({
+        root,
+        origin: "source-build",
+        devcanonVersion: VERSION,
+        inputSha256: INPUT_SHA,
+      }),
+    ).rejects.toThrow(/origin/i);
+  });
+
+  it("does not expose mutable captured provider bytes", async () => {
+    const root = await createProvider("package");
+    const accepted = await verifyProvider({
+      root,
+      origin: "package",
+      devcanonVersion: VERSION,
+    });
+    const copy = accepted.bundle.copy();
+    copy[0] = 0;
+
+    expect(accepted.bundle.toString()).toBe("export {};\n");
+  });
+
   it("rejects changed bundle bytes with a retained digest", async () => {
     const root = await createProvider("package");
     await writeFile(

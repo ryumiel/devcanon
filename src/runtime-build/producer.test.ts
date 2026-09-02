@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   canonicalInputSha256,
   canonicalizeDependencyProjection,
+  extractPnpmProjection,
   renderThirdPartyLicenses,
+  verifySourceProvider,
 } from "./producer.js";
 
 describe("runtime provider canonical production", () => {
@@ -28,6 +30,49 @@ describe("runtime provider canonical production", () => {
         { path: "z", content: Buffer.from("1") },
       ]),
     );
+  });
+
+  it("preserves peer identities, aliases, optional edges, and the root importer from lock data", () => {
+    const projection = extractPnpmProjection(`
+importers:
+  .:
+    dependencies:
+      alias:
+        version: real@1.0.0(peer@1.0.0)
+packages:
+  real@1.0.0(peer@1.0.0):
+    resolution: {integrity: sha512-real}
+  peer@1.0.0:
+    resolution: {integrity: sha512-peer}
+snapshots:
+  real@1.0.0(peer@1.0.0):
+    optionalDependencies:
+      peer: 1.0.0
+  peer@1.0.0: {}
+`);
+
+    expect(projection.packages.map((item) => item.id)).toEqual([
+      "peer@1.0.0",
+      "real@1.0.0(peer@1.0.0)",
+    ]);
+    expect(projection.root).toEqual([
+      {
+        key: "alias",
+        name: "real",
+        alias: "alias",
+        kind: "dependencies",
+        target_id: "real@1.0.0(peer@1.0.0)",
+      },
+    ]);
+    expect(projection.packages[1].dependencies).toEqual([
+      {
+        key: "peer",
+        name: "peer",
+        alias: "peer",
+        kind: "optionalDependencies",
+        target_id: "peer@1.0.0",
+      },
+    ]);
   });
 
   it("rejects duplicate canonical records and duplicate complete dependency edges", () => {
@@ -96,5 +141,15 @@ describe("runtime provider canonical production", () => {
     expect(() => renderThirdPartyLicenses(projection, new Map())).toThrow(
       /missing attribution/i,
     );
+    expect(() =>
+      renderThirdPartyLicenses(
+        projection,
+        new Map([
+          ["same@1(peer@a)", "A"],
+          ["same@1(peer@b)", "B"],
+          ["unknown@1", "not allowed"],
+        ]),
+      ),
+    ).toThrow(/unknown attribution/i);
   });
 });

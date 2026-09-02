@@ -8,7 +8,6 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { build, version as esbuildVersion } from "esbuild";
 import { parse as parseYaml } from "yaml";
@@ -39,6 +38,11 @@ export interface ProductionPackageInstance {
   version: string;
   integrity: string;
   dependencies: readonly DependencyEdge[];
+}
+
+export interface ProductionDependencyProjection {
+  root: readonly DependencyEdge[];
+  packages: readonly ProductionPackageInstance[];
 }
 
 export interface ProduceProviderOptions {
@@ -77,7 +81,11 @@ export function canonicalizeDependencyProjection(
 ): ProductionPackageInstance[] {
   const ids = new Set<string>();
   const projected = instances.map((instance) => {
+    const keys = Object.keys(instance).sort();
+    const expected = ["dependencies", "id", "integrity", "name", "version"];
     if (
+      keys.length !== expected.length ||
+      keys.some((key, index) => key !== expected[index]) ||
       !isNonemptyString(instance.id) ||
       !isNonemptyString(instance.name) ||
       !isNonemptyString(instance.version) ||
@@ -89,22 +97,8 @@ export function canonicalizeDependencyProjection(
     ids.add(instance.id);
     const edgeBytes = new Set<string>();
     const edgeIdentities = new Set<string>();
-    const dependencies = [...instance.dependencies].sort((left, right) =>
-      Buffer.compare(
-        Buffer.from(JSON.stringify(left)),
-        Buffer.from(JSON.stringify(right)),
-      ),
-    );
+    const dependencies = canonicalizeDependencyEdges(instance.dependencies);
     for (const edge of dependencies) {
-      if (
-        !isNonemptyString(edge.key) ||
-        !isNonemptyString(edge.name) ||
-        !isNonemptyString(edge.alias) ||
-        !isNonemptyString(edge.kind) ||
-        !isNonemptyString(edge.target_id)
-      ) {
-        throw new Error("incomplete dependency edge");
-      }
       const serialized = JSON.stringify(edge);
       const identity = `${edge.kind}\u0000${edge.key}\u0000${edge.name}\u0000${edge.alias}`;
       if (edgeBytes.has(serialized) || edgeIdentities.has(identity)) {
@@ -141,6 +135,12 @@ export function renderThirdPartyLicenses(
   attribution: ReadonlyMap<string, string>,
 ): Buffer {
   const ordered = canonicalizeDependencyProjection(instances);
+  const known = new Set(ordered.map((instance) => instance.id));
+  for (const id of attribution.keys()) {
+    if (!known.has(id)) {
+      throw new Error(`unknown attribution for package instance: ${id}`);
+    }
+  }
   const entries = ordered.map((instance) => {
     const text = attribution.get(instance.id);
     if (text === undefined || text.length === 0) {
@@ -194,6 +194,7 @@ export async function produceProvider(
     options.repositoryRoot,
     options.devcanonVersion,
     instances,
+    result.metafile ?? {},
   );
   const inputSha256 = canonicalInputSha256(records);
   const licenses = renderThirdPartyLicenses(
@@ -209,8 +210,12 @@ export async function produceProvider(
     licenses_sha256: sha256(licenses),
     node_target: "node24",
   } as const;
+  await mkdir(path.dirname(destination), { recursive: true });
   const stage = await mkdtemp(
-    path.join(os.tmpdir(), "devcanon-runtime-stage-"),
+    path.join(
+      path.dirname(destination),
+      `.${path.basename(destination)}.stage-`,
+    ),
   );
   try {
     await writeFile(path.join(stage, PROVIDER_LEAVES.bundle), bundle);
@@ -225,26 +230,13 @@ export async function produceProvider(
       devcanonVersion: options.devcanonVersion,
       inputSha256,
     });
-    await mkdir(path.dirname(destination), { recursive: true });
-    const replacement = `${destination}.next`;
-    await rm(replacement, { recursive: true, force: true });
-    await rename(stage, replacement);
-    const prior = `${destination}.prior`;
-    await rm(prior, { recursive: true, force: true });
-    let movedPrior = false;
-    try {
-      await rename(destination, prior).catch((error: NodeJS.ErrnoException) => {
-        if (error.code !== "ENOENT") throw error;
-      });
-      movedPrior = true;
-      await rename(replacement, destination);
-      await rm(prior, { recursive: true, force: true });
-    } catch (error) {
-      if (movedPrior) {
-        await rename(prior, destination).catch(() => undefined);
-      }
-      throw error;
-    }
+    await publishVerifiedProvider({
+      stage,
+      destination,
+      origin: options.origin,
+      devcanonVersion: options.devcanonVersion,
+      inputSha256,
+    });
   } catch (error) {
     await rm(stage, { recursive: true, force: true });
     throw error;
@@ -257,13 +249,94 @@ export async function produceProvider(
   });
 }
 
+/** Source-only acceptance recomputes the repository identity; callers cannot attest it. */
+export async function verifySourceProvider(options: {
+  repositoryRoot: string;
+  root: string;
+  devcanonVersion: string;
+}): Promise<AcceptedProvider> {
+  const result = await build({
+    absWorkingDir: options.repositoryRoot,
+    entryPoints: ["src/runtime/bundle-entry.ts"],
+    bundle: true,
+    format: "esm",
+    platform: "node",
+    target: "node24",
+    outfile: "devcanon-runtime.mjs",
+    write: false,
+    metafile: true,
+    legalComments: "none",
+    logLevel: "silent",
+  });
+  const bundled = await collectBundledInstances(
+    options.repositoryRoot,
+    result.metafile ?? {},
+  );
+  const inputSha256 = canonicalInputSha256(
+    await collectCanonicalInputs(
+      options.repositoryRoot,
+      options.devcanonVersion,
+      bundled.map(({ packageRoot: _packageRoot, ...instance }) => instance),
+      result.metafile ?? {},
+    ),
+  );
+  return verifyProvider({
+    root: options.root,
+    origin: "source-build",
+    devcanonVersion: options.devcanonVersion,
+    inputSha256,
+  });
+}
+
+async function publishVerifiedProvider(options: {
+  stage: string;
+  destination: string;
+  origin: ArtifactOrigin;
+  devcanonVersion: string;
+  inputSha256: string;
+}): Promise<void> {
+  const backup = `${options.stage}.prior`;
+  let hadPrior = false;
+  try {
+    await rename(options.destination, backup);
+    hadPrior = true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  try {
+    await rename(options.stage, options.destination);
+    await verifyProvider({
+      root: options.destination,
+      origin: options.origin,
+      devcanonVersion: options.devcanonVersion,
+      inputSha256: options.inputSha256,
+    });
+    if (hadPrior) await rm(backup, { recursive: true, force: true });
+  } catch (error) {
+    if (!hadPrior) throw error;
+    const failed = `${options.stage}.failed`;
+    try {
+      await rename(options.destination, failed);
+      await rename(backup, options.destination);
+    } catch (restoreError) {
+      throw new AggregateError(
+        [error, restoreError],
+        "runtime provider publication failed and prior provider could not be restored",
+      );
+    }
+    throw error;
+  }
+}
+
 async function collectCanonicalInputs(
   repositoryRoot: string,
   devcanonVersion: string,
   instances: readonly ProductionPackageInstance[],
+  metafile: { inputs?: Record<string, unknown> },
 ): Promise<CanonicalInputRecord[]> {
-  const sourceFiles = await listRuntimeSourceFiles(
-    path.join(repositoryRoot, "src", "runtime"),
+  const sourceFiles = await listBundledFirstPartySources(
+    repositoryRoot,
+    metafile,
   );
   const records = await Promise.all(
     sourceFiles.map(async (absolutePath) => ({
@@ -276,11 +349,35 @@ async function collectCanonicalInputs(
   );
   const packageJson = JSON.parse(
     await readFile(path.join(repositoryRoot, "package.json"), "utf8"),
-  ) as { dependencies?: Record<string, string> };
+  ) as {
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+  };
+  const projection = extractPnpmProjection(
+    await readFile(path.join(repositoryRoot, "pnpm-lock.yaml"), "utf8"),
+  );
+  const selected = selectProjection(projection, instances);
+  const esbuild = projection.packages.find(
+    (item) => item.name === "esbuild" && item.version === esbuildVersion,
+  );
+  if (
+    packageJson.devDependencies?.esbuild !== "0.27.4" ||
+    esbuild === undefined
+  ) {
+    throw new Error(
+      "runtime producer requires the exact pinned esbuild lock resolution",
+    );
+  }
+  records.push({
+    path: "src/runtime-build/producer.ts",
+    content: await readFile(
+      path.join(repositoryRoot, "src", "runtime-build", "producer.ts"),
+    ),
+  });
   records.push({
     path: ".devcanon-runtime/bundler.json",
     content: Buffer.from(
-      `${JSON.stringify({ name: "esbuild", version: esbuildVersion, target: "node24", format: "esm", platform: "node" })}\n`,
+      `${JSON.stringify({ name: "esbuild", version: esbuildVersion, entrypoint: "src/runtime/bundle-entry.ts", bundle: true, format: "esm", platform: "node", target: "node24", outfile: "devcanon-runtime.mjs", write: false, metafile: true, legalComments: "none", logLevel: "silent" })}\n`,
     ),
   });
   records.push({
@@ -291,33 +388,72 @@ async function collectCanonicalInputs(
   });
   records.push({
     path: ".devcanon-runtime/root-production-dependencies.json",
-    content: Buffer.from(`${JSON.stringify(packageJson.dependencies ?? {})}\n`),
+    content: Buffer.from(
+      `${JSON.stringify(
+        Object.fromEntries(
+          selected.root.map((edge) => [
+            edge.alias,
+            packageJson.dependencies?.[edge.alias] ?? null,
+          ]),
+        ),
+      )}\n`,
+    ),
   });
   records.push({
     path: ".devcanon-runtime/production-dependencies.json",
-    content: Buffer.from(
-      `${JSON.stringify(canonicalizeDependencyProjection(instances))}\n`,
-    ),
+    content: Buffer.from(`${JSON.stringify(selected)}\n`),
+  });
+  records.push({
+    path: ".devcanon-runtime/esbuild-resolution.json",
+    content: Buffer.from(`${JSON.stringify(esbuild)}\n`),
   });
   return records;
 }
 
-async function listRuntimeSourceFiles(root: string): Promise<string[]> {
-  const { readdir } = await import("node:fs/promises");
-  const entries = await readdir(root, { withFileTypes: true });
-  const nested = await Promise.all(
-    entries.map(async (entry) => {
-      const item = path.join(root, entry.name);
-      if (entry.isDirectory()) return listRuntimeSourceFiles(item);
-      return entry.isFile() &&
-        entry.name.endsWith(".ts") &&
-        !entry.name.endsWith(".test.ts") &&
-        !entry.name.endsWith(".integration.test.ts")
-        ? [item]
-        : [];
-    }),
+async function listBundledFirstPartySources(
+  repositoryRoot: string,
+  metafile: { inputs?: Record<string, unknown> },
+): Promise<string[]> {
+  return Object.keys(metafile.inputs ?? {})
+    .map((input) => path.resolve(repositoryRoot, input))
+    .filter(
+      (absolute) =>
+        isWithin(repositoryRoot, absolute) &&
+        !path
+          .relative(repositoryRoot, absolute)
+          .split(path.sep)
+          .includes("node_modules"),
+    )
+    .sort((left, right) =>
+      Buffer.compare(Buffer.from(left), Buffer.from(right)),
+    );
+}
+
+function selectProjection(
+  projection: ProductionDependencyProjection,
+  instances: readonly ProductionPackageInstance[],
+): ProductionDependencyProjection {
+  const ids = new Set(instances.map((instance) => instance.id));
+  const packages = projection.packages
+    .filter((item) => ids.has(item.id))
+    .map((item) => ({
+      ...item,
+      dependencies: item.dependencies.filter((edge) => ids.has(edge.target_id)),
+    }));
+  const root = projection.root.filter((edge) => ids.has(edge.target_id));
+  return Object.freeze({
+    root: canonicalizeDependencyEdges(root),
+    packages: canonicalizeDependencyProjection(packages),
+  });
+}
+
+function isWithin(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
+  return (
+    relative !== ".." &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
   );
-  return nested.flat();
 }
 
 interface BundledPackageInstance extends ProductionPackageInstance {
@@ -331,7 +467,7 @@ async function collectBundledInstances(
   const packageRoots = new Set<string>();
   for (const input of Object.keys(metafile.inputs ?? {})) {
     const absolute = path.resolve(repositoryRoot, input);
-    const root = await nearestPackageRoot(absolute);
+    const root = await nearestPackageRoot(repositoryRoot, absolute);
     if (root !== undefined) packageRoots.add(root);
   }
   const packages = await Promise.all(
@@ -357,84 +493,236 @@ async function collectBundledInstances(
 }
 
 type PnpmLock = {
+  importers?: Record<string, PnpmImporter>;
   packages?: Record<string, { resolution?: { integrity?: string } }>;
-  snapshots?: Record<string, { dependencies?: Record<string, string> }>;
+  snapshots?: Record<
+    string,
+    {
+      dependencies?: Record<string, string>;
+      optionalDependencies?: Record<string, string>;
+    }
+  >;
 };
+
+type PnpmImporter = {
+  dependencies?: Record<string, PnpmReference>;
+  optionalDependencies?: Record<string, PnpmReference>;
+};
+
+type PnpmReference = string | { version?: string };
+
+/**
+ * Extracts the lockfile's canonical instance records without depending on
+ * node_modules paths. Callers select the relevant closure before serializing.
+ */
+export function extractPnpmProjection(
+  lockfileContents: string,
+): ProductionDependencyProjection {
+  const lock = parseYaml(lockfileContents) as PnpmLock;
+  const packages = lock.packages ?? {};
+  const instanceIds = Object.keys(lock.snapshots ?? {});
+  const records: ProductionPackageInstance[] = (
+    instanceIds.length > 0 ? instanceIds : Object.keys(packages)
+  ).map((id) => {
+    const parsed = parsePackageIdentity(id);
+    const packageId = `${parsed.name}@${parsed.version}`;
+    const integrity =
+      packages[packageId]?.resolution?.integrity ??
+      packages[id]?.resolution?.integrity;
+    if (integrity === undefined) {
+      throw new Error(`missing lockfile integrity for package: ${id}`);
+    }
+    return {
+      id,
+      name: parsed.name,
+      version: parsed.version,
+      integrity,
+      dependencies: [],
+    } satisfies ProductionPackageInstance;
+  });
+  const knownIds = new Set(records.map((record) => record.id));
+  for (const record of records) {
+    const snapshot = lock.snapshots?.[record.id] ?? {};
+    const dependencies = [
+      ["dependencies", snapshot.dependencies],
+      ["optionalDependencies", snapshot.optionalDependencies],
+    ] as const;
+    record.dependencies = canonicalizeDependencyEdges(
+      dependencies.flatMap(([kind, entries]) =>
+        Object.entries(entries ?? {}).map(([alias, target]) =>
+          resolveLockEdge(record.id, alias, target, kind, knownIds),
+        ),
+      ),
+    );
+  }
+  const canonical = canonicalizeDependencyProjection(records);
+  const root = canonicalizeDependencyEdges(
+    readImporterEdges(lock.importers?.["."] ?? {}, knownIds),
+  );
+  return Object.freeze({ root, packages: canonical });
+}
+
+function parsePackageIdentity(id: string): { name: string; version: string } {
+  const separator = id.startsWith("@") ? id.indexOf("@", 1) : id.indexOf("@");
+  if (separator <= 0)
+    throw new Error(`invalid lockfile package identity: ${id}`);
+  const name = id.slice(0, separator);
+  const version = id.slice(separator + 1).split("(")[0];
+  if (!name || !version)
+    throw new Error(`invalid lockfile package identity: ${id}`);
+  return { name, version };
+}
+
+function readImporterEdges(
+  importer: PnpmImporter,
+  knownIds: ReadonlySet<string>,
+): DependencyEdge[] {
+  return (
+    [
+      ["dependencies", importer.dependencies],
+      ["optionalDependencies", importer.optionalDependencies],
+    ] as const
+  ).flatMap(([kind, entries]) =>
+    Object.entries(entries ?? {}).map(([alias, reference]) =>
+      resolveLockEdge("root importer", alias, reference, kind, knownIds),
+    ),
+  );
+}
+
+function resolveLockEdge(
+  from: string,
+  alias: string,
+  reference: PnpmReference,
+  kind: string,
+  knownIds: ReadonlySet<string>,
+): DependencyEdge {
+  const target = typeof reference === "string" ? reference : reference.version;
+  if (!isNonemptyString(target)) {
+    throw new Error(`unresolved lockfile dependency edge: ${from} -> ${alias}`);
+  }
+  const targetIdentity = isQualifiedLockIdentity(target)
+    ? target
+    : `${alias}@${target}`;
+  const candidates = [...knownIds].filter(
+    (id) => id === targetIdentity || id.startsWith(`${targetIdentity}(`),
+  );
+  if (candidates.length !== 1) {
+    throw new Error(
+      `unresolved lockfile dependency edge: ${from} -> ${targetIdentity}`,
+    );
+  }
+  return {
+    key: alias,
+    name: parsePackageIdentity(candidates[0]).name,
+    alias,
+    kind,
+    target_id: candidates[0],
+  };
+}
+
+function isQualifiedLockIdentity(value: string): boolean {
+  return value.startsWith("@")
+    ? /^@[^/]+\/[^@]+@/u.test(value)
+    : /^[^@()]+@/u.test(value);
+}
+
+function canonicalizeDependencyEdges(
+  edges: readonly DependencyEdge[],
+): DependencyEdge[] {
+  return [...edges]
+    .map((edge) => {
+      const keys = Object.keys(edge).sort();
+      const expected = ["alias", "key", "kind", "name", "target_id"];
+      if (
+        keys.length !== expected.length ||
+        keys.some((key, index) => key !== expected[index]) ||
+        !isNonemptyString(edge.key) ||
+        !isNonemptyString(edge.name) ||
+        !isNonemptyString(edge.alias) ||
+        !isNonemptyString(edge.kind) ||
+        !isNonemptyString(edge.target_id)
+      ) {
+        throw new Error("incomplete dependency edge");
+      }
+      return {
+        key: edge.key,
+        name: edge.name,
+        alias: edge.alias,
+        kind: edge.kind,
+        target_id: edge.target_id,
+      };
+    })
+    .sort((left, right) =>
+      Buffer.compare(
+        Buffer.from(JSON.stringify(left)),
+        Buffer.from(JSON.stringify(right)),
+      ),
+    );
+}
 
 async function resolveLockInstances(
   repositoryRoot: string,
   packages: readonly BundledPackageInstance[],
 ): Promise<BundledPackageInstance[]> {
-  const lock = parseYaml(
+  const projection = extractPnpmProjection(
     await readFile(path.join(repositoryRoot, "pnpm-lock.yaml"), "utf8"),
-  ) as PnpmLock;
-  const lockPackages = lock.packages ?? {};
+  );
   const idsByNameAndVersion = new Map<string, string>();
   for (const item of packages) {
     const prefix = `${item.name}@${item.version}`;
-    const candidates = Object.keys(lockPackages).filter(
-      (id) => id === prefix || id.startsWith(`${prefix}(`),
-    );
+    const candidates = projection.packages
+      .map((entry) => entry.id)
+      .filter((id) => id === prefix || id.startsWith(`${prefix}(`));
     if (candidates.length !== 1) {
       throw new Error(
         `ambiguous lockfile identity for bundled package: ${prefix}`,
       );
     }
     const [id] = candidates;
-    const integrity = lockPackages[id]?.resolution?.integrity;
-    if (typeof integrity !== "string" || integrity.length === 0) {
-      throw new Error(`missing lockfile integrity for bundled package: ${id}`);
-    }
     idsByNameAndVersion.set(prefix, id);
   }
   const knownIds = new Set(idsByNameAndVersion.values());
   return packages.map((item) => {
     const id = idsByNameAndVersion.get(`${item.name}@${item.version}`);
     if (id === undefined) throw new Error("missing resolved package identity");
-    const dependencies = Object.entries(
-      lock.snapshots?.[id]?.dependencies ?? {},
-    ).flatMap(([key, version]) => {
-      const candidates = [...knownIds].filter(
-        (targetId) =>
-          targetId === `${key}@${version}` ||
-          targetId.startsWith(`${key}@${version}(`),
-      );
-      if (candidates.length === 0) return [];
-      if (candidates.length > 1) {
-        throw new Error(
-          `ambiguous lockfile dependency edge: ${id} -> ${key}@${version}`,
-        );
-      }
-      return [
-        {
-          key,
-          name: key,
-          alias: key,
-          kind: "dependencies",
-          target_id: candidates[0],
-        },
-      ];
-    });
+    const record = projection.packages.find((entry) => entry.id === id);
+    if (record === undefined)
+      throw new Error("missing resolved lockfile package");
+    const dependencies = record.dependencies.filter((edge) =>
+      knownIds.has(edge.target_id),
+    );
     return {
       ...item,
       id,
-      integrity: lockPackages[id]?.resolution?.integrity ?? "",
+      integrity: record.integrity,
       dependencies,
     };
   });
 }
 
-async function nearestPackageRoot(file: string): Promise<string | undefined> {
+async function nearestPackageRoot(
+  repositoryRoot: string,
+  file: string,
+): Promise<string | undefined> {
   let cursor = path.dirname(file);
-  while (cursor !== path.dirname(cursor)) {
+  while (isWithin(repositoryRoot, cursor)) {
     const packageJson = path.join(cursor, "package.json");
     try {
       await readFile(packageJson);
-      if (cursor.includes(`${path.sep}node_modules${path.sep}`)) return cursor;
+      if (
+        path
+          .relative(repositoryRoot, cursor)
+          .split(path.sep)
+          .includes("node_modules")
+      ) {
+        return cursor;
+      }
     } catch {
       // Continue until the repository boundary or filesystem root.
     }
-    cursor = path.dirname(cursor);
+    const parent = path.dirname(cursor);
+    if (parent === cursor) break;
+    cursor = parent;
   }
   return undefined;
 }

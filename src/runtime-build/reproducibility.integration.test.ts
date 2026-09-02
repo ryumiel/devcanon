@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanupTempDir, createTempDir } from "../__test-helpers__/fixtures.js";
-import { produceProvider } from "./producer.js";
+import { produceProvider, verifySourceProvider } from "./producer.js";
 
 const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -33,6 +33,13 @@ describe("runtime provider reproducibility", () => {
       devcanonVersion: "2.0.0",
       destinationRoot: second,
     });
+    await expect(
+      verifySourceProvider({
+        repositoryRoot,
+        root: first,
+        devcanonVersion: "2.0.0",
+      }),
+    ).resolves.toMatchObject({ origin: "source-build" });
 
     await expect(readProviderBytes(first)).resolves.toEqual(
       await readProviderBytes(second),

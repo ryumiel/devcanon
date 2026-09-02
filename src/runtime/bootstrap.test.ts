@@ -18,23 +18,11 @@ import {
 
 async function writeRuntime(root: string, name = "runtime"): Promise<string> {
   const runtime = path.join(root, name);
-  const scripts = path.join(runtime, "scripts");
-  const typedRuntime = path.join(scripts, "runtime");
+  const typedRuntime = path.join(runtime, "scripts", "runtime");
   await mkdir(typedRuntime, { recursive: true });
-  const entrypoint = path.join(scripts, "devcanon-runtime.sh");
+  const entrypoint = path.join(typedRuntime, "devcanon-runtime.mjs");
   await writeFile(
     entrypoint,
-    [
-      "#!/bin/bash",
-      'printf \'%s\\0\' "$@" >"$DEVCANON_TEST_ARGUMENTS"',
-      'printf \'%s\' "$DEVCANON_RUNTIME_DIR" >"$DEVCANON_TEST_OVERRIDE"',
-      "exit 23",
-      "",
-    ].join("\n"),
-  );
-  await chmod(entrypoint, 0o755);
-  await writeFile(
-    path.join(typedRuntime, "cli.js"),
     [
       'import { writeFileSync } from "node:fs";',
       'writeFileSync(process.env.DEVCANON_TEST_ARGUMENTS, process.argv.slice(2).join("\\0") + "\\0");',
@@ -114,8 +102,13 @@ async function writeSigquitRuntime(root: string): Promise<{
   const descendantForwarded = path.join(root, "descendant-forwarded");
   const descendantReady = path.join(root, "descendant-ready");
   const childPid = path.join(root, "child-pid");
-  const entrypoint = path.join(runtime, "scripts", "devcanon-runtime.sh");
-  const runtimeProgram = path.join(runtime, "scripts", "sigquit-runtime.cjs");
+  const entrypoint = path.join(
+    runtime,
+    "scripts",
+    "runtime",
+    "devcanon-runtime.mjs",
+  );
+  const runtimeProgram = entrypoint;
   const descendantProgram = [
     'const { writeFileSync } = require("node:fs");',
     "let count = 0;",
@@ -131,8 +124,8 @@ async function writeSigquitRuntime(root: string): Promise<{
   await writeFile(
     runtimeProgram,
     [
-      'const { spawn } = require("node:child_process");',
-      'const { existsSync, writeFileSync } = require("node:fs");',
+      'import { spawn } from "node:child_process";',
+      'import { existsSync, writeFileSync } from "node:fs";',
       `const descendant = spawn(process.execPath, ["-e", ${JSON.stringify(descendantProgram)}], {`,
       "  env: process.env,",
       '  stdio: "ignore",',
@@ -168,15 +161,6 @@ async function writeSigquitRuntime(root: string): Promise<{
       "",
     ].join("\n"),
   );
-  await writeFile(
-    entrypoint,
-    [
-      "#!/bin/bash",
-      `exec ${JSON.stringify(process.execPath)} ${JSON.stringify(runtimeProgram)}`,
-      "",
-    ].join("\n"),
-  );
-  await chmod(entrypoint, 0o755);
   return {
     runtime,
     ready,
@@ -190,30 +174,23 @@ async function writeSigquitRuntime(root: string): Promise<{
 async function writeExecutionSentinels(
   runtime: string,
   root: string,
-): Promise<{ shell: string; typed: string }> {
-  const shell = path.join(root, "shell-executed");
-  const typed = path.join(root, "typed-executed");
-  const shellEntrypoint = path.join(runtime, "scripts", "devcanon-runtime.sh");
-  await writeFile(
-    shellEntrypoint,
-    `#!/bin/bash\nprintf shell >${JSON.stringify(shell)}\n`,
+): Promise<{ bundle: string }> {
+  const bundle = path.join(root, "bundle-executed");
+  const entrypoint = path.join(
+    runtime,
+    "scripts",
+    "runtime",
+    "devcanon-runtime.mjs",
   );
-  await chmod(shellEntrypoint, 0o755);
   await writeFile(
-    path.join(runtime, "scripts", "runtime", "cli.js"),
-    `import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(typed)}, "typed");\n`,
+    entrypoint,
+    `import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(bundle)}, "bundle");\n`,
   );
-  return { shell, typed };
+  return { bundle };
 }
 
-async function expectNoExecution(sentinels: {
-  shell: string;
-  typed: string;
-}): Promise<void> {
-  await expect(readFile(sentinels.shell, "utf8")).rejects.toMatchObject({
-    code: "ENOENT",
-  });
-  await expect(readFile(sentinels.typed, "utf8")).rejects.toMatchObject({
+async function expectNoExecution(sentinels: { bundle: string }): Promise<void> {
+  await expect(readFile(sentinels.bundle, "utf8")).rejects.toMatchObject({
     code: "ENOENT",
   });
 }
@@ -222,11 +199,13 @@ describe("trusted runtime bootstrap", () => {
   it("validates a real runtime and dispatches exact child arguments with the raw override", async () => {
     const root = await createTempDir();
     try {
-      const runtime = await writeRuntime(root, "runtime\\literal");
+      const runtime = await writeRuntime(root);
       const rawOverride = `${runtime}/.`;
       const validated = await validateRuntimeOverride(rawOverride);
       expect(validated.rawPath).toBe(rawOverride);
-      expect(validated.entrypoint).toContain("devcanon-runtime.sh");
+      expect(validated.entrypoint).toContain(
+        "scripts/runtime/devcanon-runtime.mjs",
+      );
 
       const originalOverride = process.env.DEVCANON_RUNTIME_DIR;
       const originalArguments = process.env.DEVCANON_TEST_ARGUMENTS;
@@ -239,11 +218,7 @@ describe("trusted runtime bootstrap", () => {
           dispatchRuntimeOverride(rawOverride, ["derive-path", "two words"]),
         ).resolves.toEqual({ exitCode: 23, signal: null });
         expect(await readFile(process.env.DEVCANON_TEST_ARGUMENTS)).toEqual(
-          Buffer.from(
-            process.platform === "win32"
-              ? "derive-path\0two words\0"
-              : "runtime\0derive-path\0two words\0",
-          ),
+          Buffer.from("runtime\0derive-path\0two words\0"),
         );
         expect(await readFile(process.env.DEVCANON_TEST_OVERRIDE, "utf8")).toBe(
           rawOverride,
@@ -270,10 +245,9 @@ describe("trusted runtime bootstrap", () => {
       const runtime = await writeRuntime(root);
       const sentinel = path.join(root, "sentinel");
       await writeFile(
-        path.join(runtime, "scripts", "devcanon-runtime.sh"),
-        `#!/usr/bin/env bash\nprintf entered >${JSON.stringify(sentinel)}\n`,
+        path.join(runtime, "scripts", "runtime", "devcanon-runtime.mjs"),
+        `import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(sentinel)}, "entered");\n`,
       );
-      await chmod(path.join(runtime, "scripts", "devcanon-runtime.sh"), 0o755);
 
       await expect(
         dispatchRuntimeOverride(`${runtime}/scripts/..`, ["derive-path"]),
@@ -306,13 +280,14 @@ describe("trusted runtime bootstrap", () => {
     const root = await createTempDir();
     try {
       const runtime = await writeRuntime(root);
-      const external = path.join(root, "external.sh");
-      await writeFile(external, "#!/usr/bin/env bash\n");
-      await chmod(external, 0o755);
-      await rm(path.join(runtime, "scripts", "devcanon-runtime.sh"));
+      const external = path.join(root, "external.mjs");
+      await writeFile(external, "export {};\n");
+      await rm(
+        path.join(runtime, "scripts", "runtime", "devcanon-runtime.mjs"),
+      );
       await symlink(
         external,
-        path.join(runtime, "scripts", "devcanon-runtime.sh"),
+        path.join(runtime, "scripts", "runtime", "devcanon-runtime.mjs"),
       );
 
       await expect(validateRuntimeOverride(runtime)).rejects.toThrow(
@@ -329,11 +304,11 @@ describe("trusted runtime bootstrap", () => {
       const runtime = await writeRuntime(root);
       const externalScripts = path.join(root, "external-scripts");
       await mkdir(externalScripts);
+      await mkdir(path.join(externalScripts, "runtime"));
       await writeFile(
-        path.join(externalScripts, "devcanon-runtime.sh"),
-        "#!/usr/bin/env bash\n",
+        path.join(externalScripts, "runtime", "devcanon-runtime.mjs"),
+        "export {};\n",
       );
-      await chmod(path.join(externalScripts, "devcanon-runtime.sh"), 0o755);
       await rm(path.join(runtime, "scripts"), { recursive: true });
       await symlink(externalScripts, path.join(runtime, "scripts"));
 
@@ -351,11 +326,11 @@ describe("trusted runtime bootstrap", () => {
       const runtime = await writeRuntime(root);
       const internalScripts = path.join(runtime, "internal-scripts");
       await mkdir(internalScripts);
+      await mkdir(path.join(internalScripts, "runtime"));
       await writeFile(
-        path.join(internalScripts, "devcanon-runtime.sh"),
-        "#!/usr/bin/env bash\n",
+        path.join(internalScripts, "runtime", "devcanon-runtime.mjs"),
+        "export {};\n",
       );
-      await chmod(path.join(internalScripts, "devcanon-runtime.sh"), 0o755);
       await rm(path.join(runtime, "scripts"), { recursive: true });
       await symlink(internalScripts, path.join(runtime, "scripts"));
 
@@ -378,7 +353,7 @@ describe("trusted runtime bootstrap", () => {
       );
       await mkdir(internalTypedRuntime);
       await writeFile(
-        path.join(internalTypedRuntime, "cli.js"),
+        path.join(internalTypedRuntime, "devcanon-runtime.mjs"),
         "process.exit(0);\n",
       );
       await rm(path.join(runtime, "scripts", "runtime"), {
@@ -393,7 +368,7 @@ describe("trusted runtime bootstrap", () => {
       await expect(
         dispatchRuntimeOverride(runtime, ["derive-path"]),
       ).rejects.toThrow(
-        "devcanon-runtime typed entrypoint must not contain a symlink or reparse-point component",
+        "devcanon-runtime entrypoint must not contain a symlink or reparse-point component",
       );
       await expectNoExecution(sentinels);
     } finally {
@@ -405,24 +380,28 @@ describe("trusted runtime bootstrap", () => {
     const root = await createTempDir();
     try {
       const runtime = await writeRuntime(root);
-      const externalCli = path.join(root, "external-cli.js");
+      const externalCli = path.join(root, "external-runtime.mjs");
       await writeFile(externalCli, "process.exit(0);\n");
-      await rm(path.join(runtime, "scripts", "runtime", "cli.js"));
+      await rm(
+        path.join(runtime, "scripts", "runtime", "devcanon-runtime.mjs"),
+      );
       await symlink(
         externalCli,
-        path.join(runtime, "scripts", "runtime", "cli.js"),
+        path.join(runtime, "scripts", "runtime", "devcanon-runtime.mjs"),
       );
       const sentinels = await writeExecutionSentinels(runtime, root);
-      await rm(path.join(runtime, "scripts", "runtime", "cli.js"));
+      await rm(
+        path.join(runtime, "scripts", "runtime", "devcanon-runtime.mjs"),
+      );
       await symlink(
         externalCli,
-        path.join(runtime, "scripts", "runtime", "cli.js"),
+        path.join(runtime, "scripts", "runtime", "devcanon-runtime.mjs"),
       );
 
       await expect(
         dispatchRuntimeOverride(runtime, ["derive-path"]),
       ).rejects.toThrow(
-        "devcanon-runtime typed entrypoint must not contain a symlink or reparse-point component",
+        "devcanon-runtime entrypoint must not contain a symlink or reparse-point component",
       );
       await expectNoExecution(sentinels);
     } finally {
@@ -436,29 +415,39 @@ describe("trusted runtime bootstrap", () => {
       const root = await createTempDir();
       try {
         const runtime = await writeRuntime(root);
-        const entrypoint = path.join(runtime, "scripts", "devcanon-runtime.sh");
+        const entrypoint = path.join(
+          runtime,
+          "scripts",
+          "runtime",
+          "devcanon-runtime.mjs",
+        );
         const ready = path.join(root, "ready");
         const forwarded = path.join(root, "forwarded");
         const childPid = path.join(root, "child-pid");
         await writeFile(
           entrypoint,
           [
-            "#!/bin/bash",
-            "count=0",
-            'trap \'count=$((count + 1)); printf "%s" "$count" > "$DEVCANON_TEST_FORWARDED"; if [ "$count" -eq 2 ]; then trap - TERM; kill -TERM $$; fi\' TERM',
-            'printf ready > "$DEVCANON_TEST_READY"',
-            'printf "%s" "$$" > "$DEVCANON_TEST_CHILD_PID"',
-            "while true; do sleep 1; done",
+            'import { writeFileSync } from "node:fs";',
+            "let count = 0;",
+            'process.on("SIGTERM", () => {',
+            "  count += 1;",
+            "  writeFileSync(process.env.DEVCANON_TEST_FORWARDED, String(count));",
+            '  if (count === 2) { process.removeAllListeners("SIGTERM"); process.kill(process.pid, "SIGTERM"); }',
+            "});",
+            "setTimeout(() => {",
+            '  writeFileSync(process.env.DEVCANON_TEST_READY, "ready");',
+            "  writeFileSync(process.env.DEVCANON_TEST_CHILD_PID, String(process.pid));",
+            "}, 50);",
+            "setInterval(() => {}, 1_000);",
             "",
           ].join("\n"),
         );
-        await chmod(entrypoint, 0o755);
         const bootstrap = spawnChild(
           process.execPath,
           [
-            path.resolve(
-              "skills/devcanon-runtime/scripts/runtime/bootstrap-cli.js",
-            ),
+            "--import",
+            "tsx",
+            path.resolve("src/runtime/bootstrap-cli.ts"),
             "--runtime-dir",
             runtime,
             "--",
@@ -496,7 +485,12 @@ describe("trusted runtime bootstrap", () => {
       let childGroupPid: number | undefined;
       try {
         const runtime = await writeRuntime(root);
-        const entrypoint = path.join(runtime, "scripts", "devcanon-runtime.sh");
+        const entrypoint = path.join(
+          runtime,
+          "scripts",
+          "runtime",
+          "devcanon-runtime.mjs",
+        );
         const ready = path.join(root, "ready");
         const forwarded = path.join(root, "forwarded");
         const descendantForwarded = path.join(root, "descendant-forwarded");
@@ -504,28 +498,32 @@ describe("trusted runtime bootstrap", () => {
         await writeFile(
           entrypoint,
           [
-            "#!/bin/bash",
-            "count=0",
-            "(",
-            "  descendant_count=0",
-            '  trap \'descendant_count=$((descendant_count + 1)); printf "%s" "$descendant_count" > "$DEVCANON_TEST_DESCENDANT_FORWARDED"; exit 0\' TERM',
-            "  while true; do sleep 1; done",
-            ") &",
-            "descendant=$!",
-            'trap \'count=$((count + 1)); printf "%s" "$count" > "$DEVCANON_TEST_FORWARDED"; wait "$descendant"; exit 0\' TERM',
-            'printf ready > "$DEVCANON_TEST_READY"',
-            'printf "%s" "$$" > "$DEVCANON_TEST_CHILD_PID"',
-            "while true; do sleep 1; done",
+            'import { spawn } from "node:child_process";',
+            'import { writeFileSync } from "node:fs";',
+            "const descendant = spawn(process.execPath, ['-e', `",
+            "  const { writeFileSync } = require('node:fs');",
+            "  process.on('SIGTERM', () => { writeFileSync(process.env.DEVCANON_TEST_DESCENDANT_FORWARDED, '1'); process.exit(0); });",
+            "  setInterval(() => {}, 1000);",
+            "`], { env: process.env, stdio: 'ignore' });",
+            'process.on("SIGTERM", () => {',
+            '  writeFileSync(process.env.DEVCANON_TEST_FORWARDED, "1");',
+            '  descendant.once("close", () => process.exit(0));',
+            '  descendant.kill("SIGTERM");',
+            "});",
+            "setTimeout(() => {",
+            '  writeFileSync(process.env.DEVCANON_TEST_READY, "ready");',
+            "  writeFileSync(process.env.DEVCANON_TEST_CHILD_PID, String(process.pid));",
+            "}, 50);",
+            "setInterval(() => {}, 1_000);",
             "",
           ].join("\n"),
         );
-        await chmod(entrypoint, 0o755);
         const bootstrap = spawnChild(
           process.execPath,
           [
-            path.resolve(
-              "skills/devcanon-runtime/scripts/runtime/bootstrap-cli.js",
-            ),
+            "--import",
+            "tsx",
+            path.resolve("src/runtime/bootstrap-cli.ts"),
             "--runtime-dir",
             runtime,
             "--",
@@ -555,6 +553,7 @@ describe("trusted runtime bootstrap", () => {
           signal: null,
         });
         expect(await readFile(forwarded, "utf8")).toBe("1");
+        await waitForFile(descendantForwarded);
         expect(await readFile(descendantForwarded, "utf8")).toBe("1");
       } finally {
         if (childGroupPid !== undefined) {
@@ -577,9 +576,9 @@ describe("trusted runtime bootstrap", () => {
         const bootstrap = spawnChild(
           process.execPath,
           [
-            path.resolve(
-              "skills/devcanon-runtime/scripts/runtime/bootstrap-cli.js",
-            ),
+            "--import",
+            "tsx",
+            path.resolve("src/runtime/bootstrap-cli.ts"),
             "--runtime-dir",
             fixture.runtime,
             "--",
@@ -627,9 +626,9 @@ describe("trusted runtime bootstrap", () => {
         const bootstrap = spawnChild(
           process.execPath,
           [
-            path.resolve(
-              "skills/devcanon-runtime/scripts/runtime/bootstrap-cli.js",
-            ),
+            "--import",
+            "tsx",
+            path.resolve("src/runtime/bootstrap-cli.ts"),
             "--runtime-dir",
             fixture.runtime,
             "--",
