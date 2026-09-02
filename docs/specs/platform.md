@@ -75,8 +75,12 @@ environments on every supported platform.
    tarball and its declared CLI dependencies into a temporary prefix.
 2. With package-manager and global-CLI access removed, the package-local
    `devcanon` executable from that prefix initializes, validates, renders, and
-   syncs a temporary library. The executable must not resolve a source checkout
-   or an ambient dependency tree.
+   syncs a temporary library under a dedicated empty temporary home selected
+   through both `HOME` and `USERPROFILE`. The proof must remove any inherited
+   `DEVCANON_CONFIG` and explicitly select the fixture configuration. Before a
+   non-dry sync, it must resolve all four target homes and the manifest path and
+   assert that each is contained by the fixture root. The executable must not
+   resolve a source checkout or an ambient dependency tree.
 3. The proof copies the resulting composed passive runtime, without manual
    assembly, to a second isolated directory. From a working directory outside
    both the checkout and install prefix, it invokes the copied runtime using

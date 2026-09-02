@@ -268,10 +268,10 @@ requirements solely for test completeness.
 
 A future installed runtime consumer must additionally verify its actual
 parser-backed operation from the second isolated copied runtime produced by the
-clean source-build and packed-tarball proof. That execution has no source
-checkout, package manager, ambient `node_modules`, or global `devcanon`
-executable. This is deferred implementation-owned proof, not part of the
-initial source-side migration.
+packed-tarball package-provider proof. That execution has no source checkout,
+package manager, ambient `node_modules`, or global `devcanon` executable. This
+is deferred implementation-owned proof, not part of the initial source-side
+migration.
 
 ## Evidence Pointers
 
