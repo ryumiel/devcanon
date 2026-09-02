@@ -21,7 +21,6 @@ import type { LoadedAgent } from "../models/types.js";
 import { sha256, verifyProvider } from "../runtime-build/provider.js";
 import type { AcceptedProvider } from "../runtime-build/provider.js";
 import type { ValidatedDevcanonRuntime } from "../validate/devcanon-runtime.js";
-import { validateDevcanonRuntime } from "../validate/devcanon-runtime.js";
 
 type CodexSource = NonNullable<LoadedAgent["source"]["codex"]>;
 
@@ -101,6 +100,9 @@ export async function createSkillFixture(
 export async function copyDevcanonRuntimeFixture(
   skillsDir: string,
 ): Promise<void> {
+  const { validateDevcanonRuntime } = await import(
+    "../validate/devcanon-runtime.js"
+  );
   const runtimeDir = path.join(skillsDir, "devcanon-runtime");
   await mkdir(path.join(runtimeDir, "config"), { recursive: true });
   await mkdir(path.join(runtimeDir, "scripts"), { recursive: true });
@@ -245,7 +247,7 @@ export async function createLightweightDevcanonRuntimeFixture(
   );
 }
 
-/** Accepts only the exact lightweight fixture; malformed cases stay real. */
+/** Accepts only the exact lightweight fixture or its rendered projection. */
 export async function validateLightweightDevcanonRuntimeFixture(
   runtimeDir: string,
   validateReal: (runtimeDir: string) => Promise<ValidatedDevcanonRuntime>,
@@ -277,14 +279,22 @@ async function isExactLightweightRuntimeFixture(
         "devcanon-runtime.sh",
         "resolve-bash.mjs",
         "runtime",
-      ])) ||
-      !(await hasExactEntries(runtimeScriptsDir, [
-        ".lightweight-runtime-fixture",
-        "THIRD_PARTY_LICENSES",
-        "devcanon-runtime.mjs",
-        "runtime-manifest.json",
       ]))
     ) {
+      return false;
+    }
+    const marker = path.join(runtimeScriptsDir, ".lightweight-runtime-fixture");
+    const hasMarker = await access(marker).then(
+      () => true,
+      () => false,
+    );
+    const expectedRuntimeEntries = [
+      ...(hasMarker ? [".lightweight-runtime-fixture"] : []),
+      "THIRD_PARTY_LICENSES",
+      "devcanon-runtime.mjs",
+      "runtime-manifest.json",
+    ];
+    if (!(await hasExactEntries(runtimeScriptsDir, expectedRuntimeEntries))) {
       return false;
     }
     const wrapper = path.join(scriptsDir, "devcanon-runtime.sh");
@@ -293,10 +303,8 @@ async function isExactLightweightRuntimeFixture(
       (await readFile(wrapper, "utf-8")) === LIGHTWEIGHT_RUNTIME_WRAPPER &&
       (await readFile(path.join(scriptsDir, "resolve-bash.mjs"), "utf-8")) ===
         LIGHTWEIGHT_RUNTIME_RESOLVER &&
-      (await readFile(
-        path.join(runtimeScriptsDir, ".lightweight-runtime-fixture"),
-        "utf-8",
-      )) === LIGHTWEIGHT_RUNTIME_MARKER &&
+      (!hasMarker ||
+        (await readFile(marker, "utf-8")) === LIGHTWEIGHT_RUNTIME_MARKER) &&
       (await readFile(
         path.join(runtimeScriptsDir, "devcanon-runtime.mjs"),
         "utf-8",
