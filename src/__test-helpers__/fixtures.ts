@@ -110,6 +110,9 @@ export async function copyDevcanonRuntimeFixture(
 
 const LIGHTWEIGHT_RUNTIME_MARKER =
   "devcanon-test-only-lightweight-runtime/v1\n";
+const LIGHTWEIGHT_RUNTIME_BUNDLE = "export {};\n";
+const LIGHTWEIGHT_RUNTIME_MANIFEST = "{}\n";
+const LIGHTWEIGHT_RUNTIME_LICENSES = "fixture license\n";
 const LIGHTWEIGHT_RUNTIME_WRAPPER =
   "#!/usr/bin/env bash\nset -euo pipefail\nexit 0\n";
 const LIGHTWEIGHT_RUNTIME_RESOLVER = "export {};\n";
@@ -150,6 +153,21 @@ export async function createLightweightDevcanonRuntimeFixture(
     LIGHTWEIGHT_RUNTIME_MARKER,
     "utf-8",
   );
+  await writeFile(
+    path.join(runtimeScriptsDir, "devcanon-runtime.mjs"),
+    LIGHTWEIGHT_RUNTIME_BUNDLE,
+    "utf-8",
+  );
+  await writeFile(
+    path.join(runtimeScriptsDir, "runtime-manifest.json"),
+    LIGHTWEIGHT_RUNTIME_MANIFEST,
+    "utf-8",
+  );
+  await writeFile(
+    path.join(runtimeScriptsDir, "THIRD_PARTY_LICENSES"),
+    LIGHTWEIGHT_RUNTIME_LICENSES,
+    "utf-8",
+  );
 }
 
 /** Accepts only the exact lightweight fixture; malformed cases stay real. */
@@ -187,6 +205,9 @@ async function isExactLightweightRuntimeFixture(
       ])) ||
       !(await hasExactEntries(runtimeScriptsDir, [
         ".lightweight-runtime-fixture",
+        "THIRD_PARTY_LICENSES",
+        "devcanon-runtime.mjs",
+        "runtime-manifest.json",
       ]))
     ) {
       return false;
@@ -201,6 +222,18 @@ async function isExactLightweightRuntimeFixture(
         path.join(runtimeScriptsDir, ".lightweight-runtime-fixture"),
         "utf-8",
       )) === LIGHTWEIGHT_RUNTIME_MARKER &&
+      (await readFile(
+        path.join(runtimeScriptsDir, "devcanon-runtime.mjs"),
+        "utf-8",
+      )) === LIGHTWEIGHT_RUNTIME_BUNDLE &&
+      (await readFile(
+        path.join(runtimeScriptsDir, "runtime-manifest.json"),
+        "utf-8",
+      )) === LIGHTWEIGHT_RUNTIME_MANIFEST &&
+      (await readFile(
+        path.join(runtimeScriptsDir, "THIRD_PARTY_LICENSES"),
+        "utf-8",
+      )) === LIGHTWEIGHT_RUNTIME_LICENSES &&
       (await readFile(path.join(configDir, "runtime-config.json"), "utf-8")) ===
         LIGHTWEIGHT_RUNTIME_CATALOG
     );

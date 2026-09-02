@@ -1,85 +1,102 @@
-import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
-import { lstat, readFile, readdir } from "node:fs/promises";
+import { constants } from "node:fs";
+import { access, lstat, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
-import { promisify } from "node:util";
 import {
   RUNTIME_CONFIG_RELATIVE_PATH,
   loadRuntimeConfigCatalog,
 } from "../config/runtime-config.js";
+import type { AcceptedProvider } from "../runtime-build/provider.js";
 import { UserError } from "../utils/errors.js";
 import { pathOrSymlinkExists } from "../utils/fs.js";
 import { DEVCANON_RUNTIME_SKILL_NAME } from "./skills.js";
 
 export const RUNTIME_ENTRYPOINT = path.join("scripts", "devcanon-runtime.sh");
-const RUNTIME_BASH_RESOLVER = path.join("scripts", "resolve-bash.mjs");
-const RUNTIME_JS_DIR = path.join("scripts", "runtime");
-const RUNTIME_JS_ENTRYPOINT = path.join(RUNTIME_JS_DIR, "cli.js");
-const RUNTIME_JS_INDEX = path.join(RUNTIME_JS_DIR, "index.js");
-const RUNTIME_NODE_MODULES_DIR = path.join(RUNTIME_JS_DIR, "node_modules");
-const GFM_RUNTIME_CLOSURE_HASH =
-  "9b6f647bee8535828b969ff3f92eb063459f7f921796440f4de0ed5aa36e2c5b";
-const REQUIRED_RUNTIME_JS_FILES = [
-  "artifacts.js",
-  "bash.js",
-  "bootstrap-cli.js",
-  "bootstrap.js",
-  "cleanup-git.js",
-  "cli.js",
-  "command.js",
-  "git-diff-parser.js",
-  "git-workspace-cleanup.js",
-  "git.js",
-  "index.js",
-  "issue-worktree-setup.js",
-  "issue-priming.js",
-  "paths.js",
-  "play-review-shared-context.js",
-  "planning-projection.js",
-  "pr-merge-worktree.js",
-  "pr-review-leases.js",
-  "pr-review-manifests.js",
-  "pr-review-result-validation.js",
-  "review-artifacts.js",
-  "runtime-config.js",
-  "schema.js",
-  "source-immutability.js",
-] as const;
+export const RUNTIME_BASH_RESOLVER = path.join("scripts", "resolve-bash.mjs");
+export const RUNTIME_JS_DIR = path.join("scripts", "runtime");
+export const RUNTIME_BUNDLE = path.join(RUNTIME_JS_DIR, "devcanon-runtime.mjs");
+export const RUNTIME_MANIFEST = path.join(
+  RUNTIME_JS_DIR,
+  "runtime-manifest.json",
+);
+export const RUNTIME_LICENSES = path.join(
+  RUNTIME_JS_DIR,
+  "THIRD_PARTY_LICENSES",
+);
 export const REQUIRED_RUNTIME_FILES = [
   RUNTIME_ENTRYPOINT,
   RUNTIME_BASH_RESOLVER,
   RUNTIME_CONFIG_RELATIVE_PATH,
-  path.join(RUNTIME_JS_DIR, "package.json"),
-  ...REQUIRED_RUNTIME_JS_FILES.map((fileName) =>
-    path.join(RUNTIME_JS_DIR, fileName),
-  ),
+  RUNTIME_BUNDLE,
+  RUNTIME_MANIFEST,
+  RUNTIME_LICENSES,
 ] as const;
-const execFileAsync = promisify(execFile);
+
+export type AdapterPairState = "current" | "pristine-legacy" | "invalid";
+
+export interface RuntimeAdapterPair {
+  readonly shell: Buffer;
+  readonly resolver: Buffer;
+}
+
+export interface ValidateDevcanonRuntimeOptions {
+  readonly adapterSourceDir?: string;
+  readonly pristineLegacyPair?: RuntimeAdapterPair;
+  readonly provider?: AcceptedProvider;
+}
 
 declare const validatedDevcanonRuntimeBrand: unique symbol;
 
 export interface ValidatedDevcanonRuntime {
   readonly runtimeDir: string;
-  /** @internal Deterministic fixed-closure evidence for this operation. */
+  readonly adapterPair: RuntimeAdapterPair;
+  readonly adapterState: Exclude<AdapterPairState, "invalid">;
+  readonly providerLeaves: ReadonlyMap<string, Buffer>;
+  /** Compatibility evidence retained for existing identity callers. */
   readonly closureRecords: readonly RuntimeClosureRecord[];
   readonly [validatedDevcanonRuntimeBrand]: true;
+}
+
+export interface RuntimeClosureRecord {
+  readonly kind: "directory" | "file";
+  readonly relativePath: string;
+  readonly mode: string;
+  readonly bytes?: Buffer;
 }
 
 export function devcanonRuntimeDir(skillsDir: string): string {
   return path.join(skillsDir, DEVCANON_RUNTIME_SKILL_NAME);
 }
 
+/** Read-only authored and derived-state validation. Provider acceptance belongs upstream. */
 export async function validateDevcanonRuntime(
   runtimeDir: string,
+  options: ValidateDevcanonRuntimeOptions = {},
 ): Promise<ValidatedDevcanonRuntime> {
-  try {
-    if (!(await lstat(runtimeDir)).isDirectory()) {
-      throw runtimeSourceMissingError(runtimeDir);
-    }
-  } catch {
-    throw runtimeSourceMissingError(runtimeDir);
-  }
+  const root = await lstat(runtimeDir).catch(() => undefined);
+  if (root === undefined) throw runtimeSourceMissingError(runtimeDir);
+  await requireDirectory(runtimeDir, runtimeDir, ".");
+
+  // The pair gate deliberately precedes catalog and derived-runtime checks.
+  const adapterSourceDir = options.adapterSourceDir ?? runtimeDir;
+  const currentPair = await readAdapterPair(adapterSourceDir).catch((error) => {
+    throw adapterAdoptionError(
+      runtimeDir,
+      error instanceof Error ? error.message : "missing",
+    );
+  });
+  const targetPair = await readAdapterPair(runtimeDir).catch((error) => {
+    throw adapterAdoptionError(
+      runtimeDir,
+      error instanceof Error ? error.message : "missing",
+    );
+  });
+  const adapterState = classifyAdapterPair(
+    targetPair,
+    currentPair,
+    options.pristineLegacyPair,
+  );
+  if (adapterState === "invalid")
+    throw adapterAdoptionError(runtimeDir, "unrecognized");
 
   for (const forbiddenPath of [
     "SKILL.md",
@@ -92,232 +109,185 @@ export async function validateDevcanonRuntime(
       );
     }
   }
-
-  for (const relativePath of REQUIRED_RUNTIME_FILES) {
-    if (!(await isRegularFile(path.join(runtimeDir, relativePath)))) {
-      throw runtimeSourceIncompleteError(runtimeDir, relativePath);
-    }
-  }
-
-  await requireRealDirectory(
+  await requireExactEntries(runtimeDir, ["config", "scripts"]);
+  await requireDirectory(path.join(runtimeDir, "config"), runtimeDir, "config");
+  await requireDirectory(
     path.join(runtimeDir, "scripts"),
     runtimeDir,
     "scripts",
   );
-  await requireRealDirectory(
-    path.join(runtimeDir, RUNTIME_NODE_MODULES_DIR),
-    runtimeDir,
-    RUNTIME_NODE_MODULES_DIR,
-  );
-  await requireRealDirectory(
-    path.join(runtimeDir, RUNTIME_JS_DIR),
-    runtimeDir,
-    RUNTIME_JS_DIR,
-  );
-  await requireRealDirectory(
-    path.join(runtimeDir, "config"),
-    runtimeDir,
-    "config",
-  );
-  await validateExactRuntimeTree(runtimeDir);
-  let closureRecords: readonly RuntimeClosureRecord[];
-  try {
-    closureRecords = await validateExactGfmRuntimeClosure(runtimeDir);
-  } catch (error) {
-    if (error instanceof UserError) {
-      throw error;
-    }
-    throw runtimeSourceIncompleteError(runtimeDir, RUNTIME_NODE_MODULES_DIR);
-  }
   await loadRuntimeConfigCatalog(
     path.join(runtimeDir, RUNTIME_CONFIG_RELATIVE_PATH),
   );
-
-  const entrypoint = path.join(runtimeDir, RUNTIME_ENTRYPOINT);
-  if (!(await hasExecutableBit(entrypoint))) {
-    throw runtimeSourceIncompleteError(runtimeDir, RUNTIME_ENTRYPOINT);
-  }
+  const providerLeaves = await readDerivedRuntime(
+    runtimeDir,
+    options.provider,
+  ).catch((error) => {
+    throw renderRepairError(
+      runtimeDir,
+      error instanceof Error ? error.message : "invalid runtime subtree",
+    );
+  });
 
   return Object.freeze({
     runtimeDir,
-    closureRecords,
-  }) as ValidatedDevcanonRuntime;
+    adapterPair: targetPair,
+    adapterState,
+    providerLeaves,
+    closureRecords: [],
+  }) as unknown as ValidatedDevcanonRuntime;
 }
 
-async function requireRealDirectory(
-  directory: string,
-  runtimeDir: string,
-  relativePath: string,
-): Promise<void> {
-  try {
-    if (!(await lstat(directory)).isDirectory()) {
-      throw runtimeSourceIncompleteError(runtimeDir, relativePath);
-    }
-  } catch {
-    throw runtimeSourceIncompleteError(runtimeDir, relativePath);
-  }
-}
-
-async function validateExactRuntimeTree(runtimeDir: string): Promise<void> {
-  await requireExactDirectoryEntries(
-    runtimeDir,
-    ["config", "scripts"],
-    runtimeDir,
-  );
-  await requireExactDirectoryEntries(
-    path.join(runtimeDir, "config"),
-    ["runtime-config.json"],
-    runtimeDir,
-  );
-  await requireExactDirectoryEntries(
-    path.join(runtimeDir, "scripts"),
-    ["devcanon-runtime.sh", "resolve-bash.mjs", "runtime"],
-    runtimeDir,
-  );
-  await requireExactDirectoryEntries(
-    path.join(runtimeDir, RUNTIME_JS_DIR),
-    ["node_modules", "package.json", ...REQUIRED_RUNTIME_JS_FILES],
-    runtimeDir,
-  );
-}
-
-async function validateExactGfmRuntimeClosure(
-  runtimeDir: string,
-): Promise<readonly RuntimeClosureRecord[]> {
-  const runtimeJsDir = path.join(runtimeDir, RUNTIME_JS_DIR);
-  const hash = createHash("sha256");
-  const limit = createRuntimeIoLimit(32);
-  const closureRecords: RuntimeClosureRecord[] = [];
-  for (const entry of ["package.json", "node_modules"]) {
-    const records = await collectRuntimeClosureRecords(
-      path.join(runtimeJsDir, entry),
-      entry,
-      limit,
-    );
-    closureRecords.push(...records);
-    for (const record of records) {
-      hashRuntimeClosureField(hash, record.kind, record.relativePath);
-      if (record.bytes) {
-        hashRuntimeClosureField(
-          hash,
-          "bytes",
-          record.relativePath,
-          record.bytes,
-        );
-      }
-    }
-  }
-  if (hash.digest("hex") !== GFM_RUNTIME_CLOSURE_HASH) {
-    throw runtimeSourceIncompleteError(runtimeDir, RUNTIME_NODE_MODULES_DIR);
-  }
-  return Object.freeze(closureRecords);
-}
-
-export interface RuntimeClosureRecord {
-  readonly kind: "directory" | "file";
-  readonly relativePath: string;
-  readonly mode: string;
-  readonly bytes?: Buffer;
-}
-
-async function collectRuntimeClosureRecords(
-  entryPath: string,
-  relativePath: string,
-  limit: RuntimeIoLimit,
-): Promise<RuntimeClosureRecord[]> {
-  const entry = await limit(() => lstat(entryPath)).catch(() => undefined);
-  if (entry === undefined) {
-    throw new Error(`missing closure entry: ${relativePath}`);
-  }
-  if (entry.isDirectory()) {
-    const entries = await limit(() =>
-      readdir(entryPath, { withFileTypes: true }),
-    );
-    entries.sort((left, right) =>
-      left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
-    );
-    const children = await Promise.all(
-      entries.map((child) =>
-        collectRuntimeClosureRecords(
-          path.join(entryPath, child.name),
-          path.posix.join(relativePath, child.name),
-          limit,
-        ),
-      ),
-    );
-    return [
-      { kind: "directory", relativePath, mode: String(entry.mode) },
-      ...children.flat(),
-    ];
-  }
-  if (!entry.isFile()) {
-    throw new Error(`unsupported closure entry: ${relativePath}`);
-  }
-  return [
-    {
-      kind: "file",
-      relativePath,
-      mode: String(entry.mode),
-      bytes: await limit(() => readFile(entryPath)),
-    },
-  ];
-}
-
-type RuntimeIoLimit = <T>(operation: () => Promise<T>) => Promise<T>;
-
-function createRuntimeIoLimit(concurrency: number): RuntimeIoLimit {
-  let active = 0;
-  const waiters: Array<() => void> = [];
-  return async <T>(operation: () => Promise<T>): Promise<T> => {
-    if (active >= concurrency) {
-      await new Promise<void>((resolve) => waiters.push(resolve));
-    }
-    active += 1;
-    try {
-      return await operation();
-    } finally {
-      active -= 1;
-      waiters.shift()?.();
-    }
-  };
-}
-
-function hashRuntimeClosureField(
-  hash: ReturnType<typeof createHash>,
-  ...fields: Array<string | Buffer>
-): void {
-  for (const field of fields) {
-    const bytes = Buffer.isBuffer(field) ? field : Buffer.from(field, "utf-8");
-    hash.update(String(bytes.length));
-    hash.update(":");
-    hash.update(bytes);
-  }
-}
-
-async function requireExactDirectoryEntries(
-  directory: string,
-  expectedEntries: readonly string[],
-  runtimeDir: string,
-): Promise<void> {
-  for (const entry of await readdir(directory, { withFileTypes: true })) {
-    const entryPath = path.join(directory, entry.name);
-    const relativePath = path.relative(runtimeDir, entryPath);
-    if (
-      entry.isSymbolicLink() ||
-      !(entry.isDirectory() || entry.isFile()) ||
-      !expectedEntries.includes(entry.name)
-    ) {
-      throw runtimeSourceIncompleteError(runtimeDir, relativePath);
-    }
-  }
+export function classifyAdapterPair(
+  candidate: RuntimeAdapterPair,
+  current: RuntimeAdapterPair,
+  legacy?: RuntimeAdapterPair,
+): AdapterPairState {
+  if (samePair(candidate, current)) return "current";
+  if (legacy !== undefined && samePair(candidate, legacy))
+    return "pristine-legacy";
+  return "invalid";
 }
 
 export async function validateBundledDevcanonRuntime(
   runtimeDir: string,
 ): Promise<void> {
-  await validateDevcanonRuntime(runtimeDir);
-  await requireRuntimeCommandContract(runtimeDir);
-  await requireRuntimeModuleSurface(runtimeDir);
+  const validated = await validateDevcanonRuntime(runtimeDir);
+  if (validated.adapterState !== "current") {
+    throw adapterAdoptionError(runtimeDir, "legacy adapter pair");
+  }
+  if (process.platform !== "win32") {
+    await access(
+      path.join(runtimeDir, RUNTIME_ENTRYPOINT),
+      constants.X_OK,
+    ).catch(() => {
+      throw adapterAdoptionError(runtimeDir, "non-executable shell adapter");
+    });
+  }
+  await requireRuntimeContract(path.join(runtimeDir, RUNTIME_BUNDLE));
+}
+
+async function readAdapterPair(root: string): Promise<RuntimeAdapterPair> {
+  const shellPath = path.join(root, RUNTIME_ENTRYPOINT);
+  const resolverPath = path.join(root, RUNTIME_BASH_RESOLVER);
+  const [shell, resolver] = await Promise.all([
+    readRegularFile(shellPath, RUNTIME_ENTRYPOINT),
+    readRegularFile(resolverPath, RUNTIME_BASH_RESOLVER),
+  ]);
+  if (
+    process.platform !== "win32" &&
+    ((await lstat(shellPath)).mode & 0o111) === 0
+  ) {
+    throw new Error("non-executable shell adapter");
+  }
+  return Object.freeze({ shell, resolver });
+}
+
+async function readDerivedRuntime(
+  runtimeDir: string,
+  provider?: AcceptedProvider,
+): Promise<ReadonlyMap<string, Buffer>> {
+  const directory = path.join(runtimeDir, RUNTIME_JS_DIR);
+  await requireDirectory(directory, runtimeDir, RUNTIME_JS_DIR);
+  const leaves = [
+    "THIRD_PARTY_LICENSES",
+    "devcanon-runtime.mjs",
+    "runtime-manifest.json",
+  ];
+  const entries = (await readdir(directory)).sort();
+  if (
+    entries.length !== leaves.length ||
+    entries.some((entry, index) => entry !== leaves[index])
+  ) {
+    throw new Error(
+      "runtime subtree must contain exactly devcanon-runtime.mjs, runtime-manifest.json, and THIRD_PARTY_LICENSES",
+    );
+  }
+  const records = await Promise.all(
+    leaves.map(
+      async (leaf) =>
+        [
+          leaf,
+          await readRegularFile(
+            path.join(directory, leaf),
+            path.join(RUNTIME_JS_DIR, leaf),
+          ),
+        ] as const,
+    ),
+  );
+  const result = new Map(records);
+  if (provider !== undefined) {
+    const expected = new Map([
+      ["devcanon-runtime.mjs", provider.bundle.copy()],
+      ["runtime-manifest.json", provider.manifestBytes.copy()],
+      ["THIRD_PARTY_LICENSES", provider.licenses.copy()],
+    ]);
+    for (const [leaf, bytes] of expected) {
+      if (!Buffer.from(result.get(leaf) ?? []).equals(bytes)) {
+        throw new Error(
+          `runtime subtree ${leaf} does not match the accepted provider`,
+        );
+      }
+    }
+  }
+  return result;
+}
+
+async function readRegularFile(
+  filePath: string,
+  relativePath: string,
+): Promise<Buffer> {
+  const stat = await lstat(filePath).catch(() => undefined);
+  if (stat === undefined || !stat.isFile() || stat.isSymbolicLink()) {
+    throw new Error(`${relativePath} must be a readable regular non-link file`);
+  }
+  await access(filePath, constants.R_OK).catch(() => {
+    throw new Error(`${relativePath} must be readable`);
+  });
+  return readFile(filePath);
+}
+
+async function requireDirectory(
+  directory: string,
+  runtimeDir: string,
+  relativePath: string,
+): Promise<void> {
+  const stat = await lstat(directory).catch(() => undefined);
+  if (stat === undefined || !stat.isDirectory() || stat.isSymbolicLink()) {
+    throw new UserError(
+      `Fixed passive runtime support bundle ${DEVCANON_RUNTIME_SKILL_NAME} is incomplete.`,
+      path.join(runtimeDir, relativePath),
+      "Run devcanon render to reconcile the passive runtime, or restore the bundled support runtime.",
+    );
+  }
+}
+
+async function requireExactEntries(
+  directory: string,
+  expected: readonly string[],
+): Promise<void> {
+  const entries = (await readdir(directory)).sort();
+  if (
+    entries.length !== expected.length ||
+    entries.some((entry, index) => entry !== expected[index])
+  ) {
+    throw renderRepairError(directory, "unexpected support-runtime entry");
+  }
+}
+
+function samePair(
+  left: RuntimeAdapterPair,
+  right: RuntimeAdapterPair,
+): boolean {
+  return left.shell.equals(right.shell) && left.resolver.equals(right.resolver);
+}
+
+function adapterAdoptionError(runtimeDir: string, state: string): UserError {
+  return new UserError(
+    `Passive runtime adapter pair is ${state}.`,
+    path.join(runtimeDir, "scripts"),
+    "Back up both adapters, diff both against this DevCanon distribution, explicitly adopt both files from that same distribution, then rerun the command.",
+  );
 }
 
 function runtimeSourceMissingError(runtimeDir: string): UserError {
@@ -328,115 +298,34 @@ function runtimeSourceMissingError(runtimeDir: string): UserError {
   );
 }
 
-function runtimeSourceIncompleteError(
-  runtimeDir: string,
-  relativePath: string,
-): UserError {
+function renderRepairError(runtimeDir: string, detail: string): UserError {
   return new UserError(
-    `Fixed passive runtime support bundle ${DEVCANON_RUNTIME_SKILL_NAME} is incomplete.`,
-    path.join(runtimeDir, relativePath),
-    `Reinstall DevCanon or restore ${relativePath} in the bundled support runtime.`,
+    `Passive runtime derived subtree is missing or stale: ${detail}.`,
+    path.join(runtimeDir, RUNTIME_JS_DIR),
+    "Run devcanon render to reconcile the passive runtime subtree.",
   );
 }
 
-async function requireRuntimeCommandContract(
-  runtimeDir: string,
-): Promise<void> {
-  const entrypoint = path.join(runtimeDir, RUNTIME_ENTRYPOINT);
-  await requireRuntimeShellContract(entrypoint);
-  await requireRuntimeNodeContract(
-    path.join(runtimeDir, RUNTIME_JS_ENTRYPOINT),
-  );
-}
-
-async function requireRuntimeShellContract(filePath: string): Promise<void> {
-  if (process.platform === "win32") return;
-  await requireRuntimeContract(filePath, async () => ({
-    command: filePath,
-    args: ["contract"],
-  }));
-}
-
-async function requireRuntimeNodeContract(filePath: string): Promise<void> {
-  await requireRuntimeContract(filePath, async () => ({
-    command: process.execPath,
-    args: [filePath, "contract"],
-  }));
-}
-
-async function requireRuntimeContract(
-  filePath: string,
-  invocation: () => Promise<{ command: string; args: readonly string[] }>,
-): Promise<void> {
+async function requireRuntimeContract(bundle: string): Promise<void> {
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
   try {
-    const { command, args } = await invocation();
-    const { stdout } = await execFileAsync(command, [...args], {
-      timeout: 10_000,
-      maxBuffer: 1024 * 1024,
-    });
-    if (!isRuntimeContract(JSON.parse(stdout) as unknown)) {
+    const { stdout } = await promisify(execFile)(process.execPath, [
+      bundle,
+      "runtime",
+      "contract",
+    ]);
+    const value = JSON.parse(stdout) as {
+      command_group?: unknown;
+      major_version?: unknown;
+    };
+    if (value.command_group !== "devcanon-runtime" || value.major_version !== 1)
       throw new Error("contract output did not match devcanon-runtime/v1");
-    }
-  } catch (err) {
+  } catch (error) {
     throw new UserError(
       `Fixed passive runtime support bundle ${DEVCANON_RUNTIME_SKILL_NAME} contract check failed.`,
-      filePath,
-      `Reinstall DevCanon or restore the bundled ${DEVCANON_RUNTIME_SKILL_NAME} runtime payload. ${(err as Error).message}`,
+      bundle,
+      `Reinstall DevCanon or restore the bundled runtime payload. ${(error as Error).message}`,
     );
-  }
-}
-
-async function requireRuntimeModuleSurface(runtimeDir: string): Promise<void> {
-  const indexEntrypoint = path.join(runtimeDir, RUNTIME_JS_INDEX);
-  try {
-    const runtimeModule = (await import(
-      pathToFileURL(indexEntrypoint).href
-    )) as Record<string, unknown>;
-    for (const exportName of [
-      "normalizeRuntimePath",
-      "runIssueWorktreeSetupCommand",
-      "runRuntimeCommand",
-      "validateRuntimeSchema",
-    ]) {
-      if (typeof runtimeModule[exportName] !== "function") {
-        throw new Error(`runtime export missing: ${exportName}`);
-      }
-    }
-  } catch (err) {
-    throw new UserError(
-      `Fixed passive runtime support bundle ${DEVCANON_RUNTIME_SKILL_NAME} module surface check failed.`,
-      indexEntrypoint,
-      `Reinstall DevCanon or restore the bundled ${DEVCANON_RUNTIME_SKILL_NAME} runtime payload. ${(err as Error).message}`,
-    );
-  }
-}
-
-function isRuntimeContract(
-  value: unknown,
-): value is { command_group: "devcanon-runtime"; major_version: 1 } {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    "command_group" in value &&
-    value.command_group === "devcanon-runtime" &&
-    "major_version" in value &&
-    value.major_version === 1
-  );
-}
-
-async function isRegularFile(filePath: string): Promise<boolean> {
-  try {
-    return (await lstat(filePath)).isFile();
-  } catch {
-    return false;
-  }
-}
-
-async function hasExecutableBit(filePath: string): Promise<boolean> {
-  if (process.platform === "win32") return true;
-  try {
-    return ((await lstat(filePath)).mode & 0o111) !== 0;
-  } catch {
-    return false;
   }
 }
