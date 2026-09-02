@@ -103,7 +103,7 @@ describe("issue-priming native Node helpers", () => {
       path.join(os.tmpdir(), "devcanon-fake-runtime-"),
     );
     tempDirs.push(runtime);
-    const cli = path.join(runtime, "scripts/runtime/cli.js");
+    const cli = path.join(runtime, "scripts/runtime/devcanon-runtime.mjs");
     await mkdir(path.dirname(cli), { recursive: true });
 
     for (const output of [
@@ -151,7 +151,7 @@ describe("issue-priming native Node helpers", () => {
       path.join(os.tmpdir(), "devcanon-fake-guard-runtime-"),
     );
     tempDirs.push(runtime);
-    const cli = path.join(runtime, "scripts/runtime/cli.js");
+    const cli = path.join(runtime, "scripts/runtime/devcanon-runtime.mjs");
     await mkdir(path.dirname(cli), { recursive: true });
 
     for (const output of [
@@ -181,7 +181,7 @@ describe("issue-priming native Node helpers", () => {
       path.join(os.tmpdir(), "devcanon-fake-silent-runtime-"),
     );
     tempDirs.push(runtime);
-    const cli = path.join(runtime, "scripts/runtime/cli.js");
+    const cli = path.join(runtime, "scripts/runtime/devcanon-runtime.mjs");
     await mkdir(path.dirname(cli), { recursive: true });
     await writeFile(cli, 'process.stdout.write("unexpected\\n");\n');
 

@@ -8,7 +8,7 @@ function fail(message) {
 }
 
 function runtimeEntrypoint(runtimeDir) {
-  return path.join(runtimeDir, "scripts", "runtime", "cli.js");
+  return path.join(runtimeDir, "scripts", "runtime", "devcanon-runtime.mjs");
 }
 
 function isFileInsideDirectory(filePath, dirPath) {
@@ -35,7 +35,7 @@ function resolveRuntimeDir(scriptPath) {
     if (isFileInsideDirectory(runtimeEntrypoint(overrideDir), overrideDir))
       return overrideDir;
     fail(
-      `devcanon-runtime JS entrypoint missing: ${runtimeEntrypoint(overrideDir)}. DEVCANON_RUNTIME_DIR must point to a packaged devcanon-runtime passive runtime bundle directory containing runtime files.`,
+      `devcanon-runtime bundle entrypoint missing: ${runtimeEntrypoint(overrideDir)}. DEVCANON_RUNTIME_DIR must point to a packaged devcanon-runtime passive runtime bundle directory containing runtime files.`,
     );
   }
 
@@ -66,7 +66,7 @@ function resolveRuntimeDir(scriptPath) {
     return physicalRuntimeDir;
 
   fail(
-    `devcanon-runtime JS entrypoint missing: ${runtimeEntrypoint(logicalRuntimeDir)}. Ensure generated previews or installed skill homes include the sibling devcanon-runtime passive runtime bundle, rerun devcanon render/sync, or set DEVCANON_RUNTIME_DIR for tests.`,
+    `devcanon-runtime bundle entrypoint missing: ${runtimeEntrypoint(logicalRuntimeDir)}. Ensure generated previews or installed skill homes include the sibling devcanon-runtime passive runtime bundle, rerun devcanon render/sync, or set DEVCANON_RUNTIME_DIR for tests.`,
   );
 }
 
@@ -78,7 +78,7 @@ export function runRuntimeBackedHelper(
   const runtimeDir = resolveRuntimeDir(scriptPath);
   const child = spawnSync(
     process.execPath,
-    [runtimeEntrypoint(runtimeDir), ...runtimeArgs],
+    [runtimeEntrypoint(runtimeDir), "runtime", ...runtimeArgs],
     {
       cwd: process.cwd(),
       encoding: "utf8",
