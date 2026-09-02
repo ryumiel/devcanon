@@ -377,7 +377,16 @@ async function collectCanonicalInputs(
     path.join(repositoryRoot, "pnpm-lock.yaml"),
     "utf8",
   );
-  const projection = extractPnpmProjection(lockfileContents);
+  const projection = extractPnpmProjection(lockfileContents, [
+    ...instances,
+    {
+      id: "esbuild@0.27.4",
+      name: "esbuild",
+      version: esbuildVersion,
+      integrity: "",
+      dependencies: [],
+    },
+  ]);
   const selected = selectProjection(projection, instances);
   const esbuild = projection.packages.find(
     (item) => item.name === "esbuild" && item.version === esbuildVersion,
@@ -561,10 +570,17 @@ type PnpmReference = string | { version?: string };
  */
 export function extractPnpmProjection(
   lockfileContents: string,
+  bundled?: readonly Pick<ProductionPackageInstance, "name" | "version">[],
 ): ProductionDependencyProjection {
   const lock = parseYaml(lockfileContents) as PnpmLock;
   const packages = lock.packages ?? {};
-  const instanceIds = Object.keys(lock.snapshots ?? {});
+  const instanceIds = Object.keys(lock.snapshots ?? {}).filter((id) => {
+    if (bundled === undefined) return true;
+    const parsed = parsePackageIdentity(id);
+    return bundled.some(
+      (item) => item.name === parsed.name && item.version === parsed.version,
+    );
+  });
   const records: ProductionPackageInstance[] = (
     instanceIds.length > 0 ? instanceIds : Object.keys(packages)
   ).map((id) => {
@@ -593,15 +609,28 @@ export function extractPnpmProjection(
     ] as const;
     record.dependencies = canonicalizeDependencyEdges(
       dependencies.flatMap(([kind, entries]) =>
-        Object.entries(entries ?? {}).map(([alias, target]) =>
-          resolveLockEdge(record.id, alias, target, kind, knownIds),
-        ),
+        Object.entries(entries ?? {}).flatMap(([alias, target]) => {
+          try {
+            return [resolveLockEdge(record.id, alias, target, kind, knownIds)];
+          } catch (error) {
+            if (
+              bundled !== undefined &&
+              /unresolved lockfile dependency edge/u.test(String(error))
+            )
+              return [];
+            throw error;
+          }
+        }),
       ),
     );
   }
   const canonical = canonicalizeDependencyProjection(records);
   const root = canonicalizeDependencyEdges(
-    readImporterEdges(lock.importers?.["."] ?? {}, knownIds),
+    readImporterEdges(
+      lock.importers?.["."] ?? {},
+      knownIds,
+      bundled !== undefined,
+    ),
   );
   return Object.freeze({ root, packages: canonical });
 }
@@ -620,6 +649,7 @@ function parsePackageIdentity(id: string): { name: string; version: string } {
 function readImporterEdges(
   importer: PnpmImporter,
   knownIds: ReadonlySet<string>,
+  ignoreUnresolved = false,
 ): DependencyEdge[] {
   return (
     [
@@ -627,9 +657,20 @@ function readImporterEdges(
       ["optionalDependencies", importer.optionalDependencies],
     ] as const
   ).flatMap(([kind, entries]) =>
-    Object.entries(entries ?? {}).map(([alias, reference]) =>
-      resolveLockEdge("root importer", alias, reference, kind, knownIds),
-    ),
+    Object.entries(entries ?? {}).flatMap(([alias, reference]) => {
+      try {
+        return [
+          resolveLockEdge("root importer", alias, reference, kind, knownIds),
+        ];
+      } catch (error) {
+        if (
+          ignoreUnresolved &&
+          /unresolved lockfile dependency edge/u.test(String(error))
+        )
+          return [];
+        throw error;
+      }
+    }),
   );
 }
 
@@ -710,6 +751,7 @@ async function resolveLockInstances(
 ): Promise<BundledPackageInstance[]> {
   const projection = extractPnpmProjection(
     await readFile(path.join(repositoryRoot, "pnpm-lock.yaml"), "utf8"),
+    packages,
   );
   const idsByPackageRoot = new Map<string, string>();
   for (const item of packages) {

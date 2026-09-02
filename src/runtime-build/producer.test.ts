@@ -117,6 +117,27 @@ snapshots:
     ]);
   });
 
+  it("selects bundled package records before unrelated malformed lock edges", () => {
+    expect(() =>
+      extractPnpmProjection(
+        `
+importers:
+  .:
+    dependencies:
+      real: {version: 1.0.0}
+packages:
+  real@1.0.0: {resolution: {integrity: sha512-real}}
+  broken@1.0.0: {resolution: {integrity: sha512-broken}}
+snapshots:
+  real@1.0.0: {}
+  broken@1.0.0:
+    dependencies: {missing: 1.0.0}
+`,
+        [{ name: "real", version: "1.0.0" }],
+      ),
+    ).not.toThrow();
+  });
+
   it("rejects duplicate canonical records and duplicate complete dependency edges", () => {
     expect(() =>
       canonicalInputSha256([
