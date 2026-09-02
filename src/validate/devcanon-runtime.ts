@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { access, lstat, readFile, readdir } from "node:fs/promises";
+import { access, lstat, readFile, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -66,6 +66,8 @@ declare const validatedDevcanonRuntimeBrand: unique symbol;
 
 export interface ValidatedDevcanonRuntime {
   readonly runtimeDir: string;
+  /** Physical identity captured with the read-only validation evidence. */
+  readonly runtimeIdentity: string;
   /** Captured authority retained separately from the candidate-state result. */
   readonly authoritativeAdapterPair: RuntimeAdapterPair;
   readonly adapterPair: RuntimeAdapterPair;
@@ -75,6 +77,54 @@ export interface ValidatedDevcanonRuntime {
   /** Compatibility evidence retained for existing identity callers. */
   readonly closureRecords: readonly RuntimeClosureRecord[];
   readonly [validatedDevcanonRuntimeBrand]: true;
+}
+
+/**
+ * A validated composition is a custody boundary, not a bag of Buffers. Every
+ * public read receives fresh copies, so later consumers cannot mutate the
+ * bytes or maps that hashing and publication will use.
+ */
+class RuntimeCompositionSnapshot implements ValidatedDevcanonRuntime {
+  readonly #adapterPair: RuntimeAdapterPair;
+  readonly #authoritativeAdapterPair: RuntimeAdapterPair;
+  readonly #providerLeaves: ReadonlyMap<string, Buffer>;
+  readonly runtimeDir: string;
+  readonly runtimeIdentity: string;
+  readonly adapterState: "current" | "pristine-legacy";
+  readonly closureRecords: readonly RuntimeClosureRecord[];
+  declare readonly [validatedDevcanonRuntimeBrand]: true;
+
+  constructor(input: {
+    runtimeDir: string;
+    runtimeIdentity: string;
+    adapterPair: RuntimeAdapterPair;
+    authoritativeAdapterPair: RuntimeAdapterPair;
+    adapterState: "current" | "pristine-legacy";
+    providerLeaves: ReadonlyMap<string, Buffer>;
+  }) {
+    this.runtimeDir = input.runtimeDir;
+    this.runtimeIdentity = input.runtimeIdentity;
+    this.#adapterPair = copyAdapterPair(input.adapterPair);
+    this.#authoritativeAdapterPair = copyAdapterPair(
+      input.authoritativeAdapterPair,
+    );
+    this.#providerLeaves = copyProviderLeaves(input.providerLeaves);
+    this.adapterState = input.adapterState;
+    this.closureRecords = Object.freeze([]);
+    Object.freeze(this);
+  }
+
+  get adapterPair(): RuntimeAdapterPair {
+    return copyAdapterPair(this.#adapterPair);
+  }
+
+  get authoritativeAdapterPair(): RuntimeAdapterPair {
+    return copyAdapterPair(this.#authoritativeAdapterPair);
+  }
+
+  get providerLeaves(): ReadonlyMap<string, Buffer> {
+    return copyProviderLeaves(this.#providerLeaves);
+  }
 }
 
 export interface RuntimeClosureRecord {
@@ -109,6 +159,7 @@ export async function validateDevcanonRuntime(
   const root = await lstat(runtimeDir).catch(() => undefined);
   if (root === undefined) throw runtimeSourceMissingError(runtimeDir);
   await requireDirectory(runtimeDir, runtimeDir, ".");
+  const physicalRuntimeDir = await realpath(runtimeDir);
 
   // The pair gate deliberately precedes catalog and derived-runtime checks.
   const currentPair = await readAdapterPair(
@@ -162,16 +213,16 @@ export async function validateDevcanonRuntime(
     );
   });
 
-  return Object.freeze({
+  return new RuntimeCompositionSnapshot({
     runtimeDir,
+    runtimeIdentity: physicalRuntimeDir,
     // A pristine legacy pair is evidence for migration, never publication
     // input. The immutable composition snapshot always owns current bytes.
     adapterPair: currentPair,
     authoritativeAdapterPair: currentPair,
     adapterState,
     providerLeaves,
-    closureRecords: [],
-  }) as unknown as ValidatedDevcanonRuntime;
+  });
 }
 
 export function classifyAdapterPair(
@@ -364,6 +415,23 @@ function samePair(
   );
 }
 
+function copyAdapterPair(pair: RuntimeAdapterPair): RuntimeAdapterPair {
+  return Object.freeze({
+    shell: Buffer.from(pair.shell),
+    resolver: Buffer.from(pair.resolver),
+    shellMode: pair.shellMode,
+    resolverMode: pair.resolverMode,
+  });
+}
+
+function copyProviderLeaves(
+  leaves: ReadonlyMap<string, Buffer>,
+): ReadonlyMap<string, Buffer> {
+  return new Map(
+    [...leaves.entries()].map(([leaf, bytes]) => [leaf, Buffer.from(bytes)]),
+  );
+}
+
 function adapterAdoptionError(runtimeDir: string, state: string): UserError {
   return new UserError(
     `Passive runtime adapter pair is ${state}.`,
@@ -431,16 +499,15 @@ async function requireAdapterContracts(authority: string): Promise<void> {
     const { promisify } = await import("node:util");
     const { stdout: shellStdout } = await promisify(execFile)("bash", [
       shell,
-      "contract",
+      "runtime",
+      "resolve-bash",
     ]);
-    assertRuntimeContract(shellStdout);
+    await assertBashExecutable(shellStdout, "shell adapter");
     const { stdout: resolverStdout } = await promisify(execFile)(
       process.execPath,
       [resolver],
     );
-    if (!path.isAbsolute(resolverStdout.trim())) {
-      throw new Error("resolver did not emit an absolute bash path");
-    }
+    await assertBashExecutable(resolverStdout, "resolver");
   } catch (error) {
     throw new UserError(
       `Fixed passive runtime support bundle ${DEVCANON_RUNTIME_SKILL_NAME} adapter contract check failed.`,
@@ -448,6 +515,21 @@ async function requireAdapterContracts(authority: string): Promise<void> {
       `Reinstall DevCanon or restore the bundled adapter pair. ${(error as Error).message}`,
     );
   }
+}
+
+async function assertBashExecutable(
+  stdout: string,
+  source: string,
+): Promise<void> {
+  const executable = stdout.trim();
+  if (!path.isAbsolute(executable) || executable.includes("\n"))
+    throw new Error(`${source} did not emit an absolute bash path`);
+  const stat = await lstat(executable).catch(() => undefined);
+  if (stat === undefined || !stat.isFile() || stat.isSymbolicLink())
+    throw new Error(`${source} emitted a missing bash path`);
+  await access(executable, constants.X_OK).catch(() => {
+    throw new Error(`${source} emitted a non-executable bash path`);
+  });
 }
 
 function assertRuntimeContract(stdout: string): void {

@@ -1,10 +1,13 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
+import { constants } from "node:fs";
 import {
+  access,
   chmod,
   lstat,
   mkdir,
   mkdtemp,
+  realpath,
   rename,
   rm,
   writeFile,
@@ -145,6 +148,7 @@ export async function reconcileDevcanonRuntimeSource(
   provider: AcceptedProvider,
   validatedRuntime: ValidatedDevcanonRuntime,
 ): Promise<void> {
+  await assertSnapshotRuntimeDir(runtimeDir, validatedRuntime);
   const adapterPair = validatedRuntime.adapterPair;
   if (!sameAdapterPair(adapterPair, validatedRuntime.authoritativeAdapterPair))
     throw new Error(
@@ -213,13 +217,18 @@ async function publishStagedSourceParts(
     await rm(stage, { recursive: true, force: true }).catch(() => undefined);
   } catch (error) {
     if (!published) {
-      for (const leaf of owned) {
-        const target = path.join(destination, leaf);
-        const backup = backups.get(target);
-        if (backup !== undefined) {
-          await rm(target, { recursive: true, force: true });
-          await rename(backup, target).catch(() => undefined);
-        }
+      const restored = await restoreOwnedSourceParts(
+        owned,
+        destination,
+        backups,
+        backupRoot,
+      );
+      if (!restored) {
+        // The old composition remains in this operation-owned root for
+        // diagnosis/recovery. Never erase it after a failed restoration.
+        throw new Error(
+          `runtime source publication failed and retained its operation backup: ${(error as Error).message}`,
+        );
       }
     }
     await rm(backupRoot, { recursive: true, force: true }).catch(
@@ -227,6 +236,51 @@ async function publishStagedSourceParts(
     );
     throw error;
   }
+}
+
+async function restoreOwnedSourceParts(
+  owned: readonly string[],
+  destination: string,
+  backups: ReadonlyMap<string, string>,
+  backupRoot: string,
+): Promise<boolean> {
+  const displacedRoot = path.join(backupRoot, "new");
+  await mkdir(displacedRoot, { recursive: true });
+  let restored = true;
+  for (const leaf of owned) {
+    const target = path.join(destination, leaf);
+    const backup = backups.get(target);
+    if (backup === undefined) continue;
+    const displaced = path.join(displacedRoot, leaf);
+    const targetExists = await lstat(target).then(
+      () => true,
+      () => false,
+    );
+    try {
+      // Preserve any newly published leaf before attempting restoration; a
+      // failed old->live rename can put that complete leaf back in place.
+      if (targetExists) await rename(target, displaced);
+      await rename(backup, target);
+    } catch {
+      const liveMissing = await lstat(target).then(
+        () => false,
+        () => true,
+      );
+      if (liveMissing) {
+        // A bounded retry covers the handled publication seam where the
+        // first restoration rename fails transiently. The old leaf remains
+        // in our backup until this succeeds.
+        const retried = await rename(backup, target).then(
+          () => true,
+          () => false,
+        );
+        if (retried) continue;
+        await rename(displaced, target).catch(() => undefined);
+      }
+      restored = false;
+    }
+  }
+  return restored;
 }
 
 /** Writes precisely the rendered six-file composition through a complete staged tree. */
@@ -294,6 +348,18 @@ function sameAdapterPair(
     left.shellMode === right.shellMode &&
     left.resolverMode === right.resolverMode
   );
+}
+
+async function assertSnapshotRuntimeDir(
+  runtimeDir: string,
+  snapshot: ValidatedDevcanonRuntime,
+): Promise<void> {
+  const physicalRuntimeDir = await realpath(runtimeDir);
+  if (physicalRuntimeDir !== snapshot.runtimeIdentity) {
+    throw new Error(
+      "source reconciliation snapshot was validated for a different runtime directory",
+    );
+  }
 }
 
 async function readAdapterPair(
@@ -366,8 +432,38 @@ async function replaceDirectory(
       () => undefined,
     );
   } catch (error) {
-    if (!published && priorMoved)
-      await rename(backup, destination).catch(() => undefined);
+    if (!published && priorMoved) {
+      const displaced = path.join(backupRoot, "new");
+      const destinationExists = await lstat(destination).then(
+        () => true,
+        () => false,
+      );
+      try {
+        if (destinationExists) await rename(destination, displaced);
+        await rename(backup, destination);
+      } catch {
+        const liveMissing = await lstat(destination).then(
+          () => false,
+          () => true,
+        );
+        if (liveMissing) {
+          const retried = await rename(backup, destination).then(
+            () => true,
+            () => false,
+          );
+          if (retried) {
+            await rm(backupRoot, { recursive: true, force: true }).catch(
+              () => undefined,
+            );
+            throw error;
+          }
+          await rename(displaced, destination).catch(() => undefined);
+        }
+        throw new Error(
+          `runtime directory publication failed and retained its operation backup: ${(error as Error).message}`,
+        );
+      }
+    }
     await rm(backupRoot, { recursive: true, force: true }).catch(
       () => undefined,
     );
@@ -388,15 +484,30 @@ async function assertStagedRuntime(scriptsDirectory: string): Promise<void> {
   await assertStagedBundle(path.join(scriptsDirectory, "runtime"));
   const { stdout } = await promisify(execFile)("bash", [
     path.join(scriptsDirectory, "devcanon-runtime.sh"),
-    "contract",
+    "runtime",
+    "resolve-bash",
   ]);
-  assertRuntimeContract(stdout);
+  await assertBashExecutable(stdout, "staged shell");
   const { stdout: resolverStdout } = await promisify(execFile)(
     process.execPath,
     [path.join(scriptsDirectory, "resolve-bash.mjs")],
   );
-  if (!path.isAbsolute(resolverStdout.trim()))
-    throw new Error("staged resolver did not emit an absolute bash path");
+  await assertBashExecutable(resolverStdout, "staged resolver");
+}
+
+async function assertBashExecutable(
+  stdout: string,
+  source: string,
+): Promise<void> {
+  const executable = stdout.trim();
+  if (!path.isAbsolute(executable) || executable.includes("\n"))
+    throw new Error(`${source} did not emit an absolute bash path`);
+  const stat = await lstat(executable).catch(() => undefined);
+  if (stat === undefined || !stat.isFile() || stat.isSymbolicLink())
+    throw new Error(`${source} emitted a missing bash path`);
+  await access(executable, constants.X_OK).catch(() => {
+    throw new Error(`${source} emitted a non-executable bash path`);
+  });
 }
 
 function assertRuntimeContract(stdout: string): void {

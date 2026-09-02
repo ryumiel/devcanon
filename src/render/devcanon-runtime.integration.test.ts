@@ -151,7 +151,7 @@ describe("devcanon-runtime rendering", () => {
     const authority = path.join(tempDir, "current-authority");
     await mkdir(path.join(authority, "scripts"), { recursive: true });
     const currentShell = Buffer.from(
-      '#!/usr/bin/env bash\nnode "$(cd -- "$(dirname -- "$0")" && pwd)/runtime/devcanon-runtime.mjs" runtime "$@"\n',
+      '#!/usr/bin/env bash\nnode "$(cd -- "$(dirname -- "$0")" && pwd)/runtime/devcanon-runtime.mjs" "$@"\n',
     );
     const currentResolver = Buffer.from("console.log('/bin/bash');\n");
     await writeFile(
@@ -224,6 +224,72 @@ describe("devcanon-runtime rendering", () => {
           0o777,
       ).toBe(validated.adapterPair.resolverMode);
     }
+  });
+
+  it("defensively copies snapshot inputs before hashing and publication", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    const validated = await validateDevcanonRuntime(runtimeDir, {
+      adapterSourceDir: path.resolve("skills/devcanon-runtime"),
+    });
+    const expectedShell = Buffer.from(validated.adapterPair.shell);
+    const expectedProvider = Buffer.from(
+      validated.providerLeaves.get("THIRD_PARTY_LICENSES") ?? [],
+    );
+    const hashBeforeMutation = await hashDevcanonRuntimePayload(
+      runtimeDir,
+      config,
+      validated,
+    );
+
+    const exposedPair = validated.adapterPair;
+    exposedPair.shell.fill(0);
+    expect(validated.authoritativeAdapterPair.shell).toEqual(expectedShell);
+    validated.authoritativeAdapterPair.resolver.fill(0);
+    const exposedLeaves = validated.providerLeaves as Map<string, Buffer>;
+    exposedLeaves.get("THIRD_PARTY_LICENSES")?.fill(0);
+    exposedLeaves.clear();
+    const target = path.join(tempDir, "immutable-snapshot-runtime");
+
+    await writeRenderedDevcanonRuntime(runtimeDir, target, config, validated);
+
+    expect(
+      await hashDevcanonRuntimePayload(runtimeDir, config, validated),
+    ).toBe(hashBeforeMutation);
+    await expect(
+      readFile(path.join(target, "scripts", "devcanon-runtime.sh")),
+    ).resolves.toEqual(expectedShell);
+    await expect(
+      readFile(path.join(target, "scripts", "runtime", "THIRD_PARTY_LICENSES")),
+    ).resolves.toEqual(expectedProvider);
+  });
+
+  it("rejects reconciliation evidence validated for a different runtime root", async () => {
+    const runtimeA = path.join(config.library.skillsDir, "devcanon-runtime");
+    const validated = await validateDevcanonRuntime(runtimeA, {
+      adapterSourceDir: path.resolve("skills/devcanon-runtime"),
+    });
+    const secondSkills = path.join(tempDir, "second-skills");
+    await copyDevcanonRuntimeFixture(secondSkills);
+    const runtimeB = path.join(secondSkills, "devcanon-runtime");
+    const modifiedShell = "#!/usr/bin/env bash\nexit 23\n";
+    await writeFile(
+      path.join(runtimeB, "scripts", "devcanon-runtime.sh"),
+      modifiedShell,
+    );
+
+    await expect(
+      reconcileDevcanonRuntimeSource(
+        runtimeB,
+        await providerFromValidated(
+          path.join(runtimeA, "scripts", "runtime"),
+          validated,
+        ),
+        validated,
+      ),
+    ).rejects.toThrow(/different runtime directory/i);
+    await expect(
+      readFile(path.join(runtimeB, "scripts", "devcanon-runtime.sh"), "utf8"),
+    ).resolves.toBe(modifiedShell);
   });
 
   it("stages a launchable pair and subtree without replacing unrelated scripts", async () => {
@@ -306,22 +372,25 @@ describe("devcanon-runtime rendering", () => {
     );
 
     await expect(
-      reconcileDevcanonRuntimeSource(runtimeDir, provider, {
-        ...validated,
-        adapterPair: {
-          ...validated.adapterPair,
-          shell: Buffer.from(
-            '#!/usr/bin/env bash\nprintf \'%s\\n\' \'{"command_group":"devcanon-runtime","major_version":1}\'\n',
-          ),
-        },
-      } as typeof validated),
+      reconcileDevcanonRuntimeSource(
+        runtimeDir,
+        provider,
+        forgedSnapshot(validated, {
+          adapterPair: {
+            ...validated.adapterPair,
+            shell: Buffer.from(
+              '#!/usr/bin/env bash\nprintf \'%s\\n\' \'{"command_group":"devcanon-runtime","major_version":1}\'\n',
+            ),
+          },
+        }),
+      ),
     ).rejects.toThrow(/does not match the authoritative validated snapshot/i);
     await expect(
       readFile(path.join(runtimeDir, "scripts", "devcanon-runtime.sh")),
     ).resolves.toEqual(before);
   });
 
-  it("rejects a broken resolver in the complete staged composition before publication", async () => {
+  it("rejects a staged resolver that emits a nonexistent bash path before publication", async () => {
     const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
     const validated = await validateDevcanonRuntime(runtimeDir, {
       adapterSourceDir: path.resolve("skills/devcanon-runtime"),
@@ -330,19 +399,22 @@ describe("devcanon-runtime rendering", () => {
     const provider = await providerFromValidated(runtime, validated);
     const brokenPair = {
       ...validated.adapterPair,
-      resolver: Buffer.from("throw new Error('broken resolver');\n"),
+      resolver: Buffer.from("console.log('/definitely/not/a/bash');\n"),
     };
     const before = await readFile(
       path.join(runtimeDir, "scripts", "resolve-bash.mjs"),
     );
 
     await expect(
-      reconcileDevcanonRuntimeSource(runtimeDir, provider, {
-        ...validated,
-        adapterPair: brokenPair,
-        authoritativeAdapterPair: brokenPair,
-      } as typeof validated),
-    ).rejects.toThrow(/broken resolver/i);
+      reconcileDevcanonRuntimeSource(
+        runtimeDir,
+        provider,
+        forgedSnapshot(validated, {
+          adapterPair: brokenPair,
+          authoritativeAdapterPair: brokenPair,
+        }),
+      ),
+    ).rejects.toThrow(/staged resolver emitted a missing bash path/i);
     await expect(
       readFile(path.join(runtimeDir, "scripts", "resolve-bash.mjs")),
     ).resolves.toEqual(before);
@@ -379,4 +451,23 @@ async function providerFromValidated(
       requiredProviderLeaf(validated, "THIRD_PARTY_LICENSES"),
     ),
   } as const;
+}
+
+function forgedSnapshot(
+  validated: Awaited<ReturnType<typeof validateDevcanonRuntime>>,
+  overrides: Partial<{
+    adapterPair: typeof validated.adapterPair;
+    authoritativeAdapterPair: typeof validated.authoritativeAdapterPair;
+  }>,
+) {
+  return {
+    runtimeDir: validated.runtimeDir,
+    runtimeIdentity: validated.runtimeIdentity,
+    adapterPair: overrides.adapterPair ?? validated.adapterPair,
+    authoritativeAdapterPair:
+      overrides.authoritativeAdapterPair ?? validated.authoritativeAdapterPair,
+    adapterState: validated.adapterState,
+    providerLeaves: validated.providerLeaves,
+    closureRecords: validated.closureRecords,
+  } as typeof validated;
 }

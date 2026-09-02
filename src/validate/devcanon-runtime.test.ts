@@ -312,4 +312,54 @@ describe("devcanon-runtime source validation", () => {
       message: expect.stringContaining("adapter contract check failed"),
     } satisfies Partial<UserError>);
   });
+
+  it("rejects an authoritative shell that targets a removed entrypoint", async () => {
+    const authority = path.join(tempDir, "authority");
+    await copyDevcanonRuntimeFixture(path.join(tempDir, "authority-parent"));
+    const { rename } = await import("node:fs/promises");
+    await rename(
+      path.join(tempDir, "authority-parent", "devcanon-runtime"),
+      authority,
+    );
+    await writeFile(
+      path.join(authority, "scripts", "devcanon-runtime.sh"),
+      [
+        "#!/usr/bin/env bash",
+        'if [ "$1" = contract ]; then printf \'%s\\n\' \'{"command_group":"devcanon-runtime","major_version":1}\'; exit 0; fi',
+        'exec node "$(dirname "$0")/runtime/cli.js" "$@"',
+        "",
+      ].join("\n"),
+    );
+    await chmod(path.join(authority, "scripts", "devcanon-runtime.sh"), 0o755);
+
+    await expect(
+      validateBundledDevcanonRuntime(authority, {
+        adapterSourceDir: authority,
+      }),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining("adapter contract check failed"),
+    } satisfies Partial<UserError>);
+  });
+
+  it("rejects an authoritative resolver that prints a nonexistent absolute path", async () => {
+    const authority = path.join(tempDir, "authority");
+    await copyDevcanonRuntimeFixture(path.join(tempDir, "authority-parent"));
+    const { rename } = await import("node:fs/promises");
+    await rename(
+      path.join(tempDir, "authority-parent", "devcanon-runtime"),
+      authority,
+    );
+    await writeFile(
+      path.join(authority, "scripts", "resolve-bash.mjs"),
+      "console.log('/definitely/not/a/bash');\n",
+    );
+
+    await expect(
+      validateBundledDevcanonRuntime(authority, {
+        adapterSourceDir: authority,
+      }),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining("adapter contract check failed"),
+    } satisfies Partial<UserError>);
+  });
 });
