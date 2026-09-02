@@ -13,6 +13,7 @@ import { parse as parseYaml } from "yaml";
 import {
   canMutateExecutableMode,
   cleanupTempDir,
+  copyDevcanonRuntimeFixture,
   createDevcanonRuntimeProviderFixture,
   createTempDir,
 } from "../../__test-helpers__/fixtures.js";
@@ -26,6 +27,7 @@ import {
 } from "../../config/schema.js";
 import { sync } from "../../install/sync.js";
 import { renderAll } from "../../render/pipeline.js";
+import type { AcceptedProvider } from "../../runtime-build/provider.js";
 import type { UserError } from "../../utils/errors.js";
 import { pathExists, readTextFile } from "../../utils/fs.js";
 import { validateBundledDevcanonRuntime } from "../../validate/devcanon-runtime.js";
@@ -38,6 +40,7 @@ describe("initAction", () => {
   let originalCwd: string;
   let testLogger: TestLoggerResult;
   let restoreLogger: () => void;
+  let provider: AcceptedProvider;
 
   beforeEach(async () => {
     tempDir = await createTempDir();
@@ -46,6 +49,7 @@ describe("initAction", () => {
     const installed = installTestLogger();
     testLogger = installed.testLogger;
     restoreLogger = installed.restore;
+    provider = await createDevcanonRuntimeProviderFixture(tempDir);
   });
 
   afterEach(async () => {
@@ -55,7 +59,7 @@ describe("initAction", () => {
   });
 
   it("seeds the packaged passive runtime bundle into fresh libraries", async () => {
-    await initAction();
+    await initAction({}, provider);
 
     expect(
       await pathExists(
@@ -148,7 +152,7 @@ describe("initAction", () => {
   });
 
   it("emits the exact version 2 capability profile catalog", async () => {
-    await initAction();
+    await initAction({}, provider);
 
     const raw = await readTextFile(path.join(tempDir, "devcanon.config.yaml"));
     const config = ConfigSchema.parse(parseYaml(raw));
@@ -171,7 +175,7 @@ describe("initAction", () => {
   });
 
   it("emits a balanced sample agent without target model or effort fields", async () => {
-    await initAction();
+    await initAction({}, provider);
 
     const raw = await readTextFile(
       path.join(tempDir, "agents", "example-agent.yaml"),
@@ -205,7 +209,7 @@ describe("initAction", () => {
     );
     await mkdir(blockedSamplePath, { recursive: true });
 
-    await expect(initAction()).rejects.toThrow();
+    await expect(initAction({}, provider)).rejects.toThrow();
 
     expect(await pathExists(path.join(tempDir, "devcanon.config.yaml"))).toBe(
       true,
@@ -217,13 +221,21 @@ describe("initAction", () => {
   });
 
   it("preserves an existing matching passive runtime bundle path", async () => {
+    const fixtureSkillsDir = path.join(tempDir, ".fixture-package", "skills");
+    await copyDevcanonRuntimeFixture(fixtureSkillsDir);
     await mkdir(path.join(tempDir, "skills"), { recursive: true });
-    await copyBundledRuntimeTo(
-      path.join(originalCwd, "skills", "devcanon-runtime"),
+    await cp(
+      path.join(fixtureSkillsDir, "devcanon-runtime"),
       path.join(tempDir, "skills", "devcanon-runtime"),
+      { recursive: true },
     );
 
-    await initAction();
+    await initAction(
+      {
+        runtimeSourceDir: path.join(fixtureSkillsDir, "devcanon-runtime"),
+      },
+      provider,
+    );
 
     expect(testLogger.infos).toContain(
       "Support runtime already present: skills/devcanon-runtime/",
@@ -239,7 +251,7 @@ describe("initAction", () => {
       "utf-8",
     );
 
-    await expect(initAction()).rejects.toMatchObject({
+    await expect(initAction({}, provider)).rejects.toMatchObject({
       message:
         "Existing skills/devcanon-runtime/ does not match the bundled support runtime.",
       filePath: expect.stringMatching(/skills[/\\]devcanon-runtime$/u),
@@ -271,7 +283,7 @@ describe("initAction", () => {
       );
       await chmod(runtimeEntrypoint, 0o644);
 
-      await expect(initAction()).rejects.toMatchObject({
+      await expect(initAction({}, provider)).rejects.toMatchObject({
         message:
           "Existing skills/devcanon-runtime/ does not match the bundled support runtime.",
         filePath: expect.stringMatching(/skills[/\\]devcanon-runtime$/u),
@@ -284,7 +296,7 @@ describe("initAction", () => {
   );
 
   it("renders the seeded runtime without treating it as an installable skill", async () => {
-    await initAction();
+    await initAction({}, provider);
 
     const config = withTemporaryInstallHomes(
       await loadConfig(path.join(tempDir, "devcanon.config.yaml")),
@@ -375,18 +387,21 @@ describe("initAction", () => {
       "skills",
       "devcanon-runtime",
     );
-    await copyBundledRuntimeTo(
-      path.join(originalCwd, "skills", "devcanon-runtime"),
-      brokenRuntimeDir,
-    );
+    await copyDevcanonRuntimeFixture(path.dirname(brokenRuntimeDir));
     await writeFile(
       path.join(brokenRuntimeDir, "scripts", "runtime", "devcanon-runtime.mjs"),
-      "export const broken = ;\n",
+      [
+        'if (process.argv[2] === "runtime" && process.argv[3] === "resolve-bash") process.stdout.write("/bin/bash\\n");',
+        'else if (process.argv[2] === "runtime" && process.argv[3] === "contract") process.stdout.write("{}\\n");',
+        "",
+      ].join("\n"),
       "utf-8",
     );
 
     await expect(
-      initAction({ runtimeSourceDir: brokenRuntimeDir }),
+      validateBundledDevcanonRuntime(brokenRuntimeDir, {
+        adapterSourceDir: brokenRuntimeDir,
+      }),
     ).rejects.toMatchObject({
       message:
         "Fixed passive runtime support bundle devcanon-runtime contract check failed.",

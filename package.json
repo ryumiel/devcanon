@@ -32,7 +32,7 @@
     "setup:cli": "node scripts/setup-cli.mjs",
     "build": "tsc -p tsconfig.build.json",
     "build:runtime": "pnpm run build && node scripts/check-runtime-build.mjs --build-source",
-    "check:runtime": "node scripts/check-runtime-build.mjs",
+    "check:runtime": "pnpm run build:runtime && node scripts/check-runtime-build.mjs",
     "prepack": "pnpm run build && node scripts/check-runtime-build.mjs --build-package",
     "typecheck": "tsc --noEmit",
     "dev": "tsx src/cli/source.ts",
