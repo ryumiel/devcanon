@@ -1,13 +1,55 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { cleanupTempDir, createTempDir } from "../__test-helpers__/fixtures.js";
 import {
   canonicalInputSha256,
   canonicalizeDependencyProjection,
   extractPnpmProjection,
+  publishVerifiedProvider,
   renderThirdPartyLicenses,
   verifySourceProvider,
 } from "./producer.js";
+import { PROVIDER_LEAVES, sha256 } from "./provider.js";
 
 describe("runtime provider canonical production", () => {
+  it("restores a prior provider and removes a rejected first publication", async () => {
+    const root = await createTempDir();
+    try {
+      const destination = path.join(root, "provider");
+      await writeProvider(destination);
+      const stage = await createRejectedStage(root);
+      await expect(
+        publishVerifiedProvider({
+          stage,
+          destination,
+          origin: "package",
+          devcanonVersion: "2.0.0",
+          inputSha256: "a".repeat(64),
+        }),
+      ).rejects.toThrow();
+      expect(
+        await readFile(path.join(destination, PROVIDER_LEAVES.bundle), "utf8"),
+      ).toBe("export {};\n");
+
+      const firstDestination = path.join(root, "first-provider");
+      const firstStage = await createRejectedStage(root);
+      await expect(
+        publishVerifiedProvider({
+          stage: firstStage,
+          destination: firstDestination,
+          origin: "package",
+          devcanonVersion: "2.0.0",
+          inputSha256: "a".repeat(64),
+        }),
+      ).rejects.toThrow();
+      await expect(readFile(firstDestination)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await cleanupTempDir(root);
+    }
+  });
   it("sorts UTF-8 paths and frames records so concatenation collisions differ", () => {
     const first = canonicalInputSha256([
       { path: "ab", content: Buffer.from("c") },
@@ -153,3 +195,21 @@ snapshots:
     ).toThrow(/unknown attribution/i);
   });
 });
+
+async function createRejectedStage(root: string): Promise<string> {
+  const stage = path.join(root, `stage-${Math.random()}`);
+  await mkdir(stage);
+  return stage;
+}
+
+async function writeProvider(root: string): Promise<void> {
+  await mkdir(root);
+  const bundle = Buffer.from("export {};\n");
+  const licenses = Buffer.from("license\n");
+  await writeFile(path.join(root, PROVIDER_LEAVES.bundle), bundle);
+  await writeFile(path.join(root, PROVIDER_LEAVES.licenses), licenses);
+  await writeFile(
+    path.join(root, PROVIDER_LEAVES.manifest),
+    `${JSON.stringify({ schema: "devcanon-runtime-build/v1", devcanon_version: "2.0.0", artifact_origin: "package", input_sha256: "a".repeat(64), bundle_sha256: sha256(bundle), licenses_sha256: sha256(licenses), node_target: "node24" })}\n`,
+  );
+}

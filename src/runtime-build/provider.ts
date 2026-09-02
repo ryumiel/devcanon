@@ -80,8 +80,12 @@ export async function verifyProvider(
     options.root,
     PROVIDER_LEAVES.licenses,
   );
-  const manifest = parseManifest(manifestBytes);
-  await assertUnchangedRoot(options.root, rootIdentity);
+  const manifest = parseManifest(manifestBytes.bytes);
+  await assertUnchangedRoot(options.root, rootIdentity, [
+    bundle,
+    manifestBytes,
+    licenses,
+  ]);
 
   if (manifest.artifact_origin !== options.origin) {
     throw new Error(
@@ -91,10 +95,10 @@ export async function verifyProvider(
   if (manifest.devcanon_version !== options.devcanonVersion) {
     throw new Error("runtime provider version does not match this DevCanon");
   }
-  if (manifest.bundle_sha256 !== sha256(bundle)) {
+  if (manifest.bundle_sha256 !== sha256(bundle.bytes)) {
     throw new Error("runtime provider bundle digest does not match its bytes");
   }
-  if (manifest.licenses_sha256 !== sha256(licenses)) {
+  if (manifest.licenses_sha256 !== sha256(licenses.bytes)) {
     throw new Error(
       "runtime provider licenses digest does not match its bytes",
     );
@@ -119,9 +123,9 @@ export async function verifyProvider(
     root: options.root,
     origin: options.origin,
     manifest: Object.freeze({ ...manifest }),
-    bundle: new ImmutableProviderBytes(bundle),
-    manifestBytes: new ImmutableProviderBytes(manifestBytes),
-    licenses: new ImmutableProviderBytes(licenses),
+    bundle: new ImmutableProviderBytes(bundle.bytes),
+    manifestBytes: new ImmutableProviderBytes(manifestBytes.bytes),
+    licenses: new ImmutableProviderBytes(licenses.bytes),
   });
 }
 
@@ -156,7 +160,16 @@ async function assertClosedProviderRoot(root: string): Promise<StatsIdentity> {
   return identity(rootStat);
 }
 
-async function readProviderLeaf(root: string, leaf: string): Promise<Buffer> {
+interface CapturedLeaf {
+  leaf: string;
+  bytes: Buffer;
+  identity: StatsIdentity;
+}
+
+async function readProviderLeaf(
+  root: string,
+  leaf: string,
+): Promise<CapturedLeaf> {
   const leafPath = path.join(root, leaf);
   const leafStat = await lstat(leafPath).catch(() => undefined);
   if (
@@ -182,22 +195,41 @@ async function readProviderLeaf(root: string, leaf: string): Promise<Buffer> {
   ) {
     throw new Error(`runtime provider ${leaf} changed while being read`);
   }
-  return bytes;
+  return { leaf, bytes, identity: before };
 }
 
-type StatsIdentity = { dev: number; ino: number };
+type StatsIdentity = {
+  dev: number;
+  ino: number;
+  size: number;
+  mtimeMs: number;
+  ctimeMs: number;
+};
 
-function identity(value: { dev: number; ino: number }): StatsIdentity {
-  return { dev: value.dev, ino: value.ino };
+function identity(value: Stats): StatsIdentity {
+  return {
+    dev: value.dev,
+    ino: value.ino,
+    size: value.size,
+    mtimeMs: value.mtimeMs,
+    ctimeMs: value.ctimeMs,
+  };
 }
 
 function sameIdentity(left: StatsIdentity, right: StatsIdentity): boolean {
-  return left.dev === right.dev && left.ino === right.ino;
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.size === right.size &&
+    left.mtimeMs === right.mtimeMs &&
+    left.ctimeMs === right.ctimeMs
+  );
 }
 
 async function assertUnchangedRoot(
   root: string,
   before: StatsIdentity,
+  leaves: readonly CapturedLeaf[],
 ): Promise<void> {
   const after = await lstat(root).catch(() => undefined);
   if (
@@ -207,6 +239,27 @@ async function assertUnchangedRoot(
     !sameIdentity(before, identity(after))
   ) {
     throw new Error("runtime provider root changed while being read");
+  }
+  const entries = (await readdir(root)).sort();
+  const expected = Object.values(PROVIDER_LEAVES).sort();
+  if (
+    entries.length !== expected.length ||
+    entries.some((entry, index) => entry !== expected[index])
+  ) {
+    throw new Error("runtime provider root changed while being read");
+  }
+  for (const leaf of leaves) {
+    const afterLeaf = await lstat(path.join(root, leaf.leaf)).catch(
+      () => undefined,
+    );
+    if (
+      afterLeaf === undefined ||
+      !afterLeaf.isFile() ||
+      afterLeaf.isSymbolicLink() ||
+      !sameIdentity(leaf.identity, identity(afterLeaf))
+    ) {
+      throw new Error(`runtime provider ${leaf.leaf} changed while being read`);
+    }
   }
 }
 

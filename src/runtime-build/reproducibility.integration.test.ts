@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
@@ -59,6 +59,27 @@ describe("runtime provider reproducibility", () => {
     ).resolves.toMatchObject({
       exitCode: 1,
       stderr: "runtime bundle selector must be runtime or bootstrap\n",
+    });
+    const selectedRuntime = path.join(second, "selected-runtime");
+    await mkdir(path.join(selectedRuntime, "scripts", "runtime"), {
+      recursive: true,
+    });
+    await writeFile(
+      path.join(selectedRuntime, "scripts", "runtime", "devcanon-runtime.mjs"),
+      await readFile(path.join(first, "devcanon-runtime.mjs")),
+    );
+    await expect(
+      runNode(path.join(first, "devcanon-runtime.mjs"), [
+        "bootstrap",
+        "--runtime-dir",
+        selectedRuntime,
+        "--",
+        "contract",
+      ]),
+    ).resolves.toMatchObject({
+      exitCode: 0,
+      stdout: `${JSON.stringify({ command_group: "devcanon-runtime", major_version: 1, helper_foundation: true })}\n`,
+      stderr: "",
     });
   });
 });

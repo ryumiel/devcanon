@@ -157,6 +157,7 @@ export function renderThirdPartyLicenses(
 export async function produceProvider(
   options: ProduceProviderOptions,
 ): Promise<AcceptedProvider> {
+  const devcanonVersion = await readDevcanonVersion(options.repositoryRoot);
   const destination =
     options.destinationRoot ??
     path.join(
@@ -192,7 +193,7 @@ export async function produceProvider(
   );
   const records = await collectCanonicalInputs(
     options.repositoryRoot,
-    options.devcanonVersion,
+    devcanonVersion,
     instances,
     result.metafile ?? {},
   );
@@ -203,7 +204,7 @@ export async function produceProvider(
   );
   const manifest = {
     schema: "devcanon-runtime-build/v1",
-    devcanon_version: options.devcanonVersion,
+    devcanon_version: devcanonVersion,
     artifact_origin: options.origin,
     input_sha256: inputSha256,
     bundle_sha256: sha256(bundle),
@@ -227,14 +228,14 @@ export async function produceProvider(
     await verifyProvider({
       root: stage,
       origin: options.origin,
-      devcanonVersion: options.devcanonVersion,
+      devcanonVersion,
       inputSha256,
     });
     await publishVerifiedProvider({
       stage,
       destination,
       origin: options.origin,
-      devcanonVersion: options.devcanonVersion,
+      devcanonVersion,
       inputSha256,
     });
   } catch (error) {
@@ -244,7 +245,7 @@ export async function produceProvider(
   return verifyProvider({
     root: destination,
     origin: options.origin,
-    devcanonVersion: options.devcanonVersion,
+    devcanonVersion,
     inputSha256,
   });
 }
@@ -255,6 +256,7 @@ export async function verifySourceProvider(options: {
   root: string;
   devcanonVersion: string;
 }): Promise<AcceptedProvider> {
+  const devcanonVersion = await readDevcanonVersion(options.repositoryRoot);
   const result = await build({
     absWorkingDir: options.repositoryRoot,
     entryPoints: ["src/runtime/bundle-entry.ts"],
@@ -275,7 +277,7 @@ export async function verifySourceProvider(options: {
   const inputSha256 = canonicalInputSha256(
     await collectCanonicalInputs(
       options.repositoryRoot,
-      options.devcanonVersion,
+      devcanonVersion,
       bundled.map(({ packageRoot: _packageRoot, ...instance }) => instance),
       result.metafile ?? {},
     ),
@@ -283,12 +285,22 @@ export async function verifySourceProvider(options: {
   return verifyProvider({
     root: options.root,
     origin: "source-build",
-    devcanonVersion: options.devcanonVersion,
+    devcanonVersion,
     inputSha256,
   });
 }
 
-async function publishVerifiedProvider(options: {
+async function readDevcanonVersion(repositoryRoot: string): Promise<string> {
+  const packageJson = JSON.parse(
+    await readFile(path.join(repositoryRoot, "package.json"), "utf8"),
+  ) as { version?: unknown };
+  if (!isNonemptyString(packageJson.version)) {
+    throw new Error("package.json must provide the producing DevCanon version");
+  }
+  return packageJson.version;
+}
+
+export async function publishVerifiedProvider(options: {
   stage: string;
   destination: string;
   origin: ArtifactOrigin;
@@ -313,10 +325,17 @@ async function publishVerifiedProvider(options: {
     });
     if (hadPrior) await rm(backup, { recursive: true, force: true });
   } catch (error) {
-    if (!hadPrior) throw error;
+    if (!hadPrior) {
+      await rm(options.destination, { recursive: true, force: true });
+      throw error;
+    }
     const failed = `${options.stage}.failed`;
     try {
-      await rename(options.destination, failed);
+      await rename(options.destination, failed).catch(
+        (renameError: NodeJS.ErrnoException) => {
+          if (renameError.code !== "ENOENT") throw renameError;
+        },
+      );
       await rename(backup, options.destination);
     } catch (restoreError) {
       throw new AggregateError(
@@ -351,11 +370,14 @@ async function collectCanonicalInputs(
     await readFile(path.join(repositoryRoot, "package.json"), "utf8"),
   ) as {
     dependencies?: Record<string, string>;
+    optionalDependencies?: Record<string, string>;
     devDependencies?: Record<string, string>;
   };
-  const projection = extractPnpmProjection(
-    await readFile(path.join(repositoryRoot, "pnpm-lock.yaml"), "utf8"),
+  const lockfileContents = await readFile(
+    path.join(repositoryRoot, "pnpm-lock.yaml"),
+    "utf8",
   );
+  const projection = extractPnpmProjection(lockfileContents);
   const selected = selectProjection(projection, instances);
   const esbuild = projection.packages.find(
     (item) => item.name === "esbuild" && item.version === esbuildVersion,
@@ -368,11 +390,32 @@ async function collectCanonicalInputs(
       "runtime producer requires the exact pinned esbuild lock resolution",
     );
   }
+  const esbuildReference = (parseYaml(lockfileContents) as PnpmLock)
+    .importers?.["."]?.devDependencies?.esbuild;
+  const esbuildTarget =
+    typeof esbuildReference === "string"
+      ? esbuildReference
+      : esbuildReference?.version;
+  if (esbuildTarget !== "0.27.4") {
+    throw new Error(
+      "runtime producer requires root's exact esbuild resolution",
+    );
+  }
   records.push({
     path: "src/runtime-build/producer.ts",
     content: await readFile(
       path.join(repositoryRoot, "src", "runtime-build", "producer.ts"),
     ),
+  });
+  records.push({
+    path: "src/runtime-build/provider.ts",
+    content: await readFile(
+      path.join(repositoryRoot, "src", "runtime-build", "provider.ts"),
+    ),
+  });
+  records.push({
+    path: "tsconfig.json",
+    content: await readFile(path.join(repositoryRoot, "tsconfig.json")),
   });
   records.push({
     path: ".devcanon-runtime/bundler.json",
@@ -393,7 +436,9 @@ async function collectCanonicalInputs(
         Object.fromEntries(
           selected.root.map((edge) => [
             edge.alias,
-            packageJson.dependencies?.[edge.alias] ?? null,
+            edge.kind === "optionalDependencies"
+              ? packageJson.optionalDependencies?.[edge.alias]
+              : packageJson.dependencies?.[edge.alias],
           ]),
         ),
       )}\n`,
@@ -405,7 +450,9 @@ async function collectCanonicalInputs(
   });
   records.push({
     path: ".devcanon-runtime/esbuild-resolution.json",
-    content: Buffer.from(`${JSON.stringify(esbuild)}\n`),
+    content: Buffer.from(
+      `${JSON.stringify({ root_dev_dependency: esbuildTarget, package: esbuild })}\n`,
+    ),
   });
   return records;
 }
@@ -485,10 +532,6 @@ async function collectBundledInstances(
       };
     }),
   );
-  const ids = new Set<string>();
-  if (packages.some((item) => ids.has(item.id) || !ids.add(item.id))) {
-    throw new Error("ambiguous bundled package attribution identity");
-  }
   return resolveLockInstances(repositoryRoot, packages);
 }
 
@@ -507,6 +550,7 @@ type PnpmLock = {
 type PnpmImporter = {
   dependencies?: Record<string, PnpmReference>;
   optionalDependencies?: Record<string, PnpmReference>;
+  devDependencies?: Record<string, PnpmReference>;
 };
 
 type PnpmReference = string | { version?: string };
@@ -667,23 +711,26 @@ async function resolveLockInstances(
   const projection = extractPnpmProjection(
     await readFile(path.join(repositoryRoot, "pnpm-lock.yaml"), "utf8"),
   );
-  const idsByNameAndVersion = new Map<string, string>();
+  const idsByPackageRoot = new Map<string, string>();
   for (const item of packages) {
     const prefix = `${item.name}@${item.version}`;
     const candidates = projection.packages
       .map((entry) => entry.id)
       .filter((id) => id === prefix || id.startsWith(`${prefix}(`));
-    if (candidates.length !== 1) {
+    const physicalMatch = candidates.find((id) =>
+      matchesPhysicalPnpmIdentity(repositoryRoot, item.packageRoot, id),
+    );
+    if (physicalMatch === undefined && candidates.length !== 1) {
       throw new Error(
         `ambiguous lockfile identity for bundled package: ${prefix}`,
       );
     }
     const [id] = candidates;
-    idsByNameAndVersion.set(prefix, id);
+    idsByPackageRoot.set(item.packageRoot, physicalMatch ?? id);
   }
-  const knownIds = new Set(idsByNameAndVersion.values());
+  const knownIds = new Set(idsByPackageRoot.values());
   return packages.map((item) => {
-    const id = idsByNameAndVersion.get(`${item.name}@${item.version}`);
+    const id = idsByPackageRoot.get(item.packageRoot);
     if (id === undefined) throw new Error("missing resolved package identity");
     const record = projection.packages.find((entry) => entry.id === id);
     if (record === undefined)
@@ -698,6 +745,22 @@ async function resolveLockInstances(
       dependencies,
     };
   });
+}
+
+function matchesPhysicalPnpmIdentity(
+  repositoryRoot: string,
+  packageRoot: string,
+  snapshotId: string,
+): boolean {
+  const relative = path.relative(
+    path.join(repositoryRoot, "node_modules", ".pnpm"),
+    packageRoot,
+  );
+  const [physicalIdentity] = relative.split(path.sep);
+  return (
+    physicalIdentity ===
+    snapshotId.replaceAll("/", "+").replaceAll("(", "_").replaceAll(")", "")
+  );
 }
 
 async function nearestPackageRoot(
