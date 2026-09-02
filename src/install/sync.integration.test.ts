@@ -22,6 +22,7 @@ import {
   copyDevcanonRuntimeFixture,
   createAgentFixture,
   createConfigFile,
+  createDevcanonRuntimeProviderFixture,
   createSkillFixture,
   createTempDir,
   makeAgentYaml,
@@ -832,6 +833,80 @@ describe("sync", () => {
       "installed",
     );
   });
+
+  it("accepts the provider before invalid-manifest recovery or any source mutation", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const invalidBytes = "{corrupt manifest";
+    const runtimeBundle = path.join(
+      config.library.skillsDir,
+      "devcanon-runtime",
+      "scripts",
+      "runtime",
+      "devcanon-runtime.mjs",
+    );
+    const beforeBundle = await readFile(runtimeBundle, "utf8");
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(config.manifest.path, invalidBytes, "utf8");
+
+    await expect(
+      sync(config, { dryRun: false, force: false, strict: false }, async () => {
+        throw new Error("provider acceptance failed");
+      }),
+    ).rejects.toThrow("provider acceptance failed");
+
+    expect(await readTextFile(config.manifest.path)).toBe(invalidBytes);
+    expect(await pathExists(`${config.manifest.path}.bak`)).toBe(false);
+    expect(await readFile(runtimeBundle, "utf8")).toBe(beforeBundle);
+    expect(await pathExists(config.library.generatedDir)).toBe(false);
+  });
+
+  it.each(["absent", "provider-mismatched"] as const)(
+    "repairs a %s derived subtree only for non-dry provider-backed sync",
+    async (state) => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      const runtimeDir = path.join(
+        config.library.skillsDir,
+        "devcanon-runtime",
+      );
+      const derived = path.join(runtimeDir, "scripts", "runtime");
+      const provider = await createDevcanonRuntimeProviderFixture(tempDir);
+      if (state === "absent") {
+        await rm(derived, { recursive: true, force: true });
+      } else {
+        await writeFile(
+          path.join(derived, "devcanon-runtime.mjs"),
+          "stale provider bytes\n",
+          "utf8",
+        );
+      }
+
+      const dry = await sync(
+        config,
+        { dryRun: true, force: false, strict: false },
+        provider,
+      );
+      expect(dry.errors).toEqual([]);
+      if (state === "absent") expect(await pathExists(derived)).toBe(false);
+      else {
+        await expect(
+          readFile(path.join(derived, "devcanon-runtime.mjs"), "utf8"),
+        ).resolves.toBe("stale provider bytes\n");
+      }
+      expect(await pathExists(config.library.generatedDir)).toBe(false);
+
+      const applied = await sync(
+        config,
+        { dryRun: false, force: false, strict: false },
+        provider,
+      );
+      expect(applied.errors).toEqual([]);
+      expect(await readdir(derived)).toEqual([
+        "THIRD_PARTY_LICENSES",
+        "devcanon-runtime.mjs",
+        "runtime-manifest.json",
+      ]);
+    },
+  );
 
   it("treats a residual lock as invalid during dry sync without rendering or recovery", async () => {
     const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });

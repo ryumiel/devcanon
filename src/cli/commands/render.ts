@@ -39,6 +39,7 @@ export async function renderAction(
   let validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
     adapterSourceDir: bundledDevcanonRuntimeDir(),
     operation: "compose",
+    provider,
   });
   if (provider) {
     await reconcileDevcanonRuntimeSource(

@@ -153,6 +153,26 @@ describe("diffAll integration", () => {
     await cleanupTempDir(tempDir);
   });
 
+  it("reads an invalid manifest before resolving the runtime provider", async () => {
+    const invalidBytes = "{corrupt manifest";
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(config.manifest.path, invalidBytes, "utf8");
+    let providerRequested = false;
+
+    await expect(
+      diffAll(config, undefined, false, async () => {
+        providerRequested = true;
+        throw new Error("provider must not be resolved");
+      }),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining("Manifest is invalid: corrupt JSON"),
+    });
+
+    expect(providerRequested).toBe(false);
+    expect(await readFile(config.manifest.path, "utf8")).toBe(invalidBytes);
+    expect(await readdir(config.library.generatedDir)).toEqual([]);
+  });
+
   async function writeAgentManifest(
     agent: RenderedAgent,
     overrides: Record<string, unknown> = {},

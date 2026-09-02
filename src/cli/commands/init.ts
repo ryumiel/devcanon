@@ -51,7 +51,7 @@ export async function initAction(
     );
   }
 
-  await preflightRuntimeSkill(cwd, runtimeSourceDir);
+  await preflightRuntimeSkill(cwd, runtimeSourceDir, provider);
 
   // Create config
   await writeTextFile(configPath, DEFAULT_CONFIG_YAML);
@@ -111,8 +111,9 @@ async function seedRuntimeSkill(
 async function preflightRuntimeSkill(
   cwd: string,
   sourceDir: string,
+  provider?: AcceptedProvider,
 ): Promise<void> {
-  await requireBundledRuntimeSkill(sourceDir);
+  await requireBundledRuntimeSkill(sourceDir, provider);
 
   const targetDir = path.join(cwd, "skills", RUNTIME_SKILL_NAME);
   if (await pathOrSymlinkExists(targetDir)) {
@@ -120,8 +121,11 @@ async function preflightRuntimeSkill(
   }
 }
 
-async function requireBundledRuntimeSkill(sourceDir: string): Promise<void> {
-  await validateBundledDevcanonRuntime(sourceDir);
+async function requireBundledRuntimeSkill(
+  sourceDir: string,
+  provider?: AcceptedProvider,
+): Promise<void> {
+  await validateBundledDevcanonRuntime(sourceDir, { provider });
 }
 
 async function requireMatchingRuntimeSkill(

@@ -7,9 +7,9 @@ import type {
   ResolvedConfig,
 } from "../config/schema.js";
 import type { PlanAction, SyncOptions } from "../models/types.js";
+import { reconcileDevcanonRuntimeSource } from "../render/devcanon-runtime.js";
 import {
   type RenderMutation,
-  renderAll,
   renderAllWithValidatedRuntime,
 } from "../render/pipeline.js";
 import type { AcceptedProvider } from "../runtime-build/provider.js";
@@ -92,12 +92,19 @@ export async function sync(
       dryInvalidManifestHint(inspection.message, config.manifest.path),
     );
   }
-  // Preserve the direct-library API's established validation ordering. The
-  // public launcher supplies an explicit resolver and reaches its provider
-  // gate only after the manifest preflight below.
+  // The public launcher passes a lazy resolver. Accept it after the
+  // observational manifest preflight but before recovery or source mutation.
+  const acceptedProvider =
+    provider === undefined
+      ? undefined
+      : typeof provider === "function"
+        ? await provider()
+        : provider;
   let validatedRuntime:
     | Awaited<ReturnType<typeof validateDevcanonRuntime>>
     | undefined;
+  // Keep the established direct-library ordering. Public CLI calls always
+  // provide the resolver above, which gates recovery on provider acceptance.
   if (provider === undefined) {
     validatedRuntime = await validateDevcanonRuntime(
       devcanonRuntimeDir(config.library.skillsDir),
@@ -160,16 +167,20 @@ export async function sync(
     (index) => normalized.manifest.records[index],
   );
   assertReconciledForeignControlReservations(reconciledForeignRecords, config);
-  if (provider !== undefined) {
-    const acceptedProvider =
-      typeof provider === "function" ? await provider() : provider;
-    validatedRuntime = await validateDevcanonRuntime(
-      devcanonRuntimeDir(config.library.skillsDir),
-      { provider: acceptedProvider },
+  const runtimeDir = devcanonRuntimeDir(config.library.skillsDir);
+  validatedRuntime ??= await validateDevcanonRuntime(runtimeDir, {
+    operation: acceptedProvider ? "compose" : undefined,
+    provider: acceptedProvider,
+  });
+  if (acceptedProvider && !options.dryRun) {
+    await reconcileDevcanonRuntimeSource(
+      runtimeDir,
+      acceptedProvider,
+      validatedRuntime,
     );
-  }
-  if (validatedRuntime === undefined) {
-    throw new Error("sync runtime validation did not produce evidence");
+    validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
+      provider: acceptedProvider,
+    });
   }
   const operationId = `sync-${randomUUID()}`;
   let authority: ManifestBackupAuthority | undefined;
@@ -260,7 +271,15 @@ export async function sync(
     // Render outputs (filter by target, propagate strict mode)
     const outputs = options.dryRun
       ? prospectiveOutputs
-      : (await renderAll(config, true, options.strict, options.target)).outputs;
+      : (
+          await renderAllWithValidatedRuntime(
+            config,
+            validatedRuntime,
+            true,
+            options.strict,
+            options.target,
+          )
+        ).outputs;
     // Filter for install planning (renderAll already filtered, but keep for clarity)
     const filteredOutputs = outputs;
 

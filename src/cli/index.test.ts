@@ -4,6 +4,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   rm,
   writeFile,
 } from "node:fs/promises";
@@ -12,8 +13,10 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import {
+  cleanupTempDir,
   copyDevcanonRuntimeFixture,
   createConfigFile,
+  createDevcanonRuntimeProviderFixture,
   makeConfigYaml,
 } from "../__test-helpers__/fixtures.js";
 import {
@@ -66,6 +69,54 @@ describe("CLI entrypoint", () => {
       program.parseAsync(["node", "devcanon", "--help"]),
     ).rejects.toMatchObject({ code: "commander.helpDisplayed" });
   });
+
+  it.each(["absent", "provider-mismatched"] as const)(
+    "repairs a %s source derived subtree through render",
+    async (state) => {
+      const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-cli-"));
+      try {
+        const configPath = await createConfigFile(tempDir);
+        const skillsDir = path.join(tempDir, "skills");
+        const derived = path.join(
+          skillsDir,
+          "devcanon-runtime",
+          "scripts",
+          "runtime",
+        );
+        await copyDevcanonRuntimeFixture(skillsDir);
+        await mkdir(path.join(tempDir, "agents"), { recursive: true });
+        const provider = await createDevcanonRuntimeProviderFixture(tempDir);
+        if (state === "absent") {
+          await rm(derived, { recursive: true, force: true });
+        } else {
+          await writeFile(
+            path.join(derived, "devcanon-runtime.mjs"),
+            "stale provider bytes\n",
+            "utf8",
+          );
+        }
+
+        await createCliProgram(async () => provider).parseAsync([
+          "node",
+          "devcanon",
+          "--config",
+          configPath,
+          "render",
+        ]);
+
+        expect((await readdir(derived)).sort()).toEqual([
+          "THIRD_PARTY_LICENSES",
+          "devcanon-runtime.mjs",
+          "runtime-manifest.json",
+        ]);
+        expect(
+          await readFile(path.join(derived, "devcanon-runtime.mjs"), "utf8"),
+        ).not.toBe("stale provider bytes\n");
+      } finally {
+        await cleanupTempDir(tempDir);
+      }
+    },
+  );
 
   it("uses devcanon as the program name in help output", async () => {
     const result = await execFileAsync(

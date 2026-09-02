@@ -108,8 +108,8 @@ export function createCliProgram(
     .command("diff")
     .description("Compare generated vs installed outputs")
     .option("--target <target>", "claude or codex")
-    .action(async (options, command) =>
-      diffAction(options, command, await resolveProvider()),
+    .action((options, command) =>
+      diffAction(options, command, resolveProvider),
     );
   program
     .command("doctor")

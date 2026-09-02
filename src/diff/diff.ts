@@ -26,7 +26,7 @@ export async function diffAll(
   config: ResolvedConfig,
   targetFilter?: "claude" | "codex",
   strict = false,
-  provider?: AcceptedProvider,
+  provider?: AcceptedProvider | (() => Promise<AcceptedProvider>),
 ): Promise<DiffResult[]> {
   const loaded = await loadManifestWithSnapshot(config.manifest.path);
   let normalized: ReturnType<typeof normalizeManifestIdentity>;
@@ -62,9 +62,14 @@ export async function diffAll(
     );
   }
   const manifest = normalized.manifest;
+  const acceptedProvider =
+    typeof provider === "function" ? await provider() : provider;
   const validatedRuntime = await validateDevcanonRuntime(
     devcanonRuntimeDir(config.library.skillsDir),
-    { adapterSourceDir: bundledDevcanonRuntimeDir(), provider },
+    {
+      adapterSourceDir: bundledDevcanonRuntimeDir(),
+      provider: acceptedProvider,
+    },
   );
   const { outputs } = await renderAllWithValidatedRuntime(
     config,

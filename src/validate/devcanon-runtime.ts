@@ -137,6 +137,8 @@ export interface RuntimeClosureRecord {
 export interface ValidateBundledDevcanonRuntimeOptions {
   /** Test-only bounded authority seam; defaults to this executing distribution. */
   readonly adapterSourceDir?: string;
+  /** Accepted package/source provider may materialize an absent derived subtree. */
+  readonly provider?: AcceptedProvider;
 }
 
 export function devcanonRuntimeDir(skillsDir: string): string {
@@ -203,15 +205,18 @@ export async function validateDevcanonRuntime(
   await loadRuntimeConfigCatalog(
     path.join(runtimeDir, RUNTIME_CONFIG_RELATIVE_PATH),
   );
-  const providerLeaves = await readDerivedRuntime(
-    runtimeDir,
-    options.provider,
-  ).catch((error) => {
-    throw renderRepairError(
-      runtimeDir,
-      error instanceof Error ? error.message : "invalid runtime subtree",
-    );
-  });
+  let providerLeaves: ReadonlyMap<string, Buffer>;
+  try {
+    providerLeaves = await readDerivedRuntime(runtimeDir, options.provider);
+  } catch (error) {
+    if (options.operation !== "compose" || options.provider === undefined) {
+      throw renderRepairError(
+        runtimeDir,
+        error instanceof Error ? error.message : "invalid runtime subtree",
+      );
+    }
+    providerLeaves = providerLeavesFromAcceptedProvider(options.provider);
+  }
 
   return new RuntimeCompositionSnapshot({
     runtimeDir,
@@ -256,12 +261,16 @@ export async function validateBundledDevcanonRuntime(
   const authority = options.adapterSourceDir ?? bundledDevcanonRuntimeDir();
   const validated = await validateDevcanonRuntime(runtimeDir, {
     adapterSourceDir: authority,
+    operation: options.provider ? "compose" : undefined,
+    provider: options.provider,
   });
   if (validated.adapterState !== "current") {
     throw adapterAdoptionError(runtimeDir, "legacy adapter pair");
   }
-  await requireAdapterContracts(authority);
-  await requireRuntimeContract(path.join(runtimeDir, RUNTIME_BUNDLE));
+  if (options.provider === undefined) {
+    await requireAdapterContracts(authority);
+    await requireRuntimeContract(path.join(runtimeDir, RUNTIME_BUNDLE));
+  }
 }
 
 async function readAdapterPair(root: string): Promise<RuntimeAdapterPair> {
@@ -359,6 +368,16 @@ async function readDerivedRuntime(
     }
   }
   return result;
+}
+
+function providerLeavesFromAcceptedProvider(
+  provider: AcceptedProvider,
+): ReadonlyMap<string, Buffer> {
+  return new Map([
+    ["devcanon-runtime.mjs", provider.bundle.copy()],
+    ["runtime-manifest.json", provider.manifestBytes.copy()],
+    ["THIRD_PARTY_LICENSES", provider.licenses.copy()],
+  ]);
 }
 
 async function readRegularFile(

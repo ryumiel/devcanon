@@ -1,10 +1,19 @@
-import { chmod, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  cp,
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
 import {
   canMutateExecutableMode,
   cleanupTempDir,
+  createDevcanonRuntimeProviderFixture,
   createTempDir,
 } from "../../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../../__test-helpers__/logger.js";
@@ -19,6 +28,7 @@ import { sync } from "../../install/sync.js";
 import { renderAll } from "../../render/pipeline.js";
 import type { UserError } from "../../utils/errors.js";
 import { pathExists, readTextFile } from "../../utils/fs.js";
+import { validateBundledDevcanonRuntime } from "../../validate/devcanon-runtime.js";
 import { initAction } from "./init.js";
 
 const executableModeMutable = await canMutateExecutableMode();
@@ -78,6 +88,63 @@ describe("initAction", () => {
     expect(testLogger.infos).toContain(
       "Seeded support runtime: skills/devcanon-runtime/",
     );
+  });
+
+  it("composes a package-origin provider when packaged authored inputs have no derived subtree", async () => {
+    const packageRuntime = path.join(tempDir, "package-runtime");
+    await mkdir(path.join(packageRuntime, "config"), { recursive: true });
+    await mkdir(path.join(packageRuntime, "scripts"), { recursive: true });
+    await Promise.all([
+      cp(
+        path.join(
+          originalCwd,
+          "skills",
+          "devcanon-runtime",
+          "config",
+          "runtime-config.json",
+        ),
+        path.join(packageRuntime, "config", "runtime-config.json"),
+      ),
+      cp(
+        path.join(
+          originalCwd,
+          "skills",
+          "devcanon-runtime",
+          "scripts",
+          "devcanon-runtime.sh",
+        ),
+        path.join(packageRuntime, "scripts", "devcanon-runtime.sh"),
+      ),
+      cp(
+        path.join(
+          originalCwd,
+          "skills",
+          "devcanon-runtime",
+          "scripts",
+          "resolve-bash.mjs",
+        ),
+        path.join(packageRuntime, "scripts", "resolve-bash.mjs"),
+      ),
+    ]);
+
+    const provider = await createDevcanonRuntimeProviderFixture(tempDir);
+    await expect(
+      validateBundledDevcanonRuntime(packageRuntime, {
+        adapterSourceDir: packageRuntime,
+        provider,
+      }),
+    ).resolves.toBeUndefined();
+    await initAction({ runtimeSourceDir: packageRuntime }, provider);
+
+    expect(
+      await readdir(
+        path.join(tempDir, "skills", "devcanon-runtime", "scripts", "runtime"),
+      ),
+    ).toEqual([
+      "THIRD_PARTY_LICENSES",
+      "devcanon-runtime.mjs",
+      "runtime-manifest.json",
+    ]);
   });
 
   it("emits the exact version 2 capability profile catalog", async () => {

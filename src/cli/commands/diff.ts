@@ -12,7 +12,7 @@ interface DiffCommandOptions {
 export async function diffAction(
   options: DiffCommandOptions,
   command: { parent?: { opts(): Record<string, unknown> } },
-  provider?: AcceptedProvider,
+  provider?: AcceptedProvider | (() => Promise<AcceptedProvider>),
 ): Promise<void> {
   const logger = getLogger();
   const globalOpts = command.parent?.opts() ?? {};
