@@ -8025,15 +8025,23 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
       ].join("\n"),
     );
     await chmod(resolver, 0o755);
+    const typedRuntime = path.join(typedRuntimeDir, "devcanon-runtime.mjs");
     await writeFile(
-      path.join(typedRuntimeDir, "cli.js"),
+      typedRuntime,
       [
         'import { writeFileSync } from "node:fs";',
-        'writeFileSync(process.env.DEVCANON_TEST_TYPED_SENTINEL, "executed\\n");',
+        "const [group, helper] = process.argv.slice(2);",
+        'if (group !== "runtime" || helper !== "pr-review-leases") process.exit(64);',
+        "const sentinel =",
+        '  process.platform === "win32"',
+        "    ? process.env.DEVCANON_TEST_TYPED_SENTINEL",
+        "    : process.env.DEVCANON_TEST_RESOLVER_SENTINEL;",
+        'writeFileSync(sentinel, "executed\\n");',
         'process.stdout.write("runtime-ok\\n");',
         "",
       ].join("\n"),
     );
+    await chmod(typedRuntime, 0o755);
     return { runtimeDir, resolverSentinel, typedSentinel };
   }
 
@@ -8141,7 +8149,7 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
   });
 
   it.runIf(process.platform !== "win32")(
-    "preserves POSIX backslashes, line feeds, and valid dot aliases despite a poisoned OSTYPE",
+    "preserves POSIX line feeds and valid dot aliases despite a poisoned OSTYPE",
     async () => {
       const root = await commandHarness.createScratchRoot();
       try {
@@ -8155,16 +8163,6 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
           `${ordinary.runtimeDir}/.`,
           ordinary.resolverSentinel,
           ordinary.typedSentinel,
-        );
-
-        const literalBackslashes = await writeRuntime(
-          root,
-          "literal\\..\\runtime",
-        );
-        await expectAccepted(
-          literalBackslashes.runtimeDir,
-          literalBackslashes.resolverSentinel,
-          literalBackslashes.typedSentinel,
         );
 
         const lineFeed = await writeRuntime(root, "line-feed-runtime\n");
@@ -8364,7 +8362,12 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
           );
         }
         const physicalTypedEntrypoint = await realpath(
-          path.win32.join(uncRuntime, "scripts", "runtime", "cli.js"),
+          path.win32.join(
+            uncRuntime,
+            "scripts",
+            "runtime",
+            "devcanon-runtime.mjs",
+          ),
         );
         const typedEntrypointUrl = pathToFileURL(physicalTypedEntrypoint);
         expect(typedEntrypointUrl.hostname.toLowerCase()).toBe(

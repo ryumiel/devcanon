@@ -67,14 +67,15 @@ async function writeRuntimeOverride(root: string): Promise<string> {
     ].join("\n"),
   );
   await chmod(entrypoint, 0o755);
+  const bundle = path.join(typedRuntime, "devcanon-runtime.mjs");
   await writeFile(
-    path.join(typedRuntime, "cli.js"),
+    bundle,
     [
-      "const [command, argument] = process.argv.slice(2);",
-      "process.stdout.write(`${command}|${argument}|${process.env.DEVCANON_RUNTIME_DIR}\\n`);",
+      'process.stdout.write(`${process.argv.slice(2).join("|")}|${process.env.DEVCANON_RUNTIME_DIR}\\n`);',
       "",
     ].join("\n"),
   );
+  await chmod(bundle, 0o755);
   return runtime;
 }
 

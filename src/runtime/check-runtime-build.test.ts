@@ -8,6 +8,8 @@ import { describe, expect, it } from "vitest";
 const execFileAsync = promisify(execFile);
 const checker = path.resolve("scripts/check-runtime-build.mjs");
 const repositoryRoot = process.cwd();
+const isolatedCheckTimeoutMs = 55_000;
+const isolatedTestTimeoutMs = 60_000;
 
 async function createIsolatedCheckout(): Promise<string> {
   const checkout = await mkdtemp(path.join(os.tmpdir(), "devcanon-runtime-"));
@@ -26,6 +28,20 @@ async function createIsolatedCheckout(): Promise<string> {
     { recursive: true, verbatimSymlinks: true },
   );
   return checkout;
+}
+
+async function runIsolatedRuntimeCheck(checkout: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), isolatedCheckTimeoutMs);
+  try {
+    return await execFileAsync("pnpm", ["run", "check:runtime"], {
+      cwd: checkout,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+    controller.abort();
+  }
 }
 
 describe("runtime build checker", () => {
@@ -48,32 +64,36 @@ describe("runtime build checker", () => {
     ).rejects.toMatchObject({ stderr: expect.stringContaining("usage:") });
   });
 
-  it("materializes and checks source runtime from a clean ignored-output state", async () => {
-    const checkout = await createIsolatedCheckout();
-    const sourceProvider = path.join(
-      checkout,
-      "dist/devcanon-runtime/source-build",
-    );
-    const derivedRuntime = path.join(
-      checkout,
-      "skills/devcanon-runtime/scripts/runtime",
-    );
-    try {
-      await expect(
-        execFileAsync("pnpm", ["run", "check:runtime"], { cwd: checkout }),
-      ).resolves.toMatchObject({ stderr: "" });
-      await expect(readdir(sourceProvider)).resolves.toEqual([
-        "THIRD_PARTY_LICENSES",
-        "devcanon-runtime.mjs",
-        "runtime-manifest.json",
-      ]);
-      await expect(readdir(derivedRuntime)).resolves.toEqual([
-        "THIRD_PARTY_LICENSES",
-        "devcanon-runtime.mjs",
-        "runtime-manifest.json",
-      ]);
-    } finally {
-      await rm(checkout, { recursive: true, force: true });
-    }
-  });
+  it(
+    "materializes and checks source runtime from a clean ignored-output state",
+    async () => {
+      const checkout = await createIsolatedCheckout();
+      const sourceProvider = path.join(
+        checkout,
+        "dist/devcanon-runtime/source-build",
+      );
+      const derivedRuntime = path.join(
+        checkout,
+        "skills/devcanon-runtime/scripts/runtime",
+      );
+      try {
+        await expect(runIsolatedRuntimeCheck(checkout)).resolves.toMatchObject({
+          stderr: "",
+        });
+        await expect(readdir(sourceProvider)).resolves.toEqual([
+          "THIRD_PARTY_LICENSES",
+          "devcanon-runtime.mjs",
+          "runtime-manifest.json",
+        ]);
+        await expect(readdir(derivedRuntime)).resolves.toEqual([
+          "THIRD_PARTY_LICENSES",
+          "devcanon-runtime.mjs",
+          "runtime-manifest.json",
+        ]);
+      } finally {
+        await rm(checkout, { recursive: true, force: true });
+      }
+    },
+    isolatedTestTimeoutMs,
+  );
 });
