@@ -13,15 +13,13 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { cleanupTempDir, createTempDir } from "../__test-helpers__/fixtures.js";
+import { parseNpmPackInventory } from "../__test-helpers__/npm-pack.js";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../..",
 );
-
-type PackedFile = { path: string };
-type PackedTarball = { filename: string; files: PackedFile[] };
 
 const sharedDerivedOutputs = [
   path.join(
@@ -90,26 +88,6 @@ function requireContainedPath(root: string, candidate: string, label: string) {
   );
 }
 
-function parseTarball(stdout: string): PackedTarball {
-  const inventoryOffset = stdout.indexOf("\n{");
-  if (inventoryOffset < 0) {
-    throw new Error(`npm pack returned no JSON inventory: ${stdout}`);
-  }
-  const parsed = JSON.parse(stdout.slice(inventoryOffset + 1)) as unknown;
-  const tarball = Array.isArray(parsed)
-    ? parsed[0]
-    : (parsed as { devcanon?: unknown }).devcanon;
-  if (
-    !tarball ||
-    typeof tarball !== "object" ||
-    typeof (tarball as PackedTarball).filename !== "string" ||
-    !Array.isArray((tarball as PackedTarball).files)
-  ) {
-    throw new Error(`npm pack returned an unexpected inventory: ${stdout}`);
-  }
-  return tarball as PackedTarball;
-}
-
 async function readOptionalFile(filePath: string): Promise<Buffer | undefined> {
   try {
     return await readFile(filePath);
@@ -169,6 +147,29 @@ async function expectExactRuntimeTree(runtimeRoot: string): Promise<void> {
 }
 
 describe("packaged passive runtime", () => {
+  it("parses a lifecycle-prefixed npm array inventory", () => {
+    expect(
+      parseNpmPackInventory(
+        [
+          "> devcanon@2.0.0 prepack",
+          "> pnpm run build",
+          "",
+          JSON.stringify([
+            {
+              filename: "devcanon-2.0.0.tgz",
+              files: [{ path: "dist/cli/index.js" }],
+            },
+          ]),
+          "",
+        ].join("\n"),
+        "devcanon",
+      ),
+    ).toEqual({
+      filename: "devcanon-2.0.0.tgz",
+      files: [{ path: "dist/cli/index.js" }],
+    });
+  });
+
   it("runs the package-local lifecycle and copied runtime without ambient sources", async () => {
     const root = await createTempDir();
     const archives = path.join(root, "archives");
@@ -183,7 +184,7 @@ describe("packaged passive runtime", () => {
         sharedDerivedOutputs.map(readOptionalFile),
       );
       const packSource = await createPackSource(root);
-      const packed = parseTarball(
+      const packed = parseNpmPackInventory(
         (
           await run(
             "npm pack through prepack",
@@ -192,6 +193,7 @@ describe("packaged passive runtime", () => {
             { cwd: packSource, env: npmEnvironment() },
           )
         ).stdout,
+        "devcanon",
       );
       await expect(
         Promise.all(sharedDerivedOutputs.map(readOptionalFile)),

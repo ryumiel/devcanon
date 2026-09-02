@@ -24,6 +24,7 @@ import {
 } from "../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../__test-helpers__/logger.js";
 import type { TestLoggerResult } from "../__test-helpers__/logger.js";
+import { parseNpmPackInventory } from "../__test-helpers__/npm-pack.js";
 import type { InstallMode, ResolvedConfig } from "../config/schema.js";
 import { pathExists } from "../utils/fs.js";
 import { sync } from "./sync.js";
@@ -69,18 +70,17 @@ describe("devcanon-runtime sync", () => {
 
   it("publishes the support runtime skill with packaged installs", async () => {
     await execFileAsync("pnpm", ["run", "prepack"], { cwd: process.cwd() });
-    const packed = JSON.parse(
+    const packed = parseNpmPackInventory(
       (
         await execFileAsync("npm", ["pack", "--json", "--ignore-scripts"], {
           cwd: process.cwd(),
         })
       ).stdout,
-    ) as {
-      devcanon: { filename: string; files: Array<{ path: string }> };
-    };
-    const archivePath = path.resolve(packed.devcanon.filename);
+      "devcanon",
+    );
+    const archivePath = path.resolve(packed.filename);
     try {
-      const packedPaths = packed.devcanon.files.map((file) => file.path);
+      const packedPaths = packed.files.map((file) => file.path);
       expect(
         packedPaths.filter(
           (packedPath) =>
