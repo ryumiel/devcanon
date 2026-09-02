@@ -5,6 +5,7 @@ import {
   lstat,
   mkdir,
   readFile,
+  readdir,
   rm,
   stat,
   symlink,
@@ -23,7 +24,6 @@ import {
 } from "../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../__test-helpers__/logger.js";
 import type { TestLoggerResult } from "../__test-helpers__/logger.js";
-import { retainedMitLicenseNoticePaths } from "../__test-helpers__/runtime-conformance.js";
 import type { InstallMode, ResolvedConfig } from "../config/schema.js";
 import { pathExists } from "../utils/fs.js";
 import { sync } from "./sync.js";
@@ -68,33 +68,43 @@ describe("devcanon-runtime sync", () => {
   });
 
   it("publishes the support runtime skill with packaged installs", async () => {
-    const packageJson = JSON.parse(
-      await readFile(path.resolve("package.json"), "utf-8"),
-    ) as { files?: string[] };
-
-    expect(packageJson.files).toContain("skills/devcanon-runtime");
-
+    await execFileAsync("pnpm", ["run", "prepack"], { cwd: process.cwd() });
     const packed = JSON.parse(
       (
-        await execFileAsync("pnpm", ["pack", "--dry-run", "--json"], {
+        await execFileAsync("npm", ["pack", "--json", "--ignore-scripts"], {
           cwd: process.cwd(),
         })
       ).stdout,
-    ) as { files: Array<{ path: string }> };
-    expect(packed.files.map((file) => file.path)).toContain(
-      "skills/devcanon-runtime/config/runtime-config.json",
-    );
-    const packedPaths = packed.files.map((file) => file.path);
-    const noticePaths = await retainedMitLicenseNoticePaths(
-      path.resolve("skills/devcanon-runtime/scripts/runtime"),
-    );
-    for (const noticePath of noticePaths) {
-      expect(packedPaths).toContain(
-        path.posix.join(
-          "skills/devcanon-runtime/scripts/runtime",
-          ...noticePath.split(path.sep),
+    ) as {
+      devcanon: { filename: string; files: Array<{ path: string }> };
+    };
+    const archivePath = path.resolve(packed.devcanon.filename);
+    try {
+      const packedPaths = packed.devcanon.files.map((file) => file.path);
+      expect(
+        packedPaths.filter(
+          (packedPath) =>
+            packedPath.startsWith("dist/devcanon-runtime/") ||
+            packedPath.startsWith("skills/devcanon-runtime/"),
         ),
+      ).toEqual([
+        "dist/devcanon-runtime/package/devcanon-runtime.mjs",
+        "dist/devcanon-runtime/package/runtime-manifest.json",
+        "dist/devcanon-runtime/package/THIRD_PARTY_LICENSES",
+        "skills/devcanon-runtime/config/runtime-config.json",
+        "skills/devcanon-runtime/scripts/devcanon-runtime.sh",
+        "skills/devcanon-runtime/scripts/resolve-bash.mjs",
+      ]);
+      expect(packedPaths).toEqual(
+        expect.not.arrayContaining([
+          "dist/cli/source.js",
+          "dist/devcanon-runtime/source-build/devcanon-runtime.mjs",
+          "dist/runtime-build/producer.js",
+          "skills/devcanon-runtime/scripts/runtime/devcanon-runtime.mjs",
+        ]),
       );
+    } finally {
+      await rm(archivePath, { force: true });
     }
   });
 
@@ -125,11 +135,22 @@ describe("devcanon-runtime sync", () => {
         "utf-8",
       ),
     ).resolves.toContain('"schema": "devcanon/runtime-config/v1"');
-    await expect(
-      retainedMitLicenseNoticePaths(
-        path.join(installedRuntime, "scripts", "runtime"),
-      ),
-    ).resolves.toContain(path.join("node_modules", "ms", "license"));
+    expect(await readdir(installedRuntime)).toEqual(["config", "scripts"]);
+    expect(await readdir(path.join(installedRuntime, "config"))).toEqual([
+      "runtime-config.json",
+    ]);
+    expect(await readdir(path.join(installedRuntime, "scripts"))).toEqual([
+      "devcanon-runtime.sh",
+      "resolve-bash.mjs",
+      "runtime",
+    ]);
+    expect(
+      await readdir(path.join(installedRuntime, "scripts", "runtime")),
+    ).toEqual([
+      "THIRD_PARTY_LICENSES",
+      "devcanon-runtime.mjs",
+      "runtime-manifest.json",
+    ]);
 
     const manifest = JSON.parse(
       await readFile(config.manifest.path, "utf-8"),
@@ -139,6 +160,7 @@ describe("devcanon-runtime sync", () => {
         installedPath: string;
         contentHash: string;
         installMode: string;
+        sourcePath: string;
       }>;
     };
     const runtimeRecord = manifest.records.find(
@@ -146,6 +168,9 @@ describe("devcanon-runtime sync", () => {
     );
     expect(runtimeRecord?.contentHash).toMatch(/^[a-f0-9]{64}$/);
     expect(runtimeRecord?.installMode).toBe("copy");
+    expect(runtimeRecord?.sourcePath).toBe(
+      path.join(config.library.skillsDir, "devcanon-runtime"),
+    );
   });
 
   it.skipIf(!executableModeMutable)(
@@ -190,7 +215,7 @@ describe("devcanon-runtime sync", () => {
 
       expect(secondResult.errors).toEqual([
         expect.stringContaining(
-          "passive runtime support bundle devcanon-runtime is incomplete",
+          "Passive runtime adapter pair is posix-mode-invalid",
         ),
       ]);
       expect(secondResult.updated).toBe(0);
@@ -238,7 +263,7 @@ describe("devcanon-runtime sync", () => {
         }),
       ).rejects.toMatchObject({
         message: expect.stringContaining(
-          "passive runtime support bundle devcanon-runtime is incomplete",
+          "Passive runtime adapter pair is posix-mode-invalid",
         ),
       });
       expect((await stat(installedScript)).mode & 0o111).not.toBe(0);
@@ -351,7 +376,7 @@ describe("devcanon-runtime sync", () => {
         }),
       ).rejects.toMatchObject({
         message: expect.stringContaining(
-          "passive runtime support bundle devcanon-runtime is incomplete",
+          "Passive runtime adapter pair is posix-mode-invalid",
         ),
       });
       expect(testLogger.infos).toEqual([]);

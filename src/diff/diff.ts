@@ -185,6 +185,7 @@ async function hasMatchingRuntimeIdentity(
       return (
         (await hashDevcanonRuntimePayload(
           await realpath(record.installedPath),
+          config,
         )) === expectedHash
       );
     }

@@ -19,9 +19,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   canCreateSymlinks,
   cleanupTempDir,
+  copyDevcanonRuntimeFixture,
   createAgentFixture,
   createConfigFile,
-  createLightweightDevcanonRuntimeFixture,
   createSkillFixture,
   createTempDir,
   makeAgentYaml,
@@ -67,22 +67,6 @@ vi.mock("./symlink.js", async (importOriginal) => {
   };
 });
 
-vi.mock("../validate/devcanon-runtime.js", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("../validate/devcanon-runtime.js")>();
-  const { validateLightweightDevcanonRuntimeFixture } = await import(
-    "../__test-helpers__/fixtures.js"
-  );
-  return {
-    ...actual,
-    validateDevcanonRuntime: (runtimeDir: string) =>
-      validateLightweightDevcanonRuntimeFixture(
-        runtimeDir,
-        actual.validateDevcanonRuntime,
-      ),
-  };
-});
-
 const symlinkAvailable = await canCreateSymlinks();
 
 function normalizePackagedShellBytes(bytes: Buffer): Buffer {
@@ -102,7 +86,7 @@ const execFileAsync = promisify(execFile);
 async function seedPassiveRuntime(config: ResolvedConfig): Promise<void> {
   const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
   if (!(await pathExists(runtimeDir))) {
-    await createLightweightDevcanonRuntimeFixture(config.library.skillsDir);
+    await copyDevcanonRuntimeFixture(config.library.skillsDir);
   }
 }
 
@@ -163,7 +147,7 @@ describe("sync", () => {
 
   beforeEach(async () => {
     tempDir = await createTempDir();
-    await createLightweightDevcanonRuntimeFixture(path.join(tempDir, "skills"));
+    await copyDevcanonRuntimeFixture(path.join(tempDir, "skills"));
     const installed = installTestLogger();
     restoreLogger = installed.restore;
     testLogger = installed.testLogger;
@@ -835,7 +819,7 @@ describe("sync", () => {
       sync(config, { dryRun: false, force: false, strict: false }),
     ).rejects.toMatchObject({
       message: expect.stringContaining(
-        "passive runtime support bundle devcanon-runtime is incomplete",
+        "Passive runtime adapter pair is missing",
       ),
     });
 

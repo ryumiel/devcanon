@@ -1,16 +1,16 @@
-import { createHash } from "node:crypto";
 import { lstat, readFile, readdir, readlink } from "node:fs/promises";
 import path from "node:path";
+import { RUNTIME_CONFIG_SCHEMA } from "../config/runtime-config.js";
 import type {
   InstallMode,
   ManagedRecord,
   ResolvedConfig,
 } from "../config/schema.js";
+import { hashDevcanonRuntimePayload as hashRenderedDevcanonRuntimePayload } from "../render/devcanon-runtime.js";
 import { buildSkillContentHash } from "../render/skill.js";
 import { UserError } from "../utils/errors.js";
 import { sha256 } from "../utils/hash.js";
 import { validateDevcanonRuntime } from "../validate/devcanon-runtime.js";
-import type { RuntimeClosureRecord } from "../validate/devcanon-runtime.js";
 import {
   DEVCANON_RUNTIME_SKILL_NAME,
   KNOWN_SUBDIRS,
@@ -52,7 +52,7 @@ export async function verifyManagedOutputIdentity({
   if (record.installMode === "symlink") {
     await assertSymlinkIdentity(record);
   } else {
-    await assertCopyIdentity(record);
+    await assertCopyIdentity(record, config);
   }
 }
 
@@ -224,14 +224,17 @@ async function assertSymlinkIdentity(record: ManagedRecord): Promise<void> {
   }
 }
 
-async function assertCopyIdentity(record: ManagedRecord): Promise<void> {
+async function assertCopyIdentity(
+  record: ManagedRecord,
+  config: ResolvedConfig,
+): Promise<void> {
   let actualHashes: string[];
   try {
     actualHashes =
       record.type === "agent"
         ? [await hashInstalledAgent(record.installedPath)]
         : record.type === "skill" && record.name === DEVCANON_RUNTIME_SKILL_NAME
-          ? [await hashDevcanonRuntimePayload(record.installedPath)]
+          ? [await hashDevcanonRuntimePayload(record.installedPath, config)]
           : await hashInstalledSkill(record);
   } catch (err) {
     throw identityError(
@@ -247,148 +250,31 @@ async function assertCopyIdentity(record: ManagedRecord): Promise<void> {
 
 export async function hashDevcanonRuntimePayload(
   installedPath: string,
+  config: ResolvedConfig,
 ): Promise<string> {
   const validatedRuntime = await validateDevcanonRuntime(installedPath);
-
-  const hash = createHash("sha256");
-  await hashInstalledRuntimeTree(
-    path.join(installedPath, "config"),
-    "config",
-    hash,
+  const actualCatalog = await readFile(
+    path.join(installedPath, "config", "runtime-config.json"),
   );
-  await hashInstalledRuntimeTree(
-    path.join(installedPath, "scripts"),
-    "scripts",
-    hash,
-    validatedRuntime.closureRecords,
+  const expectedCatalog = Buffer.from(
+    `${JSON.stringify(
+      {
+        schema: RUNTIME_CONFIG_SCHEMA,
+        capabilityProfiles: config.capabilityProfiles,
+      },
+      null,
+      2,
+    )}\n`,
+    "utf-8",
   );
-  return hash.digest("hex");
-}
-
-async function hashInstalledRuntimeTree(
-  directory: string,
-  relativeDirectory: string,
-  hash: ReturnType<typeof createHash>,
-  closureRecords?: readonly RuntimeClosureRecord[],
-): Promise<void> {
-  const limit = createRuntimeIoLimit(16);
-  for (const record of await collectInstalledRuntimeTree(
-    directory,
-    relativeDirectory,
-    limit,
-    closureRecords,
-  )) {
-    hashRuntimeField(hash, record.kind, record.relativePath, record.mode);
-    if (record.bytes) {
-      hashRuntimeField(hash, "bytes", record.relativePath, record.bytes);
-    }
+  if (!actualCatalog.equals(expectedCatalog)) {
+    throw new Error("installed runtime catalog does not match its composition");
   }
-}
-
-interface InstalledRuntimeRecord {
-  readonly kind: "directory" | "file";
-  readonly relativePath: string;
-  readonly mode: string;
-  readonly bytes?: Buffer;
-}
-
-async function collectInstalledRuntimeTree(
-  directory: string,
-  relativeDirectory: string,
-  limit: RuntimeIoLimit,
-  closureRecords?: readonly RuntimeClosureRecord[],
-): Promise<InstalledRuntimeRecord[]> {
-  const stat = await limit(() => lstat(directory));
-  const entries = await limit(() =>
-    readdir(directory, { withFileTypes: true }),
+  return hashRenderedDevcanonRuntimePayload(
+    installedPath,
+    config,
+    validatedRuntime,
   );
-  entries.sort((left, right) =>
-    left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
-  );
-  const children = await Promise.all(
-    entries.map(async (entry): Promise<InstalledRuntimeRecord[]> => {
-      const sourcePath = path.join(directory, entry.name);
-      const relativePath = path.posix.join(relativeDirectory, entry.name);
-      if (
-        closureRecords &&
-        relativeDirectory === "scripts/runtime" &&
-        (entry.name === "package.json" || entry.name === "node_modules")
-      ) {
-        return closureRecords
-          .filter(
-            (record) =>
-              record.relativePath === entry.name ||
-              record.relativePath.startsWith(`${entry.name}/`),
-          )
-          .map((record) => ({
-            ...record,
-            relativePath: path.posix.join(
-              relativeDirectory,
-              record.relativePath,
-            ),
-          }));
-      }
-      const entryStat = await limit(() => lstat(sourcePath));
-      if (entry.isDirectory()) {
-        return collectInstalledRuntimeTree(
-          sourcePath,
-          relativePath,
-          limit,
-          closureRecords,
-        );
-      }
-      if (entry.isFile()) {
-        return [
-          {
-            kind: "file",
-            relativePath,
-            mode: String(entryStat.mode),
-            bytes: await limit(() => readFile(sourcePath)),
-          },
-        ];
-      }
-      throw new Error(`installed runtime entry is unsupported: ${sourcePath}`);
-    }),
-  );
-  return [
-    {
-      kind: "directory",
-      relativePath: relativeDirectory,
-      mode: String(stat.mode),
-    },
-    ...children.flat(),
-  ];
-}
-
-type RuntimeIoLimit = <T>(operation: () => Promise<T>) => Promise<T>;
-
-function createRuntimeIoLimit(concurrency: number): RuntimeIoLimit {
-  let active = 0;
-  const waiters: Array<() => void> = [];
-  return async <T>(operation: () => Promise<T>): Promise<T> => {
-    if (active >= concurrency) {
-      await new Promise<void>((resolve) => waiters.push(resolve));
-    }
-    active += 1;
-    try {
-      return await operation();
-    } finally {
-      active -= 1;
-      waiters.shift()?.();
-    }
-  };
-}
-
-function hashRuntimeField(
-  hash: ReturnType<typeof createHash>,
-  ...fields: Array<string | Buffer>
-): void {
-  for (const field of fields) {
-    const bytes = Buffer.isBuffer(field) ? field : Buffer.from(field, "utf-8");
-    hash.update(String(bytes.length));
-    hash.update(":");
-    hash.update(bytes);
-  }
 }
 
 async function hashInstalledAgent(installedPath: string): Promise<string> {

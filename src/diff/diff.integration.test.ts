@@ -15,8 +15,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   canCreateSymlinks,
   cleanupTempDir,
+  copyDevcanonRuntimeFixture,
   createAgentFixture,
-  createLightweightDevcanonRuntimeFixture,
   createSkillFixture,
   createTempDir,
   makeAgentYaml,
@@ -34,22 +34,6 @@ import { diffAll } from "./diff.js";
 
 const symlinkAvailable = await canCreateSymlinks();
 const execFileAsync = promisify(execFile);
-
-vi.mock("../validate/devcanon-runtime.js", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("../validate/devcanon-runtime.js")>();
-  const { validateLightweightDevcanonRuntimeFixture } = await import(
-    "../__test-helpers__/fixtures.js"
-  );
-  return {
-    ...actual,
-    validateDevcanonRuntime: (runtimeDir: string) =>
-      validateLightweightDevcanonRuntimeFixture(
-        runtimeDir,
-        actual.validateDevcanonRuntime,
-      ),
-  };
-});
 
 async function canCreateFifo(): Promise<boolean> {
   if (process.platform === "win32") return false;
@@ -155,7 +139,7 @@ describe("diffAll integration", () => {
 
     // Ensure required directories exist
     await mkdir(config.library.skillsDir, { recursive: true });
-    await createLightweightDevcanonRuntimeFixture(config.library.skillsDir);
+    await copyDevcanonRuntimeFixture(config.library.skillsDir);
     await mkdir(config.library.agentsDir, { recursive: true });
     await mkdir(config.library.generatedDir, { recursive: true });
     await mkdir(config.targets.claude.agentsHome, { recursive: true });
