@@ -143,9 +143,11 @@ async function packInstalledPackageProvider(): Promise<{
     ),
   });
   await mkdir(archives);
-  await execFileAsync("pnpm", ["pack", "--pack-destination", archives], {
-    cwd: workspace,
-  });
+  await execFileAsync(
+    "npm",
+    ["pack", "--ignore-scripts", "--pack-destination", archives],
+    { cwd: workspace },
+  );
   const [archive] = (await readdir(archives)).filter((entry) =>
     entry.endsWith(".tgz"),
   );

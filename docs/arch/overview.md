@@ -25,6 +25,8 @@ src/
 ├─ install/    Sync orchestration, install plan, manifest, copy/symlink modes
 ├─ diff/       Diff between generated outputs and installed managed outputs
 ├─ runtime/    Shared typed helper foundation for the packaged passive runtime
+├─ runtime-build/
+│              Prebuilt runtime-provider production and package-safe acceptance
 └─ utils/      Filesystem helpers, path resolution, hashing, CLI output,
                naming validation
 ```
@@ -42,6 +44,7 @@ validate -> config, models, render, utils
 diff -> config, install, models, render, utils
 config -> utils
 runtime -> (node built-ins, zod)
+runtime-build -> (build-time bundler, package metadata, node built-ins)
 models -> config
 utils -> (none)
 ```
@@ -115,6 +118,24 @@ runtime commands; it does not own route model selection.
 The current runtime payload has no scripts-only compatibility path. A missing
 or malformed `config/` catalog, or a scripts-only payload, fails validation and
 is not upgraded, reconciled, or treated as a valid installed runtime.
+
+### Passive Runtime Provider and Composition Boundary
+
+`src/runtime-build/producer.ts` produces the explicit `source-build` and
+`package` provider roots; `src/runtime-build/provider.ts` is the package-safe
+verifier for their closed artifacts. The fixed-origin launchers
+`src/cli/source.ts` and the packaged `src/cli/index.ts` inject their respective
+origins into the common CLI runner rather than deriving an origin from the
+working directory or an ambient artifact.
+
+`src/render/devcanon-runtime.ts` owns composition from an accepted provider
+snapshot and renderer-owned reconciliation of the exact runtime payload. The
+install module remains the transport and manifest owner: it copies or symlinks
+the rendered composition without building or selecting a provider. The
+[Passive Runtime Contract](../specs/passive-runtime.md),
+[Configuration](../specs/configuration.md#runtime-artifact-provider-selection),
+and [Install and Sync](../specs/install-and-sync.md) own the exact behavior;
+this section is only the current module-boundary summary.
 
 ### Semantic Agent Routing Boundary
 
