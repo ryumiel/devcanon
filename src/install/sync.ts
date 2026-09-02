@@ -12,6 +12,7 @@ import {
   renderAll,
   renderAllWithValidatedRuntime,
 } from "../render/pipeline.js";
+import type { AcceptedProvider } from "../runtime-build/provider.js";
 import { UserError } from "../utils/errors.js";
 import { ensureDir } from "../utils/fs.js";
 import { getLogger } from "../utils/output.js";
@@ -68,6 +69,7 @@ export interface ReconciliationResult {
 export async function sync(
   config: ResolvedConfig,
   options: SyncOptions,
+  provider?: AcceptedProvider | (() => Promise<AcceptedProvider>),
 ): Promise<SyncResult> {
   const totalResult: SyncResult = {
     installed: 0,
@@ -90,10 +92,17 @@ export async function sync(
       dryInvalidManifestHint(inspection.message, config.manifest.path),
     );
   }
-  const validatedRuntime = await validateDevcanonRuntime(
-    devcanonRuntimeDir(config.library.skillsDir),
-  );
-
+  // Preserve the direct-library API's established validation ordering. The
+  // public launcher supplies an explicit resolver and reaches its provider
+  // gate only after the manifest preflight below.
+  let validatedRuntime:
+    | Awaited<ReturnType<typeof validateDevcanonRuntime>>
+    | undefined;
+  if (provider === undefined) {
+    validatedRuntime = await validateDevcanonRuntime(
+      devcanonRuntimeDir(config.library.skillsDir),
+    );
+  }
   // A manifest must be accepted before rendering can create generated output
   // or an install action can touch a configured home.
   const loaded = await loadManifestForSync(config, options, inspection);
@@ -151,6 +160,17 @@ export async function sync(
     (index) => normalized.manifest.records[index],
   );
   assertReconciledForeignControlReservations(reconciledForeignRecords, config);
+  if (provider !== undefined) {
+    const acceptedProvider =
+      typeof provider === "function" ? await provider() : provider;
+    validatedRuntime = await validateDevcanonRuntime(
+      devcanonRuntimeDir(config.library.skillsDir),
+      { provider: acceptedProvider },
+    );
+  }
+  if (validatedRuntime === undefined) {
+    throw new Error("sync runtime validation did not produce evidence");
+  }
   const operationId = `sync-${randomUUID()}`;
   let authority: ManifestBackupAuthority | undefined;
   const ensureAuthority = async (): Promise<ManifestBackupAuthority> => {

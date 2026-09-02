@@ -11,6 +11,8 @@ import {
   CONFIG_FILE_NAME,
   PRODUCT_NAME,
 } from "../../config/identity.js";
+import { reconcileDevcanonRuntimeSubtree } from "../../render/devcanon-runtime.js";
+import type { AcceptedProvider } from "../../runtime-build/provider.js";
 import { UserError } from "../../utils/errors.js";
 import {
   ensureDir,
@@ -34,6 +36,7 @@ type InitActionOptions = {
 
 export async function initAction(
   options: InitActionOptions = {},
+  provider?: AcceptedProvider,
 ): Promise<void> {
   const logger = getLogger();
   const cwd = process.cwd();
@@ -66,7 +69,7 @@ export async function initAction(
   await writeTextFile(path.join(sampleSkillDir, "SKILL.md"), SAMPLE_SKILL_MD);
   logger.info("Created sample skill: skills/example-skill/");
 
-  await seedRuntimeSkill(cwd, runtimeSourceDir);
+  await seedRuntimeSkill(cwd, runtimeSourceDir, provider);
 
   // Create sample agent
   await writeTextFile(
@@ -80,7 +83,11 @@ export async function initAction(
   );
 }
 
-async function seedRuntimeSkill(cwd: string, sourceDir: string): Promise<void> {
+async function seedRuntimeSkill(
+  cwd: string,
+  sourceDir: string,
+  provider?: AcceptedProvider,
+): Promise<void> {
   const logger = getLogger();
   const targetDir = path.join(cwd, "skills", RUNTIME_SKILL_NAME);
 
@@ -97,6 +104,7 @@ async function seedRuntimeSkill(cwd: string, sourceDir: string): Promise<void> {
     force: false,
     errorOnExist: true,
   });
+  if (provider) await reconcileDevcanonRuntimeSubtree(targetDir, provider);
   logger.info(`Seeded support runtime: skills/${RUNTIME_SKILL_NAME}/`);
 }
 

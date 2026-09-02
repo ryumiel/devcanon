@@ -20,6 +20,8 @@ import {
   inspectManifest,
   recoverInvalidManifest,
 } from "../install/manifest.js";
+import type { AcceptedProvider } from "../runtime-build/provider.js";
+import { createCliProgram } from "./run.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -40,7 +42,7 @@ function terminalLines(stderr: string): string[] {
 }
 
 function cliEntrypoint(): string {
-  return path.join(process.cwd(), "src", "cli", "index.ts");
+  return path.join(process.cwd(), "src", "cli", "source.ts");
 }
 
 function tsxEntrypoint(): string {
@@ -53,10 +55,22 @@ function tsxEntrypoint(): string {
 }
 
 describe("CLI entrypoint", () => {
+  it("parses help without resolving a runtime provider", async () => {
+    const resolveProvider = async (): Promise<AcceptedProvider> => {
+      throw new Error("provider must remain lazy");
+    };
+    const program = createCliProgram(resolveProvider);
+    program.exitOverride();
+
+    await expect(
+      program.parseAsync(["node", "devcanon", "--help"]),
+    ).rejects.toMatchObject({ code: "commander.helpDisplayed" });
+  });
+
   it("uses devcanon as the program name in help output", async () => {
     const result = await execFileAsync(
       "pnpm",
-      ["exec", "tsx", "src/cli/index.ts", "sync", "--help"],
+      ["exec", "tsx", "src/cli/source.ts", "sync", "--help"],
       {
         cwd: process.cwd(),
         shell: process.platform === "win32",
@@ -70,7 +84,7 @@ describe("CLI entrypoint", () => {
   it("exposes the config command group in public help", async () => {
     const result = await execFileAsync(
       "pnpm",
-      ["exec", "tsx", "src/cli/index.ts", "--help"],
+      ["exec", "tsx", "src/cli/source.ts", "--help"],
       { cwd: process.cwd(), shell: process.platform === "win32" },
     );
 
@@ -84,7 +98,7 @@ describe("CLI entrypoint", () => {
       [
         "exec",
         "tsx",
-        "src/cli/index.ts",
+        "src/cli/source.ts",
         "--config",
         configPath,
         "--json",
@@ -181,7 +195,7 @@ describe("CLI entrypoint", () => {
       [
         "exec",
         "tsx",
-        "src/cli/index.ts",
+        "src/cli/source.ts",
         "--config",
         configPath,
         "config",
@@ -195,7 +209,7 @@ describe("CLI entrypoint", () => {
       [
         "exec",
         "tsx",
-        "src/cli/index.ts",
+        "src/cli/source.ts",
         "--config",
         configPath,
         "--json",
@@ -226,7 +240,7 @@ describe("CLI entrypoint", () => {
         [
           "exec",
           "tsx",
-          "src/cli/index.ts",
+          "src/cli/source.ts",
           "--config",
           configPath,
           "--json",
@@ -443,7 +457,7 @@ describe("CLI entrypoint", () => {
         [
           "exec",
           "tsx",
-          "src/cli/index.ts",
+          "src/cli/source.ts",
           "--config",
           configPath,
           "sync",
@@ -462,7 +476,7 @@ describe("CLI entrypoint", () => {
         [
           "exec",
           "tsx",
-          "src/cli/index.ts",
+          "src/cli/source.ts",
           "--config",
           configPath,
           "--json",
@@ -492,7 +506,7 @@ describe("CLI entrypoint", () => {
           [
             "exec",
             "tsx",
-            "src/cli/index.ts",
+            "src/cli/source.ts",
             "--config",
             configPath,
             "sync",
@@ -574,7 +588,7 @@ describe("CLI entrypoint", () => {
             [
               "exec",
               "tsx",
-              "src/cli/index.ts",
+              "src/cli/source.ts",
               "--config",
               configPath,
               command,

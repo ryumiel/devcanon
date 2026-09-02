@@ -1,4 +1,5 @@
 import { loadConfig } from "../../config/load.js";
+import type { AcceptedProvider } from "../../runtime-build/provider.js";
 import { getLogger } from "../../utils/output.js";
 import { loadAndValidateAgents } from "../../validate/agents.js";
 import {
@@ -20,6 +21,7 @@ interface ValidateOptions {
 export async function validateAction(
   options: ValidateOptions,
   command: { parent?: { opts(): Record<string, unknown> } },
+  provider?: AcceptedProvider,
 ): Promise<void> {
   const logger = getLogger();
   const globalOpts = command.parent?.opts() ?? {};
@@ -34,6 +36,7 @@ export async function validateAction(
   if (!json) logger.info("Config: valid");
   await validateDevcanonRuntime(devcanonRuntimeDir(config.library.skillsDir), {
     adapterSourceDir: bundledDevcanonRuntimeDir(),
+    provider,
   });
 
   let skillWarningsPrinted = false;

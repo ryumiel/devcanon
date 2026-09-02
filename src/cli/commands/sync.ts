@@ -1,6 +1,7 @@
 import { loadConfig } from "../../config/load.js";
 import { sync } from "../../install/sync.js";
 import type { SyncOptions } from "../../models/types.js";
+import type { AcceptedProvider } from "../../runtime-build/provider.js";
 import { UserError } from "../../utils/errors.js";
 import { getLogger } from "../../utils/output.js";
 
@@ -15,6 +16,7 @@ interface SyncCommandOptions {
 export async function syncAction(
   options: SyncCommandOptions,
   command: { parent?: { opts(): Record<string, unknown> } },
+  provider?: () => Promise<AcceptedProvider>,
 ): Promise<void> {
   const logger = getLogger();
   const globalOpts = command.parent?.opts() ?? {};
@@ -43,7 +45,7 @@ export async function syncAction(
     reconcileManifest: options.reconcileManifest ?? false,
   };
 
-  const result = await sync(config, syncOptions);
+  const result = await sync(config, syncOptions, provider);
 
   if (!syncOptions.dryRun) {
     logger.info(
