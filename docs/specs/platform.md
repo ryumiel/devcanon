@@ -113,6 +113,16 @@ environment is the ambient-resolution proof. The
 [Passive Runtime Contract](passive-runtime.md#trusted-bootstrap-and-selected-runtime)
 owns the shared containment semantics.
 
+The same final phase invokes the copied public `scripts/resolve-bash.mjs`
+adapter through the test process's current Node executable under the same
+sanitized boundary. Under identical controlled resolver inputs, one successful
+resolution and one no-usable-Bash refusal must match the corresponding direct
+runtime call's stdout bytes, stderr bytes, and exit status. Success emits
+exactly one absolute executable path followed by LF, emits no stderr, and exits
+zero. Refusal emits no stdout and preserves the direct runtime's single
+actionable diagnostic and nonzero exit status. This focused adapter-equivalence
+check does not duplicate the resolver's complete candidate matrix.
+
 On POSIX, the same final phase additionally invokes
 `scripts/devcanon-runtime.sh` and proves that its contract and bootstrap
 stdout bytes, stderr bytes, and exit status each match the corresponding direct
@@ -121,11 +131,13 @@ execution remains the cross-platform proof surface.
 
 Native Windows implementation and machine proof are deferred to the dedicated
 Windows follow-up. That work runs the fixture, package-local CLI, copied-runtime
-and disjoint selected-runtime phases from native Node and invokes neither Bash
-nor a `.sh` file. It must prove direct `.mjs` runtime and bootstrap behavior,
-controlled Git-for-Windows resolution and actionable refusal, exact output and
-exit propagation, and absence of ambient resolution. The follow-up's live state
-is not a normative dependency of this specification.
+and disjoint selected-runtime phases from native Node. Native Node, rather than
+Bash or a `.sh` adapter, launches the copied runtime and public resolver; the
+resolver may execute a controlled Git-for-Windows Bash candidate as the
+behavior under proof. The work must prove direct `.mjs` runtime and bootstrap
+behavior, copied public-resolver success and actionable refusal, exact output
+and exit propagation, and absence of ambient resolution. The follow-up's live
+state is not a normative dependency of this specification.
 
 For the same canonical inputs and `artifact_origin`, clean independent builds
 must produce byte-identical runtime bundle, manifest, and third-party-license

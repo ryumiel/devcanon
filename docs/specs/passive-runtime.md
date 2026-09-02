@@ -30,13 +30,16 @@ artifacts authoritative source.
   Node-first Bash resolver beneath `skills/devcanon-runtime/scripts/`.
 - **Version-matched adapter pair:** the two PR-ART-01 files shipped together by
   the executing DevCanon distribution, each present as a readable regular
-  non-link file. The pair targets only the closed
+  non-link file. On POSIX, `devcanon-runtime.sh` must also be executable. The
+  pair targets only the closed
   `scripts/runtime/devcanon-runtime.mjs` runtime entrypoint layout.
 - **Recognized pristine legacy pair:** both legacy PR-ART-01 files, with exact
   bytes and pairing and each present as a readable regular non-link file, named
-  by the executing distribution's closed one-time migration allowlist. A
-  mixed, incomplete, changed, symlinked, or otherwise non-regular pair is not
-  pristine.
+  by the executing distribution's closed one-time migration allowlist. On
+  POSIX, its `devcanon-runtime.sh` must also be executable. A mixed, incomplete,
+  changed, symlinked, or otherwise non-regular pair is not pristine, nor is one
+  whose shell adapter is non-executable on POSIX. Native Windows does not use
+  POSIX mode for pair classification.
 - **Provider root:** one closed generated root supplied explicitly as either
   `source-build` or `package`.
 - **Source-derived runtime subtree:** the closed
@@ -85,6 +88,9 @@ scripts/runtime/THIRD_PARTY_LICENSES
 ```
 
 It contains neither `SKILL.md` nor a Codex invocation sidecar.
+On POSIX, composition preserves the executable state of
+`scripts/devcanon-runtime.sh`; native Windows does not impose a POSIX mode
+requirement on rendered output.
 
 ## Provider acceptance
 
@@ -109,8 +115,11 @@ manifest parsing, hashing, composition, or transport.
 - `source-build` recomputes canonical input identity and verifies bundle and
   license digests. Failure directs the operator to `pnpm run build:runtime`.
 - `package` requires package origin, matching DevCanon version and Node target,
-  and valid bundle and license digests. Failure identifies an incomplete or
-  corrupt package and directs the operator to reinstall it.
+  a present and well-formed `input_sha256`, and independently verified bundle
+  and license digests. Because it cannot reconstruct source-only canonical
+  inputs, it treats `input_sha256` as producer-attested provenance and does not
+  compare it with a duplicate inside the same package. Failure identifies an
+  incomplete or corrupt package and directs the operator to reinstall it.
 
 Provider acceptance precedes any authorized runtime recomposition, rendering,
 initialization, package acceptance, or installation mutation.
@@ -130,7 +139,10 @@ pair is eligible for PR-ADAPT-02 but is not compatible with the current
 provider by itself. Classification never infers compatibility from one adapter,
 filenames alone, a partially matching pair, or the existing runtime subtree.
 An adapter symlink, reparse point, or other non-regular file is unrecognized
-even when its dereferenced bytes match an allowlisted file.
+even when its dereferenced bytes match an allowlisted file. On POSIX, a pair
+whose `devcanon-runtime.sh` is not executable is likewise unrecognized even
+when both adapters' bytes match. Native Windows ignores POSIX mode for this
+classification.
 Fresh `init` instead creates the version-matched pair under PR-LIFE-04 and has
 no existing pair to classify or migrate.
 
@@ -148,9 +160,10 @@ Only `render` and non-dry `sync` may migrate a recognized pristine legacy pair.
 The compositor stages the version-matched adapter pair together with the
 three-leaf PR-ART-05 copy of the accepted provider and validates their coherent
 composition, including the closed `devcanon-runtime.mjs` entrypoint contract,
-before publishing any staged source content. It then publishes the two adapters
-as one version-matched pair and reconciles PR-ART-05 through PR-LIFE-11 under
-the bounded recovery behavior in PR-ADAPT-03.
+before publishing any staged source content. On POSIX, staging and publication
+preserve the executable state of `devcanon-runtime.sh`. It then publishes the
+two adapters as one version-matched pair and reconciles PR-ART-05 through
+PR-LIFE-11 under the bounded recovery behavior in PR-ADAPT-03.
 
 This transition preserves `config/runtime-config.json` and every unrelated
 library path. It does not remove or reinstall the whole
@@ -179,18 +192,18 @@ project a composition read-only, atomically materialize the complete
 source-derived runtime subtree at an absent destination, or reconcile an
 existing subtree through PR-LIFE-11.
 
-| ID         | Operation                | Required behavior                                                                                                                                                                                                                                                         |
-| ---------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PR-LIFE-01 | `pnpm run build:runtime` | Produces and verifies PR-ART-03 and may refresh the checkout-local source-build sibling copy. It does not repair an arbitrary initialized library.                                                                                                                        |
-| PR-LIFE-02 | `setup:cli`              | Builds and verifies PR-ART-03 before registering the source-development shim.                                                                                                                                                                                             |
-| PR-LIFE-03 | `prepack`                | Is the sole package-production gate; it produces and verifies PR-ART-04 before packing.                                                                                                                                                                                   |
-| PR-LIFE-04 | fresh `init`             | Verifies its provider, creates authored paths and PR-ART-02A without overwriting existing paths, and atomically materializes PR-ART-05. `init` is not a repair command for an existing configured library.                                                                |
-| PR-LIFE-05 | `validate`               | Is read-only. It accepts provider state, applies PR-ADAPT-01, then verifies remaining authored input, PR-ART-02A, and PR-ART-05. A recognized pristine legacy pair fails with `devcanon render` migration guidance; invalid derived state retains render-repair guidance. |
-| PR-LIFE-06 | `render`                 | Is the explicit runtime-subtree repair and bounded adapter-migration operation. After completing the ordered PR-ADAPT-01 gates, it performs eligible PR-ADAPT-02 migration or reconciles invalid PR-ART-05, then writes PR-ART-06 including PR-ART-02B.                   |
-| PR-LIFE-07 | `sync --dry-run`         | Uses a read-only composition projection and previews any eligible PR-ADAPT-02 migration and required subtree reconciliation. It performs no source, generated, installed, or manifest mutation.                                                                           |
-| PR-LIFE-08 | non-dry `sync`           | Reuses the same compositor after its earlier manifest preflight. It may perform eligible PR-ADAPT-02 migration or reconcile PR-ART-05 before rendering and transporting PR-ART-06; it never builds a provider or resolves ambient dependencies.                           |
-| PR-LIFE-09 | `diff`                   | Uses a read-only composition projection and never repairs or migrates source state. A recognized pristine legacy pair fails with render-migration guidance; invalid derived state retains render-repair guidance before difference reporting.                             |
-| PR-LIFE-10 | `uninstall`              | Remains manifest-driven, source-independent, and provider-independent.                                                                                                                                                                                                    |
+| ID         | Operation                | Required behavior                                                                                                                                                                                                                                                                          |
+| ---------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| PR-LIFE-01 | `pnpm run build:runtime` | Produces and verifies PR-ART-03 and may refresh the checkout-local source-build sibling copy. It does not repair an arbitrary initialized library.                                                                                                                                         |
+| PR-LIFE-02 | `setup:cli`              | Builds and verifies PR-ART-03 before registering the source-development shim.                                                                                                                                                                                                              |
+| PR-LIFE-03 | `prepack`                | Is the sole package-production gate; it produces and verifies PR-ART-04 before packing under PR-PKG-01.                                                                                                                                                                                    |
+| PR-LIFE-04 | fresh `init`             | Verifies its provider, creates the version-matched authored adapters and PR-ART-02A without overwriting existing paths, preserves the shell adapter's executable state on POSIX, and atomically materializes PR-ART-05. `init` is not a repair command for an existing configured library. |
+| PR-LIFE-05 | `validate`               | Is read-only. It accepts provider state, applies PR-ADAPT-01, then verifies remaining authored input, PR-ART-02A, and PR-ART-05. A recognized pristine legacy pair fails with `devcanon render` migration guidance; invalid derived state retains render-repair guidance.                  |
+| PR-LIFE-06 | `render`                 | Is the explicit runtime-subtree repair and bounded adapter-migration operation. After completing the ordered PR-ADAPT-01 gates, it performs eligible PR-ADAPT-02 migration or reconciles invalid PR-ART-05, then writes PR-ART-06 including PR-ART-02B.                                    |
+| PR-LIFE-07 | `sync --dry-run`         | Uses a read-only composition projection and previews any eligible PR-ADAPT-02 migration and required subtree reconciliation. It performs no source, generated, installed, or manifest mutation.                                                                                            |
+| PR-LIFE-08 | non-dry `sync`           | Reuses the same compositor after its earlier manifest preflight. It may perform eligible PR-ADAPT-02 migration or reconcile PR-ART-05 before rendering and transporting PR-ART-06; it never builds a provider or resolves ambient dependencies.                                            |
+| PR-LIFE-09 | `diff`                   | Uses a read-only composition projection and never repairs or migrates source state. A recognized pristine legacy pair fails with render-migration guidance; invalid derived state retains render-repair guidance before difference reporting.                                              |
+| PR-LIFE-10 | `uninstall`              | Remains manifest-driven, source-independent, and provider-independent.                                                                                                                                                                                                                     |
 
 ### PR-LIFE-11: Whole-subtree reconciliation boundary
 
@@ -231,9 +244,10 @@ between `package` and `source-build` follows the same transition.
 ### PR-PKG-01: Single production gate
 
 `prepack` is the sole package-production gate. It builds the normal CLI
-distribution, creates the package-origin runtime artifacts, verifies them, and
-only then permits `npm pack` to collect files. No other package lifecycle hook
-produces package artifacts.
+distribution, recomputes the canonical runtime inputs, records their
+`input_sha256` in the package-origin manifest, verifies the produced artifacts,
+and only then permits `npm pack` to collect files. No other package lifecycle
+hook produces package artifacts.
 
 ### PR-PKG-02: Tarball inventory
 
@@ -330,8 +344,13 @@ exactly these fields:
 
 `artifact_origin` is exactly `source-build` or `package`;
 `devcanon_version` equals the producing CLI version; `node_target` is `node24`;
-and every digest is exact lowercase SHA-256. Unknown, missing, empty, or
-mismatched fields fail provider acceptance.
+and every digest is exact lowercase SHA-256. Unknown, missing, or empty fields
+fail provider acceptance. Fields that the selected provider can independently
+compare must match: `source-build` recomputes `input_sha256`, while both
+providers recompute the bundle and license digests. A package consumer checks
+`input_sha256` for presence and form but carries its value as producer-attested
+provenance rather than independently verified input identity; only the
+source-aware `prepack` gate recomputes that canonical input identity.
 
 ### Canonicalization rules
 
@@ -418,15 +437,18 @@ fixture on any supported host.
 
 Focused adapter tests must cover a current version-matched pair, one recognized
 pristine legacy pair, mixed, missing, modified, symlinked, and unrecognized
-pairs; closed `devcanon-runtime.mjs` entrypoint validation; pair-and-subtree
-handled-failure recovery; dry-run preview; read-only non-mutation; idempotent
-repeat execution; and preservation of `config/runtime-config.json` and
-unrelated library content.
+pairs; on POSIX, they must also cover a byte-matching but non-executable
+`devcanon-runtime.sh`. Tests must cover closed `devcanon-runtime.mjs` entrypoint
+validation; pair-and-subtree handled-failure recovery; dry-run preview;
+read-only non-mutation; idempotent repeat execution; and preservation of
+`config/runtime-config.json` and unrelated library content.
 
 Native Windows implementation and machine-executed proof are deferred to the
 Windows follow-up rather than required from the documentation change that
-establishes this contract. That follow-up must use native Node and must not use
-Bash or a `.sh` file. The durable cross-platform requirements above do not
+establishes this contract. That follow-up must use native Node, rather than
+Bash or a `.sh` adapter, to launch the copied runtime and public resolver; the
+resolver may execute a controlled Git-for-Windows Bash candidate as the
+behavior under proof. The durable cross-platform requirements above do not
 depend on the state of that follow-up.
 
 ## Agent context
