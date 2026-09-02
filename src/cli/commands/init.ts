@@ -21,6 +21,7 @@ import {
 import { hashDirectory } from "../../utils/hash.js";
 import { getLogger } from "../../utils/output.js";
 import {
+  bundledDevcanonRuntimeDir,
   validateBundledDevcanonRuntime,
   validateDevcanonRuntime,
 } from "../../validate/devcanon-runtime.js";
@@ -120,7 +121,9 @@ async function requireMatchingRuntimeSkill(
   targetDir: string,
 ): Promise<void> {
   try {
-    await validateDevcanonRuntime(targetDir);
+    await validateDevcanonRuntime(targetDir, {
+      adapterSourceDir: bundledDevcanonRuntimeDir(),
+    });
   } catch {
     throw runtimeConflictError(targetDir);
   }

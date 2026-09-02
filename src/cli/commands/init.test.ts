@@ -339,7 +339,7 @@ describe("initAction", () => {
     ).toBe(false);
   });
 
-  it.skip("preflights the bundled runtime shell entrypoint before writing init files", async () => {
+  it("rejects a garbage but executable bundled shell adapter before writing init files", async () => {
     const brokenRuntimeDir = path.join(
       tempDir,
       ".fake-package",
@@ -364,9 +364,8 @@ describe("initAction", () => {
     await expect(
       initAction({ runtimeSourceDir: brokenRuntimeDir }),
     ).rejects.toMatchObject({
-      message:
-        "Fixed passive runtime support bundle devcanon-runtime contract check failed.",
-      filePath: path.join(brokenRuntimeDir, "scripts", "devcanon-runtime.sh"),
+      message: "Passive runtime adapter pair is unrecognized.",
+      filePath: path.join(brokenRuntimeDir, "scripts"),
     } satisfies Partial<UserError>);
     expect(await pathExists(path.join(tempDir, "devcanon.config.yaml"))).toBe(
       false,
@@ -376,7 +375,7 @@ describe("initAction", () => {
     ).toBe(false);
   });
 
-  it.skip("preflights the executable runtime shell entrypoint before writing init files", async () => {
+  it("rejects an unusable but executable bundled shell adapter before writing init files", async () => {
     const brokenRuntimeDir = path.join(
       tempDir,
       ".fake-package",
@@ -400,77 +399,8 @@ describe("initAction", () => {
     await expect(
       initAction({ runtimeSourceDir: brokenRuntimeDir }),
     ).rejects.toMatchObject({
-      message:
-        "Fixed passive runtime support bundle devcanon-runtime contract check failed.",
-      filePath: path.join(brokenRuntimeDir, "scripts", "devcanon-runtime.sh"),
-    } satisfies Partial<UserError>);
-    expect(await pathExists(path.join(tempDir, "devcanon.config.yaml"))).toBe(
-      false,
-    );
-    expect(
-      await pathExists(path.join(tempDir, "skills", "example-skill")),
-    ).toBe(false);
-  });
-
-  it.skip("preflights broken bundled runtime module surface before writing init files", async () => {
-    const brokenRuntimeDir = path.join(
-      tempDir,
-      ".fake-package",
-      "skills",
-      "devcanon-runtime",
-    );
-    await copyBundledRuntimeTo(
-      path.join(originalCwd, "skills", "devcanon-runtime"),
-      brokenRuntimeDir,
-    );
-    await rm(path.join(brokenRuntimeDir, "scripts", "runtime", "schema.js"));
-
-    await expect(
-      initAction({ runtimeSourceDir: brokenRuntimeDir }),
-    ).rejects.toMatchObject({
-      message:
-        "Fixed passive runtime support bundle devcanon-runtime is incomplete.",
-      filePath: path.join(brokenRuntimeDir, "scripts", "runtime", "schema.js"),
-    } satisfies Partial<UserError>);
-    expect(await pathExists(path.join(tempDir, "devcanon.config.yaml"))).toBe(
-      false,
-    );
-    expect(
-      await pathExists(path.join(tempDir, "skills", "example-skill")),
-    ).toBe(false);
-  });
-
-  it.skip("preflights missing issue-worktree runtime payload before writing init files", async () => {
-    const incompleteRuntimeDir = path.join(
-      tempDir,
-      ".fake-package",
-      "skills",
-      "devcanon-runtime",
-    );
-    await copyBundledRuntimeTo(
-      path.join(originalCwd, "skills", "devcanon-runtime"),
-      incompleteRuntimeDir,
-    );
-    await rm(
-      path.join(
-        incompleteRuntimeDir,
-        "scripts",
-        "runtime",
-        "issue-worktree-setup.js",
-      ),
-    );
-
-    await expect(
-      initAction({ runtimeSourceDir: incompleteRuntimeDir }),
-    ).rejects.toMatchObject({
-      message:
-        "Fixed passive runtime support bundle devcanon-runtime is incomplete.",
-      filePath: path.join(
-        incompleteRuntimeDir,
-        "scripts",
-        "runtime",
-        "issue-worktree-setup.js",
-      ),
+      message: "Passive runtime adapter pair is unrecognized.",
+      filePath: path.join(brokenRuntimeDir, "scripts"),
     } satisfies Partial<UserError>);
     expect(await pathExists(path.join(tempDir, "devcanon.config.yaml"))).toBe(
       false,

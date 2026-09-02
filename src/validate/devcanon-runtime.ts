@@ -1,6 +1,7 @@
 import { constants } from "node:fs";
 import { access, lstat, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   RUNTIME_CONFIG_RELATIVE_PATH,
   loadRuntimeConfigCatalog,
@@ -39,7 +40,9 @@ export interface RuntimeAdapterPair {
 }
 
 export interface ValidateDevcanonRuntimeOptions {
+  /** Required executing-distribution authority; never defaults to the candidate. */
   readonly adapterSourceDir?: string;
+  readonly operation?: "read-only" | "compose";
   readonly pristineLegacyPair?: RuntimeAdapterPair;
   readonly provider?: AcceptedProvider;
 }
@@ -67,6 +70,14 @@ export function devcanonRuntimeDir(skillsDir: string): string {
   return path.join(skillsDir, DEVCANON_RUNTIME_SKILL_NAME);
 }
 
+export function bundledDevcanonRuntimeDir(): string {
+  return path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../../skills",
+    DEVCANON_RUNTIME_SKILL_NAME,
+  );
+}
+
 /** Read-only authored and derived-state validation. Provider acceptance belongs upstream. */
 export async function validateDevcanonRuntime(
   runtimeDir: string,
@@ -77,8 +88,9 @@ export async function validateDevcanonRuntime(
   await requireDirectory(runtimeDir, runtimeDir, ".");
 
   // The pair gate deliberately precedes catalog and derived-runtime checks.
-  const adapterSourceDir = options.adapterSourceDir ?? runtimeDir;
-  const currentPair = await readAdapterPair(adapterSourceDir).catch((error) => {
+  const currentPair = await readAdapterPair(
+    options.adapterSourceDir ?? bundledDevcanonRuntimeDir(),
+  ).catch((error) => {
     throw adapterAdoptionError(
       runtimeDir,
       error instanceof Error ? error.message : "missing",
@@ -97,6 +109,9 @@ export async function validateDevcanonRuntime(
   );
   if (adapterState === "invalid")
     throw adapterAdoptionError(runtimeDir, "unrecognized");
+  if (adapterState === "pristine-legacy" && options.operation !== "compose") {
+    throw renderMigrationError(runtimeDir);
+  }
 
   for (const forbiddenPath of [
     "SKILL.md",
@@ -152,7 +167,9 @@ export function classifyAdapterPair(
 export async function validateBundledDevcanonRuntime(
   runtimeDir: string,
 ): Promise<void> {
-  const validated = await validateDevcanonRuntime(runtimeDir);
+  const validated = await validateDevcanonRuntime(runtimeDir, {
+    adapterSourceDir: bundledDevcanonRuntimeDir(),
+  });
   if (validated.adapterState !== "current") {
     throw adapterAdoptionError(runtimeDir, "legacy adapter pair");
   }
@@ -303,6 +320,14 @@ function renderRepairError(runtimeDir: string, detail: string): UserError {
     `Passive runtime derived subtree is missing or stale: ${detail}.`,
     path.join(runtimeDir, RUNTIME_JS_DIR),
     "Run devcanon render to reconcile the passive runtime subtree.",
+  );
+}
+
+function renderMigrationError(runtimeDir: string): UserError {
+  return new UserError(
+    "Passive runtime adapter pair is a recognized pristine legacy pair.",
+    path.join(runtimeDir, "scripts"),
+    "Run devcanon render to migrate the adapter pair and reconcile the passive runtime subtree.",
   );
 }
 

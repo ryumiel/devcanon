@@ -110,7 +110,8 @@ export async function copyDevcanonRuntimeFixture(
 
 const LIGHTWEIGHT_RUNTIME_MARKER =
   "devcanon-test-only-lightweight-runtime/v1\n";
-const LIGHTWEIGHT_RUNTIME_BUNDLE = "export {};\n";
+const LIGHTWEIGHT_RUNTIME_BUNDLE =
+  'if (process.argv[2] === "runtime" && process.argv[3] === "contract") process.stdout.write(\'{"command_group":"devcanon-runtime","major_version":1}\\n\');\n';
 const LIGHTWEIGHT_RUNTIME_MANIFEST = "{}\n";
 const LIGHTWEIGHT_RUNTIME_LICENSES = "fixture license\n";
 const LIGHTWEIGHT_RUNTIME_WRAPPER =

@@ -1,6 +1,7 @@
 import {
   chmod,
   mkdir,
+  readFile,
   readdir,
   rm,
   symlink,
@@ -81,6 +82,51 @@ describe("devcanon-runtime source validation", () => {
         legacy,
       ),
     ).toBe("invalid");
+  });
+
+  it("does not treat a modified candidate as its own adapter authority", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    await writeFile(
+      path.join(runtimeDir, "scripts", "devcanon-runtime.sh"),
+      "#!/usr/bin/env bash\nexit 0\n",
+    );
+    await expect(validateDevcanonRuntime(runtimeDir)).rejects.toMatchObject({
+      message: "Passive runtime adapter pair is unrecognized.",
+      hint: expect.stringContaining("Back up both adapters"),
+    } satisfies Partial<UserError>);
+  });
+
+  it("directs a pristine legacy pair to render in read-only validation", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    const legacy = {
+      shell: await readFile(
+        path.join(runtimeDir, "scripts", "devcanon-runtime.sh"),
+      ),
+      resolver: await readFile(
+        path.join(runtimeDir, "scripts", "resolve-bash.mjs"),
+      ),
+    };
+    const authority = path.join(tempDir, "authority");
+    await mkdir(path.join(authority, "scripts"), { recursive: true });
+    await writeFile(
+      path.join(authority, "scripts", "devcanon-runtime.sh"),
+      "#!/usr/bin/env bash\necho current\n",
+    );
+    await chmod(path.join(authority, "scripts", "devcanon-runtime.sh"), 0o755);
+    await writeFile(
+      path.join(authority, "scripts", "resolve-bash.mjs"),
+      "export {};\n",
+    );
+
+    await expect(
+      validateDevcanonRuntime(runtimeDir, {
+        adapterSourceDir: authority,
+        pristineLegacyPair: legacy,
+      }),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining("recognized pristine legacy pair"),
+      hint: expect.stringContaining("devcanon render"),
+    } satisfies Partial<UserError>);
   });
 
   it("reports a missing derived subtree with render guidance without mutation", async () => {

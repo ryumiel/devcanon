@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   chmod,
@@ -10,6 +11,7 @@ import {
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { RUNTIME_CONFIG_SCHEMA } from "../config/runtime-config.js";
 import type { ResolvedConfig } from "../config/schema.js";
 import type { RenderedSkill } from "../models/types.js";
@@ -122,6 +124,7 @@ export async function reconcileDevcanonRuntimeSubtree(
   );
   try {
     await writeProviderLeaves(stage, providerLeaves(provider));
+    await assertStagedBundle(stage);
     await replaceDirectory(stage, destination);
   } catch (error) {
     await rm(stage, { recursive: true, force: true });
@@ -130,8 +133,8 @@ export async function reconcileDevcanonRuntimeSubtree(
 }
 
 /**
- * Bounded PR-ADAPT publication. The replacement is a complete scripts tree,
- * so no live adapter or provider leaf is repaired independently.
+ * Bounded PR-ADAPT publication. Staging validates a coherent pair plus
+ * subtree, and publication touches only the owned pair and runtime directory.
  */
 export async function reconcileDevcanonRuntimeSource(
   runtimeDir: string,
@@ -155,9 +158,47 @@ export async function reconcileDevcanonRuntimeSource(
       path.join(stage, "runtime"),
       providerLeaves(provider),
     );
-    await replaceDirectory(stage, destination);
+    await assertStagedRuntime(stage);
+    await publishStagedSourceParts(stage, destination);
   } catch (error) {
     await rm(stage, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+async function publishStagedSourceParts(
+  stage: string,
+  destination: string,
+): Promise<void> {
+  const owned = ["devcanon-runtime.sh", "resolve-bash.mjs", "runtime"] as const;
+  const backups = new Map<string, string>();
+  try {
+    for (const leaf of owned) {
+      const target = path.join(destination, leaf);
+      const backup = path.join(destination, `.devcanon-runtime.${leaf}.prior`);
+      await rm(backup, { recursive: true, force: true });
+      await rename(target, backup).catch((error: NodeJS.ErrnoException) => {
+        if (error.code !== "ENOENT") throw error;
+      });
+      backups.set(target, backup);
+    }
+    for (const leaf of owned)
+      await rename(path.join(stage, leaf), path.join(destination, leaf));
+    await Promise.all(
+      [...backups.values()].map((backup) =>
+        rm(backup, { recursive: true, force: true }),
+      ),
+    );
+    await rm(stage, { recursive: true, force: true });
+  } catch (error) {
+    for (const leaf of owned) {
+      const target = path.join(destination, leaf);
+      const backup = backups.get(target);
+      if (backup !== undefined) {
+        await rm(target, { recursive: true, force: true });
+        await rename(backup, target).catch(() => undefined);
+      }
+    }
     throw error;
   }
 }
@@ -194,6 +235,9 @@ export async function writeRenderedDevcanonRuntime(
       await chmod(path.join(stage, RUNTIME_ENTRYPOINT), shellMode);
     await writeFile(path.join(stage, RUNTIME_BASH_RESOLVER), pair.resolver);
     await writeProviderLeaves(path.join(stage, RUNTIME_JS_DIR), leaves);
+    if (validated?.adapterPair !== undefined) {
+      await assertStagedRuntime(path.join(stage, "scripts"));
+    }
     await replaceDirectory(stage, generatedPath);
   } catch (error) {
     await rm(stage, { recursive: true, force: true });
@@ -254,7 +298,7 @@ async function replaceDirectory(
   stage: string,
   destination: string,
 ): Promise<void> {
-  const backup = `${destination}.prior`;
+  const backup = `${destination}.devcanon-runtime.prior`;
   await rm(backup, { recursive: true, force: true });
   let priorMoved = false;
   try {
@@ -267,6 +311,36 @@ async function replaceDirectory(
   } catch (error) {
     if (priorMoved) await rename(backup, destination).catch(() => undefined);
     throw error;
+  }
+}
+
+async function assertStagedBundle(runtimeDirectory: string): Promise<void> {
+  const { stdout } = await promisify(execFile)(process.execPath, [
+    path.join(runtimeDirectory, "devcanon-runtime.mjs"),
+    "runtime",
+    "contract",
+  ]);
+  assertRuntimeContract(stdout);
+}
+
+async function assertStagedRuntime(scriptsDirectory: string): Promise<void> {
+  await assertStagedBundle(path.join(scriptsDirectory, "runtime"));
+  const { stdout } = await promisify(execFile)("bash", [
+    path.join(scriptsDirectory, "devcanon-runtime.sh"),
+    "contract",
+  ]);
+  assertRuntimeContract(stdout);
+}
+
+function assertRuntimeContract(stdout: string): void {
+  const value = JSON.parse(stdout) as {
+    command_group?: unknown;
+    major_version?: unknown;
+  };
+  if (value.command_group !== "devcanon-runtime" || value.major_version !== 1) {
+    throw new Error(
+      "staged runtime contract did not match devcanon-runtime/v1",
+    );
   }
 }
 

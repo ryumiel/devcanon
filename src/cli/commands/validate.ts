@@ -2,6 +2,7 @@ import { loadConfig } from "../../config/load.js";
 import { getLogger } from "../../utils/output.js";
 import { loadAndValidateAgents } from "../../validate/agents.js";
 import {
+  bundledDevcanonRuntimeDir,
   devcanonRuntimeDir,
   validateDevcanonRuntime,
 } from "../../validate/devcanon-runtime.js";
@@ -31,7 +32,9 @@ export async function validateAction(
     strict,
   );
   if (!json) logger.info("Config: valid");
-  await validateDevcanonRuntime(devcanonRuntimeDir(config.library.skillsDir));
+  await validateDevcanonRuntime(devcanonRuntimeDir(config.library.skillsDir), {
+    adapterSourceDir: bundledDevcanonRuntimeDir(),
+  });
 
   let skillWarningsPrinted = false;
   const printSkillWarnings = (): void => {
