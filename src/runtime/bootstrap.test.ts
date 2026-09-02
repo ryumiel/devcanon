@@ -677,22 +677,26 @@ describe("trusted runtime bootstrap", () => {
       try {
         const packagedRuntime = path.join(root, "packaged-runtime");
         const commandBin = path.join(root, "command-bin");
-        await cp(path.resolve("skills/devcanon-runtime"), packagedRuntime, {
+        await mkdir(path.join(packagedRuntime, "scripts", "runtime"), {
           recursive: true,
         });
+        await cp(
+          path.resolve("skills/devcanon-runtime/scripts/devcanon-runtime.sh"),
+          path.join(packagedRuntime, "scripts", "devcanon-runtime.sh"),
+        );
         await mkdir(commandBin);
         await symlink(process.execPath, path.join(commandBin, "node"));
         await symlink("/usr/bin/dirname", path.join(commandBin, "dirname"));
         const ready = path.join(root, "ready");
         const forwarded = path.join(root, "forwarded");
-        const runtimeCli = path.join(
+        const runtimeBundle = path.join(
           packagedRuntime,
           "scripts",
           "runtime",
-          "cli.js",
+          "devcanon-runtime.mjs",
         );
         await writeFile(
-          runtimeCli,
+          runtimeBundle,
           [
             'import { writeFileSync } from "node:fs";',
             'writeFileSync(process.env.DEVCANON_TEST_READY, "ready");',
@@ -745,9 +749,22 @@ describe("trusted runtime bootstrap", () => {
         const packagedRuntime = path.join(root, "packaged-runtime");
         const override = path.join(root, "override");
         const commandBin = path.join(root, "command-bin");
-        await cp(path.resolve("skills/devcanon-runtime"), packagedRuntime, {
+        await mkdir(path.join(packagedRuntime, "scripts", "runtime"), {
           recursive: true,
         });
+        await cp(
+          path.resolve("skills/devcanon-runtime/scripts/devcanon-runtime.sh"),
+          path.join(packagedRuntime, "scripts", "devcanon-runtime.sh"),
+        );
+        await writeFile(
+          path.join(
+            packagedRuntime,
+            "scripts",
+            "runtime",
+            "devcanon-runtime.mjs",
+          ),
+          "process.exit(0);\n",
+        );
         await mkdir(path.join(override, "scripts", "runtime"), {
           recursive: true,
         });
@@ -762,7 +779,7 @@ describe("trusted runtime bootstrap", () => {
         await writeFile(entrypoint, "#!/bin/bash\nexit 0\n");
         await chmod(entrypoint, 0o755);
         await writeFile(
-          path.join(override, "scripts", "runtime", "cli.js"),
+          path.join(override, "scripts", "runtime", "devcanon-runtime.mjs"),
           "process.exit(0);\n",
         );
         const bootstrap = spawnChild(
