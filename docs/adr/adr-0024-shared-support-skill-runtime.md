@@ -82,6 +82,12 @@ repairing it. This choice provides a normal provider-upgrade and
 provider-switch transition without weakening authored-path protection or
 adding another CLI command.
 
+An existing library has one bounded authored-adapter transition: `render` or
+non-dry `sync` may replace both adapters together only when they exactly match
+a recognized pristine legacy pair, and only with the current version-matched
+pair. Modified, mixed, or unrecognized adapters remain protected. This narrow
+exception does not make authored adapters generally replaceable derived state.
+
 The rendered composition is the sole symlink target. The install manifest
 continues to identify the authored source root and rendered composition while
 the accepted build manifest supplies generated-artifact provenance. Existing
@@ -151,8 +157,9 @@ builds must emit byte-identical bundle, manifest, and license artifacts.
   entrypoints, tarballs, and installers consume one artifact architecture.
 - Provider failures remain actionable without making package installs depend
   on source-only inputs.
-- Staged whole-subtree reconciliation repairs derived provider drift while
-  preserving authored content.
+- Staged whole-subtree reconciliation repairs derived provider drift; the
+  separate bounded pristine-pair transition preserves protection for all other
+  authored content.
 - Unique package-instance identity closes dependency and attribution ordering,
   including repeated name/version instances.
 - A fixed bootstrap can safely validate an explicitly selected external runtime

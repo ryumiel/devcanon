@@ -101,6 +101,13 @@ Under the target behavior, after validation accepts the explicit provider, the
 rendered passive-runtime tree has the exact closed inventory in
 [PR-ART-06](passive-runtime.md#artifact-custody).
 
+PR-ADAPT-01 through PR-ADAPT-03 own the preceding adapter compatibility gate
+and the only authorized one-time source-adapter migration. Dry sync previews an
+eligible pairwise migration; non-dry sync includes the pair and PR-ART-05 in
+the renderer-owned mutation projection and performs the bounded transition
+before transport. This installation specification adds no independent adapter
+migration or whole-runtime replacement path.
+
 The rendered composition is the sole symlink target. Copy installation copies
 that same composed tree, and `diff` compares the installed runtime against its
 rendered full-tree identity. Existing collision, overwrite, effective-mode,
@@ -315,22 +322,24 @@ backups or manifest churn.
    before non-dry recovery, normalization or binding, rendering, or an install
    mutation. Under the required deferred provider behavior, that validation
    first accepts the explicitly provided prebuilt passive-runtime artifact
-   before composition and the same later effects. Dry run uses the read-only
-   PR-LIFE-07 projection and only previews derived-subtree repair. Non-dry sync
-   uses PR-LIFE-08 and may reconcile that subtree through PR-LIFE-11 before
-   writable render. Sync never builds the artifact or resolves ambient
-   dependencies.
+   and applies PR-ADAPT-01 before remaining authored/catalog acceptance,
+   composition, and the same later effects. Dry run uses the read-only
+   PR-LIFE-07 projection and only previews an eligible adapter migration and
+   derived-subtree repair. Non-dry sync uses PR-LIFE-08 and may perform
+   PR-ADAPT-02 or reconcile that subtree through PR-LIFE-11 before writable
+   render. Sync never builds the artifact or resolves ambient dependencies.
 4. for a non-dry invalid manifest, perform explicit recovery; only
    recovered-clean state continues. Every pre-I5-unrecovered or
    recovered-cleanup-degraded result stops before each later effect.
 5. normalize and classify accepted state, apply foreign-record policy,
    reconcile authorized foreign records record-only, and project selected
-   outputs plus the renderer-owned mutation inventory read-only
+   outputs plus the renderer-owned adapter-and-subtree mutation inventory
+   read-only
 6. partition accepted records and selected outputs into active/passive scope;
    reject component-aware managed and manifest-control collisions and every
    reconciled-away foreign overlap with a selected renderer mutation entry
 7. perform any required legacy binding or save
-8. perform writable render
+8. perform any eligible bounded adapter migration and writable render
 9. construct, print, and execute the install plan with reconciliation
    protection as applicable
 10. perform the final manifest save
@@ -426,9 +435,11 @@ keeps the manifest record.
 For the passive `devcanon-runtime` bundle, current copy identity validates and
 hashes the exact fixed payload against the recorded full-tree content hash.
 Under the required deferred provider behavior, the same rule covers the exact
-composed payload. Neither form has a legacy scripts-only fallback or migration
-path. Symlink identity verifies the applicable rendered tree as its expected
-target, while `diff` also checks the resolved runtime payload against the
+composed payload. Neither form has an installed legacy scripts-only fallback or
+installed-output migration path. The source-library PR-ADAPT-02 transition is
+separate and occurs before rendered transport. Symlink identity verifies the
+applicable rendered tree as its expected target, while `diff` also checks the
+resolved runtime payload against the
 rendered hash.
 
 During uninstall, a valid manifest record whose installed path is already

@@ -194,12 +194,17 @@ Current implemented behavior:
   strings are included in the model drift set
 
 Required target behavior, whose implementation is deferred, validates the
-explicit provider and its prebuilt runtime artifact after config validation and
-before composition, passive-runtime validation, and declaration-bearing source
-skills. It remains read-only and follows
+explicit provider and its prebuilt runtime artifact after config validation,
+then applies PR-ADAPT-01 before remaining passive-runtime validation,
+composition, and declaration-bearing source skills. It remains read-only and
+follows
 [PR-LIFE-05](passive-runtime.md#lifecycle-and-repair-transitions): invalid
-derived runtime state fails with `devcanon render` repair guidance. Provider
-validation ordering is not current implemented behavior.
+derived runtime state fails with `devcanon render` repair guidance. It also
+applies that adapter classification without mutation: a recognized pristine
+legacy pair receives `devcanon render` migration guidance, while mixed, missing,
+modified, or unrecognized adapter state receives the explicit backup, diff,
+and version-matched-pair adoption guidance. Provider and adapter validation
+ordering is not current implemented behavior.
 
 For human output, `validate` groups skill warnings into a readable warning
 report after the skill status line. The skill status line includes the number
@@ -245,11 +250,16 @@ passive-runtime tree. Under
 [PR-LIFE-06](passive-runtime.md#lifecycle-and-repair-transitions), `render` is
 also the explicit repair path for missing, stale, or provider-mismatched
 derived runtime state and reconciles the subtree through PR-LIFE-11 before
-writing generated output. It never selects an artifact from filesystem hints
-or builds an artifact as a fallback. Source-build verification failures direct
+writing generated output. Before source or runtime mutation, it applies
+PR-ADAPT-01. An eligible pair migrates under PR-ADAPT-02 and PR-ADAPT-03; every
+other incompatible state fails with PR-ADAPT-01's manual backup, diff, pair
+adoption, and rerun guidance. The command never removes or reinstalls the whole
+`skills/devcanon-runtime/` bundle; PR-ART-05 remains independently reconcilable
+through PR-LIFE-11. It never selects an artifact from filesystem hints or
+builds an artifact as a fallback. Source-build verification failures direct
 the operator to `pnpm run build:runtime`; package verification failures direct
-the operator to reinstall. The rendered payload and manifest identity are
-owned by
+the operator to reinstall. The migration, rendered payload, and manifest
+identity are owned by the Passive Runtime Contract and
 [Install and sync](install-and-sync.md#passive-runtime-composition-and-transport).
 
 ---
@@ -311,13 +321,15 @@ primary failure, and every unrecovered result exits 1.
 `sync` first inspects the manifest purely. An invalid `sync --dry-run` retains
 that manifest-error precedence and exits before runtime validation. Under the
 required deferred provider behavior, every other sync accepts and validates the
-explicit prebuilt provider artifact before non-dry recovery, normalization or
-binding, composition, rendering, or install mutation. Under PR-LIFE-07 and
-PR-LIFE-08, dry run previews any required derived-subtree reconciliation
-without mutation, while non-dry sync reuses the renderer-owned compositor and
-may reconcile that subtree through PR-LIFE-11 before transport. Installed
-`sync` only verifies and transports the prebuilt artifact: it never builds it
-or resolves ambient dependencies. These transitions are owned by the
+explicit prebuilt provider artifact and applies PR-ADAPT-01 before non-dry
+recovery, normalization or binding, source/runtime composition, rendering, or
+install mutation. Under PR-LIFE-07 and PR-LIFE-08, dry run previews an eligible
+PR-ADAPT-02 pairwise migration and any required derived-subtree reconciliation
+without mutation, while non-dry sync may perform that migration or reconcile
+the subtree through PR-LIFE-11 before transport. Incompatible adapter states
+fail before source or runtime mutation with PR-ADAPT-01's manual guidance.
+Installed `sync` only verifies and transports the prebuilt artifact: it never
+builds it or resolves ambient dependencies. These transitions are owned by the
 [Passive Runtime Contract](passive-runtime.md#lifecycle-and-repair-transitions)
 and are target behavior, not claims about the current implementation.
 
@@ -413,8 +425,10 @@ runtime validation or reporting differences. Under the required deferred
 provider behavior, it then accepts and validates the explicit prebuilt provider
 artifact through its source-driven composed render projection. It remains
 read-only and does not repair invalid derived runtime state; PR-LIFE-09 owns
-that failure and repair guidance. That provider addition is not current
-implemented behavior.
+that failure and repair guidance. It also applies PR-ADAPT-01 read-only and
+reports render-migration or manual pair-adoption guidance as applicable rather
+than migrating adapters. That provider addition is not current implemented
+behavior.
 
 ---
 
