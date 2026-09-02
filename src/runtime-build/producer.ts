@@ -472,17 +472,23 @@ async function listBundledFirstPartySources(
 ): Promise<string[]> {
   return Object.keys(metafile.inputs ?? {})
     .map((input) => path.resolve(repositoryRoot, input))
-    .filter(
-      (absolute) =>
-        isWithin(repositoryRoot, absolute) &&
-        !path
-          .relative(repositoryRoot, absolute)
-          .split(path.sep)
-          .includes("node_modules"),
-    )
+    .filter((absolute) => isBundledFirstPartySource(repositoryRoot, absolute))
     .sort((left, right) =>
       Buffer.compare(Buffer.from(left), Buffer.from(right)),
     );
+}
+
+function isBundledFirstPartySource(
+  repositoryRoot: string,
+  absolute: string,
+): boolean {
+  return (
+    isWithin(repositoryRoot, absolute) &&
+    !path
+      .relative(repositoryRoot, absolute)
+      .split(path.sep)
+      .includes("node_modules")
+  );
 }
 
 function selectProjection(
@@ -512,7 +518,7 @@ function isWithin(root: string, candidate: string): boolean {
   );
 }
 
-interface BundledPackageInstance extends ProductionPackageInstance {
+export interface BundledPackageInstance extends ProductionPackageInstance {
   packageRoot: string;
 }
 
@@ -523,8 +529,19 @@ async function collectBundledInstances(
   const packageRoots = new Set<string>();
   for (const input of Object.keys(metafile.inputs ?? {})) {
     const absolute = path.resolve(repositoryRoot, input);
+    if (isBundledFirstPartySource(repositoryRoot, absolute)) continue;
+    if (!isWithin(repositoryRoot, absolute)) {
+      throw new Error(
+        `esbuild metafile input is outside the repository: ${input}`,
+      );
+    }
     const root = await nearestPackageRoot(repositoryRoot, absolute);
-    if (root !== undefined) packageRoots.add(root);
+    if (root === undefined) {
+      throw new Error(
+        `esbuild metafile input is not a repository source or package: ${input}`,
+      );
+    }
+    packageRoots.add(root);
   }
   const packages = await Promise.all(
     [...packageRoots].map(async (packageRoot) => {
@@ -572,15 +589,31 @@ export function extractPnpmProjection(
   lockfileContents: string,
   bundled?: readonly Pick<ProductionPackageInstance, "name" | "version">[],
 ): ProductionDependencyProjection {
+  return extractSelectedPnpmProjection(lockfileContents, bundled);
+}
+
+function extractSelectedPnpmProjection(
+  lockfileContents: string,
+  bundled?: readonly Pick<ProductionPackageInstance, "name" | "version">[],
+  selectedIds?: ReadonlySet<string>,
+): ProductionDependencyProjection {
   const lock = parseYaml(lockfileContents) as PnpmLock;
   const packages = lock.packages ?? {};
-  const instanceIds = Object.keys(lock.snapshots ?? {}).filter((id) => {
-    if (bundled === undefined) return true;
-    const parsed = parsePackageIdentity(id);
-    return bundled.some(
-      (item) => item.name === parsed.name && item.version === parsed.version,
-    );
-  });
+  const snapshotIds = Object.keys(lock.snapshots ?? {});
+  const instanceIds = selectClosureIds(
+    lock,
+    selectedIds ??
+      new Set(
+        snapshotIds.filter((id) => {
+          if (bundled === undefined) return true;
+          const parsed = parsePackageIdentity(id);
+          return bundled.some(
+            (item) =>
+              item.name === parsed.name && item.version === parsed.version,
+          );
+        }),
+      ),
+  );
   const records: ProductionPackageInstance[] = (
     instanceIds.length > 0 ? instanceIds : Object.keys(packages)
   ).map((id) => {
@@ -609,18 +642,9 @@ export function extractPnpmProjection(
     ] as const;
     record.dependencies = canonicalizeDependencyEdges(
       dependencies.flatMap(([kind, entries]) =>
-        Object.entries(entries ?? {}).flatMap(([alias, target]) => {
-          try {
-            return [resolveLockEdge(record.id, alias, target, kind, knownIds)];
-          } catch (error) {
-            if (
-              bundled !== undefined &&
-              /unresolved lockfile dependency edge/u.test(String(error))
-            )
-              return [];
-            throw error;
-          }
-        }),
+        Object.entries(entries ?? {}).map(([alias, target]) =>
+          resolveLockEdge(record.id, alias, target, kind, knownIds),
+        ),
       ),
     );
   }
@@ -629,7 +653,7 @@ export function extractPnpmProjection(
     readImporterEdges(
       lock.importers?.["."] ?? {},
       knownIds,
-      bundled !== undefined,
+      bundled !== undefined || selectedIds !== undefined,
     ),
   );
   return Object.freeze({ root, packages: canonical });
@@ -649,7 +673,7 @@ function parsePackageIdentity(id: string): { name: string; version: string } {
 function readImporterEdges(
   importer: PnpmImporter,
   knownIds: ReadonlySet<string>,
-  ignoreUnresolved = false,
+  relevantOnly = false,
 ): DependencyEdge[] {
   return (
     [
@@ -658,20 +682,45 @@ function readImporterEdges(
     ] as const
   ).flatMap(([kind, entries]) =>
     Object.entries(entries ?? {}).flatMap(([alias, reference]) => {
-      try {
-        return [
-          resolveLockEdge("root importer", alias, reference, kind, knownIds),
-        ];
-      } catch (error) {
-        if (
-          ignoreUnresolved &&
-          /unresolved lockfile dependency edge/u.test(String(error))
-        )
-          return [];
-        throw error;
+      if (
+        relevantOnly &&
+        findLockEdgeCandidates(alias, reference, knownIds).length === 0
+      ) {
+        return [];
       }
+      return [
+        resolveLockEdge("root importer", alias, reference, kind, knownIds),
+      ];
     }),
   );
+}
+
+function selectClosureIds(
+  lock: PnpmLock,
+  initialIds: ReadonlySet<string>,
+): string[] {
+  const selected = new Set(initialIds);
+  const pending = [...selected];
+  const allIds = new Set(Object.keys(lock.snapshots ?? {}));
+  while (pending.length > 0) {
+    const id = pending.pop();
+    if (id === undefined) continue;
+    const snapshot = lock.snapshots?.[id] ?? {};
+    for (const [entries] of [
+      [snapshot.dependencies],
+      [snapshot.optionalDependencies],
+    ] as const) {
+      for (const [alias, reference] of Object.entries(entries ?? {})) {
+        for (const target of findLockEdgeCandidates(alias, reference, allIds)) {
+          if (!selected.has(target)) {
+            selected.add(target);
+            pending.push(target);
+          }
+        }
+      }
+    }
+  }
+  return [...selected];
 }
 
 function resolveLockEdge(
@@ -681,17 +730,15 @@ function resolveLockEdge(
   kind: string,
   knownIds: ReadonlySet<string>,
 ): DependencyEdge {
-  const target = typeof reference === "string" ? reference : reference.version;
-  if (!isNonemptyString(target)) {
-    throw new Error(`unresolved lockfile dependency edge: ${from} -> ${alias}`);
-  }
-  const targetIdentity = isQualifiedLockIdentity(target)
-    ? target
-    : `${alias}@${target}`;
-  const candidates = [...knownIds].filter(
-    (id) => id === targetIdentity || id.startsWith(`${targetIdentity}(`),
-  );
+  const candidates = findLockEdgeCandidates(alias, reference, knownIds);
   if (candidates.length !== 1) {
+    const target =
+      typeof reference === "string" ? reference : reference.version;
+    const targetIdentity = isNonemptyString(target)
+      ? isQualifiedLockIdentity(target)
+        ? target
+        : `${alias}@${target}`
+      : alias;
     throw new Error(
       `unresolved lockfile dependency edge: ${from} -> ${targetIdentity}`,
     );
@@ -703,6 +750,21 @@ function resolveLockEdge(
     kind,
     target_id: candidates[0],
   };
+}
+
+function findLockEdgeCandidates(
+  alias: string,
+  reference: PnpmReference,
+  knownIds: ReadonlySet<string>,
+): string[] {
+  const target = typeof reference === "string" ? reference : reference.version;
+  if (!isNonemptyString(target)) return [];
+  const targetIdentity = isQualifiedLockIdentity(target)
+    ? target
+    : `${alias}@${target}`;
+  return [...knownIds].filter(
+    (id) => id === targetIdentity || id.startsWith(`${targetIdentity}(`),
+  );
 }
 
 function isQualifiedLockIdentity(value: string): boolean {
@@ -745,20 +807,22 @@ function canonicalizeDependencyEdges(
     );
 }
 
-async function resolveLockInstances(
+export async function resolveLockInstances(
   repositoryRoot: string,
   packages: readonly BundledPackageInstance[],
 ): Promise<BundledPackageInstance[]> {
-  const projection = extractPnpmProjection(
-    await readFile(path.join(repositoryRoot, "pnpm-lock.yaml"), "utf8"),
-    packages,
+  const lockfileContents = await readFile(
+    path.join(repositoryRoot, "pnpm-lock.yaml"),
+    "utf8",
   );
+  const lock = parseYaml(lockfileContents) as PnpmLock;
+  const snapshotIds = Object.keys(lock.snapshots ?? {});
   const idsByPackageRoot = new Map<string, string>();
   for (const item of packages) {
     const prefix = `${item.name}@${item.version}`;
-    const candidates = projection.packages
-      .map((entry) => entry.id)
-      .filter((id) => id === prefix || id.startsWith(`${prefix}(`));
+    const candidates = snapshotIds.filter(
+      (id) => id === prefix || id.startsWith(`${prefix}(`),
+    );
     const physicalMatch = candidates.find((id) =>
       matchesPhysicalPnpmIdentity(repositoryRoot, item.packageRoot, id),
     );
@@ -771,6 +835,19 @@ async function resolveLockInstances(
     idsByPackageRoot.set(item.packageRoot, physicalMatch ?? id);
   }
   const knownIds = new Set(idsByPackageRoot.values());
+  const rootReachable = selectRootReachableIds(lock);
+  for (const id of knownIds) {
+    if (!rootReachable.has(id)) {
+      throw new Error(
+        `bundled package is not root-reachable from production dependencies: ${id}`,
+      );
+    }
+  }
+  const projection = extractSelectedPnpmProjection(
+    lockfileContents,
+    undefined,
+    knownIds,
+  );
   return packages.map((item) => {
     const id = idsByPackageRoot.get(item.packageRoot);
     if (id === undefined) throw new Error("missing resolved package identity");
@@ -787,6 +864,23 @@ async function resolveLockInstances(
       dependencies,
     };
   });
+}
+
+function selectRootReachableIds(lock: PnpmLock): Set<string> {
+  const allIds = new Set(Object.keys(lock.snapshots ?? {}));
+  const initial = new Set<string>();
+  const importer = lock.importers?.["."] ?? {};
+  for (const entries of [
+    importer.dependencies,
+    importer.optionalDependencies,
+  ]) {
+    for (const [alias, reference] of Object.entries(entries ?? {})) {
+      for (const id of findLockEdgeCandidates(alias, reference, allIds)) {
+        initial.add(id);
+      }
+    }
+  }
+  return new Set(selectClosureIds(lock, initial));
 }
 
 function matchesPhysicalPnpmIdentity(

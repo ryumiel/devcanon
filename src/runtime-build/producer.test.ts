@@ -8,6 +8,7 @@ import {
   extractPnpmProjection,
   publishVerifiedProvider,
   renderThirdPartyLicenses,
+  resolveLockInstances,
   verifySourceProvider,
 } from "./producer.js";
 import { PROVIDER_LEAVES, sha256 } from "./provider.js";
@@ -136,6 +137,101 @@ snapshots:
         [{ name: "real", version: "1.0.0" }],
       ),
     ).not.toThrow();
+  });
+
+  it("rejects an unresolved edge in the selected bundled closure", () => {
+    expect(() =>
+      extractPnpmProjection(
+        `
+importers:
+  .:
+    dependencies:
+      real: {version: 1.0.0}
+packages:
+  real@1.0.0: {resolution: {integrity: sha512-real}}
+  broken@1.0.0: {resolution: {integrity: sha512-broken}}
+snapshots:
+  real@1.0.0:
+    dependencies: {missing: 1.0.0}
+  broken@1.0.0:
+    dependencies: {also-missing: 1.0.0}
+`,
+        [{ name: "real", version: "1.0.0" }],
+      ),
+    ).toThrow(/unresolved lockfile dependency edge: real@1.0.0/i);
+  });
+
+  it("reconciles peer-qualified bundled instances through their physical pnpm roots", async () => {
+    const root = await createTempDir();
+    try {
+      await writeFile(
+        path.join(root, "pnpm-lock.yaml"),
+        `
+importers:
+  .:
+    dependencies:
+      same-a: {version: same@1.0.0(peer-a@1.0.0)}
+      same-b: {version: same@1.0.0(peer-b@1.0.0)}
+packages:
+  same@1.0.0(peer-a@1.0.0): {resolution: {integrity: sha512-same-a}}
+  same@1.0.0(peer-b@1.0.0): {resolution: {integrity: sha512-same-b}}
+  peer-a@1.0.0: {resolution: {integrity: sha512-peer-a}}
+  peer-b@1.0.0: {resolution: {integrity: sha512-peer-b}}
+snapshots:
+  same@1.0.0(peer-a@1.0.0):
+    dependencies: {peer-a: 1.0.0}
+  same@1.0.0(peer-b@1.0.0):
+    optionalDependencies: {peer-b: 1.0.0}
+  peer-a@1.0.0: {}
+  peer-b@1.0.0: {}
+`,
+      );
+      const packageRoots = await Promise.all(
+        [
+          "same@1.0.0_peer-a@1.0.0/node_modules/same",
+          "same@1.0.0_peer-b@1.0.0/node_modules/same",
+          "peer-a@1.0.0/node_modules/peer-a",
+          "peer-b@1.0.0/node_modules/peer-b",
+        ].map(async (relative) => {
+          const packageRoot = path.join(
+            root,
+            "node_modules",
+            ".pnpm",
+            relative,
+          );
+          await mkdir(packageRoot, { recursive: true });
+          return packageRoot;
+        }),
+      );
+      await expect(
+        resolveLockInstances(
+          root,
+          packageRoots.map((packageRoot) => ({
+            id: "unreconciled",
+            name: path.basename(packageRoot),
+            version: "1.0.0",
+            integrity: "bundled-local-resolution",
+            dependencies: [],
+            packageRoot,
+          })),
+        ),
+      ).resolves.toEqual([
+        expect.objectContaining({
+          id: "same@1.0.0(peer-a@1.0.0)",
+          dependencies: [expect.objectContaining({ kind: "dependencies" })],
+        }),
+        expect.objectContaining({
+          id: "same@1.0.0(peer-b@1.0.0)",
+          dependencies: [
+            expect.objectContaining({ kind: "optionalDependencies" }),
+          ],
+        }),
+        expect.objectContaining({ id: "peer-a@1.0.0" }),
+        expect.objectContaining({ id: "peer-b@1.0.0" }),
+      ]);
+    } finally {
+      await cleanupTempDir(root);
+    }
   });
 
   it("rejects duplicate canonical records and duplicate complete dependency edges", () => {

@@ -134,6 +134,7 @@ export function sha256(bytes: Uint8Array): string {
 }
 
 async function assertClosedProviderRoot(root: string): Promise<StatsIdentity> {
+  await assertPhysicalPathComponents(root);
   const rootStat = await lstat(root).catch(() => undefined);
   if (
     rootStat === undefined ||
@@ -158,6 +159,30 @@ async function assertClosedProviderRoot(root: string): Promise<StatsIdentity> {
     );
   }
   return identity(rootStat);
+}
+
+async function assertPhysicalPathComponents(root: string): Promise<void> {
+  const absolute = path.resolve(root);
+  const filesystemRoot = path.parse(absolute).root;
+  const components = path
+    .relative(filesystemRoot, absolute)
+    .split(path.sep)
+    .filter(Boolean);
+  let cursor = filesystemRoot;
+  for (const component of components) {
+    cursor = path.join(cursor, component);
+    const stat = await lstat(cursor).catch(() => undefined);
+    // macOS exposes its temporary directories through the system /var alias.
+    // It is not a caller-controlled component of the provider path.
+    if (
+      stat?.isSymbolicLink() &&
+      !(process.platform === "darwin" && cursor === "/var")
+    ) {
+      throw new Error(
+        "runtime provider root must be a readable physical directory",
+      );
+    }
+  }
 }
 
 interface CapturedLeaf {

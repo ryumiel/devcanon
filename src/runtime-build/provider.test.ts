@@ -53,6 +53,32 @@ describe("verifyProvider", () => {
     ).rejects.toThrow(/regular non-link/i);
   });
 
+  it("rejects a provider root reached through a linked path component", async () => {
+    const physicalParent = await createTempDir();
+    tempDirs.push(physicalParent);
+    const root = path.join(physicalParent, "provider");
+    await mkdir(root);
+    const linkedRoot = path.join(await createTempDir(), "linked");
+    tempDirs.push(path.dirname(linkedRoot));
+    const bundle = Buffer.from("export {};\n");
+    const licenses = Buffer.from("example license\n");
+    await writeFile(path.join(root, PROVIDER_LEAVES.bundle), bundle);
+    await writeFile(path.join(root, PROVIDER_LEAVES.licenses), licenses);
+    await writeFile(
+      path.join(root, PROVIDER_LEAVES.manifest),
+      `${JSON.stringify({ schema: "devcanon-runtime-build/v1", devcanon_version: VERSION, artifact_origin: "package", input_sha256: INPUT_SHA, bundle_sha256: sha256(bundle), licenses_sha256: sha256(licenses), node_target: "node24" })}\n`,
+    );
+    await symlink(root, linkedRoot);
+
+    await expect(
+      verifyProvider({
+        root: `${linkedRoot}/.`,
+        origin: "package",
+        devcanonVersion: VERSION,
+      }),
+    ).rejects.toThrow(/physical directory/i);
+  });
+
   it("recomputes source input identity but treats package input identity as attested", async () => {
     const sourceRoot = await createProvider("source-build");
     await expect(

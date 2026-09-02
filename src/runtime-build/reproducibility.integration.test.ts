@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanupTempDir, createTempDir } from "../__test-helpers__/fixtures.js";
 import { produceProvider, verifySourceProvider } from "./producer.js";
+import { verifyProvider } from "./provider.js";
 
 const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -17,10 +18,11 @@ afterEach(async () => {
 });
 
 describe("runtime provider reproducibility", () => {
-  it("creates byte-identical source-build providers and dispatches runtime", async () => {
+  it("creates source and package providers and dispatches their runtime", async () => {
     const first = await createTempDir();
     const second = await createTempDir();
-    tempDirs.push(first, second);
+    const packageProvider = await createTempDir();
+    tempDirs.push(first, second, packageProvider);
     await produceProvider({
       repositoryRoot,
       origin: "source-build",
@@ -32,6 +34,12 @@ describe("runtime provider reproducibility", () => {
       origin: "source-build",
       devcanonVersion: "2.0.0",
       destinationRoot: second,
+    });
+    await produceProvider({
+      repositoryRoot,
+      origin: "package",
+      devcanonVersion: "2.0.0",
+      destinationRoot: packageProvider,
     });
     await expect(
       verifySourceProvider({
@@ -45,7 +53,14 @@ describe("runtime provider reproducibility", () => {
       await readProviderBytes(second),
     );
     await expect(
-      runNode(path.join(first, "devcanon-runtime.mjs"), [
+      verifyProvider({
+        root: packageProvider,
+        origin: "package",
+        devcanonVersion: "2.0.0",
+      }),
+    ).resolves.toMatchObject({ origin: "package" });
+    await expect(
+      runNode(path.join(packageProvider, "devcanon-runtime.mjs"), [
         "runtime",
         "contract",
       ]),
@@ -66,10 +81,10 @@ describe("runtime provider reproducibility", () => {
     });
     await writeFile(
       path.join(selectedRuntime, "scripts", "runtime", "devcanon-runtime.mjs"),
-      await readFile(path.join(first, "devcanon-runtime.mjs")),
+      await readFile(path.join(packageProvider, "devcanon-runtime.mjs")),
     );
     await expect(
-      runNode(path.join(first, "devcanon-runtime.mjs"), [
+      runNode(path.join(packageProvider, "devcanon-runtime.mjs"), [
         "bootstrap",
         "--runtime-dir",
         selectedRuntime,
