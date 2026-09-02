@@ -362,4 +362,34 @@ describe("devcanon-runtime source validation", () => {
       message: expect.stringContaining("adapter contract check failed"),
     } satisfies Partial<UserError>);
   });
+
+  it("rejects an authoritative resolver that prints the Node executable", async () => {
+    const authority = path.join(tempDir, "authority");
+    await copyDevcanonRuntimeFixture(path.join(tempDir, "authority-parent"));
+    const { rename } = await import("node:fs/promises");
+    await rename(
+      path.join(tempDir, "authority-parent", "devcanon-runtime"),
+      authority,
+    );
+    await writeFile(
+      path.join(authority, "scripts", "resolve-bash.mjs"),
+      "console.log(process.execPath);\n",
+    );
+
+    await expect(
+      validateBundledDevcanonRuntime(authority, {
+        adapterSourceDir: authority,
+      }),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining("adapter contract check failed"),
+      hint: expect.stringContaining("non-Bash executable path"),
+    } satisfies Partial<UserError>);
+  });
+
+  it("accepts the real Bash path resolved by the current adapters", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    await expect(
+      validateBundledDevcanonRuntime(runtimeDir),
+    ).resolves.toBeUndefined();
+  });
 });

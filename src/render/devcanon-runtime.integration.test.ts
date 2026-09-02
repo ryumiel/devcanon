@@ -390,7 +390,7 @@ describe("devcanon-runtime rendering", () => {
     ).resolves.toEqual(before);
   });
 
-  it("rejects a staged resolver that emits a nonexistent bash path before publication", async () => {
+  it("rejects a staged resolver that emits the Node executable before publication", async () => {
     const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
     const validated = await validateDevcanonRuntime(runtimeDir, {
       adapterSourceDir: path.resolve("skills/devcanon-runtime"),
@@ -399,7 +399,7 @@ describe("devcanon-runtime rendering", () => {
     const provider = await providerFromValidated(runtime, validated);
     const brokenPair = {
       ...validated.adapterPair,
-      resolver: Buffer.from("console.log('/definitely/not/a/bash');\n"),
+      resolver: Buffer.from("console.log(process.execPath);\n"),
     };
     const before = await readFile(
       path.join(runtimeDir, "scripts", "resolve-bash.mjs"),
@@ -414,7 +414,7 @@ describe("devcanon-runtime rendering", () => {
           authoritativeAdapterPair: brokenPair,
         }),
       ),
-    ).rejects.toThrow(/staged resolver emitted a missing bash path/i);
+    ).rejects.toThrow(/staged resolver emitted a non-Bash executable path/i);
     await expect(
       readFile(path.join(runtimeDir, "scripts", "resolve-bash.mjs")),
     ).resolves.toEqual(before);

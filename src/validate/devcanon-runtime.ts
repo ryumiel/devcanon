@@ -530,6 +530,26 @@ async function assertBashExecutable(
   await access(executable, constants.X_OK).catch(() => {
     throw new Error(`${source} emitted a non-executable bash path`);
   });
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  const bashVersion = await promisify(execFile)(executable, [
+    "-c",
+    'printf "%s\\n" "${BASH_VERSION-}"',
+  ])
+    .then(({ stdout }) => stdout)
+    .catch(() => "");
+  if (!isBashIdentity(bashVersion))
+    throw new Error(`${source} emitted a non-Bash executable path`);
+}
+
+function isBashIdentity(stdout: string): boolean {
+  const identity = stdout.trim();
+  return (
+    identity.length > 0 &&
+    !identity.includes("\n") &&
+    !identity.includes("\r") &&
+    /^[0-9]+(?:\.[0-9]+)+(?:[A-Za-z0-9()._-]*)$/.test(identity)
+  );
 }
 
 function assertRuntimeContract(stdout: string): void {
