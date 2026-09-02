@@ -763,7 +763,33 @@ describe("trusted runtime bootstrap", () => {
             "runtime",
             "devcanon-runtime.mjs",
           ),
-          "process.exit(0);\n",
+          [
+            'import { spawn } from "node:child_process";',
+            'import path from "node:path";',
+            "",
+            "const [selector, ...arguments_] = process.argv.slice(2);",
+            'if (selector !== "bootstrap") process.exit(2);',
+            "if (",
+            '  arguments_[0] !== "--runtime-dir" ||',
+            "  arguments_.length < 4 ||",
+            '  arguments_[2] !== "--"',
+            ") process.exit(2);",
+            "const child = spawn(",
+            "  process.execPath,",
+            "  [",
+            '    path.join(arguments_[1], "scripts", "runtime", "devcanon-runtime.mjs"),',
+            '    "runtime",',
+            "    ...arguments_.slice(3),",
+            "  ],",
+            '  { env: process.env, stdio: "inherit" },',
+            ");",
+            'child.once("error", () => process.exit(1));',
+            'child.once("close", (code, signal) => {',
+            "  if (signal !== null) process.kill(process.pid, signal);",
+            "  else process.exitCode = code ?? 1;",
+            "});",
+            "",
+          ].join("\n"),
         );
         await mkdir(path.join(override, "scripts", "runtime"), {
           recursive: true,
@@ -771,16 +797,20 @@ describe("trusted runtime bootstrap", () => {
         await mkdir(commandBin);
         await symlink(process.execPath, path.join(commandBin, "node"));
         await symlink("/usr/bin/dirname", path.join(commandBin, "dirname"));
-        const entrypoint = path.join(
-          override,
-          "scripts",
-          "devcanon-runtime.sh",
-        );
-        await writeFile(entrypoint, "#!/bin/bash\nexit 0\n");
-        await chmod(entrypoint, 0o755);
+        const marker = path.join(root, "bootstrap-marker");
         await writeFile(
           path.join(override, "scripts", "runtime", "devcanon-runtime.mjs"),
-          "process.exit(0);\n",
+          [
+            'import { writeFile } from "node:fs/promises";',
+            "",
+            "const forwarded = process.argv.slice(2);",
+            'if (forwarded.join("\\0") !== "runtime\\0derive-path") {',
+            "  process.exitCode = 2;",
+            "} else {",
+            '  await writeFile(process.env.DEVCANON_BOOTSTRAP_MARKER, forwarded.join(" "));',
+            "}",
+            "",
+          ].join("\n"),
         );
         const bootstrap = spawnChild(
           "/bin/bash",
@@ -799,6 +829,7 @@ describe("trusted runtime bootstrap", () => {
               SHELL: "/poisoned/shell",
               PATH: commandBin,
               DEVCANON_RUNTIME_DIR: override,
+              DEVCANON_BOOTSTRAP_MARKER: marker,
             },
             stdio: "ignore",
           },
@@ -807,6 +838,7 @@ describe("trusted runtime bootstrap", () => {
           exitCode: 0,
           signal: null,
         });
+        expect(await readFile(marker, "utf8")).toBe("runtime derive-path");
       } finally {
         await cleanupTempDir(root);
       }
