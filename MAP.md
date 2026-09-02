@@ -257,11 +257,11 @@ Quick navigation index for the DevCanon repository.
 - Where are canonical issue-priming helper mechanics? ->
   [`src/runtime/issue-priming.ts`](src/runtime/issue-priming.ts)
 - Where is the packaged runtime JavaScript entrypoint? ->
-  [`skills/devcanon-runtime/scripts/runtime/cli.js`](skills/devcanon-runtime/scripts/runtime/cli.js)
+  [`skills/devcanon-runtime/scripts/runtime/devcanon-runtime.mjs`](skills/devcanon-runtime/scripts/runtime/devcanon-runtime.mjs)
 - Where is the packaged verified-Bash resolver entrypoint? ->
   [`skills/devcanon-runtime/scripts/resolve-bash.mjs`](skills/devcanon-runtime/scripts/resolve-bash.mjs)
 - Where is the packaged trusted bootstrap entrypoint? ->
-  [`skills/devcanon-runtime/scripts/runtime/bootstrap-cli.js`](skills/devcanon-runtime/scripts/runtime/bootstrap-cli.js)
+  [`skills/devcanon-runtime/scripts/runtime/devcanon-runtime.mjs`](skills/devcanon-runtime/scripts/runtime/devcanon-runtime.mjs)
 
 ---
 

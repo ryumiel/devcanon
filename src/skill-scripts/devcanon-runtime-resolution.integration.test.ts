@@ -80,9 +80,7 @@ async function writeRuntimeOverride(root: string): Promise<string> {
 }
 
 function expectedOverrideInvocation(runtimeOverride: string): string {
-  return process.platform === "win32"
-    ? `pr-review-leases|derive-path|${runtimeOverride}\n`
-    : `runtime|pr-review-leases|derive-path|${runtimeOverride}\n`;
+  return `runtime|pr-review-leases|derive-path|${runtimeOverride}\n`;
 }
 
 async function runTrustedWrapper(

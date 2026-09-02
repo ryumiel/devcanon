@@ -8032,11 +8032,7 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
         'import { writeFileSync } from "node:fs";',
         "const [group, helper] = process.argv.slice(2);",
         'if (group !== "runtime" || helper !== "pr-review-leases") process.exit(64);',
-        "const sentinel =",
-        '  process.platform === "win32"',
-        "    ? process.env.DEVCANON_TEST_TYPED_SENTINEL",
-        "    : process.env.DEVCANON_TEST_RESOLVER_SENTINEL;",
-        'writeFileSync(sentinel, "executed\\n");',
+        'writeFileSync(process.env.DEVCANON_TEST_TYPED_SENTINEL, "executed\\n");',
         'process.stdout.write("runtime-ok\\n");',
         "",
       ].join("\n"),
@@ -8084,15 +8080,11 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
       stdout: "runtime-ok\n",
       stderr: "",
     });
-    const executedSentinel =
-      process.platform === "win32" ? typedSentinel : resolverSentinel;
-    const idleSentinel =
-      process.platform === "win32" ? resolverSentinel : typedSentinel;
-    expect(await readFile(executedSentinel, "utf8")).toBe("executed\n");
-    await expect(readFile(idleSentinel, "utf8")).rejects.toMatchObject({
+    expect(await readFile(typedSentinel, "utf8")).toBe("executed\n");
+    await expect(readFile(resolverSentinel, "utf8")).rejects.toMatchObject({
       code: "ENOENT",
     });
-    await rm(executedSentinel);
+    await rm(typedSentinel);
   }
 
   async function expectRejected(
@@ -8141,11 +8133,10 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
       stdout: "runtime-ok\n",
       stderr: "",
     });
-    const executedSentinel =
-      process.platform === "win32"
-        ? runtime.typedSentinel
-        : runtime.resolverSentinel;
-    expect(await readFile(executedSentinel, "utf8")).toBe("executed\n");
+    expect(await readFile(runtime.typedSentinel, "utf8")).toBe("executed\n");
+    await expect(
+      readFile(runtime.resolverSentinel, "utf8"),
+    ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it.runIf(process.platform !== "win32")(
