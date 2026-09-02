@@ -272,7 +272,7 @@ snapshots:
     }
   });
 
-  it("reconciles nested peer identities with pnpm's trailing underscore encoding", async () => {
+  it("reconciles pnpm's nested peer identity with its single trailing underscore", async () => {
     const root = await createTempDir();
     try {
       await writeFile(
@@ -281,20 +281,20 @@ snapshots:
 importers:
   .:
     dependencies:
-      same-b: {version: same@1.0.0(peer-a@1.0.0)(peer-b@1.0.0)}
-      same-c: {version: same@1.0.0(peer-a@1.0.0)(peer-c@1.0.0)}
+      mocker-vite-seven: {version: '@vitest/mocker@3.2.4(vite@7.3.1(@types/node@22.19.15)(tsx@4.21.0)(yaml@2.8.3))'}
+      mocker-vite-eight: {version: '@vitest/mocker@3.2.4(vite@8.0.0(@types/node@22.19.15)(tsx@4.21.0)(yaml@2.8.3))'}
 packages:
-  same@1.0.0(peer-a@1.0.0)(peer-b@1.0.0): {resolution: {integrity: sha512-same-b}}
-  same@1.0.0(peer-a@1.0.0)(peer-c@1.0.0): {resolution: {integrity: sha512-same-c}}
+  '@vitest/mocker@3.2.4(vite@7.3.1(@types/node@22.19.15)(tsx@4.21.0)(yaml@2.8.3))': {resolution: {integrity: sha512-vite-seven}}
+  '@vitest/mocker@3.2.4(vite@8.0.0(@types/node@22.19.15)(tsx@4.21.0)(yaml@2.8.3))': {resolution: {integrity: sha512-vite-eight}}
 snapshots:
-  same@1.0.0(peer-a@1.0.0)(peer-b@1.0.0): {}
-  same@1.0.0(peer-a@1.0.0)(peer-c@1.0.0): {}
+  '@vitest/mocker@3.2.4(vite@7.3.1(@types/node@22.19.15)(tsx@4.21.0)(yaml@2.8.3))': {}
+  '@vitest/mocker@3.2.4(vite@8.0.0(@types/node@22.19.15)(tsx@4.21.0)(yaml@2.8.3))': {}
 `,
       );
       const packageRoots = await Promise.all(
         [
-          "same@1.0.0_peer-a@1.0.0_peer-b@1.0.0_/node_modules/same",
-          "same@1.0.0_peer-a@1.0.0_peer-c@1.0.0_/node_modules/same",
+          "@vitest+mocker@3.2.4_vite@7.3.1_@types+node@22.19.15_tsx@4.21.0_yaml@2.8.3_/node_modules/@vitest/mocker",
+          "@vitest+mocker@3.2.4_vite@8.0.0_@types+node@22.19.15_tsx@4.21.0_yaml@2.8.3_/node_modules/@vitest/mocker",
         ].map(async (relative) => {
           const packageRoot = path.join(
             root,
@@ -312,8 +312,8 @@ snapshots:
           root,
           packageRoots.map((packageRoot) => ({
             id: "unreconciled",
-            name: "same",
-            version: "1.0.0",
+            name: "@vitest/mocker",
+            version: "3.2.4",
             integrity: "bundled-local-resolution",
             dependencies: [],
             packageRoot,
@@ -321,10 +321,10 @@ snapshots:
         ),
       ).resolves.toEqual([
         expect.objectContaining({
-          id: "same@1.0.0(peer-a@1.0.0)(peer-b@1.0.0)",
+          id: "@vitest/mocker@3.2.4(vite@7.3.1(@types/node@22.19.15)(tsx@4.21.0)(yaml@2.8.3))",
         }),
         expect.objectContaining({
-          id: "same@1.0.0(peer-a@1.0.0)(peer-c@1.0.0)",
+          id: "@vitest/mocker@3.2.4(vite@8.0.0(@types/node@22.19.15)(tsx@4.21.0)(yaml@2.8.3))",
         }),
       ]);
     } finally {

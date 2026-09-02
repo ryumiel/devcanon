@@ -901,15 +901,15 @@ function matchesPhysicalPnpmIdentity(
     packageRoot,
   );
   const [physicalIdentity] = relative.split(path.sep);
-  return pnpmPhysicalIdentityVariants(snapshotId).has(physicalIdentity);
+  return physicalIdentity === pnpmPhysicalIdentity(snapshotId);
 }
 
-function pnpmPhysicalIdentityVariants(snapshotId: string): Set<string> {
-  const prefix = snapshotId
+function pnpmPhysicalIdentity(snapshotId: string): string {
+  return snapshotId
     .replaceAll("/", "+")
     .replaceAll(")(", "_")
-    .replaceAll("(", "_");
-  return new Set([prefix.replaceAll(")", ""), prefix.replaceAll(")", "_")]);
+    .replaceAll("(", "_")
+    .replace(/\)+$/u, (closing) => (closing.length > 1 ? "_" : ""));
 }
 
 async function nearestPackageRoot(
