@@ -151,8 +151,8 @@ builds must emit byte-identical bundle, manifest, and license artifacts.
   entrypoints, tarballs, and installers consume one artifact architecture.
 - Provider failures remain actionable without making package installs depend
   on source-only inputs.
-- Atomic recomposition repairs derived provider drift while preserving authored
-  content.
+- Staged whole-subtree reconciliation repairs derived provider drift while
+  preserving authored content.
 - Unique package-instance identity closes dependency and attribution ordering,
   including repeated name/version instances.
 - A fixed bootstrap can safely validate an explicitly selected external runtime

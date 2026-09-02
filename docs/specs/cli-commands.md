@@ -244,11 +244,12 @@ accept and validate the explicit provider artifact before it writes a composed
 passive-runtime tree. Under
 [PR-LIFE-06](passive-runtime.md#lifecycle-and-repair-transitions), `render` is
 also the explicit repair path for missing, stale, or provider-mismatched
-derived runtime state and replaces the subtree atomically before writing
-generated output. It never selects an artifact from filesystem hints or builds
-an artifact as a fallback. Source-build verification failures direct the
-operator to `pnpm run build:runtime`; package verification failures direct the
-operator to reinstall. The rendered payload and manifest identity are owned by
+derived runtime state and reconciles the subtree through PR-LIFE-11 before
+writing generated output. It never selects an artifact from filesystem hints
+or builds an artifact as a fallback. Source-build verification failures direct
+the operator to `pnpm run build:runtime`; package verification failures direct
+the operator to reinstall. The rendered payload and manifest identity are
+owned by
 [Install and sync](install-and-sync.md#passive-runtime-composition-and-transport).
 
 ---
@@ -312,11 +313,11 @@ that manifest-error precedence and exits before runtime validation. Under the
 required deferred provider behavior, every other sync accepts and validates the
 explicit prebuilt provider artifact before non-dry recovery, normalization or
 binding, composition, rendering, or install mutation. Under PR-LIFE-07 and
-PR-LIFE-08, dry run previews any required derived-subtree replacement without
-mutation, while non-dry sync reuses the renderer-owned compositor and may
-atomically repair that subtree before transport. Installed `sync` only verifies
-and transports the prebuilt artifact: it never builds it or resolves ambient
-dependencies. These transitions are owned by the
+PR-LIFE-08, dry run previews any required derived-subtree reconciliation
+without mutation, while non-dry sync reuses the renderer-owned compositor and
+may reconcile that subtree through PR-LIFE-11 before transport. Installed
+`sync` only verifies and transports the prebuilt artifact: it never builds it
+or resolves ambient dependencies. These transitions are owned by the
 [Passive Runtime Contract](passive-runtime.md#lifecycle-and-repair-transitions)
 and are target behavior, not claims about the current implementation.
 
