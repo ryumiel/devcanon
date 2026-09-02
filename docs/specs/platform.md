@@ -65,6 +65,89 @@ When a remaining Bash-only helper cannot find verified Git Bash, install or
 repair Git for Windows or rerun from a supported POSIX environment; do not
 bypass the helper or infer success from missing output.
 
+### Runtime package and isolation boundary
+
+The following portable-execution acceptance proof is required target behavior;
+its implementation is deferred with the prebuilt runtime. It has three distinct
+environments on every supported platform.
+
+1. A package manager may create only a clean fixture by installing the packed
+   tarball and its declared CLI dependencies into a temporary prefix.
+2. With package-manager and global-CLI access removed, the package-local
+   `devcanon` executable from that prefix initializes, validates, renders, and
+   syncs a temporary library under a dedicated empty temporary home selected
+   through both `HOME` and `USERPROFILE`. The proof must remove any inherited
+   `DEVCANON_CONFIG` and explicitly select the fixture configuration. Before a
+   non-dry sync, it must resolve all four target homes and the manifest path and
+   assert that each is contained by the fixture root. The executable must not
+   resolve a source checkout or an ambient dependency tree.
+3. The proof copies the resulting composed passive runtime, without manual
+   assembly, to a second isolated directory. From a working directory outside
+   both the checkout and install prefix, it invokes the copied runtime using
+   the test process's current Node executable. Child processes receive a
+   constructed allowlisted environment rather than inherited process state.
+   `NODE_PATH`, `NODE_OPTIONS`, `DEVCANON_RUNTIME_DIR`, and uncontrolled npm,
+   pnpm, Corepack, and Yarn variables are explicitly absent; `PATH` exposes no
+   package manager or global `devcanon`; no ancestor or working directory
+   contains `node_modules`; and the copied payload is the only runtime input.
+
+In the final phase on every platform, Node invokes
+`scripts/runtime/devcanon-runtime.mjs` directly for the `runtime contract`,
+typed-runtime, resolver, and `bootstrap` surfaces. The contract command must
+exit zero and emit exactly the documented single-line JSON descriptor with the
+`devcanon-runtime` command group and supported integer major. Each successful
+typed command must produce its documented stdout, stderr, and exit status;
+malformed or extra output fails the proof. Trusted bootstrap must dispatch the
+validated selected-runtime entrypoint, preserve exact arguments and exit
+status, and reject a target outside that selected runtime before child
+execution. The fixed sibling bootstrap remains the trust anchor, but a valid
+explicit override may select a structurally validated runtime outside the
+bootstrap's copied runtime under PR-BOOT-01 through PR-BOOT-03. A separate A/B
+fixture supplies a controlled override and proves that the bootstrap loads from
+A, dispatches a contained target from disjoint selected runtime B, and rejects
+a target escaping B. Before
+execution, the harness must assert that no `node_modules` directory is
+reachable through the selected entrypoint's or working directory's ancestor
+chains; successful execution under that condition and the sanitized
+environment is the ambient-resolution proof. The
+[Passive Runtime Contract](passive-runtime.md#trusted-bootstrap-and-selected-runtime)
+owns the shared containment semantics.
+
+The same final phase invokes the copied public `scripts/resolve-bash.mjs`
+adapter through the test process's current Node executable under the same
+sanitized boundary. Under identical controlled resolver inputs, one successful
+resolution and one no-usable-Bash refusal must match the corresponding direct
+runtime call's stdout bytes, stderr bytes, and exit status. Success emits
+exactly one absolute executable path followed by LF, emits no stderr, and exits
+zero. Refusal emits no stdout and preserves the direct runtime's single
+actionable diagnostic and nonzero exit status. This focused adapter-equivalence
+check does not duplicate the resolver's complete candidate matrix.
+
+On POSIX, the same final phase additionally invokes
+`scripts/devcanon-runtime.sh` and proves that its contract and bootstrap
+stdout bytes, stderr bytes, and exit status each match the corresponding direct
+`.mjs` call exactly. The shell file is only a delegation proof; direct Node
+execution remains the cross-platform proof surface.
+
+Native Windows implementation and machine proof are deferred to the dedicated
+Windows follow-up. That work runs the fixture, package-local CLI, copied-runtime
+and disjoint selected-runtime phases from native Node. Native Node, rather than
+Bash or a `.sh` adapter, launches the copied runtime and public resolver; the
+resolver may execute a controlled Git-for-Windows Bash candidate as the
+behavior under proof. The work must prove direct `.mjs` runtime and bootstrap
+behavior, copied public-resolver success and actionable refusal, exact output
+and exit propagation, and absence of ambient resolution. The follow-up's live
+state is not a normative dependency of this specification.
+
+For the same canonical inputs and `artifact_origin`, clean independent builds
+must produce byte-identical runtime bundle, manifest, and third-party-license
+artifacts. Failure of package preparation, package-local CLI execution, copied
+runtime isolation, attribution, or same-origin reproducibility fails the
+production or proof flow. Supported-platform acceptance consumes the passive
+runtime behavior spec's isolation and reproducibility requirements; ADR-0024
+records their architecture rationale. Implementation choices must not weaken
+that accepted contract.
+
 ### PR-review session creation
 
 The numbered transaction guarantees and failure equivalence classes are owned

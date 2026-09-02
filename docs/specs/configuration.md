@@ -91,7 +91,32 @@ discovery. `init` independently creates a source configuration and does not
 perform discovery or fallback. No non-`config` command uses the packaged catalog
 as a fallback.
 
-### Catalog projection and runtime custody
+### Runtime artifact-provider selection
+
+This section defines required target behavior whose implementation is deferred.
+It does not describe the current fixed-bundle implementation.
+
+Source-configuration selection and runtime artifact selection are separate
+inputs. The target common CLI receives exactly one explicit internal runtime
+provider: source development, including `pnpm dev` and the `setup:cli` shim,
+supplies the `source-build` provider; the npm `bin` entrypoint supplies the
+`package` provider. The selected provider supplies its generated runtime root
+to the commands that validate, compose, render, initialize, or transport the
+passive runtime.
+
+Provider identity is never inferred from `.git`, the current directory,
+configuration-path shape, the presence of another artifact root, or any other
+filesystem heuristic. A missing, invalid, stale, corrupt, or
+provider/origin-mismatched artifact fails before the command continues; a
+source-build failure directs the operator to `pnpm run build:runtime`, and a
+package failure directs the operator to reinstall the package. The provider
+does not select source configuration, replace the catalog fallback, or change
+the catalog authority owned by
+[ADR-0035](../adr/adr-0035-installed-runtime-configuration-discovery.md).
+The [Passive Runtime Contract](passive-runtime.md#provider-acceptance) owns
+generated-root custody, integrity, and the behavior after selection.
+
+### Catalog projection and runtime consumption
 
 The source `capabilityProfiles` catalog selects model strings while DevCanon
 renders a target. For each enabled target selected for that render, the renderer
@@ -102,12 +127,16 @@ directory, or an ambient configuration file. See
 [ADR-0035](../adr/adr-0035-installed-runtime-configuration-discovery.md) for
 the decision rationale and alternatives.
 
-The passive runtime's current payload is exactly its validated `config/` and
-`scripts/` trees, without `SKILL.md` or a Codex invocation sidecar. It is
-current-format-only: a scripts-only runtime is invalid and is neither upgraded
-nor given installation, sync, identity, or uninstall compatibility guarantees.
-The runtime catalog is transport data for the generated or installed runtime,
-not a second authoritative user-configuration file.
+The current implementation validates and transports its fixed passive-runtime
+tree without `SKILL.md` or a Codex invocation sidecar. The required deferred
+provider behavior instead validates the composed tree selected by the explicit
+provider. Under both forms, a scripts-only runtime is invalid and is neither
+upgraded nor given installation, sync, identity, or uninstall compatibility
+guarantees. The runtime catalog is transport data for the generated or
+installed runtime, not a second authoritative user-configuration file. This
+specification and ADR-0035 own its schema, semantic projection inputs, and
+selection behavior; PR-ART-02A and PR-ART-02B own physical stage custody and
+overwrite behavior.
 
 ### Installed passive-runtime command contract
 

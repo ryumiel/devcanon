@@ -4,10 +4,10 @@
 
 ## Repository CLI setup
 
-`pnpm run setup:cli` is the package-level operation that builds DevCanon and
-globally registers the authoritative checkout as `devcanon`. Run it from the
-checkout root after dependencies are installed. It is not a `devcanon`
-application subcommand and does not render or install managed outputs.
+`pnpm run setup:cli` currently builds DevCanon and globally registers the
+authoritative checkout as `devcanon`. Run it from the checkout root after
+dependencies are installed. It is not a `devcanon` application subcommand and
+does not render or install managed outputs.
 
 Before this operation, the platform's global executable directory must be on
 `PATH`. On macOS, Linux, and WSL, this is pnpm's user-global bin directory; if
@@ -21,8 +21,32 @@ The package manifest owns the exact script, the required Node.js version
 CLI points at the checkout, so operators must retain that checkout at a stable
 path as the source library and default configuration root.
 
-This setup and its focused integration verification support macOS, Linux, and
-Windows.
+The current setup and its focused integration verification support macOS,
+Linux, and Windows.
+
+Required target behavior, whose implementation is deferred, adds the prebuilt
+runtime provider boundary to this setup. Before registration, `setup:cli` must
+build and verify the explicitly selected `source-build` runtime artifact. A
+missing, stale, or corrupt artifact must stop setup before registration and
+direct the operator to `pnpm run build:runtime`.
+
+Under that target behavior, the npm `bin` entrypoint instead injects the
+`package` provider. The common compiled CLI accepts exactly one explicit
+provider and does not infer it from the checkout, current directory, configured
+path, or another filesystem artifact. A package artifact that cannot pass
+verification is an incomplete or corrupt package; commands that consume or
+verify the runtime provider stop and direct the operator to reinstall, while
+source-independent `uninstall` remains available. Provider acceptance is
+defined by the [Passive Runtime Contract](passive-runtime.md#provider-acceptance),
+while
+[Configuration](configuration.md#runtime-artifact-provider-selection) owns the
+observable provider-selection boundary.
+
+The target `prepack` behavior is the sole package-production gate: it creates
+and verifies the package provider's prebuilt runtime before `npm pack` collects
+the package. PR-PKG-01 and PR-PKG-02 own its lifecycle and inventory. Build,
+package, provider, and setup integration remain deferred to a separate
+implementation change.
 
 ---
 
@@ -39,23 +63,24 @@ Creates:
 - config file
 - source directories
 - sample skill
-- packaged `skills/devcanon-runtime/` passive runtime support bundle
+- packaged fixed `skills/devcanon-runtime/` passive runtime bundle
 - sample agent
 
-Passive runtime support bundle behavior:
+Required composed-runtime behavior, whose implementation is deferred:
 
-- fresh libraries receive the fixed passive runtime support bundle at
-  `skills/devcanon-runtime/`
-- the current-format-only bundle contains its validated `config/` catalog and
-  `scripts/` payload, with no `SKILL.md` or Codex invocation sidecar
-- an existing matching `skills/devcanon-runtime/` path is preserved
-- an existing non-matching `skills/devcanon-runtime/` path causes `init` to
-  fail with repair guidance; DevCanon does not overwrite the existing support
-  runtime bundle path
+- fresh `init` performs
+  [PR-LIFE-04](passive-runtime.md#lifecycle-and-repair-transitions) and produces
+  the new-library payload under the central artifact-custody policy
+- `init` is not a refresh command for an existing configured library; the
+  explicit repair surface is `devcanon render`
+- the resulting payload has the exact closed inventory in
+  [Artifact custody](passive-runtime.md#artifact-custody), with neither
+  `SKILL.md` nor a Codex invocation sidecar
 - a scripts-only legacy runtime is not an accepted payload and is not upgraded
   or reconciled by `init`
 - generated outputs remain disposable render results, not authoritative source
-  files
+  files; the packed-tarball flow can run package-local `init` and then
+  `validate` against the same explicit package provider
 
 ---
 
@@ -131,19 +156,19 @@ Scaffold behavior:
 
 ## `validate`
 
-Validate config, the fixed passive runtime bundle, declaration-bearing skills,
-and agents. The passive runtime bundle is not included in the source-skill
-count.
+Validate config, the current fixed passive runtime bundle,
+declaration-bearing skills, and agents. The passive runtime bundle is not
+included in the source-skill count.
 
 ```bash
 devcanon validate
 ```
 
-Current behavior:
+Current implemented behavior:
 
-- after config validation, the fixed passive runtime bundle is validated before
-  declaration-bearing source skills; it is validated separately and is not
-  included in the source-skill count
+- after config validation, the fixed passive runtime is validated separately
+  before declaration-bearing source skills and is not included in the
+  source-skill count
 - version 1 config fails with a dedicated migration diagnostic; version 2
   `modelTiers` fails with a dedicated `capabilityProfiles` replacement
   diagnostic before ordinary schema validation
@@ -167,6 +192,19 @@ Current behavior:
 - the current skill drift checks cover configured model tokens and
   target-specific path segments in shared prose; configured capability model
   strings are included in the model drift set
+
+Required target behavior, whose implementation is deferred, validates the
+explicit provider and its prebuilt runtime artifact after config validation,
+then applies PR-ADAPT-01 before remaining passive-runtime validation,
+composition, and declaration-bearing source skills. It remains read-only and
+follows
+[PR-LIFE-05](passive-runtime.md#lifecycle-and-repair-transitions): invalid
+derived runtime state fails with `devcanon render` repair guidance. It also
+applies that adapter classification without mutation: a recognized pristine
+legacy pair receives `devcanon render` migration guidance, while mixed, missing,
+modified, or unrecognized adapter state receives the explicit backup, diff,
+and version-matched-pair adoption guidance. Provider and adapter validation
+ordering is not current implemented behavior.
 
 For human output, `validate` groups skill warnings into a readable warning
 report after the skill status line. The skill status line includes the number
@@ -205,6 +243,24 @@ devcanon render --target <claude|codex>
 enabled target. Without it, `render` processes every enabled target. Only
 `claude` and `codex` are accepted; any other supplied value, including an empty
 string, is an error.
+
+Required target behavior, whose implementation is deferred, makes `render`
+accept and validate the explicit provider artifact before it writes a composed
+passive-runtime tree. Under
+[PR-LIFE-06](passive-runtime.md#lifecycle-and-repair-transitions), `render` is
+also the explicit repair path for missing, stale, or provider-mismatched
+derived runtime state and reconciles the subtree through PR-LIFE-11 before
+writing generated output. Before source or runtime mutation, it applies
+PR-ADAPT-01. An eligible pair migrates under PR-ADAPT-02 and PR-ADAPT-03; every
+other incompatible state fails with PR-ADAPT-01's manual backup, diff, pair
+adoption, and rerun guidance. The command never removes or reinstalls the whole
+`skills/devcanon-runtime/` bundle; PR-ART-05 remains independently reconcilable
+through PR-LIFE-11. It never selects an artifact from filesystem hints or
+builds an artifact as a fallback. Source-build verification failures direct
+the operator to `pnpm run build:runtime`; package verification failures direct
+the operator to reinstall. The migration, rendered payload, and manifest
+identity are owned by the Passive Runtime Contract and
+[Install and sync](install-and-sync.md#passive-runtime-composition-and-transport).
 
 ---
 
@@ -263,9 +319,19 @@ before manual correction or removal. A lock already removed receives no lock
 removal instruction. These ordered secondary actions do not replace the
 primary failure, and every unrecovered result exits 1.
 `sync` first inspects the manifest purely. An invalid `sync --dry-run` retains
-that manifest-error precedence and exits before fixed-runtime validation. Every
-other sync validates the fixed passive runtime support bundle before non-dry
-recovery, normalization or binding, rendering, or install mutation.
+that manifest-error precedence and exits before runtime validation. Under the
+required deferred provider behavior, every other sync accepts and validates the
+explicit prebuilt provider artifact and applies PR-ADAPT-01 before non-dry
+recovery, normalization or binding, source/runtime composition, rendering, or
+install mutation. Under PR-LIFE-07 and PR-LIFE-08, dry run previews an eligible
+PR-ADAPT-02 pairwise migration and any required derived-subtree reconciliation
+without mutation, while non-dry sync may perform that migration or reconcile
+the subtree through PR-LIFE-11 before transport. Incompatible adapter states
+fail before source or runtime mutation with PR-ADAPT-01's manual guidance.
+Installed `sync` only verifies and transports the prebuilt artifact: it never
+builds it or resolves ambient dependencies. These transitions are owned by the
+[Passive Runtime Contract](passive-runtime.md#lifecycle-and-repair-transitions)
+and are target behavior, not claims about the current implementation.
 
 For a non-dry invalid manifest, explicit recovery disposition follows, and only
 recovered-clean state may continue. Sync then
@@ -300,8 +366,8 @@ Behavior:
 
 - Manifest-driven: only paths recorded in `manifest.json` are removed.
 - Source files under `skills/` and `agents/` are never touched.
-- Uninstall is source-independent and does not validate the fixed passive
-  runtime support bundle from the source library.
+- Uninstall is source-independent and does not validate the authored runtime
+  root, provider artifact, or rendered passive runtime from the source library.
 - `--target` filters by Claude or Codex; default is all targets.
 - `--dry-run` previews the plan without filesystem or manifest writes.
 - An accepted or recovered-clean empty manifest (or empty filtered set) prints
@@ -353,11 +419,16 @@ Reports:
 Changed agent files use a line-based patch. Skill-directory changes are
 reported as status summaries.
 
-`diff` performs pure manifest inspection and, after its accepted manifest
-identity checks, validates the fixed passive runtime support bundle through its
-source-driven render projection. It never recovers or mutates the manifest, and
-invalid or residual-lock state fails actionably with exit 1 before runtime
-validation or reporting differences.
+`diff` performs pure manifest inspection and never recovers or mutates the
+manifest; invalid or residual-lock state fails actionably with exit 1 before
+runtime validation or reporting differences. Under the required deferred
+provider behavior, it then accepts and validates the explicit prebuilt provider
+artifact through its source-driven composed render projection. It remains
+read-only and does not repair invalid derived runtime state; PR-LIFE-09 owns
+that failure and repair guidance. It also applies PR-ADAPT-01 read-only and
+reports render-migration or manual pair-adoption guidance as applicable rather
+than migrating adapters. That provider addition is not current implemented
+behavior.
 
 ---
 

@@ -94,13 +94,27 @@ relevant check locally when generated output needs inspection.
 
 Source skill directories with `SKILL.md`, source agent definitions, source
 runtime TypeScript, renderer code, tests, and the install manifest remain
-authoritative for their respective contracts. The fixed passive runtime bundle
-under `skills/devcanon-runtime/` is a validated current-format `config/` and
-`scripts/` source payload, not a source skill or generated invocation surface.
-Its packaged JavaScript under
-`scripts/runtime/` is derived support output that stays tracked because
-installed skill bundles need version-aligned helper files, while `src/runtime/`
-owns the deterministic runtime behavior.
+authoritative for their respective contracts. The passive-runtime classification
+below is required provider-backed target behavior whose implementation is
+deferred. The current tracked fixed payload remains governed by existing
+contributor guidance until that implementation replaces it. Target
+passive-runtime authority is partitioned by the
+[artifact-custody matrix](passive-runtime.md#artifact-custody). For this
+mapping surface, render consumes the accepted provider and the selected source
+configuration's catalog projection under ADR-0035 to create the generated
+composition. That composition is the only runtime tree a symlink installation
+may target; installed copy and symlink outputs remain derived managed
+representations whose identity comes from the manifest and install rules.
+
+Under that deferred provider-backed target behavior, all generated provider
+artifacts, source-sibling copies, rendered previews, and installed outputs are
+uncommitted derived evidence. Package inclusion of
+the package provider root does not make it a Git-tracked source artifact.
+[The passive-runtime behavior spec](passive-runtime.md) owns provider custody
+and composition behavior; ADR-0024 records the architecture rationale, and
+[ADR-0035](../adr/adr-0035-installed-runtime-configuration-discovery.md) owns
+the transported catalog's schema, semantic contents, projection inputs, and
+selection behavior.
 
 Do not hand-edit generated preview files to change behavior. If generated
 preview drift appears in a worktree, regenerate from source or fix the

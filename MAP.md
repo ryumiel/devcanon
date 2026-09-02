@@ -61,6 +61,8 @@ Quick navigation index for the DevCanon repository.
   direct-child routes defined? ->
   [`docs/guidelines/agent-routing-and-mutation-policy.md`](docs/guidelines/agent-routing-and-mutation-policy.md)
 - Where is the target mapping spec? -> [`docs/specs/target-mapping.md`](docs/specs/target-mapping.md)
+- Where is passive-runtime artifact, lifecycle, bootstrap, and canonicalization behavior defined? ->
+  [`docs/specs/passive-runtime.md`](docs/specs/passive-runtime.md)
 - Where is the install/sync spec? -> [`docs/specs/install-and-sync.md`](docs/specs/install-and-sync.md)
 - Where is the CLI command spec? -> [`docs/specs/cli-commands.md`](docs/specs/cli-commands.md)
 - Where is the error handling spec? -> [`docs/specs/error-handling.md`](docs/specs/error-handling.md)

@@ -17,6 +17,8 @@ checkout or depend on ambient configuration at execution time.
 The passive runtime was previously understood as a scripts-only transport
 bundle. That form cannot carry an independently validated, render-projected
 target-local catalog copy and makes installed runtime discovery ambiguous.
+This ADR decides only the catalog partition; passive-runtime artifact
+composition and transport are governed separately by ADR-0024.
 
 ## Decision
 
@@ -36,16 +38,19 @@ its runtime scripts. Generated previews and installed payloads are derived
 transport outputs, not user configuration or independent model-selection
 authority.
 
-The passive `devcanon-runtime` bundle is current-format-only: its fixed
-validated payload contains `config/` and `scripts/`, and excludes `SKILL.md`
-and a Codex invocation sidecar. Scripts-only payloads are incomplete. DevCanon
-does not upgrade, reconcile, or promise uninstall compatibility for a
-pre-change scripts-only payload.
+For every `config/runtime-config.json` instance, this ADR owns the closed schema,
+semantic contents, source-to-target projection inputs, and selection by the
+public configuration inspection commands. It does not own physical path or
+stage custody, overwrite policy, or how the whole payload is composed,
+verified, packaged, transported, isolated, or kept compatible. Those physical
+catalog-instance rules belong to the passive-runtime behavior contract.
 
-This ADR partially supersedes [ADR-0024](adr-0024-shared-support-skill-runtime.md)
-only for passive-runtime payload contents and current-format catalog custody.
-ADR-0024's other deterministic-runtime, resolution, and packaging decisions
-remain accepted.
+[ADR-0024](adr-0024-shared-support-skill-runtime.md) supersedes this ADR's older
+generic claim over passive-runtime payload contents. The
+[Passive Runtime Contract](../specs/passive-runtime.md) owns exact physical
+whole-payload behavior, including catalog-instance custody, and every
+non-catalog artifact concern; this ADR takes precedence only for the catalog
+schema, semantics, projection-input, and selection partition described above.
 
 This ADR also partially supersedes
 [ADR-0005](adr-0005-per-target-skill-rendering.md)'s namespace scope-lock by
@@ -62,12 +67,13 @@ configuration or use the sibling passive runtime catalog as a model fallback.
   library-operating commands continue to require source configuration.
 - A source configuration can project different valid model strings to both
   targets without making installed skills depend on the source checkout.
-- The runtime payload, render hash, source validation, and installed copy
-  identity include the catalog as well as scripts.
+- Whole-payload composition and transport include the catalog partition under
+  the passive-runtime contract without transferring catalog authority to it.
 - Catalog corruption, an invalid selected source configuration, and a missing
   rendered route binding fail closed rather than selecting an ambient value.
-- Existing scripts-only runtime payloads require manual replacement with a
-  current-format bundle; they are outside compatibility and cleanup guarantees.
+- A catalog-less runtime cannot satisfy this configuration-discovery contract;
+  replacement and compatibility behavior remain owned by the passive-runtime
+  contract.
 
 ## Alternatives considered
 
@@ -80,8 +86,9 @@ configuration or use the sibling passive runtime catalog as a model fallback.
 - **Keep the runtime scripts-only and hard-code profile values in consumers.**
   Rejected because it duplicates target configuration and hides the transport
   boundary from validation and identity checks.
-- **Accept or migrate scripts-only runtime payloads.** Rejected because that
-  would make the current payload boundary and its custody guarantees ambiguous.
+- **Let this ADR define scripts-only migration or whole-payload
+  compatibility.** Rejected because those are non-catalog artifact concerns
+  owned by the passive-runtime contract.
 
 ## See also
 
@@ -89,3 +96,4 @@ configuration or use the sibling passive runtime catalog as a model fallback.
 - [CLI commands](../specs/cli-commands.md#config-path-and-config-get)
 - [Architecture overview](../arch/overview.md#configuration-discovery-and-runtime-catalog-boundary)
 - [Shared Passive Runtime Support Bundle](adr-0024-shared-support-skill-runtime.md)
+- [Passive Runtime Artifact and Lifecycle Contract](../specs/passive-runtime.md)
