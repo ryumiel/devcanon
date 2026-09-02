@@ -23,6 +23,24 @@ const repositoryRoot = path.resolve(
 type PackedFile = { path: string };
 type PackedTarball = { filename: string; files: PackedFile[] };
 
+const sharedDerivedOutputs = [
+  path.join(
+    repositoryRoot,
+    "dist",
+    "devcanon-runtime",
+    "package",
+    "runtime-manifest.json",
+  ),
+  path.join(
+    repositoryRoot,
+    "skills",
+    "devcanon-runtime",
+    "scripts",
+    "runtime",
+    "runtime-manifest.json",
+  ),
+];
+
 function asText(value: unknown): string {
   if (typeof value === "string") return value;
   if (Buffer.isBuffer(value)) return value.toString("utf8");
@@ -78,6 +96,47 @@ function parseTarball(stdout: string): PackedTarball {
   return tarball as PackedTarball;
 }
 
+async function readOptionalFile(filePath: string): Promise<Buffer | undefined> {
+  try {
+    return await readFile(filePath);
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw cause;
+  }
+}
+
+async function createPackSource(root: string): Promise<string> {
+  const source = path.join(root, "pack-source");
+  const archive = path.join(root, "tracked-source.tar");
+  await run(
+    "archive current tracked source",
+    "git",
+    ["archive", "--format=tar", "--output", archive, "HEAD"],
+    { cwd: repositoryRoot },
+  );
+  await mkdir(source);
+  await run("extract tracked source", "tar", ["-xf", archive, "-C", source], {
+    cwd: root,
+  });
+  await expect(
+    readFile(path.join(source, "dist", "cli", "index.js")),
+  ).rejects.toMatchObject({
+    code: "ENOENT",
+  });
+  await expect(
+    readdir(
+      path.join(source, "skills", "devcanon-runtime", "scripts", "runtime"),
+    ),
+  ).rejects.toMatchObject({ code: "ENOENT" });
+  await run(
+    "install isolated pack dependencies",
+    "pnpm",
+    ["install", "--offline", "--frozen-lockfile", "--ignore-scripts"],
+    { cwd: source },
+  );
+  return source;
+}
+
 async function expectExactRuntimeTree(runtimeRoot: string): Promise<void> {
   expect(await readdir(runtimeRoot)).toEqual(["config", "scripts"]);
   expect(await readdir(path.join(runtimeRoot, "config"))).toEqual([
@@ -106,16 +165,23 @@ describe("packaged passive runtime", () => {
 
     try {
       await Promise.all([mkdir(archives), mkdir(consumer), mkdir(library)]);
+      const sharedDerivedOutputBytes = await Promise.all(
+        sharedDerivedOutputs.map(readOptionalFile),
+      );
+      const packSource = await createPackSource(root);
       const packed = parseTarball(
         (
           await run(
             "npm pack through prepack",
             "npm",
             ["pack", "--json", "--pack-destination", archives],
-            { cwd: repositoryRoot },
+            { cwd: packSource },
           )
         ).stdout,
       );
+      await expect(
+        Promise.all(sharedDerivedOutputs.map(readOptionalFile)),
+      ).resolves.toEqual(sharedDerivedOutputBytes);
       const packedPaths = packed.files.map((file) => file.path).sort();
       expect(packedPaths).toEqual(
         expect.arrayContaining([
