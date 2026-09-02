@@ -84,10 +84,11 @@ This subsection defines required target provider behavior whose implementation
 is deferred. Current fixed-bundle validation and transport remain in force
 until that provider-backed composition is implemented.
 
-The manifest record's `sourcePath` for `devcanon-runtime` remains
-`skills/devcanon-runtime/`. That locator does not classify every descendant as
-authored; the passive-runtime artifact matrix owns all stage-specific custody.
-It does not name a generated artifact root or the source-sibling runtime copy.
+The manifest record's `sourcePath` for `devcanon-runtime` remains the resolved
+`library.skillsDir` joined with `devcanon-runtime`. That locator does not
+classify every descendant as authored; the passive-runtime artifact matrix owns
+all stage-specific custody. It does not name a generated artifact root or the
+source-sibling runtime copy.
 Its `generated path` names PR-ART-06, whose full-tree content hash covers the
 complete rendered composition; the accepted build manifest supplies generated
 artifact provenance. The
@@ -316,8 +317,9 @@ backups or manifest churn.
    first accepts the explicitly provided prebuilt passive-runtime artifact
    before composition and the same later effects. Dry run uses the read-only
    PR-LIFE-07 projection and only previews derived-subtree repair. Non-dry sync
-   uses PR-LIFE-08 and may atomically repair that subtree before writable
-   render. Sync never builds the artifact or resolves ambient dependencies.
+   uses PR-LIFE-08 and may reconcile that subtree through PR-LIFE-11 before
+   writable render. Sync never builds the artifact or resolves ambient
+   dependencies.
 4. for a non-dry invalid manifest, perform explicit recovery; only
    recovered-clean state continues. Every pre-I5-unrecovered or
    recovered-cleanup-degraded result stops before each later effect.
