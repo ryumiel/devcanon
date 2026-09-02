@@ -79,8 +79,9 @@ export async function hashDevcanonRuntimePayload(
     validated?.adapterPair ?? (await readAdapterPair(runtimeDir));
   const leaves =
     validated?.providerLeaves ?? (await readProviderLeaves(runtimeDir));
-  const shellMode = (await lstat(path.join(runtimeDir, RUNTIME_ENTRYPOINT)))
-    .mode;
+  const shellMode =
+    validated?.adapterPair?.shellMode ??
+    (await lstat(path.join(runtimeDir, RUNTIME_ENTRYPOINT))).mode;
   const catalogMode = (
     await lstat(path.join(runtimeDir, "config", "runtime-config.json"))
   ).mode;
@@ -95,7 +96,10 @@ export async function hashDevcanonRuntimePayload(
     hash,
     "file",
     RUNTIME_BASH_RESOLVER,
-    String((await lstat(path.join(runtimeDir, RUNTIME_BASH_RESOLVER))).mode),
+    String(
+      validated?.adapterPair?.resolverMode ??
+        (await lstat(path.join(runtimeDir, RUNTIME_BASH_RESOLVER))).mode,
+    ),
   );
   hashField(hash, "bytes", RUNTIME_BASH_RESOLVER, adapterPair.resolver);
   const catalog = renderedRuntimeCatalog(config);
@@ -139,9 +143,13 @@ export async function reconcileDevcanonRuntimeSubtree(
 export async function reconcileDevcanonRuntimeSource(
   runtimeDir: string,
   provider: AcceptedProvider,
-  adapterPair: RuntimeAdapterPair,
-  shellMode = 0o755,
+  validatedRuntime: ValidatedDevcanonRuntime,
 ): Promise<void> {
+  const adapterPair = validatedRuntime.adapterPair;
+  if (!sameAdapterPair(adapterPair, validatedRuntime.authoritativeAdapterPair))
+    throw new Error(
+      "source reconciliation adapter pair does not match the authoritative validated snapshot",
+    );
   const destination = path.join(runtimeDir, "scripts");
   const stage = await mkdtemp(
     path.join(path.dirname(destination), ".runtime-source-stage-"),
@@ -152,8 +160,16 @@ export async function reconcileDevcanonRuntimeSource(
       normalizePackagedShellBytes(RUNTIME_ENTRYPOINT, adapterPair.shell),
     );
     if (process.platform !== "win32")
-      await chmod(path.join(stage, "devcanon-runtime.sh"), shellMode);
+      await chmod(
+        path.join(stage, "devcanon-runtime.sh"),
+        adapterPair.shellMode,
+      );
     await writeFile(path.join(stage, "resolve-bash.mjs"), adapterPair.resolver);
+    if (process.platform !== "win32")
+      await chmod(
+        path.join(stage, "resolve-bash.mjs"),
+        adapterPair.resolverMode,
+      );
     await writeProviderLeaves(
       path.join(stage, "runtime"),
       providerLeaves(provider),
@@ -172,11 +188,14 @@ async function publishStagedSourceParts(
 ): Promise<void> {
   const owned = ["devcanon-runtime.sh", "resolve-bash.mjs", "runtime"] as const;
   const backups = new Map<string, string>();
+  const backupRoot = await mkdtemp(
+    path.join(destination, ".devcanon-runtime-operation-"),
+  );
+  let published = false;
   try {
     for (const leaf of owned) {
       const target = path.join(destination, leaf);
-      const backup = path.join(destination, `.devcanon-runtime.${leaf}.prior`);
-      await rm(backup, { recursive: true, force: true });
+      const backup = path.join(backupRoot, leaf);
       await rename(target, backup).catch((error: NodeJS.ErrnoException) => {
         if (error.code !== "ENOENT") throw error;
       });
@@ -184,21 +203,28 @@ async function publishStagedSourceParts(
     }
     for (const leaf of owned)
       await rename(path.join(stage, leaf), path.join(destination, leaf));
-    await Promise.all(
-      [...backups.values()].map((backup) =>
-        rm(backup, { recursive: true, force: true }),
-      ),
+    published = true;
+    // Publication is now a complete validated new composition. Cleanup owns
+    // only its unique paths and must not turn that success into a partial
+    // rollback when a best-effort removal is unavailable.
+    await rm(backupRoot, { recursive: true, force: true }).catch(
+      () => undefined,
     );
-    await rm(stage, { recursive: true, force: true });
+    await rm(stage, { recursive: true, force: true }).catch(() => undefined);
   } catch (error) {
-    for (const leaf of owned) {
-      const target = path.join(destination, leaf);
-      const backup = backups.get(target);
-      if (backup !== undefined) {
-        await rm(target, { recursive: true, force: true });
-        await rename(backup, target).catch(() => undefined);
+    if (!published) {
+      for (const leaf of owned) {
+        const target = path.join(destination, leaf);
+        const backup = backups.get(target);
+        if (backup !== undefined) {
+          await rm(target, { recursive: true, force: true });
+          await rename(backup, target).catch(() => undefined);
+        }
       }
     }
+    await rm(backupRoot, { recursive: true, force: true }).catch(
+      () => undefined,
+    );
     throw error;
   }
 }
@@ -215,6 +241,7 @@ export async function writeRenderedDevcanonRuntime(
   const leaves =
     validated?.providerLeaves ?? (await readProviderLeaves(runtimeDir));
   const shellMode =
+    validated?.adapterPair?.shellMode ??
     (await lstat(path.join(runtimeDir, RUNTIME_ENTRYPOINT))).mode & 0o777;
   await mkdir(path.dirname(generatedPath), { recursive: true });
   const stage = await mkdtemp(
@@ -234,6 +261,8 @@ export async function writeRenderedDevcanonRuntime(
     if (process.platform !== "win32")
       await chmod(path.join(stage, RUNTIME_ENTRYPOINT), shellMode);
     await writeFile(path.join(stage, RUNTIME_BASH_RESOLVER), pair.resolver);
+    if (process.platform !== "win32")
+      await chmod(path.join(stage, RUNTIME_BASH_RESOLVER), pair.resolverMode);
     await writeProviderLeaves(path.join(stage, RUNTIME_JS_DIR), leaves);
     if (validated?.adapterPair !== undefined) {
       await assertStagedRuntime(path.join(stage, "scripts"));
@@ -255,13 +284,35 @@ function providerLeaves(
   ]);
 }
 
+function sameAdapterPair(
+  left: RuntimeAdapterPair,
+  right: RuntimeAdapterPair,
+): boolean {
+  return (
+    left.shell.equals(right.shell) &&
+    left.resolver.equals(right.resolver) &&
+    left.shellMode === right.shellMode &&
+    left.resolverMode === right.resolverMode
+  );
+}
+
 async function readAdapterPair(
   runtimeDir: string,
 ): Promise<RuntimeAdapterPair> {
   const { readFile } = await import("node:fs/promises");
+  const shellPath = path.join(runtimeDir, RUNTIME_ENTRYPOINT);
+  const resolverPath = path.join(runtimeDir, RUNTIME_BASH_RESOLVER);
+  const [shell, resolver, shellStat, resolverStat] = await Promise.all([
+    readFile(shellPath),
+    readFile(resolverPath),
+    lstat(shellPath),
+    lstat(resolverPath),
+  ]);
   return {
-    shell: await readFile(path.join(runtimeDir, RUNTIME_ENTRYPOINT)),
-    resolver: await readFile(path.join(runtimeDir, RUNTIME_BASH_RESOLVER)),
+    shell,
+    resolver,
+    shellMode: shellStat.mode & 0o777,
+    resolverMode: resolverStat.mode & 0o777,
   };
 }
 
@@ -298,18 +349,28 @@ async function replaceDirectory(
   stage: string,
   destination: string,
 ): Promise<void> {
-  const backup = `${destination}.devcanon-runtime.prior`;
-  await rm(backup, { recursive: true, force: true });
+  const backupRoot = await mkdtemp(
+    path.join(path.dirname(destination), ".devcanon-runtime-operation-"),
+  );
+  const backup = path.join(backupRoot, "previous");
   let priorMoved = false;
+  let published = false;
   try {
     await rename(destination, backup).catch((error: NodeJS.ErrnoException) => {
       if (error.code !== "ENOENT") throw error;
     });
     priorMoved = true;
     await rename(stage, destination);
-    await rm(backup, { recursive: true, force: true });
+    published = true;
+    await rm(backupRoot, { recursive: true, force: true }).catch(
+      () => undefined,
+    );
   } catch (error) {
-    if (priorMoved) await rename(backup, destination).catch(() => undefined);
+    if (!published && priorMoved)
+      await rename(backup, destination).catch(() => undefined);
+    await rm(backupRoot, { recursive: true, force: true }).catch(
+      () => undefined,
+    );
     throw error;
   }
 }
@@ -330,6 +391,12 @@ async function assertStagedRuntime(scriptsDirectory: string): Promise<void> {
     "contract",
   ]);
   assertRuntimeContract(stdout);
+  const { stdout: resolverStdout } = await promisify(execFile)(
+    process.execPath,
+    [path.join(scriptsDirectory, "resolve-bash.mjs")],
+  );
+  if (!path.isAbsolute(resolverStdout.trim()))
+    throw new Error("staged resolver did not emit an absolute bash path");
 }
 
 function assertRuntimeContract(stdout: string): void {

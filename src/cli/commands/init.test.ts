@@ -290,8 +290,7 @@ describe("initAction", () => {
     await expect(
       initAction({ runtimeSourceDir: incompleteRuntimeDir }),
     ).rejects.toMatchObject({
-      message:
-        "Passive runtime adapter pair is scripts/devcanon-runtime.sh must be a readable regular non-link file.",
+      message: "Passive runtime adapter pair is missing.",
       filePath: path.join(incompleteRuntimeDir, "scripts"),
     } satisfies Partial<UserError>);
     expect(await pathExists(path.join(tempDir, "devcanon.config.yaml"))).toBe(
@@ -364,7 +363,7 @@ describe("initAction", () => {
     await expect(
       initAction({ runtimeSourceDir: brokenRuntimeDir }),
     ).rejects.toMatchObject({
-      message: "Passive runtime adapter pair is unrecognized.",
+      message: "Passive runtime adapter pair is mixed.",
       filePath: path.join(brokenRuntimeDir, "scripts"),
     } satisfies Partial<UserError>);
     expect(await pathExists(path.join(tempDir, "devcanon.config.yaml"))).toBe(
@@ -399,7 +398,7 @@ describe("initAction", () => {
     await expect(
       initAction({ runtimeSourceDir: brokenRuntimeDir }),
     ).rejects.toMatchObject({
-      message: "Passive runtime adapter pair is unrecognized.",
+      message: "Passive runtime adapter pair is mixed.",
       filePath: path.join(brokenRuntimeDir, "scripts"),
     } satisfies Partial<UserError>);
     expect(await pathExists(path.join(tempDir, "devcanon.config.yaml"))).toBe(

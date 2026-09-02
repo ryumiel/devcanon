@@ -21,6 +21,7 @@ import { renderAll } from "../render/pipeline.js";
 import type { UserError } from "../utils/errors.js";
 import {
   classifyAdapterPair,
+  validateBundledDevcanonRuntime,
   validateDevcanonRuntime,
 } from "./devcanon-runtime.js";
 
@@ -55,14 +56,18 @@ describe("devcanon-runtime source validation", () => {
     });
   });
 
-  it("classifies only exact current and allowlisted pristine adapter pairs", () => {
+  it("keeps current, legacy, mixed, and modified adapter states distinct", () => {
     const current = {
       shell: Buffer.from("current"),
       resolver: Buffer.from("resolver"),
+      shellMode: 0o755,
+      resolverMode: 0o644,
     };
     const legacy = {
       shell: Buffer.from("legacy"),
       resolver: Buffer.from("legacy-resolver"),
+      shellMode: 0o755,
+      resolverMode: 0o644,
     };
     expect(classifyAdapterPair(current, current, legacy)).toBe("current");
     expect(classifyAdapterPair(legacy, current, legacy)).toBe(
@@ -70,28 +75,54 @@ describe("devcanon-runtime source validation", () => {
     );
     expect(
       classifyAdapterPair(
-        { shell: legacy.shell, resolver: current.resolver },
+        {
+          shell: legacy.shell,
+          resolver: current.resolver,
+          shellMode: 0o755,
+          resolverMode: 0o644,
+        },
         current,
         legacy,
       ),
-    ).toBe("invalid");
+    ).toBe("mixed");
     expect(
       classifyAdapterPair(
-        { shell: Buffer.from("changed"), resolver: legacy.resolver },
+        {
+          shell: Buffer.from("changed"),
+          resolver: Buffer.from("changed-resolver"),
+          shellMode: 0o755,
+          resolverMode: 0o644,
+        },
         current,
         legacy,
       ),
-    ).toBe("invalid");
+    ).toBe("modified");
   });
 
-  it("does not treat a modified candidate as its own adapter authority", async () => {
+  it("does not treat a mixed candidate as its own adapter authority", async () => {
     const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
     await writeFile(
       path.join(runtimeDir, "scripts", "devcanon-runtime.sh"),
       "#!/usr/bin/env bash\nexit 0\n",
     );
     await expect(validateDevcanonRuntime(runtimeDir)).rejects.toMatchObject({
-      message: "Passive runtime adapter pair is unrecognized.",
+      message: "Passive runtime adapter pair is mixed.",
+      hint: expect.stringContaining("Back up both adapters"),
+    } satisfies Partial<UserError>);
+  });
+
+  it("reports a fully modified candidate without collapsing its state", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    await writeFile(
+      path.join(runtimeDir, "scripts", "devcanon-runtime.sh"),
+      "#!/usr/bin/env bash\nexit 0\n",
+    );
+    await writeFile(
+      path.join(runtimeDir, "scripts", "resolve-bash.mjs"),
+      "throw new Error('modified');\n",
+    );
+    await expect(validateDevcanonRuntime(runtimeDir)).rejects.toMatchObject({
+      message: "Passive runtime adapter pair is modified.",
       hint: expect.stringContaining("Back up both adapters"),
     } satisfies Partial<UserError>);
   });
@@ -105,6 +136,8 @@ describe("devcanon-runtime source validation", () => {
       resolver: await readFile(
         path.join(runtimeDir, "scripts", "resolve-bash.mjs"),
       ),
+      shellMode: 0o755,
+      resolverMode: 0o644,
     };
     const authority = path.join(tempDir, "authority");
     await mkdir(path.join(authority, "scripts"), { recursive: true });
@@ -126,6 +159,54 @@ describe("devcanon-runtime source validation", () => {
     ).rejects.toMatchObject({
       message: expect.stringContaining("recognized pristine legacy pair"),
       hint: expect.stringContaining("devcanon render"),
+    } satisfies Partial<UserError>);
+  });
+
+  it("uses authoritative current bytes for a pristine legacy compose snapshot", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    const legacy = {
+      shell: await readFile(
+        path.join(runtimeDir, "scripts", "devcanon-runtime.sh"),
+      ),
+      resolver: await readFile(
+        path.join(runtimeDir, "scripts", "resolve-bash.mjs"),
+      ),
+      shellMode: 0o755,
+      resolverMode: 0o644,
+    };
+    const authority = path.join(tempDir, "authority");
+    await mkdir(path.join(authority, "scripts"), { recursive: true });
+    const currentShell = Buffer.from("#!/usr/bin/env bash\necho current\n");
+    const currentResolver = Buffer.from("console.log('/bin/bash');\n");
+    await writeFile(
+      path.join(authority, "scripts", "devcanon-runtime.sh"),
+      currentShell,
+    );
+    await chmod(path.join(authority, "scripts", "devcanon-runtime.sh"), 0o755);
+    await writeFile(
+      path.join(authority, "scripts", "resolve-bash.mjs"),
+      currentResolver,
+    );
+
+    await expect(
+      validateDevcanonRuntime(runtimeDir, {
+        adapterSourceDir: authority,
+        pristineLegacyPair: legacy,
+        operation: "compose",
+      }),
+    ).resolves.toMatchObject({
+      adapterState: "pristine-legacy",
+      adapterPair: { shell: currentShell, resolver: currentResolver },
+    });
+  });
+
+  it("reports each invalid adapter state with manual-adoption guidance", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    const scripts = path.join(runtimeDir, "scripts");
+    await rm(path.join(scripts, "devcanon-runtime.sh"));
+    await expect(validateDevcanonRuntime(runtimeDir)).rejects.toMatchObject({
+      message: expect.stringContaining("is missing"),
+      hint: expect.stringContaining("Back up both adapters"),
     } satisfies Partial<UserError>);
   });
 
@@ -167,7 +248,7 @@ describe("devcanon-runtime source validation", () => {
       await rm(resolver);
       await symlink(outside, resolver);
       await expect(validateDevcanonRuntime(runtimeDir)).rejects.toMatchObject({
-        message: expect.stringContaining("adapter pair"),
+        message: expect.stringContaining("is linked"),
         hint: expect.stringContaining("Back up both adapters"),
       } satisfies Partial<UserError>);
     },
@@ -185,9 +266,50 @@ describe("devcanon-runtime source validation", () => {
         0o644,
       );
       await expect(validateDevcanonRuntime(runtimeDir)).rejects.toMatchObject({
-        message: expect.stringContaining("adapter pair"),
+        message: expect.stringContaining("is posix-mode-invalid"),
         hint: expect.stringContaining("Back up both adapters"),
       } satisfies Partial<UserError>);
     },
   );
+
+  it("rejects a broken authoritative shell even when authority equals candidate", async () => {
+    const authority = path.join(tempDir, "authority");
+    await copyDevcanonRuntimeFixture(path.join(tempDir, "authority-parent"));
+    const copied = path.join(tempDir, "authority-parent", "devcanon-runtime");
+    await mkdir(path.dirname(authority), { recursive: true });
+    // Rename gives a bounded local authority seam without touching checkout bytes.
+    const { rename } = await import("node:fs/promises");
+    await rename(copied, authority);
+    await writeFile(
+      path.join(authority, "scripts", "devcanon-runtime.sh"),
+      "#!/usr/bin/env bash\necho not-contract\n",
+    );
+    await chmod(path.join(authority, "scripts", "devcanon-runtime.sh"), 0o755);
+    await expect(
+      validateBundledDevcanonRuntime(authority, {
+        adapterSourceDir: authority,
+      }),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining("adapter contract check failed"),
+    } satisfies Partial<UserError>);
+  });
+
+  it("rejects a broken authoritative resolver even when authority equals candidate", async () => {
+    const authority = path.join(tempDir, "authority");
+    await copyDevcanonRuntimeFixture(path.join(tempDir, "authority-parent"));
+    const copied = path.join(tempDir, "authority-parent", "devcanon-runtime");
+    const { rename } = await import("node:fs/promises");
+    await rename(copied, authority);
+    await writeFile(
+      path.join(authority, "scripts", "resolve-bash.mjs"),
+      "throw new Error('broken');\n",
+    );
+    await expect(
+      validateBundledDevcanonRuntime(authority, {
+        adapterSourceDir: authority,
+      }),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining("adapter contract check failed"),
+    } satisfies Partial<UserError>);
+  });
 });

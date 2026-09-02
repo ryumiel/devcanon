@@ -32,11 +32,26 @@ export const REQUIRED_RUNTIME_FILES = [
   RUNTIME_LICENSES,
 ] as const;
 
-export type AdapterPairState = "current" | "pristine-legacy" | "invalid";
+/**
+ * The adapter gate intentionally keeps every adoption outcome observable.
+ * Callers must not turn a candidate into its own authority merely to make it
+ * look current.
+ */
+export type AdapterPairState =
+  | "current"
+  | "pristine-legacy"
+  | "mixed"
+  | "missing"
+  | "modified"
+  | "linked"
+  | "posix-mode-invalid";
 
 export interface RuntimeAdapterPair {
   readonly shell: Buffer;
   readonly resolver: Buffer;
+  /** Captured at validation time; publication and hashing consume these bytes. */
+  readonly shellMode: number;
+  readonly resolverMode: number;
 }
 
 export interface ValidateDevcanonRuntimeOptions {
@@ -51,8 +66,11 @@ declare const validatedDevcanonRuntimeBrand: unique symbol;
 
 export interface ValidatedDevcanonRuntime {
   readonly runtimeDir: string;
+  /** Captured authority retained separately from the candidate-state result. */
+  readonly authoritativeAdapterPair: RuntimeAdapterPair;
   readonly adapterPair: RuntimeAdapterPair;
-  readonly adapterState: Exclude<AdapterPairState, "invalid">;
+  /** Candidate state. A compose-time legacy candidate still publishes current bytes. */
+  readonly adapterState: "current" | "pristine-legacy";
   readonly providerLeaves: ReadonlyMap<string, Buffer>;
   /** Compatibility evidence retained for existing identity callers. */
   readonly closureRecords: readonly RuntimeClosureRecord[];
@@ -64,6 +82,11 @@ export interface RuntimeClosureRecord {
   readonly relativePath: string;
   readonly mode: string;
   readonly bytes?: Buffer;
+}
+
+export interface ValidateBundledDevcanonRuntimeOptions {
+  /** Test-only bounded authority seam; defaults to this executing distribution. */
+  readonly adapterSourceDir?: string;
 }
 
 export function devcanonRuntimeDir(skillsDir: string): string {
@@ -96,19 +119,14 @@ export async function validateDevcanonRuntime(
       error instanceof Error ? error.message : "missing",
     );
   });
-  const targetPair = await readAdapterPair(runtimeDir).catch((error) => {
-    throw adapterAdoptionError(
-      runtimeDir,
-      error instanceof Error ? error.message : "missing",
-    );
-  });
+  const candidate = await inspectAdapterPair(runtimeDir);
   const adapterState = classifyAdapterPair(
-    targetPair,
+    candidate,
     currentPair,
     options.pristineLegacyPair,
   );
-  if (adapterState === "invalid")
-    throw adapterAdoptionError(runtimeDir, "unrecognized");
+  if (adapterState !== "current" && adapterState !== "pristine-legacy")
+    throw adapterAdoptionError(runtimeDir, adapterState);
   if (adapterState === "pristine-legacy" && options.operation !== "compose") {
     throw renderMigrationError(runtimeDir);
   }
@@ -146,7 +164,10 @@ export async function validateDevcanonRuntime(
 
   return Object.freeze({
     runtimeDir,
-    adapterPair: targetPair,
+    // A pristine legacy pair is evidence for migration, never publication
+    // input. The immutable composition snapshot always owns current bytes.
+    adapterPair: currentPair,
+    authoritativeAdapterPair: currentPair,
     adapterState,
     providerLeaves,
     closureRecords: [],
@@ -154,50 +175,87 @@ export async function validateDevcanonRuntime(
 }
 
 export function classifyAdapterPair(
-  candidate: RuntimeAdapterPair,
+  candidate: RuntimeAdapterPair | AdapterPairState,
   current: RuntimeAdapterPair,
   legacy?: RuntimeAdapterPair,
 ): AdapterPairState {
+  if (typeof candidate === "string") return candidate;
   if (samePair(candidate, current)) return "current";
   if (legacy !== undefined && samePair(candidate, legacy))
     return "pristine-legacy";
-  return "invalid";
+  const shellCurrent = candidate.shell.equals(current.shell);
+  const resolverCurrent = candidate.resolver.equals(current.resolver);
+  const shellLegacy =
+    legacy !== undefined && candidate.shell.equals(legacy.shell);
+  const resolverLegacy =
+    legacy !== undefined && candidate.resolver.equals(legacy.resolver);
+  if (
+    (shellCurrent || shellLegacy) !== (resolverCurrent || resolverLegacy) ||
+    (shellCurrent && resolverLegacy) ||
+    (shellLegacy && resolverCurrent)
+  )
+    return "mixed";
+  return "modified";
 }
 
 export async function validateBundledDevcanonRuntime(
   runtimeDir: string,
+  options: ValidateBundledDevcanonRuntimeOptions = {},
 ): Promise<void> {
+  const authority = options.adapterSourceDir ?? bundledDevcanonRuntimeDir();
   const validated = await validateDevcanonRuntime(runtimeDir, {
-    adapterSourceDir: bundledDevcanonRuntimeDir(),
+    adapterSourceDir: authority,
   });
   if (validated.adapterState !== "current") {
     throw adapterAdoptionError(runtimeDir, "legacy adapter pair");
   }
-  if (process.platform !== "win32") {
-    await access(
-      path.join(runtimeDir, RUNTIME_ENTRYPOINT),
-      constants.X_OK,
-    ).catch(() => {
-      throw adapterAdoptionError(runtimeDir, "non-executable shell adapter");
-    });
-  }
+  await requireAdapterContracts(authority);
   await requireRuntimeContract(path.join(runtimeDir, RUNTIME_BUNDLE));
 }
 
 async function readAdapterPair(root: string): Promise<RuntimeAdapterPair> {
   const shellPath = path.join(root, RUNTIME_ENTRYPOINT);
   const resolverPath = path.join(root, RUNTIME_BASH_RESOLVER);
-  const [shell, resolver] = await Promise.all([
+  const [shellRecord, resolverRecord] = await Promise.all([
     readRegularFile(shellPath, RUNTIME_ENTRYPOINT),
     readRegularFile(resolverPath, RUNTIME_BASH_RESOLVER),
   ]);
-  if (
-    process.platform !== "win32" &&
-    ((await lstat(shellPath)).mode & 0o111) === 0
-  ) {
+  if (process.platform !== "win32" && (shellRecord.mode & 0o111) === 0) {
     throw new Error("non-executable shell adapter");
   }
-  return Object.freeze({ shell, resolver });
+  return Object.freeze({
+    shell: shellRecord.bytes,
+    resolver: resolverRecord.bytes,
+    shellMode: shellRecord.mode & 0o777,
+    resolverMode: resolverRecord.mode & 0o777,
+  });
+}
+
+async function inspectAdapterPair(
+  root: string,
+): Promise<RuntimeAdapterPair | AdapterPairState> {
+  const shellPath = path.join(root, RUNTIME_ENTRYPOINT);
+  const resolverPath = path.join(root, RUNTIME_BASH_RESOLVER);
+  const [shellStat, resolverStat] = await Promise.all([
+    lstat(shellPath).catch(() => undefined),
+    lstat(resolverPath).catch(() => undefined),
+  ]);
+  if (shellStat === undefined || resolverStat === undefined) return "missing";
+  if (shellStat.isSymbolicLink() || resolverStat.isSymbolicLink())
+    return "linked";
+  if (!shellStat.isFile() || !resolverStat.isFile()) return "modified";
+  if (process.platform !== "win32" && (shellStat.mode & 0o111) === 0)
+    return "posix-mode-invalid";
+  try {
+    return Object.freeze({
+      shell: await readFile(shellPath),
+      resolver: await readFile(resolverPath),
+      shellMode: shellStat.mode & 0o777,
+      resolverMode: resolverStat.mode & 0o777,
+    });
+  } catch {
+    return "modified";
+  }
 }
 
 async function readDerivedRuntime(
@@ -225,10 +283,12 @@ async function readDerivedRuntime(
       async (leaf) =>
         [
           leaf,
-          await readRegularFile(
-            path.join(directory, leaf),
-            path.join(RUNTIME_JS_DIR, leaf),
-          ),
+          (
+            await readRegularFile(
+              path.join(directory, leaf),
+              path.join(RUNTIME_JS_DIR, leaf),
+            )
+          ).bytes,
         ] as const,
     ),
   );
@@ -253,7 +313,7 @@ async function readDerivedRuntime(
 async function readRegularFile(
   filePath: string,
   relativePath: string,
-): Promise<Buffer> {
+): Promise<{ readonly bytes: Buffer; readonly mode: number }> {
   const stat = await lstat(filePath).catch(() => undefined);
   if (stat === undefined || !stat.isFile() || stat.isSymbolicLink()) {
     throw new Error(`${relativePath} must be a readable regular non-link file`);
@@ -261,7 +321,7 @@ async function readRegularFile(
   await access(filePath, constants.R_OK).catch(() => {
     throw new Error(`${relativePath} must be readable`);
   });
-  return readFile(filePath);
+  return { bytes: await readFile(filePath), mode: stat.mode };
 }
 
 async function requireDirectory(
@@ -296,7 +356,12 @@ function samePair(
   left: RuntimeAdapterPair,
   right: RuntimeAdapterPair,
 ): boolean {
-  return left.shell.equals(right.shell) && left.resolver.equals(right.resolver);
+  return (
+    left.shell.equals(right.shell) &&
+    left.resolver.equals(right.resolver) &&
+    left.shellMode === right.shellMode &&
+    left.resolverMode === right.resolverMode
+  );
 }
 
 function adapterAdoptionError(runtimeDir: string, state: string): UserError {
@@ -353,4 +418,43 @@ async function requireRuntimeContract(bundle: string): Promise<void> {
       `Reinstall DevCanon or restore the bundled runtime payload. ${(error as Error).message}`,
     );
   }
+}
+
+async function requireAdapterContracts(authority: string): Promise<void> {
+  const shell = path.join(authority, RUNTIME_ENTRYPOINT);
+  const resolver = path.join(authority, RUNTIME_BASH_RESOLVER);
+  try {
+    if (process.platform !== "win32") {
+      await access(shell, constants.X_OK);
+    }
+    const { execFile } = await import("node:child_process");
+    const { promisify } = await import("node:util");
+    const { stdout: shellStdout } = await promisify(execFile)("bash", [
+      shell,
+      "contract",
+    ]);
+    assertRuntimeContract(shellStdout);
+    const { stdout: resolverStdout } = await promisify(execFile)(
+      process.execPath,
+      [resolver],
+    );
+    if (!path.isAbsolute(resolverStdout.trim())) {
+      throw new Error("resolver did not emit an absolute bash path");
+    }
+  } catch (error) {
+    throw new UserError(
+      `Fixed passive runtime support bundle ${DEVCANON_RUNTIME_SKILL_NAME} adapter contract check failed.`,
+      authority,
+      `Reinstall DevCanon or restore the bundled adapter pair. ${(error as Error).message}`,
+    );
+  }
+}
+
+function assertRuntimeContract(stdout: string): void {
+  const value = JSON.parse(stdout) as {
+    command_group?: unknown;
+    major_version?: unknown;
+  };
+  if (value.command_group !== "devcanon-runtime" || value.major_version !== 1)
+    throw new Error("contract output did not match devcanon-runtime/v1");
 }
