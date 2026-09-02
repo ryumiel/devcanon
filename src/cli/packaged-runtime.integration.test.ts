@@ -40,11 +40,25 @@ const sharedDerivedOutputs = [
     "runtime-manifest.json",
   ),
 ];
+const conflictingNpmConfigKeys = [
+  "npm_config_allow_scripts",
+  "NPM_CONFIG_ALLOW_SCRIPTS",
+  "npm_config_only_built_dependencies_file",
+  "NPM_CONFIG_ONLY_BUILT_DEPENDENCIES_FILE",
+];
 
 function asText(value: unknown): string {
   if (typeof value === "string") return value;
   if (Buffer.isBuffer(value)) return value.toString("utf8");
   return "";
+}
+
+function npmEnvironment(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  for (const key of conflictingNpmConfigKeys) {
+    Reflect.deleteProperty(env, key);
+  }
+  return env;
 }
 
 async function run(
@@ -175,7 +189,7 @@ describe("packaged passive runtime", () => {
             "npm pack through prepack",
             "npm",
             ["pack", "--json", "--pack-destination", archives],
-            { cwd: packSource },
+            { cwd: packSource, env: npmEnvironment() },
           )
         ).stdout,
       );
@@ -216,7 +230,7 @@ describe("packaged passive runtime", () => {
         "install packed package",
         "npm",
         ["install", "--ignore-scripts", "--no-audit", "--no-fund", tarball],
-        { cwd: consumer },
+        { cwd: consumer, env: npmEnvironment() },
       );
 
       const packageRoot = await realpath(
