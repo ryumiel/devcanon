@@ -1,7 +1,8 @@
-import { spawn } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { execFile, spawn } from "node:child_process";
+import { cp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanupTempDir, createTempDir } from "../__test-helpers__/fixtures.js";
 import { produceProvider, verifySourceProvider } from "./producer.js";
@@ -12,17 +13,25 @@ const repositoryRoot = path.resolve(
   "../..",
 );
 const tempDirs: string[] = [];
+const execFileAsync = promisify(execFile);
 
 afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map(cleanupTempDir));
 });
 
 describe("runtime provider reproducibility", () => {
-  it("creates source and package providers and dispatches their runtime", async () => {
+  it("packs an isolated package provider and dispatches its runtime", async () => {
     const first = await createTempDir();
     const second = await createTempDir();
-    const packageProvider = await createTempDir();
-    tempDirs.push(first, second, packageProvider);
+    const packed = await packInstalledPackageProvider();
+    const installedPackage = packed.installedPackage;
+    const packageProvider = path.join(
+      installedPackage,
+      "dist",
+      "devcanon-runtime",
+      "package",
+    );
+    tempDirs.push(first, second, packed.temporaryRoot);
     await produceProvider({
       repositoryRoot,
       origin: "source-build",
@@ -34,12 +43,6 @@ describe("runtime provider reproducibility", () => {
       origin: "source-build",
       devcanonVersion: "2.0.0",
       destinationRoot: second,
-    });
-    await produceProvider({
-      repositoryRoot,
-      origin: "package",
-      devcanonVersion: "2.0.0",
-      destinationRoot: packageProvider,
     });
     await expect(
       verifySourceProvider({
@@ -60,10 +63,11 @@ describe("runtime provider reproducibility", () => {
       }),
     ).resolves.toMatchObject({ origin: "package" });
     await expect(
-      runNode(path.join(packageProvider, "devcanon-runtime.mjs"), [
-        "runtime",
-        "contract",
-      ]),
+      runNode(
+        path.join(packageProvider, "devcanon-runtime.mjs"),
+        ["runtime", "contract"],
+        installedPackage,
+      ),
     ).resolves.toMatchObject({
       exitCode: 0,
       stdout: `${JSON.stringify({ command_group: "devcanon-runtime", major_version: 1, helper_foundation: true })}\n`,
@@ -75,7 +79,7 @@ describe("runtime provider reproducibility", () => {
       exitCode: 1,
       stderr: "runtime bundle selector must be runtime or bootstrap\n",
     });
-    const selectedRuntime = path.join(second, "selected-runtime");
+    const selectedRuntime = path.join(installedPackage, "selected-runtime");
     await mkdir(path.join(selectedRuntime, "scripts", "runtime"), {
       recursive: true,
     });
@@ -84,13 +88,11 @@ describe("runtime provider reproducibility", () => {
       await readFile(path.join(packageProvider, "devcanon-runtime.mjs")),
     );
     await expect(
-      runNode(path.join(packageProvider, "devcanon-runtime.mjs"), [
-        "bootstrap",
-        "--runtime-dir",
-        selectedRuntime,
-        "--",
-        "contract",
-      ]),
+      runNode(
+        path.join(packageProvider, "devcanon-runtime.mjs"),
+        ["bootstrap", "--runtime-dir", selectedRuntime, "--", "contract"],
+        installedPackage,
+      ),
     ).resolves.toMatchObject({
       exitCode: 0,
       stdout: `${JSON.stringify({ command_group: "devcanon-runtime", major_version: 1, helper_foundation: true })}\n`,
@@ -109,13 +111,65 @@ async function readProviderBytes(root: string): Promise<Buffer[]> {
   );
 }
 
-async function runNode(script: string, args: string[]) {
+async function packInstalledPackageProvider(): Promise<{
+  temporaryRoot: string;
+  installedPackage: string;
+}> {
+  const temporaryRoot = await createTempDir();
+  const workspace = path.join(temporaryRoot, "workspace");
+  const archives = path.join(temporaryRoot, "archives");
+  const installedPackage = path.join(temporaryRoot, "installed-package");
+  await mkdir(workspace);
+  await Promise.all([
+    cp(
+      path.join(repositoryRoot, "package.json"),
+      path.join(workspace, "package.json"),
+    ),
+    cp(
+      path.join(repositoryRoot, "skills", "devcanon-runtime"),
+      path.join(workspace, "skills", "devcanon-runtime"),
+      { recursive: true },
+    ),
+  ]);
+  await produceProvider({
+    repositoryRoot,
+    origin: "package",
+    devcanonVersion: "2.0.0",
+    destinationRoot: path.join(
+      workspace,
+      "dist",
+      "devcanon-runtime",
+      "package",
+    ),
+  });
+  await mkdir(archives);
+  await execFileAsync("pnpm", ["pack", "--pack-destination", archives], {
+    cwd: workspace,
+  });
+  const [archive] = (await readdir(archives)).filter((entry) =>
+    entry.endsWith(".tgz"),
+  );
+  if (archive === undefined)
+    throw new Error("pnpm pack did not produce a tarball");
+  await mkdir(installedPackage);
+  await execFileAsync("tar", [
+    "-xzf",
+    path.join(archives, archive),
+    "-C",
+    installedPackage,
+    "--strip-components=1",
+  ]);
+  return { temporaryRoot, installedPackage };
+}
+
+async function runNode(script: string, args: string[], cwd?: string) {
   return new Promise<{
     exitCode: number | null;
     stdout: string;
     stderr: string;
   }>((resolve, reject) => {
     const child = spawn(process.execPath, [script, ...args], {
+      cwd,
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";

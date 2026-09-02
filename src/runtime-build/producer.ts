@@ -377,16 +377,11 @@ async function collectCanonicalInputs(
     path.join(repositoryRoot, "pnpm-lock.yaml"),
     "utf8",
   );
-  const projection = extractPnpmProjection(lockfileContents, [
-    ...instances,
-    {
-      id: "esbuild@0.27.4",
-      name: "esbuild",
-      version: esbuildVersion,
-      integrity: "",
-      dependencies: [],
-    },
-  ]);
+  const projection = extractPnpmProjection(
+    lockfileContents,
+    undefined,
+    new Set([...instances.map((instance) => instance.id), "esbuild@0.27.4"]),
+  );
   const selected = selectProjection(projection, instances);
   const esbuild = projection.packages.find(
     (item) => item.name === "esbuild" && item.version === esbuildVersion,
@@ -588,8 +583,9 @@ type PnpmReference = string | { version?: string };
 export function extractPnpmProjection(
   lockfileContents: string,
   bundled?: readonly Pick<ProductionPackageInstance, "name" | "version">[],
+  selectedIds?: ReadonlySet<string>,
 ): ProductionDependencyProjection {
-  return extractSelectedPnpmProjection(lockfileContents, bundled);
+  return extractSelectedPnpmProjection(lockfileContents, bundled, selectedIds);
 }
 
 function extractSelectedPnpmProjection(
@@ -600,20 +596,26 @@ function extractSelectedPnpmProjection(
   const lock = parseYaml(lockfileContents) as PnpmLock;
   const packages = lock.packages ?? {};
   const snapshotIds = Object.keys(lock.snapshots ?? {});
-  const instanceIds = selectClosureIds(
-    lock,
+  const initialIds =
     selectedIds ??
-      new Set(
-        snapshotIds.filter((id) => {
-          if (bundled === undefined) return true;
-          const parsed = parsePackageIdentity(id);
-          return bundled.some(
-            (item) =>
-              item.name === parsed.name && item.version === parsed.version,
-          );
-        }),
-      ),
-  );
+    new Set(
+      snapshotIds.filter((id) => {
+        if (bundled === undefined) return true;
+        const parsed = parsePackageIdentity(id);
+        return bundled.some(
+          (item) =>
+            item.name === parsed.name && item.version === parsed.version,
+        );
+      }),
+    );
+  if (
+    (bundled !== undefined || selectedIds !== undefined) &&
+    ([...initialIds].length === 0 ||
+      [...initialIds].some((id) => !snapshotIds.includes(id)))
+  ) {
+    throw new Error("no lockfile package instance matches the selected bundle");
+  }
+  const instanceIds = selectClosureIds(lock, initialIds);
   const records: ProductionPackageInstance[] = (
     instanceIds.length > 0 ? instanceIds : Object.keys(packages)
   ).map((id) => {
@@ -823,9 +825,15 @@ export async function resolveLockInstances(
     const candidates = snapshotIds.filter(
       (id) => id === prefix || id.startsWith(`${prefix}(`),
     );
-    const physicalMatch = candidates.find((id) =>
+    const physicalMatches = candidates.filter((id) =>
       matchesPhysicalPnpmIdentity(repositoryRoot, item.packageRoot, id),
     );
+    if (physicalMatches.length > 1) {
+      throw new Error(
+        `ambiguous physical lockfile identity for bundled package: ${prefix}`,
+      );
+    }
+    const [physicalMatch] = physicalMatches;
     if (physicalMatch === undefined && candidates.length !== 1) {
       throw new Error(
         `ambiguous lockfile identity for bundled package: ${prefix}`,
@@ -893,10 +901,15 @@ function matchesPhysicalPnpmIdentity(
     packageRoot,
   );
   const [physicalIdentity] = relative.split(path.sep);
-  return (
-    physicalIdentity ===
-    snapshotId.replaceAll("/", "+").replaceAll("(", "_").replaceAll(")", "")
-  );
+  return pnpmPhysicalIdentityVariants(snapshotId).has(physicalIdentity);
+}
+
+function pnpmPhysicalIdentityVariants(snapshotId: string): Set<string> {
+  const prefix = snapshotId
+    .replaceAll("/", "+")
+    .replaceAll(")(", "_")
+    .replaceAll("(", "_");
+  return new Set([prefix.replaceAll(")", ""), prefix.replaceAll(")", "_")]);
 }
 
 async function nearestPackageRoot(

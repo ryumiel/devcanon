@@ -139,6 +139,44 @@ snapshots:
     ).not.toThrow();
   });
 
+  it("rejects a requested bundled package that has no snapshot", () => {
+    expect(() =>
+      extractPnpmProjection(
+        `
+packages:
+  real@1.0.0: {resolution: {integrity: sha512-real}}
+snapshots:
+  real@1.0.0: {}
+`,
+        [{ name: "missing", version: "9.9.9" }],
+      ),
+    ).toThrow(/no lockfile package instance/i);
+  });
+
+  it("retains selected physical peer ids instead of reselecting same-version peers", () => {
+    expect(
+      extractPnpmProjection(
+        `
+importers:
+  .:
+    dependencies:
+      same-a: {version: same@1.0.0(peer-a@1.0.0)}
+packages:
+  same@1.0.0(peer-a@1.0.0): {resolution: {integrity: sha512-same-a}}
+  same@1.0.0(peer-b@1.0.0): {resolution: {integrity: sha512-same-b}}
+snapshots:
+  same@1.0.0(peer-a@1.0.0): {}
+  same@1.0.0(peer-b@1.0.0):
+    dependencies: {missing: 1.0.0}
+`,
+        undefined,
+        new Set(["same@1.0.0(peer-a@1.0.0)"]),
+      ),
+    ).toMatchObject({
+      packages: [expect.objectContaining({ id: "same@1.0.0(peer-a@1.0.0)" })],
+    });
+  });
+
   it("rejects an unresolved edge in the selected bundled closure", () => {
     expect(() =>
       extractPnpmProjection(
@@ -228,6 +266,66 @@ snapshots:
         }),
         expect.objectContaining({ id: "peer-a@1.0.0" }),
         expect.objectContaining({ id: "peer-b@1.0.0" }),
+      ]);
+    } finally {
+      await cleanupTempDir(root);
+    }
+  });
+
+  it("reconciles nested peer identities with pnpm's trailing underscore encoding", async () => {
+    const root = await createTempDir();
+    try {
+      await writeFile(
+        path.join(root, "pnpm-lock.yaml"),
+        `
+importers:
+  .:
+    dependencies:
+      same-b: {version: same@1.0.0(peer-a@1.0.0)(peer-b@1.0.0)}
+      same-c: {version: same@1.0.0(peer-a@1.0.0)(peer-c@1.0.0)}
+packages:
+  same@1.0.0(peer-a@1.0.0)(peer-b@1.0.0): {resolution: {integrity: sha512-same-b}}
+  same@1.0.0(peer-a@1.0.0)(peer-c@1.0.0): {resolution: {integrity: sha512-same-c}}
+snapshots:
+  same@1.0.0(peer-a@1.0.0)(peer-b@1.0.0): {}
+  same@1.0.0(peer-a@1.0.0)(peer-c@1.0.0): {}
+`,
+      );
+      const packageRoots = await Promise.all(
+        [
+          "same@1.0.0_peer-a@1.0.0_peer-b@1.0.0_/node_modules/same",
+          "same@1.0.0_peer-a@1.0.0_peer-c@1.0.0_/node_modules/same",
+        ].map(async (relative) => {
+          const packageRoot = path.join(
+            root,
+            "node_modules",
+            ".pnpm",
+            relative,
+          );
+          await mkdir(packageRoot, { recursive: true });
+          return packageRoot;
+        }),
+      );
+
+      await expect(
+        resolveLockInstances(
+          root,
+          packageRoots.map((packageRoot) => ({
+            id: "unreconciled",
+            name: "same",
+            version: "1.0.0",
+            integrity: "bundled-local-resolution",
+            dependencies: [],
+            packageRoot,
+          })),
+        ),
+      ).resolves.toEqual([
+        expect.objectContaining({
+          id: "same@1.0.0(peer-a@1.0.0)(peer-b@1.0.0)",
+        }),
+        expect.objectContaining({
+          id: "same@1.0.0(peer-a@1.0.0)(peer-c@1.0.0)",
+        }),
       ]);
     } finally {
       await cleanupTempDir(root);
