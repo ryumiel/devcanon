@@ -37,7 +37,9 @@ const PROVIDER_LEAVES = [
 
 type RuntimePublicationFaultStage =
   | "replace-before-publish"
-  | "source-before-publish";
+  | "replace-cleanup"
+  | "source-before-publish"
+  | "source-cleanup";
 type RuntimePublicationFaultInjector = (
   stage: RuntimePublicationFaultStage,
 ) => void | Promise<void>;
@@ -125,6 +127,7 @@ export async function hashDevcanonRuntimePayload(
   return hashDevcanonRuntimeComposition({
     adapterPair: {
       ...adapterPair,
+      shell: normalizePackagedShellBytes(RUNTIME_ENTRYPOINT, adapterPair.shell),
       shellMode: shellMode & 0o777,
       resolverMode: resolverMode & 0o777,
     },
@@ -147,12 +150,7 @@ export function hashDevcanonRuntimeComposition({
 }: DevcanonRuntimeCompositionHashInput): string {
   const hash = createHash("sha256");
   hashField(hash, "file", RUNTIME_ENTRYPOINT, String(adapterPair.shellMode));
-  hashField(
-    hash,
-    "bytes",
-    RUNTIME_ENTRYPOINT,
-    normalizePackagedShellBytes(RUNTIME_ENTRYPOINT, adapterPair.shell),
-  );
+  hashField(hash, "bytes", RUNTIME_ENTRYPOINT, adapterPair.shell);
   hashField(
     hash,
     "file",
@@ -180,13 +178,12 @@ export async function reconcileDevcanonRuntimeSubtree(
   provider: AcceptedProvider,
 ): Promise<void> {
   const destination = path.join(runtimeDir, RUNTIME_JS_DIR);
-  const stage = await mkdtemp(
-    path.join(path.dirname(destination), ".runtime-stage-"),
-  );
+  const scratchParent = path.dirname(path.dirname(runtimeDir));
+  const stage = await mkdtemp(path.join(scratchParent, ".runtime-stage-"));
   try {
     await writeProviderLeaves(stage, providerLeaves(provider));
     await assertStagedBundle(stage);
-    await replaceDirectory(stage, destination);
+    await replaceDirectory(stage, destination, scratchParent);
   } catch (error) {
     await rm(stage, { recursive: true, force: true });
     throw error;
@@ -212,8 +209,9 @@ export async function reconcileDevcanonRuntimeSource(
     );
   const observedSourcePair = validatedRuntime.sourceAdapterPair;
   const destination = path.join(runtimeDir, "scripts");
+  const scratchParent = path.dirname(path.dirname(runtimeDir));
   const stage = await mkdtemp(
-    path.join(path.dirname(destination), ".runtime-source-stage-"),
+    path.join(scratchParent, ".runtime-source-stage-"),
   );
   try {
     await writeFile(
@@ -239,7 +237,12 @@ export async function reconcileDevcanonRuntimeSource(
       providerLeaves(provider),
     );
     await assertStagedRuntime(stage);
-    await publishStagedSourceParts(stage, destination, observedSourcePair);
+    await publishStagedSourceParts(
+      stage,
+      destination,
+      observedSourcePair,
+      scratchParent,
+    );
   } catch (error) {
     await rm(stage, { recursive: true, force: true });
     throw error;
@@ -250,11 +253,12 @@ async function publishStagedSourceParts(
   stage: string,
   destination: string,
   observedSourcePair: RuntimeAdapterPair,
+  scratchParent: string,
 ): Promise<void> {
   const owned = ["devcanon-runtime.sh", "resolve-bash.mjs", "runtime"] as const;
   const backups = new Map<string, string>();
   const backupRoot = await mkdtemp(
-    path.join(destination, ".devcanon-runtime-operation-"),
+    path.join(scratchParent, ".devcanon-runtime-operation-"),
   );
   let published = false;
   try {
@@ -283,14 +287,14 @@ async function publishStagedSourceParts(
     for (const leaf of owned)
       await rename(path.join(stage, leaf), path.join(destination, leaf));
     published = true;
-    // Publication is now a complete validated new composition. Cleanup owns
-    // only its unique paths and must not turn that success into a partial
-    // rollback when a best-effort removal is unavailable.
-    await rm(backupRoot, { recursive: true, force: true }).catch(
-      () => undefined,
+    await cleanupPublishedOperation(
+      backupRoot,
+      "source-cleanup",
+      "runtime source",
     );
-    await rm(stage, { recursive: true, force: true }).catch(() => undefined);
+    await rm(stage, { recursive: true, force: true });
   } catch (error) {
+    if (published) throw error;
     if (!published) {
       const restored = await restoreOwnedSourceParts(
         owned,
@@ -373,8 +377,9 @@ export async function writeRenderedDevcanonRuntime(
     validated?.adapterPair?.shellMode ??
     (await lstat(path.join(runtimeDir, RUNTIME_ENTRYPOINT))).mode & 0o777;
   await mkdir(path.dirname(generatedPath), { recursive: true });
+  const scratchParent = path.dirname(path.dirname(generatedPath));
   const stage = await mkdtemp(
-    path.join(path.dirname(generatedPath), ".runtime-render-stage-"),
+    path.join(scratchParent, ".runtime-render-stage-"),
   );
   try {
     await mkdir(path.join(stage, "config"), { recursive: true });
@@ -396,7 +401,7 @@ export async function writeRenderedDevcanonRuntime(
     if (validated?.adapterPair !== undefined) {
       await assertStagedRuntime(path.join(stage, "scripts"));
     }
-    await replaceDirectory(stage, generatedPath);
+    await replaceDirectory(stage, generatedPath, scratchParent);
   } catch (error) {
     await rm(stage, { recursive: true, force: true });
     throw error;
@@ -489,9 +494,10 @@ async function writeProviderLeaves(
 async function replaceDirectory(
   stage: string,
   destination: string,
+  scratchParent: string,
 ): Promise<void> {
   const backupRoot = await mkdtemp(
-    path.join(path.dirname(destination), ".devcanon-runtime-operation-"),
+    path.join(scratchParent, ".devcanon-runtime-operation-"),
   );
   const backup = path.join(backupRoot, "previous");
   let priorMoved = false;
@@ -506,10 +512,13 @@ async function replaceDirectory(
     await runtimePublicationFaultInjector?.("replace-before-publish");
     await rename(stage, destination);
     published = true;
-    await rm(backupRoot, { recursive: true, force: true }).catch(
-      () => undefined,
+    await cleanupPublishedOperation(
+      backupRoot,
+      "replace-cleanup",
+      "runtime directory",
     );
   } catch (error) {
+    if (published) throw error;
     if (!published && priorMoved) {
       const displaced = path.join(backupRoot, "new");
       const destinationExists = await lstat(destination).then(
@@ -546,6 +555,21 @@ async function replaceDirectory(
       () => undefined,
     );
     throw error;
+  }
+}
+
+async function cleanupPublishedOperation(
+  operationPath: string,
+  faultStage: RuntimePublicationFaultStage,
+  description: string,
+): Promise<void> {
+  try {
+    await runtimePublicationFaultInjector?.(faultStage);
+    await rm(operationPath, { recursive: true, force: true });
+  } catch (error) {
+    throw new Error(
+      `${description} published successfully, but cleanup failed; retained operation backup at ${operationPath}: ${(error as Error).message}`,
+    );
   }
 }
 

@@ -958,6 +958,44 @@ describe("sync", () => {
     ).resolves.toContain("updated-profile-model");
   });
 
+  it("refuses to replace an installed runtime whose shell line endings changed", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const options = { dryRun: false, force: false, strict: false } as const;
+    const first = await sync(config, options);
+    expect(first.errors).toEqual([]);
+    const installedPath = path.join(
+      config.targets.claude.skillsHome,
+      "devcanon-runtime",
+    );
+    const shell = path.join(installedPath, "scripts", "devcanon-runtime.sh");
+    const original = await readFile(shell);
+    const crlf = Buffer.from(
+      original.toString("utf8").replaceAll("\n", "\r\n"),
+      "utf8",
+    );
+    expect(crlf).not.toEqual(original);
+    await writeFile(shell, crlf);
+    config.capabilityProfiles = {
+      ...config.capabilityProfiles,
+      balanced: {
+        ...config.capabilityProfiles.balanced,
+        codex: "updated-after-installed-shell-mutation",
+      },
+    };
+    const manifestBefore = await readTextFile(config.manifest.path);
+
+    const second = await sync(config, options);
+
+    expect(second.updated).toBe(0);
+    expect(second.errors).toEqual([
+      expect.stringContaining("installed copy content hash mismatch"),
+    ]);
+    await expect(readFile(shell)).resolves.toEqual(crlf);
+    await expect(readTextFile(config.manifest.path)).resolves.toBe(
+      manifestBefore,
+    );
+  });
+
   it("does not repair the source runtime before prospective output validation succeeds", async () => {
     const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
     const runtimeBundle = path.join(

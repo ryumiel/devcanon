@@ -2088,6 +2088,35 @@ describe("uninstall", () => {
     expect(await pathExists(installedPath)).toBe(true);
   });
 
+  it("keeps a current runtime copy whose shell line endings changed", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    await sync(config, { dryRun: false, force: false, strict: false });
+    const installedPath = path.join(
+      config.targets.claude.skillsHome,
+      "devcanon-runtime",
+    );
+    const shell = path.join(installedPath, "scripts", "devcanon-runtime.sh");
+    const original = await readFile(shell);
+    const crlf = Buffer.from(
+      original.toString("utf8").replaceAll("\n", "\r\n"),
+      "utf8",
+    );
+    expect(crlf).not.toEqual(original);
+    await writeFile(shell, crlf);
+
+    const result = await uninstall(config, {
+      target: "claude",
+      dryRun: false,
+    });
+
+    expect(result.removed).toBe(0);
+    expect(result.errors).toEqual([
+      expect.stringContaining("installed copy content hash mismatch"),
+    ]);
+    expect(await pathExists(installedPath)).toBe(true);
+    await expect(readFile(shell)).resolves.toEqual(crlf);
+  });
+
   it("uninstalls an exact pre-provider runtime tree using its recorded legacy hash", async () => {
     const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
     const installedPath = path.join(

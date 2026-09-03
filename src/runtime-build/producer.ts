@@ -188,42 +188,11 @@ export async function produceProvider(
       "devcanon-runtime",
       options.origin,
     );
-  const result = await build({
-    absWorkingDir: options.repositoryRoot,
-    entryPoints: ["src/runtime/bundle-entry.ts"],
-    bundle: true,
-    format: "esm",
-    platform: "node",
-    target: "node24",
-    outfile: "devcanon-runtime.mjs",
-    write: false,
-    metafile: true,
-    legalComments: "none",
-    logLevel: "silent",
-  });
-  const output = result.outputFiles.find((file) => file.path.endsWith(".mjs"));
-  if (output === undefined) {
-    throw new Error("esbuild did not produce a runtime bundle");
-  }
-  const bundle = Buffer.from(output.contents);
-  const bundled = await collectBundledInstances(
-    options.repositoryRoot,
-    result.metafile ?? {},
-  );
-  const instances = bundled.map(
-    ({ packageRoot: _packageRoot, ...instance }) => instance,
-  );
-  const records = await collectCanonicalInputs(
+  const artifacts = await buildProviderArtifacts(
     options.repositoryRoot,
     devcanonVersion,
-    instances,
-    result.metafile ?? {},
   );
-  const inputSha256 = canonicalInputSha256(records);
-  const licenses = renderThirdPartyLicenses(
-    instances,
-    await collectAttribution(bundled),
-  );
+  const { bundle, inputSha256, licenses } = artifacts;
   const manifest = {
     schema: "devcanon-runtime-build/v1",
     devcanon_version: devcanonVersion,
@@ -272,15 +241,18 @@ export async function produceProvider(
   });
 }
 
-/** Source-only acceptance recomputes the repository identity; callers cannot attest it. */
-export async function verifySourceProvider(options: {
-  repositoryRoot: string;
-  root: string;
-  devcanonVersion: string;
-}): Promise<AcceptedProvider> {
-  const devcanonVersion = await readDevcanonVersion(options.repositoryRoot);
+interface ProviderBuildArtifacts {
+  bundle: Buffer;
+  inputSha256: string;
+  licenses: Buffer;
+}
+
+async function buildProviderArtifacts(
+  repositoryRoot: string,
+  devcanonVersion: string,
+): Promise<ProviderBuildArtifacts> {
   const result = await build({
-    absWorkingDir: options.repositoryRoot,
+    absWorkingDir: repositoryRoot,
     entryPoints: ["src/runtime/bundle-entry.ts"],
     bundle: true,
     format: "esm",
@@ -292,24 +264,60 @@ export async function verifySourceProvider(options: {
     legalComments: "none",
     logLevel: "silent",
   });
+  const output = result.outputFiles.find((file) => file.path.endsWith(".mjs"));
+  if (output === undefined) {
+    throw new Error("esbuild did not produce a runtime bundle");
+  }
+  const bundle = Buffer.from(output.contents);
   const bundled = await collectBundledInstances(
-    options.repositoryRoot,
+    repositoryRoot,
     result.metafile ?? {},
   );
-  const inputSha256 = canonicalInputSha256(
-    await collectCanonicalInputs(
-      options.repositoryRoot,
-      devcanonVersion,
-      bundled.map(({ packageRoot: _packageRoot, ...instance }) => instance),
-      result.metafile ?? {},
-    ),
+  const instances = bundled.map(
+    ({ packageRoot: _packageRoot, ...instance }) => instance,
   );
-  return verifyProvider({
+  const records = await collectCanonicalInputs(
+    repositoryRoot,
+    devcanonVersion,
+    instances,
+    result.metafile ?? {},
+  );
+  const inputSha256 = canonicalInputSha256(records);
+  const licenses = renderThirdPartyLicenses(
+    instances,
+    await collectAttribution(bundled),
+  );
+  return { bundle, inputSha256, licenses };
+}
+
+/** Source-only acceptance recomputes the repository identity; callers cannot attest it. */
+export async function verifySourceProvider(options: {
+  repositoryRoot: string;
+  root: string;
+  devcanonVersion: string;
+}): Promise<AcceptedProvider> {
+  const devcanonVersion = await readDevcanonVersion(options.repositoryRoot);
+  const artifacts = await buildProviderArtifacts(
+    options.repositoryRoot,
+    devcanonVersion,
+  );
+  const accepted = await verifyProvider({
     root: options.root,
     origin: "source-build",
     devcanonVersion,
-    inputSha256,
+    inputSha256: artifacts.inputSha256,
   });
+  if (!accepted.bundle.copy().equals(artifacts.bundle)) {
+    throw new Error(
+      "source provider bundle does not match the fresh source build",
+    );
+  }
+  if (!accepted.licenses.copy().equals(artifacts.licenses)) {
+    throw new Error(
+      "source provider licenses do not match the fresh source build",
+    );
+  }
+  return accepted;
 }
 
 async function readDevcanonVersion(repositoryRoot: string): Promise<string> {

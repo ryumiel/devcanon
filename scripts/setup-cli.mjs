@@ -27,6 +27,11 @@ if (isWindows) {
     `@echo off\r\nnode "${escapeWindowsBatchLiteral(launcher)}" %*\r\n`,
     "utf8",
   );
+  await writeFile(
+    path.join(globalBin, "devcanon.ps1"),
+    `& node ${quotePowerShellLiteral(launcher)} @args\r\nexit $LASTEXITCODE\r\n`,
+    "utf8",
+  );
 } else {
   const shim = path.join(globalBin, "devcanon");
   await writeFile(
@@ -43,6 +48,10 @@ function quotePosixShellLiteral(value) {
 
 function escapeWindowsBatchLiteral(value) {
   return value.replaceAll("%", "%%");
+}
+
+function quotePowerShellLiteral(value) {
+  return `'${value.replaceAll("'", "''")}'`;
 }
 
 function run(command, args, cwd, capture = false) {

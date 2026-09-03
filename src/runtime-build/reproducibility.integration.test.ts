@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanupTempDir, createTempDir } from "../__test-helpers__/fixtures.js";
 import { produceProvider, verifySourceProvider } from "./producer.js";
-import { verifyProvider } from "./provider.js";
+import { sha256, verifyProvider } from "./provider.js";
 
 const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -55,6 +55,66 @@ describe("runtime provider reproducibility", () => {
     await expect(readProviderBytes(first)).resolves.toEqual(
       await readProviderBytes(second),
     );
+    const originalSecondBundle = await readFile(
+      path.join(second, "devcanon-runtime.mjs"),
+    );
+    const originalSecondManifest = await readFile(
+      path.join(second, "runtime-manifest.json"),
+    );
+    const changedBundle = Buffer.concat([
+      originalSecondBundle,
+      Buffer.from("\n// paired provider mutation\n"),
+    ]);
+    const changedManifest = JSON.parse(
+      await readFile(path.join(second, "runtime-manifest.json"), "utf8"),
+    );
+    changedManifest.bundle_sha256 = sha256(changedBundle);
+    await writeFile(path.join(second, "devcanon-runtime.mjs"), changedBundle);
+    await writeFile(
+      path.join(second, "runtime-manifest.json"),
+      `${JSON.stringify(changedManifest)}\n`,
+    );
+    await expect(
+      verifyProvider({
+        root: second,
+        origin: "source-build",
+        devcanonVersion: "2.0.0",
+        inputSha256: changedManifest.input_sha256,
+      }),
+    ).resolves.toMatchObject({ origin: "source-build" });
+    await expect(
+      verifySourceProvider({
+        repositoryRoot,
+        root: second,
+        devcanonVersion: "2.0.0",
+      }),
+    ).rejects.toThrow(/bundle does not match the fresh source build/i);
+    await writeFile(
+      path.join(second, "devcanon-runtime.mjs"),
+      originalSecondBundle,
+    );
+    await writeFile(
+      path.join(second, "runtime-manifest.json"),
+      originalSecondManifest,
+    );
+    const changedLicenses = Buffer.concat([
+      await readFile(path.join(second, "THIRD_PARTY_LICENSES")),
+      Buffer.from("\npaired license mutation\n"),
+    ]);
+    const licenseManifest = JSON.parse(originalSecondManifest.toString("utf8"));
+    licenseManifest.licenses_sha256 = sha256(changedLicenses);
+    await writeFile(path.join(second, "THIRD_PARTY_LICENSES"), changedLicenses);
+    await writeFile(
+      path.join(second, "runtime-manifest.json"),
+      `${JSON.stringify(licenseManifest)}\n`,
+    );
+    await expect(
+      verifySourceProvider({
+        repositoryRoot,
+        root: second,
+        devcanonVersion: "2.0.0",
+      }),
+    ).rejects.toThrow(/licenses do not match the fresh source build/i);
     await expect(
       verifyProvider({
         root: packageProvider,

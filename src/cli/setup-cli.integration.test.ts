@@ -182,6 +182,12 @@ describe.runIf(process.platform === "win32")("setup:cli", () => {
         ["/d", "/s", "/c", "pnpm run setup:cli"],
         { cwd: process.cwd(), env },
       );
+      const powerShellLauncher = path.join(root, "npm", "devcanon.ps1");
+      await writeFile(
+        powerShellLauncher,
+        "Write-Output 'stale npm launcher'\r\nexit 23\r\n",
+        "utf8",
+      );
       await execFileAsync(
         commandShell,
         ["/d", "/s", "/c", "pnpm run setup:cli"],
@@ -192,6 +198,7 @@ describe.runIf(process.platform === "win32")("setup:cli", () => {
       await access(executable);
       const extensionless = path.join(root, "npm", "devcanon");
       await access(extensionless);
+      await access(powerShellLauncher);
       const resolver = path.resolve(
         "skills/devcanon-runtime/scripts/resolve-bash.mjs",
       );
@@ -215,6 +222,11 @@ describe.runIf(process.platform === "win32")("setup:cli", () => {
         env,
         shell: commandShell,
       });
+      const powerShellVersion = await execFileAsync(
+        "powershell.exe",
+        ["-NoProfile", "-NonInteractive", "-Command", "devcanon --version"],
+        { env },
+      );
       const help = await execAsync(`"${executable}" --help`, {
         env,
         shell: commandShell,
@@ -227,6 +239,7 @@ describe.runIf(process.platform === "win32")("setup:cli", () => {
       );
 
       expect(version.stdout.trim()).toBe("2.0.0");
+      expect(powerShellVersion.stdout.trim()).toBe("2.0.0");
       expect(shimVersion.stdout.trim()).toBe("2.0.0");
       expect(help.stdout).toContain("Usage: devcanon");
       expect(JSON.parse(catalog.stdout)).toMatchObject({

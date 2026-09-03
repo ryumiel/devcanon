@@ -119,6 +119,27 @@ describe("devcanon-runtime rendering", () => {
     expect(second.contentHash).not.toBe(first.contentHash);
   });
 
+  it("hashes the canonical shell bytes that rendering will materialize", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    const shell = path.join(runtimeDir, "scripts", "devcanon-runtime.sh");
+    const original = await readFile(shell);
+    const originalHash = await hashDevcanonRuntimePayload(runtimeDir, config);
+    const crlf = Buffer.from(
+      original.toString("utf8").replaceAll("\n", "\r\n"),
+      "utf8",
+    );
+    await writeFile(shell, crlf);
+
+    const crlfHash = await hashDevcanonRuntimePayload(runtimeDir, config);
+    const target = path.join(tempDir, "canonical-shell-runtime");
+    await writeRenderedDevcanonRuntime(runtimeDir, target, config);
+
+    expect(crlfHash).toBe(originalHash);
+    await expect(
+      readFile(path.join(target, "scripts", "devcanon-runtime.sh")),
+    ).resolves.toEqual(original);
+  });
+
   it.skipIf(process.platform === "win32")(
     "does not hash source catalog mode that rendered materialization does not preserve",
     async () => {
@@ -353,6 +374,43 @@ describe("devcanon-runtime rendering", () => {
     ).toEqual([]);
   });
 
+  it("reports subtree backup cleanup failure after publishing outside the skill collection", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    const validated = await validateDevcanonRuntime(runtimeDir, {
+      adapterSourceDir: path.resolve("skills/devcanon-runtime"),
+    });
+    const runtime = path.join(runtimeDir, "scripts", "runtime");
+    const provider = await providerFromValidated(runtime, validated);
+    const scratchParent = path.dirname(config.library.skillsDir);
+
+    await expect(
+      withDevcanonRuntimePublicationFaultsForTesting(
+        (stage) => {
+          if (stage === "replace-cleanup") {
+            throw new Error("forced subtree cleanup failure");
+          }
+        },
+        () => reconcileDevcanonRuntimeSubtree(runtimeDir, provider),
+      ),
+    ).rejects.toThrow(
+      /runtime directory published successfully, but cleanup failed; retained operation backup at .*forced subtree cleanup failure/i,
+    );
+
+    await expect(readdir(runtime)).resolves.toEqual([
+      "THIRD_PARTY_LICENSES",
+      "devcanon-runtime.mjs",
+      "runtime-manifest.json",
+    ]);
+    await expect(readdir(config.library.skillsDir)).resolves.toEqual([
+      "devcanon-runtime",
+    ]);
+    expect(
+      (await readdir(scratchParent)).filter((entry) =>
+        entry.startsWith(".devcanon-runtime-operation-"),
+      ),
+    ).toHaveLength(1);
+  });
+
   it("restores a pristine legacy pair after an absent-runtime publication race and retries cleanly", async () => {
     const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
     const scripts = path.join(runtimeDir, "scripts");
@@ -437,6 +495,43 @@ describe("devcanon-runtime rendering", () => {
       "devcanon-runtime.mjs",
       "runtime-manifest.json",
     ]);
+  });
+
+  it("reports source backup cleanup failure after publishing outside the skill collection", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    const validated = await validateDevcanonRuntime(runtimeDir, {
+      adapterSourceDir: path.resolve("skills/devcanon-runtime"),
+    });
+    const runtime = path.join(runtimeDir, "scripts", "runtime");
+    const provider = await providerFromValidated(runtime, validated);
+    const scratchParent = path.dirname(config.library.skillsDir);
+
+    await expect(
+      withDevcanonRuntimePublicationFaultsForTesting(
+        (stage) => {
+          if (stage === "source-cleanup") {
+            throw new Error("forced source cleanup failure");
+          }
+        },
+        () => reconcileDevcanonRuntimeSource(runtimeDir, provider, validated),
+      ),
+    ).rejects.toThrow(
+      /runtime source published successfully, but cleanup failed; retained operation backup at .*forced source cleanup failure/i,
+    );
+
+    await expect(readdir(config.library.skillsDir)).resolves.toEqual([
+      "devcanon-runtime",
+    ]);
+    expect(
+      (await readdir(scratchParent)).filter((entry) =>
+        entry.startsWith(".devcanon-runtime-operation-"),
+      ),
+    ).toHaveLength(1);
+    await expect(
+      validateDevcanonRuntime(runtimeDir, {
+        adapterSourceDir: path.resolve("skills/devcanon-runtime"),
+      }),
+    ).resolves.toBeDefined();
   });
 
   it("rejects source adapter byte drift after validation without publishing", async () => {
