@@ -88,6 +88,8 @@ export interface ValidatedDevcanonRuntime {
   readonly runtimeIdentity: string;
   /** Captured authority retained separately from the candidate-state result. */
   readonly authoritativeAdapterPair: RuntimeAdapterPair;
+  /** Candidate/source pair observed during validation for commit-boundary checks. */
+  readonly sourceAdapterPair: RuntimeAdapterPair;
   readonly adapterPair: RuntimeAdapterPair;
   /** Candidate state. A compose-time legacy candidate still publishes current bytes. */
   readonly adapterState: "current" | "pristine-legacy";
@@ -109,6 +111,7 @@ export interface ValidatedDevcanonRuntime {
 class RuntimeCompositionSnapshot implements ValidatedDevcanonRuntime {
   readonly #adapterPair: RuntimeAdapterPair;
   readonly #authoritativeAdapterPair: RuntimeAdapterPair;
+  readonly #sourceAdapterPair: RuntimeAdapterPair;
   readonly #providerLeaves: ReadonlyMap<string, Buffer>;
   readonly runtimeDir: string;
   readonly runtimeIdentity: string;
@@ -125,6 +128,7 @@ class RuntimeCompositionSnapshot implements ValidatedDevcanonRuntime {
     runtimeIdentity: string;
     adapterPair: RuntimeAdapterPair;
     authoritativeAdapterPair: RuntimeAdapterPair;
+    sourceAdapterPair: RuntimeAdapterPair;
     adapterState: "current" | "pristine-legacy";
     sourceDisposition:
       | "current"
@@ -138,6 +142,7 @@ class RuntimeCompositionSnapshot implements ValidatedDevcanonRuntime {
     this.#authoritativeAdapterPair = copyAdapterPair(
       input.authoritativeAdapterPair,
     );
+    this.#sourceAdapterPair = copyAdapterPair(input.sourceAdapterPair);
     this.#providerLeaves = copyProviderLeaves(input.providerLeaves);
     this.adapterState = input.adapterState;
     this.sourceDisposition = input.sourceDisposition;
@@ -151,6 +156,10 @@ class RuntimeCompositionSnapshot implements ValidatedDevcanonRuntime {
 
   get authoritativeAdapterPair(): RuntimeAdapterPair {
     return copyAdapterPair(this.#authoritativeAdapterPair);
+  }
+
+  get sourceAdapterPair(): RuntimeAdapterPair {
+    return copyAdapterPair(this.#sourceAdapterPair);
   }
 
   get providerLeaves(): ReadonlyMap<string, Buffer> {
@@ -211,6 +220,9 @@ export async function validateDevcanonRuntime(
   );
   if (adapterState !== "current" && adapterState !== "pristine-legacy")
     throw adapterAdoptionError(runtimeDir, adapterState);
+  if (typeof candidate === "string") {
+    throw adapterAdoptionError(runtimeDir, candidate);
+  }
   if (adapterState === "pristine-legacy" && options.operation !== "compose") {
     throw renderMigrationError(runtimeDir);
   }
@@ -269,6 +281,7 @@ export async function validateDevcanonRuntime(
     // input. The immutable composition snapshot always owns current bytes.
     adapterPair: currentPair,
     authoritativeAdapterPair: currentPair,
+    sourceAdapterPair: candidate,
     adapterState,
     sourceDisposition:
       adapterState === "pristine-legacy"

@@ -3,6 +3,7 @@ import {
   mkdir,
   readFile,
   readdir,
+  rm,
   stat,
   writeFile,
 } from "node:fs/promises";
@@ -19,7 +20,9 @@ import { ImmutableProviderBytes } from "../runtime-build/provider.js";
 import { validateDevcanonRuntime } from "../validate/devcanon-runtime.js";
 import {
   hashDevcanonRuntimePayload,
+  reconcileDevcanonRuntimeSubtree,
   renderDevcanonRuntimeForTarget,
+  withDevcanonRuntimePublicationFaultsForTesting,
 } from "./devcanon-runtime.js";
 import { reconcileDevcanonRuntimeSource } from "./devcanon-runtime.js";
 import { writeRenderedDevcanonRuntime } from "./devcanon-runtime.js";
@@ -317,6 +320,91 @@ describe("devcanon-runtime rendering", () => {
     ).resolves.toBe(modifiedShell);
   });
 
+  it("preserves a concurrently created destination when absent-subtree publication loses a race", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    const validated = await validateDevcanonRuntime(runtimeDir, {
+      adapterSourceDir: path.resolve("skills/devcanon-runtime"),
+    });
+    const runtime = path.join(runtimeDir, "scripts", "runtime");
+    const provider = await providerFromValidated(runtime, validated);
+    await rm(runtime, { recursive: true });
+    const concurrentMarker = path.join(runtime, "concurrent.txt");
+
+    await expect(
+      withDevcanonRuntimePublicationFaultsForTesting(
+        async (stage) => {
+          if (stage !== "replace-before-publish") return;
+          await mkdir(runtime);
+          await writeFile(concurrentMarker, "preserve\n");
+        },
+        () => reconcileDevcanonRuntimeSubtree(runtimeDir, provider),
+      ),
+    ).rejects.toThrow();
+
+    await expect(readFile(concurrentMarker, "utf8")).resolves.toBe(
+      "preserve\n",
+    );
+    expect(
+      (await readdir(path.join(runtimeDir, "scripts"))).filter(
+        (entry) =>
+          entry.startsWith(".runtime-stage-") ||
+          entry.startsWith(".devcanon-runtime-operation-"),
+      ),
+    ).toEqual([]);
+  });
+
+  it("rejects source adapter byte drift after validation without publishing", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    const validated = await validateDevcanonRuntime(runtimeDir, {
+      adapterSourceDir: path.resolve("skills/devcanon-runtime"),
+    });
+    const runtime = path.join(runtimeDir, "scripts", "runtime");
+    const provider = await providerFromValidated(runtime, validated);
+    const shell = path.join(runtimeDir, "scripts", "devcanon-runtime.sh");
+    const resolver = path.join(runtimeDir, "scripts", "resolve-bash.mjs");
+    const runtimeLicense = path.join(runtime, "THIRD_PARTY_LICENSES");
+    const changedShell = Buffer.from("#!/usr/bin/env bash\nexit 27\n");
+    const resolverBefore = await readFile(resolver);
+    const runtimeBefore = await readFile(runtimeLicense);
+    await writeFile(shell, changedShell);
+
+    await expect(
+      reconcileDevcanonRuntimeSource(runtimeDir, provider, validated),
+    ).rejects.toThrow(/changed after validation/i);
+
+    await expect(readFile(shell)).resolves.toEqual(changedShell);
+    await expect(readFile(resolver)).resolves.toEqual(resolverBefore);
+    await expect(readFile(runtimeLicense)).resolves.toEqual(runtimeBefore);
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "rejects valid source adapter mode drift after validation without publishing",
+    async () => {
+      const runtimeDir = path.join(
+        config.library.skillsDir,
+        "devcanon-runtime",
+      );
+      const validated = await validateDevcanonRuntime(runtimeDir, {
+        adapterSourceDir: path.resolve("skills/devcanon-runtime"),
+      });
+      const runtime = path.join(runtimeDir, "scripts", "runtime");
+      const provider = await providerFromValidated(runtime, validated);
+      const shell = path.join(runtimeDir, "scripts", "devcanon-runtime.sh");
+      const resolver = path.join(runtimeDir, "scripts", "resolve-bash.mjs");
+      const changedMode = validated.sourceAdapterPair.shellMode ^ 0o020;
+      await chmod(shell, changedMode);
+
+      await expect(
+        reconcileDevcanonRuntimeSource(runtimeDir, provider, validated),
+      ).rejects.toThrow(/changed after validation/i);
+
+      expect((await stat(shell)).mode & 0o777).toBe(changedMode);
+      await expect(readFile(resolver)).resolves.toEqual(
+        validated.sourceAdapterPair.resolver,
+      );
+    },
+  );
+
   it("stages a launchable pair and subtree without replacing unrelated scripts", async () => {
     const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
     const validated = await validateDevcanonRuntime(runtimeDir, {
@@ -489,6 +577,7 @@ function forgedSnapshot(
     runtimeDir: validated.runtimeDir,
     runtimeIdentity: validated.runtimeIdentity,
     adapterPair: overrides.adapterPair ?? validated.adapterPair,
+    sourceAdapterPair: validated.sourceAdapterPair,
     authoritativeAdapterPair:
       overrides.authoritativeAdapterPair ?? validated.authoritativeAdapterPair,
     adapterState: validated.adapterState,

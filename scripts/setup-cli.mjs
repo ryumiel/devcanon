@@ -24,7 +24,7 @@ if (isWindows) {
   );
   await writeFile(
     path.join(globalBin, "devcanon.cmd"),
-    `@echo off\r\nnode "${launcher}" %*\r\n`,
+    `@echo off\r\nnode "${escapeWindowsBatchLiteral(launcher)}" %*\r\n`,
     "utf8",
   );
 } else {
@@ -39,6 +39,10 @@ if (isWindows) {
 
 function quotePosixShellLiteral(value) {
   return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
+
+function escapeWindowsBatchLiteral(value) {
+  return value.replaceAll("%", "%%");
 }
 
 function run(command, args, cwd, capture = false) {

@@ -35,6 +35,35 @@ const PROVIDER_LEAVES = [
   "THIRD_PARTY_LICENSES",
 ] as const;
 
+type RuntimePublicationFaultStage = "replace-before-publish";
+type RuntimePublicationFaultInjector = (
+  stage: RuntimePublicationFaultStage,
+) => void | Promise<void>;
+let runtimePublicationFaultInjector:
+  | RuntimePublicationFaultInjector
+  | undefined;
+
+/** @internal Scoped, test-only deterministic runtime publication fault seam. */
+export async function withDevcanonRuntimePublicationFaultsForTesting<T>(
+  injector: RuntimePublicationFaultInjector,
+  callback: () => Promise<T>,
+): Promise<T> {
+  if (process.env.NODE_ENV !== "test") {
+    throw new Error("Runtime publication fault injection is test-only");
+  }
+  if (runtimePublicationFaultInjector !== undefined) {
+    throw new Error(
+      "Runtime publication fault injection does not support nesting",
+    );
+  }
+  runtimePublicationFaultInjector = injector;
+  try {
+    return await callback();
+  } finally {
+    runtimePublicationFaultInjector = undefined;
+  }
+}
+
 export interface RuntimeCompositionOptions {
   readonly provider?: AcceptedProvider;
   readonly adapterPair?: RuntimeAdapterPair;
@@ -172,11 +201,14 @@ export async function reconcileDevcanonRuntimeSource(
   validatedRuntime: ValidatedDevcanonRuntime,
 ): Promise<void> {
   await assertSnapshotRuntimeDir(runtimeDir, validatedRuntime);
-  const adapterPair = validatedRuntime.adapterPair;
-  if (!sameAdapterPair(adapterPair, validatedRuntime.authoritativeAdapterPair))
+  const publicationPair = validatedRuntime.adapterPair;
+  if (
+    !sameAdapterPair(publicationPair, validatedRuntime.authoritativeAdapterPair)
+  )
     throw new Error(
       "source reconciliation adapter pair does not match the authoritative validated snapshot",
     );
+  const observedSourcePair = validatedRuntime.sourceAdapterPair;
   const destination = path.join(runtimeDir, "scripts");
   const stage = await mkdtemp(
     path.join(path.dirname(destination), ".runtime-source-stage-"),
@@ -184,25 +216,28 @@ export async function reconcileDevcanonRuntimeSource(
   try {
     await writeFile(
       path.join(stage, "devcanon-runtime.sh"),
-      normalizePackagedShellBytes(RUNTIME_ENTRYPOINT, adapterPair.shell),
+      normalizePackagedShellBytes(RUNTIME_ENTRYPOINT, publicationPair.shell),
     );
     if (process.platform !== "win32")
       await chmod(
         path.join(stage, "devcanon-runtime.sh"),
-        adapterPair.shellMode,
+        publicationPair.shellMode,
       );
-    await writeFile(path.join(stage, "resolve-bash.mjs"), adapterPair.resolver);
+    await writeFile(
+      path.join(stage, "resolve-bash.mjs"),
+      publicationPair.resolver,
+    );
     if (process.platform !== "win32")
       await chmod(
         path.join(stage, "resolve-bash.mjs"),
-        adapterPair.resolverMode,
+        publicationPair.resolverMode,
       );
     await writeProviderLeaves(
       path.join(stage, "runtime"),
       providerLeaves(provider),
     );
     await assertStagedRuntime(stage);
-    await publishStagedSourceParts(stage, destination);
+    await publishStagedSourceParts(stage, destination, observedSourcePair);
   } catch (error) {
     await rm(stage, { recursive: true, force: true });
     throw error;
@@ -212,6 +247,7 @@ export async function reconcileDevcanonRuntimeSource(
 async function publishStagedSourceParts(
   stage: string,
   destination: string,
+  observedSourcePair: RuntimeAdapterPair,
 ): Promise<void> {
   const owned = ["devcanon-runtime.sh", "resolve-bash.mjs", "runtime"] as const;
   const backups = new Map<string, string>();
@@ -220,6 +256,17 @@ async function publishStagedSourceParts(
   );
   let published = false;
   try {
+    const liveSourcePair = await readAdapterPair(
+      path.dirname(destination),
+    ).catch(() => undefined);
+    if (
+      liveSourcePair === undefined ||
+      !sameAdapterPair(liveSourcePair, observedSourcePair)
+    ) {
+      throw new Error(
+        "runtime source adapters changed after validation; rerun the operation",
+      );
+    }
     for (const leaf of owned) {
       const target = path.join(destination, leaf);
       const backup = path.join(backupRoot, leaf);
@@ -445,10 +492,13 @@ async function replaceDirectory(
   let priorMoved = false;
   let published = false;
   try {
-    await rename(destination, backup).catch((error: NodeJS.ErrnoException) => {
-      if (error.code !== "ENOENT") throw error;
-    });
-    priorMoved = true;
+    try {
+      await rename(destination, backup);
+      priorMoved = true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    await runtimePublicationFaultInjector?.("replace-before-publish");
     await rename(stage, destination);
     published = true;
     await rm(backupRoot, { recursive: true, force: true }).catch(

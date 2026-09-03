@@ -238,4 +238,67 @@ describe.runIf(process.platform === "win32")("setup:cli", () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it("preserves percent signs in the checkout path of the generated batch launcher", async () => {
+    const root = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-setup-percent-"),
+    );
+    const checkout = path.join(root, "checkout-%DEVCANON_TEST_EXPANSION%");
+    const fakeBin = path.join(root, "fake-bin");
+    const globalBin = path.join(root, "global-bin");
+
+    try {
+      await mkdir(path.join(checkout, "scripts"), { recursive: true });
+      await mkdir(path.join(checkout, "dist", "cli"), { recursive: true });
+      await mkdir(fakeBin);
+      await cp(
+        path.resolve("scripts/setup-cli.mjs"),
+        path.join(checkout, "scripts", "setup-cli.mjs"),
+      );
+      await symlink(
+        path.resolve("node_modules"),
+        path.join(checkout, "node_modules"),
+        "junction",
+      );
+      const launcher = path.join(checkout, "dist", "cli", "source.js");
+      await writeFile(
+        launcher,
+        "process.stdout.write(JSON.stringify({ launcher: process.argv[1], args: process.argv.slice(2) }));\n",
+      );
+      await writeFile(
+        path.join(fakeBin, "npm.cmd"),
+        '@echo off\r\nif "%1"=="prefix" if "%2"=="--global" echo %DEVCANON_TEST_GLOBAL_BIN%\r\nexit /b 0\r\n',
+      );
+
+      const inheritedPath = process.env.PATH;
+      if (!inheritedPath) throw new Error("PATH is required to execute npm");
+      const env = {
+        ...process.env,
+        DEVCANON_TEST_EXPANSION: "expanded",
+        DEVCANON_TEST_GLOBAL_BIN: globalBin,
+        PATH: `${fakeBin}${path.delimiter}${inheritedPath}`,
+      };
+      await execFileAsync(process.execPath, ["scripts/setup-cli.mjs"], {
+        cwd: checkout,
+        env,
+      });
+
+      const executable = path.join(globalBin, "devcanon.cmd");
+      const { stdout } = await execAsync(
+        `"${executable}" "argument with spaces"`,
+        {
+          env,
+          shell: process.env.ComSpec ?? "cmd.exe",
+        },
+      );
+      const invoked = JSON.parse(stdout) as {
+        launcher: string;
+        args: string[];
+      };
+      expect(await realpath(invoked.launcher)).toBe(await realpath(launcher));
+      expect(invoked.args).toEqual(["argument with spaces"]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

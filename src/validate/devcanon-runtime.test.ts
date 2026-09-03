@@ -214,6 +214,7 @@ describe("devcanon-runtime source validation", () => {
     ).resolves.toMatchObject({
       adapterState: "pristine-legacy",
       adapterPair: { shell: currentShell, resolver: currentResolver },
+      sourceAdapterPair: legacy,
     });
   });
 

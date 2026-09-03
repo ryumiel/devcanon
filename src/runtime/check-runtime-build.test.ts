@@ -72,6 +72,9 @@ describe("runtime build checker", () => {
     expect(packageJson.scripts?.["test:coverage"]).toBe(
       "pnpm run test:prepare-runtime && vitest run --coverage",
     );
+    expect(packageJson.scripts?.["test:unit:windows"]).toBe(
+      "pnpm run test:prepare-runtime && vitest run --project unit --no-file-parallelism",
+    );
   });
 
   it("verifies the derived three-leaf source sibling without a node_modules closure", async () => {
