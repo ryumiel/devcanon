@@ -7,7 +7,10 @@ import type {
   ResolvedConfig,
 } from "../config/schema.js";
 import type { PlanAction, SyncOptions } from "../models/types.js";
-import { reconcileDevcanonRuntimeSource } from "../render/devcanon-runtime.js";
+import {
+  reconcileDevcanonRuntimeSource,
+  reconcileDevcanonRuntimeSubtree,
+} from "../render/devcanon-runtime.js";
 import {
   type RenderMutation,
   preflightGeneratedRender,
@@ -276,11 +279,15 @@ export async function sync(
 
   try {
     if (acceptedProvider && validatedRuntime.sourceDisposition !== "current") {
-      await reconcileDevcanonRuntimeSource(
-        runtimeDir,
-        acceptedProvider,
-        validatedRuntime,
-      );
+      if (validatedRuntime.sourceDisposition === "repair-runtime") {
+        await reconcileDevcanonRuntimeSubtree(runtimeDir, acceptedProvider);
+      } else {
+        await reconcileDevcanonRuntimeSource(
+          runtimeDir,
+          acceptedProvider,
+          validatedRuntime,
+        );
+      }
       validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
         provider: acceptedProvider,
       });

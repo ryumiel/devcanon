@@ -27,9 +27,12 @@ import {
   type TestLoggerResult,
   installTestLogger,
 } from "../__test-helpers__/logger.js";
+import type { ResolvedConfig } from "../config/schema.js";
+import { hashDevcanonRuntimeComposition } from "../render/devcanon-runtime.js";
 import { buildSkillContentHash } from "../render/skill.js";
 import { UserError } from "../utils/errors.js";
 import { pathExists } from "../utils/fs.js";
+import { hashLegacyDevcanonRuntimePayload } from "./identity.js";
 import {
   inspectManifest,
   recoverInvalidManifest,
@@ -55,6 +58,111 @@ vi.mock("../validate/devcanon-runtime.js", async (importOriginal) => {
       ),
   };
 });
+
+async function hashCurrentRuntimeFixture(
+  installedPath: string,
+): Promise<string> {
+  const shellPath = path.join(installedPath, "scripts", "devcanon-runtime.sh");
+  const resolverPath = path.join(installedPath, "scripts", "resolve-bash.mjs");
+  const [shell, resolver, shellStat, resolverStat, catalog] = await Promise.all(
+    [
+      readFile(shellPath),
+      readFile(resolverPath),
+      lstat(shellPath),
+      lstat(resolverPath),
+      readFile(path.join(installedPath, "config", "runtime-config.json")),
+    ],
+  );
+  const providerLeaves = new Map<string, Buffer>();
+  for (const leaf of [
+    "devcanon-runtime.mjs",
+    "runtime-manifest.json",
+    "THIRD_PARTY_LICENSES",
+  ]) {
+    providerLeaves.set(
+      leaf,
+      await readFile(path.join(installedPath, "scripts", "runtime", leaf)),
+    );
+  }
+  return hashDevcanonRuntimeComposition({
+    adapterPair: {
+      shell,
+      resolver,
+      shellMode: process.platform === "win32" ? 0 : shellStat.mode & 0o777,
+      resolverMode:
+        process.platform === "win32" ? 0 : resolverStat.mode & 0o777,
+    },
+    catalog,
+    providerLeaves,
+  });
+}
+
+const LEGACY_RUNTIME_FILES = [
+  "artifacts.js",
+  "bash.js",
+  "bootstrap-cli.js",
+  "bootstrap.js",
+  "cleanup-git.js",
+  "cli.js",
+  "command.js",
+  "git-diff-parser.js",
+  "git-workspace-cleanup.js",
+  "git.js",
+  "index.js",
+  "issue-worktree-setup.js",
+  "issue-priming.js",
+  "paths.js",
+  "play-review-shared-context.js",
+  "planning-projection.js",
+  "pr-merge-worktree.js",
+  "pr-review-leases.js",
+  "pr-review-manifests.js",
+  "pr-review-result-validation.js",
+  "review-artifacts.js",
+  "runtime-config.js",
+  "schema.js",
+  "source-immutability.js",
+] as const;
+
+async function createLegacyRuntimeFixture(
+  installedPath: string,
+  config: ResolvedConfig,
+): Promise<void> {
+  const runtime = path.join(installedPath, "scripts", "runtime");
+  await mkdir(path.join(installedPath, "config"), { recursive: true });
+  await mkdir(path.join(runtime, "node_modules", "fixture"), {
+    recursive: true,
+  });
+  await writeFile(
+    path.join(installedPath, "config", "runtime-config.json"),
+    `${JSON.stringify(
+      {
+        schema: "devcanon/runtime-config/v1",
+        capabilityProfiles: config.capabilityProfiles,
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+  const shell = path.join(installedPath, "scripts", "devcanon-runtime.sh");
+  await writeFile(shell, "#!/usr/bin/env bash\nexit 0\n", "utf8");
+  if (process.platform !== "win32") await chmod(shell, 0o755);
+  await writeFile(
+    path.join(installedPath, "scripts", "resolve-bash.mjs"),
+    "console.log('/bin/bash');\n",
+    "utf8",
+  );
+  await writeFile(path.join(runtime, "package.json"), "{}\n", "utf8");
+  for (const leaf of LEGACY_RUNTIME_FILES) {
+    await writeFile(path.join(runtime, leaf), `// ${leaf}\n`, "utf8");
+  }
+  await writeFile(
+    path.join(runtime, "node_modules", "fixture", "index.js"),
+    "export {};\n",
+    "utf8",
+  );
+}
 
 describe("uninstall", () => {
   let tempDir: string;
@@ -1910,6 +2018,118 @@ describe("uninstall", () => {
         }),
       ]),
     );
+  });
+
+  it("uninstalls a current runtime copy without consulting current config, source, or adapter authority", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    await sync(config, { dryRun: false, force: false, strict: false });
+    const installedPath = path.join(
+      config.targets.claude.skillsHome,
+      "devcanon-runtime",
+    );
+    const shell = path.join(installedPath, "scripts", "devcanon-runtime.sh");
+    const resolver = path.join(installedPath, "scripts", "resolve-bash.mjs");
+    await writeFile(shell, "#!/usr/bin/env bash\nexit 0\n", "utf8");
+    await writeFile(resolver, "console.log('/historical/bash');\n", "utf8");
+    if (process.platform !== "win32") await chmod(shell, 0o700);
+
+    const manifest = JSON.parse(await readFile(config.manifest.path, "utf8"));
+    const record = manifest.records.find(
+      (candidate: { name?: string; target: string }) =>
+        candidate.name === "devcanon-runtime" && candidate.target === "claude",
+    );
+    record.contentHash = await hashCurrentRuntimeFixture(installedPath);
+    await writeFile(
+      config.manifest.path,
+      `${JSON.stringify(manifest, null, 2)}\n`,
+      "utf8",
+    );
+    config.capabilityProfiles = {
+      ...config.capabilityProfiles,
+      balanced: {
+        ...config.capabilityProfiles.balanced,
+        codex: "different-current-intent",
+      },
+    };
+    await rm(config.library.skillsDir, { recursive: true, force: true });
+    await rm(config.library.generatedDir, { recursive: true, force: true });
+
+    const result = await uninstall(config, {
+      target: "claude",
+      dryRun: false,
+    });
+
+    expect(result).toMatchObject({ removed: 1, errors: [] });
+    expect(await pathExists(installedPath)).toBe(false);
+  });
+
+  it("keeps a tampered current runtime copy during uninstall", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    await sync(config, { dryRun: false, force: false, strict: false });
+    const installedPath = path.join(
+      config.targets.claude.skillsHome,
+      "devcanon-runtime",
+    );
+    await writeFile(
+      path.join(installedPath, "scripts", "runtime", "THIRD_PARTY_LICENSES"),
+      "tampered licenses\n",
+      "utf8",
+    );
+
+    const result = await uninstall(config, {
+      target: "claude",
+      dryRun: false,
+    });
+
+    expect(result.removed).toBe(0);
+    expect(result.errors).toEqual([
+      expect.stringContaining("installed copy content hash mismatch"),
+    ]);
+    expect(await pathExists(installedPath)).toBe(true);
+  });
+
+  it("uninstalls an exact pre-provider runtime tree using its recorded legacy hash", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const installedPath = path.join(
+      config.targets.claude.skillsHome,
+      "devcanon-runtime",
+    );
+    await createLegacyRuntimeFixture(installedPath, config);
+    const contentHash = await hashLegacyDevcanonRuntimePayload(installedPath);
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(
+      config.manifest.path,
+      makeManifestJson(
+        [
+          {
+            name: "devcanon-runtime",
+            target: "claude",
+            type: "skill",
+            sourcePath: path.join(config.library.skillsDir, "devcanon-runtime"),
+            generatedPath: path.join(
+              config.library.generatedDir,
+              "claude",
+              "skills",
+              "devcanon-runtime",
+            ),
+            installedPath,
+            installMode: "copy",
+            contentHash,
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        { config },
+      ),
+      "utf8",
+    );
+
+    const result = await uninstall(config, {
+      target: "claude",
+      dryRun: false,
+    });
+
+    expect(result).toMatchObject({ removed: 1, errors: [] });
+    expect(await pathExists(installedPath)).toBe(false);
   });
 
   it("skips uninstall removal when copied skill directory content no longer matches the manifest", async () => {

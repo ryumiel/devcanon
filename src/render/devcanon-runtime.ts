@@ -77,7 +77,6 @@ export async function hashDevcanonRuntimePayload(
   validatedRuntime?: ValidatedDevcanonRuntime,
 ): Promise<string> {
   const validated = validatedRuntime;
-  const hash = createHash("sha256");
   const adapterPair =
     validated?.adapterPair ?? (await readAdapterPair(runtimeDir));
   const leaves =
@@ -92,16 +91,44 @@ export async function hashDevcanonRuntimePayload(
       ? 0
       : (validated?.adapterPair?.resolverMode ??
         (await lstat(path.join(runtimeDir, RUNTIME_BASH_RESOLVER))).mode);
-  hashField(hash, "file", RUNTIME_ENTRYPOINT, String(shellMode));
+  return hashDevcanonRuntimeComposition({
+    adapterPair: {
+      ...adapterPair,
+      shellMode: shellMode & 0o777,
+      resolverMode: resolverMode & 0o777,
+    },
+    catalog: renderedRuntimeCatalog(config),
+    providerLeaves: leaves,
+  });
+}
+
+export interface DevcanonRuntimeCompositionHashInput {
+  readonly adapterPair: RuntimeAdapterPair;
+  readonly catalog: Buffer;
+  readonly providerLeaves: ReadonlyMap<string, Buffer>;
+}
+
+/** Hashes one exact six-file composition without consulting prospective config. */
+export function hashDevcanonRuntimeComposition({
+  adapterPair,
+  catalog,
+  providerLeaves,
+}: DevcanonRuntimeCompositionHashInput): string {
+  const hash = createHash("sha256");
+  hashField(hash, "file", RUNTIME_ENTRYPOINT, String(adapterPair.shellMode));
   hashField(
     hash,
     "bytes",
     RUNTIME_ENTRYPOINT,
     normalizePackagedShellBytes(RUNTIME_ENTRYPOINT, adapterPair.shell),
   );
-  hashField(hash, "file", RUNTIME_BASH_RESOLVER, String(resolverMode));
+  hashField(
+    hash,
+    "file",
+    RUNTIME_BASH_RESOLVER,
+    String(adapterPair.resolverMode),
+  );
   hashField(hash, "bytes", RUNTIME_BASH_RESOLVER, adapterPair.resolver);
-  const catalog = renderedRuntimeCatalog(config);
   hashField(hash, "file", "config/runtime-config.json", "0");
   hashField(hash, "bytes", "config/runtime-config.json", catalog);
   for (const leaf of PROVIDER_LEAVES) {
@@ -110,7 +137,7 @@ export async function hashDevcanonRuntimePayload(
       hash,
       "bytes",
       path.posix.join(RUNTIME_JS_DIR, leaf),
-      leaves.get(leaf) ?? Buffer.alloc(0),
+      providerLeaves.get(leaf) ?? Buffer.alloc(0),
     );
   }
   return hash.digest("hex");

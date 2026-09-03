@@ -1,5 +1,8 @@
 import { loadConfig } from "../../config/load.js";
-import { reconcileDevcanonRuntimeSource } from "../../render/devcanon-runtime.js";
+import {
+  reconcileDevcanonRuntimeSource,
+  reconcileDevcanonRuntimeSubtree,
+} from "../../render/devcanon-runtime.js";
 import {
   preflightGeneratedRender,
   renderAllWithValidatedRuntime,
@@ -53,11 +56,15 @@ export async function renderAction(
   );
   await preflightGeneratedRender(config, projection);
   if (provider && validatedRuntime.sourceDisposition !== "current") {
-    await reconcileDevcanonRuntimeSource(
-      runtimeDir,
-      provider,
-      validatedRuntime,
-    );
+    if (validatedRuntime.sourceDisposition === "repair-runtime") {
+      await reconcileDevcanonRuntimeSubtree(runtimeDir, provider);
+    } else {
+      await reconcileDevcanonRuntimeSource(
+        runtimeDir,
+        provider,
+        validatedRuntime,
+      );
+    }
     validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
       adapterSourceDir: bundledDevcanonRuntimeDir(),
       provider,

@@ -93,8 +93,7 @@ as a fallback.
 
 ### Runtime artifact-provider selection
 
-This section defines required target behavior whose implementation is deferred.
-It does not describe the current fixed-bundle implementation.
+This section defines the current provider-selection behavior.
 
 Source-configuration selection and runtime artifact selection are separate
 inputs. The target common CLI receives exactly one explicit internal runtime
@@ -127,10 +126,9 @@ directory, or an ambient configuration file. See
 [ADR-0035](../adr/adr-0035-installed-runtime-configuration-discovery.md) for
 the decision rationale and alternatives.
 
-The current implementation validates and transports its fixed passive-runtime
-tree without `SKILL.md` or a Codex invocation sidecar. The required deferred
-provider behavior instead validates the composed tree selected by the explicit
-provider. Under both forms, a scripts-only runtime is invalid and is neither
+The current implementation validates and transports the composed passive-runtime
+tree selected by the explicit provider without `SKILL.md` or a Codex invocation
+sidecar. A scripts-only runtime is invalid and is neither
 upgraded nor given installation, sync, identity, or uninstall compatibility
 guarantees. The runtime catalog is transport data for the generated or
 installed runtime, not a second authoritative user-configuration file. This

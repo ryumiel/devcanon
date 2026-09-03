@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import {
+  chmod,
   cp,
   lstat,
   mkdir,
@@ -869,7 +870,17 @@ describe("sync", () => {
         "devcanon-runtime",
       );
       const derived = path.join(runtimeDir, "scripts", "runtime");
+      const shell = path.join(runtimeDir, "scripts", "devcanon-runtime.sh");
+      const resolver = path.join(runtimeDir, "scripts", "resolve-bash.mjs");
       const provider = await createDevcanonRuntimeProviderFixture(tempDir);
+      if (process.platform !== "win32") {
+        await chmod(shell, 0o700);
+        await chmod(resolver, 0o600);
+      }
+      const [shellBefore, resolverBefore] = await Promise.all([
+        readFile(shell),
+        readFile(resolver),
+      ]);
       if (state === "absent") {
         await rm(derived, { recursive: true, force: true });
       } else {
@@ -908,8 +919,44 @@ describe("sync", () => {
         "devcanon-runtime.mjs",
         "runtime-manifest.json",
       ]);
+      await expect(readFile(shell)).resolves.toEqual(shellBefore);
+      await expect(readFile(resolver)).resolves.toEqual(resolverBefore);
+      if (process.platform !== "win32") {
+        expect((await stat(shell)).mode & 0o777).toBe(0o700);
+        expect((await stat(resolver)).mode & 0o777).toBe(0o600);
+      }
     },
   );
+
+  it("updates an installed runtime copy after capability-profile intent changes", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const options = { dryRun: false, force: false, strict: false } as const;
+    const first = await sync(config, options);
+    expect(first.errors).toEqual([]);
+    config.capabilityProfiles = {
+      ...config.capabilityProfiles,
+      balanced: {
+        ...config.capabilityProfiles.balanced,
+        codex: "updated-profile-model",
+      },
+    };
+
+    const second = await sync(config, options);
+
+    expect(second.errors).toEqual([]);
+    expect(second.updated).toBe(1);
+    await expect(
+      readFile(
+        path.join(
+          config.targets.claude.skillsHome,
+          "devcanon-runtime",
+          "config",
+          "runtime-config.json",
+        ),
+        "utf8",
+      ),
+    ).resolves.toContain("updated-profile-model");
+  });
 
   it("does not repair the source runtime before prospective output validation succeeds", async () => {
     const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });

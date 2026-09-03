@@ -24,13 +24,13 @@ path as the source library and default configuration root.
 The current setup and its focused integration verification support macOS,
 Linux, and Windows.
 
-Required target behavior, whose implementation is deferred, adds the prebuilt
-runtime provider boundary to this setup. Before registration, `setup:cli` must
+The current setup includes the prebuilt runtime provider boundary. Before
+registration, `setup:cli` must
 build and verify the explicitly selected `source-build` runtime artifact. A
 missing, stale, or corrupt artifact must stop setup before registration and
 direct the operator to `pnpm run build:runtime`.
 
-Under that target behavior, the npm `bin` entrypoint instead injects the
+The npm `bin` entrypoint instead injects the
 `package` provider. The common compiled CLI accepts exactly one explicit
 provider and does not infer it from the checkout, current directory, configured
 path, or another filesystem artifact. A package artifact that cannot pass
@@ -42,11 +42,9 @@ while
 [Configuration](configuration.md#runtime-artifact-provider-selection) owns the
 observable provider-selection boundary.
 
-The target `prepack` behavior is the sole package-production gate: it creates
+The `prepack` behavior is the sole package-production gate: it creates
 and verifies the package provider's prebuilt runtime before `npm pack` collects
-the package. PR-PKG-01 and PR-PKG-02 own its lifecycle and inventory. Build,
-package, provider, and setup integration remain deferred to a separate
-implementation change.
+the package. PR-PKG-01 and PR-PKG-02 own its lifecycle and inventory.
 
 ---
 
@@ -63,10 +61,10 @@ Creates:
 - config file
 - source directories
 - sample skill
-- packaged fixed `skills/devcanon-runtime/` passive runtime bundle
+- provider-backed `skills/devcanon-runtime/` passive runtime composition
 - sample agent
 
-Required composed-runtime behavior, whose implementation is deferred:
+Current composed-runtime behavior:
 
 - fresh `init` performs
   [PR-LIFE-04](passive-runtime.md#lifecycle-and-repair-transitions) and produces
@@ -156,7 +154,7 @@ Scaffold behavior:
 
 ## `validate`
 
-Validate config, the current fixed passive runtime bundle,
+Validate config, the current composed passive runtime,
 declaration-bearing skills, and agents. The passive runtime bundle is not
 included in the source-skill count.
 
@@ -166,7 +164,8 @@ devcanon validate
 
 Current implemented behavior:
 
-- after config validation, the fixed passive runtime is validated separately
+- after config validation, the explicit provider and composed passive runtime
+  are validated separately
   before declaration-bearing source skills and is not included in the
   source-skill count
 - version 1 config fails with a dedicated migration diagnostic; version 2
@@ -193,8 +192,8 @@ Current implemented behavior:
   target-specific path segments in shared prose; configured capability model
   strings are included in the model drift set
 
-Required target behavior, whose implementation is deferred, validates the
-explicit provider and its prebuilt runtime artifact after config validation,
+Validation accepts the explicit provider and its prebuilt runtime artifact
+after config validation,
 then applies PR-ADAPT-01 before remaining passive-runtime validation,
 composition, and declaration-bearing source skills. It remains read-only and
 follows
@@ -203,8 +202,7 @@ derived runtime state fails with `devcanon render` repair guidance. It also
 applies that adapter classification without mutation: a recognized pristine
 legacy pair receives `devcanon render` migration guidance, while mixed, missing,
 modified, or unrecognized adapter state receives the explicit backup, diff,
-and version-matched-pair adoption guidance. Provider and adapter validation
-ordering is not current implemented behavior.
+and version-matched-pair adoption guidance.
 
 For human output, `validate` groups skill warnings into a readable warning
 report after the skill status line. The skill status line includes the number
@@ -244,8 +242,7 @@ enabled target. Without it, `render` processes every enabled target. Only
 `claude` and `codex` are accepted; any other supplied value, including an empty
 string, is an error.
 
-Required target behavior, whose implementation is deferred, makes `render`
-accept and validate the explicit provider artifact before it writes a composed
+`render` accepts and validates the explicit provider artifact before it writes a composed
 passive-runtime tree. Under
 [PR-LIFE-06](passive-runtime.md#lifecycle-and-repair-transitions), `render` is
 also the explicit repair path for missing, stale, or provider-mismatched
@@ -319,8 +316,8 @@ before manual correction or removal. A lock already removed receives no lock
 removal instruction. These ordered secondary actions do not replace the
 primary failure, and every unrecovered result exits 1.
 `sync` first inspects the manifest purely. An invalid `sync --dry-run` retains
-that manifest-error precedence and exits before runtime validation. Under the
-required deferred provider behavior, every other sync accepts and validates the
+that manifest-error precedence and exits before runtime validation. Every other
+sync accepts and validates the
 explicit prebuilt provider artifact and applies PR-ADAPT-01 before non-dry
 recovery, normalization or binding, source/runtime composition, rendering, or
 install mutation. Under PR-LIFE-07 and PR-LIFE-08, dry run previews an eligible
@@ -330,8 +327,7 @@ the subtree through PR-LIFE-11 before transport. Incompatible adapter states
 fail before source or runtime mutation with PR-ADAPT-01's manual guidance.
 Installed `sync` only verifies and transports the prebuilt artifact: it never
 builds it or resolves ambient dependencies. These transitions are owned by the
-[Passive Runtime Contract](passive-runtime.md#lifecycle-and-repair-transitions)
-and are target behavior, not claims about the current implementation.
+[Passive Runtime Contract](passive-runtime.md#lifecycle-and-repair-transitions).
 
 For a non-dry invalid manifest, explicit recovery disposition follows, and only
 recovered-clean state may continue. Sync then
@@ -421,14 +417,12 @@ reported as status summaries.
 
 `diff` performs pure manifest inspection and never recovers or mutates the
 manifest; invalid or residual-lock state fails actionably with exit 1 before
-runtime validation or reporting differences. Under the required deferred
-provider behavior, it then accepts and validates the explicit prebuilt provider
+runtime validation or reporting differences. It then accepts and validates the explicit prebuilt provider
 artifact through its source-driven composed render projection. It remains
 read-only and does not repair invalid derived runtime state; PR-LIFE-09 owns
 that failure and repair guidance. It also applies PR-ADAPT-01 read-only and
 reports render-migration or manual pair-adoption guidance as applicable rather
-than migrating adapters. That provider addition is not current implemented
-behavior.
+than migrating adapters.
 
 ---
 

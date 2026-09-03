@@ -8,7 +8,8 @@ This specification is the sole behavior owner for the passive runtime's
 artifact custody, provider acceptance, composition lifecycle, trusted-bootstrap
 selection boundary, canonical build inputs, attribution ordering, and
 recomposition behavior. The provider-backed behavior in this specification is
-required target behavior whose implementation is deferred.
+current implementation behavior except where a requirement explicitly records
+deferred native-Windows proof.
 
 [ADR-0024](../adr/adr-0024-shared-support-skill-runtime.md) records the
 architectural decisions and rationale. It does not duplicate this observable

@@ -294,8 +294,8 @@ Source files    │
 
 The ordering is intentionally broad: load config -> inspect the manifest
 purely -> an invalid dry `sync` stops with its manifest error before runtime
-validation -> every other `sync` validates the fixed passive runtime support
-bundle -> for eligible non-dry `sync` or `uninstall`, perform explicit invalid
+validation -> every other `sync` accepts its explicit provider and validates the
+composed passive runtime -> for eligible non-dry `sync` or `uninstall`, perform explicit invalid
 state recovery -> normalize and classify accepted identity -> apply ownership
 and foreign-record policy -> reconcile authorized foreign records record-only
 -> partition records and selected outputs into active and passive scope ->

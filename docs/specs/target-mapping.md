@@ -94,10 +94,7 @@ relevant check locally when generated output needs inspection.
 
 Source skill directories with `SKILL.md`, source agent definitions, source
 runtime TypeScript, renderer code, tests, and the install manifest remain
-authoritative for their respective contracts. The passive-runtime classification
-below is required provider-backed target behavior whose implementation is
-deferred. The current tracked fixed payload remains governed by existing
-contributor guidance until that implementation replaces it. Target
+authoritative for their respective contracts. The current provider-backed
 passive-runtime authority is partitioned by the
 [artifact-custody matrix](passive-runtime.md#artifact-custody). For this
 mapping surface, render consumes the accepted provider and the selected source
@@ -106,7 +103,7 @@ composition. That composition is the only runtime tree a symlink installation
 may target; installed copy and symlink outputs remain derived managed
 representations whose identity comes from the manifest and install rules.
 
-Under that deferred provider-backed target behavior, all generated provider
+Under this provider-backed behavior, all generated provider
 artifacts, source-sibling copies, rendered previews, and installed outputs are
 uncommitted derived evidence. Package inclusion of
 the package provider root does not make it a Git-tracked source artifact.

@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import {
+  chmod,
   lstat,
   mkdir,
   mkdtemp,
@@ -114,6 +115,26 @@ describe("CLI entrypoint", () => {
         await copyDevcanonRuntimeFixture(skillsDir);
         await mkdir(path.join(tempDir, "agents"), { recursive: true });
         const provider = await createDevcanonRuntimeProviderFixture(tempDir);
+        const shell = path.join(
+          skillsDir,
+          "devcanon-runtime",
+          "scripts",
+          "devcanon-runtime.sh",
+        );
+        const resolver = path.join(
+          skillsDir,
+          "devcanon-runtime",
+          "scripts",
+          "resolve-bash.mjs",
+        );
+        if (process.platform !== "win32") {
+          await chmod(shell, 0o700);
+          await chmod(resolver, 0o600);
+        }
+        const [shellBefore, resolverBefore] = await Promise.all([
+          readFile(shell),
+          readFile(resolver),
+        ]);
         if (state === "absent") {
           await rm(derived, { recursive: true, force: true });
         } else {
@@ -140,6 +161,12 @@ describe("CLI entrypoint", () => {
         expect(
           await readFile(path.join(derived, "devcanon-runtime.mjs"), "utf8"),
         ).not.toBe("stale provider bytes\n");
+        await expect(readFile(shell)).resolves.toEqual(shellBefore);
+        await expect(readFile(resolver)).resolves.toEqual(resolverBefore);
+        if (process.platform !== "win32") {
+          expect((await stat(shell)).mode & 0o777).toBe(0o700);
+          expect((await stat(resolver)).mode & 0o777).toBe(0o600);
+        }
       } finally {
         await cleanupTempDir(tempDir);
       }
