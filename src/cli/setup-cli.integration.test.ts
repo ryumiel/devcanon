@@ -117,6 +117,27 @@ describe.runIf(process.platform === "win32")("setup:cli", () => {
 
       const executable = path.join(root, "npm", "devcanon.cmd");
       await access(executable);
+      const extensionless = path.join(root, "npm", "devcanon");
+      await access(extensionless);
+      const resolver = path.resolve(
+        "skills/devcanon-runtime/scripts/resolve-bash.mjs",
+      );
+      const { stdout: gitBashOutput } = await execFileAsync(
+        process.execPath,
+        [resolver],
+        { cwd: process.cwd(), env },
+      );
+      const gitBash = gitBashOutput.trim();
+      const shimVersion = await execFileAsync(
+        gitBash,
+        [
+          "--noprofile",
+          "--norc",
+          "-lc",
+          'shim="$(cygpath -u "$DEVCANON_TEST_SHIM")" && exec "$shim" --version',
+        ],
+        { env: { ...env, DEVCANON_TEST_SHIM: extensionless } },
+      );
       const version = await execAsync(`"${executable}" --version`, {
         env,
         shell: commandShell,
@@ -133,6 +154,7 @@ describe.runIf(process.platform === "win32")("setup:cli", () => {
       );
 
       expect(version.stdout.trim()).toBe("2.0.0");
+      expect(shimVersion.stdout.trim()).toBe("2.0.0");
       expect(help.stdout).toContain("Usage: devcanon");
       expect(JSON.parse(catalog.stdout)).toMatchObject({
         source: "bundled",

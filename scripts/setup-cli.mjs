@@ -16,6 +16,12 @@ const globalBin = run(
 await mkdir(globalBin, { recursive: true });
 const launcher = path.join(repositoryRoot, "dist", "cli", "source.js");
 if (isWindows) {
+  const gitBashLauncher = launcher.replaceAll("\\", "/");
+  await writeFile(
+    path.join(globalBin, "devcanon"),
+    `#!/bin/sh\nexec node "${gitBashLauncher}" "$@"\n`,
+    "utf8",
+  );
   await writeFile(
     path.join(globalBin, "devcanon.cmd"),
     `@echo off\r\nnode "${launcher}" %*\r\n`,

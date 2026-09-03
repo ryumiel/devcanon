@@ -21,7 +21,7 @@ interface ValidateOptions {
 export async function validateAction(
   options: ValidateOptions,
   command: { parent?: { opts(): Record<string, unknown> } },
-  provider?: AcceptedProvider,
+  provider?: AcceptedProvider | (() => Promise<AcceptedProvider>),
 ): Promise<void> {
   const logger = getLogger();
   const globalOpts = command.parent?.opts() ?? {};
@@ -33,10 +33,12 @@ export async function validateAction(
     globalOpts.config as string | undefined,
     strict,
   );
+  const acceptedProvider =
+    typeof provider === "function" ? await provider() : provider;
   if (!json) logger.info("Config: valid");
   await validateDevcanonRuntime(devcanonRuntimeDir(config.library.skillsDir), {
     adapterSourceDir: bundledDevcanonRuntimeDir(),
-    provider,
+    provider: acceptedProvider,
   });
 
   let skillWarningsPrinted = false;

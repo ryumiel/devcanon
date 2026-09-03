@@ -886,6 +886,9 @@ describe("sync", () => {
         provider,
       );
       expect(dry.errors).toEqual([]);
+      expect(testLogger.infos.join("\n")).toContain(
+        "Source runtime: reconcile derived subtree",
+      );
       if (state === "absent") expect(await pathExists(derived)).toBe(false);
       else {
         await expect(
@@ -907,6 +910,31 @@ describe("sync", () => {
       ]);
     },
   );
+
+  it("does not repair the source runtime before prospective output validation succeeds", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const runtimeBundle = path.join(
+      config.library.skillsDir,
+      "devcanon-runtime",
+      "scripts",
+      "runtime",
+      "devcanon-runtime.mjs",
+    );
+    const provider = await createDevcanonRuntimeProviderFixture(tempDir);
+    await writeFile(runtimeBundle, "stale provider bytes\n", "utf8");
+    await createAgentFixture(
+      config.library.agentsDir,
+      "invalid-agent",
+      "name: invalid-agent\n",
+    );
+
+    await expect(
+      sync(config, { dryRun: false, force: false, strict: false }, provider),
+    ).rejects.toThrow();
+    await expect(readFile(runtimeBundle, "utf8")).resolves.toBe(
+      "stale provider bytes\n",
+    );
+  });
 
   it("treats a residual lock as invalid during dry sync without rendering or recovery", async () => {
     const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });

@@ -10,6 +10,7 @@ import type { PlanAction, SyncOptions } from "../models/types.js";
 import { reconcileDevcanonRuntimeSource } from "../render/devcanon-runtime.js";
 import {
   type RenderMutation,
+  preflightGeneratedRender,
   renderAllWithValidatedRuntime,
 } from "../render/pipeline.js";
 import type { AcceptedProvider } from "../runtime-build/provider.js";
@@ -172,16 +173,6 @@ export async function sync(
     operation: acceptedProvider ? "compose" : undefined,
     provider: acceptedProvider,
   });
-  if (acceptedProvider && !options.dryRun) {
-    await reconcileDevcanonRuntimeSource(
-      runtimeDir,
-      acceptedProvider,
-      validatedRuntime,
-    );
-    validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
-      provider: acceptedProvider,
-    });
-  }
   const operationId = `sync-${randomUUID()}`;
   let authority: ManifestBackupAuthority | undefined;
   const ensureAuthority = async (): Promise<ManifestBackupAuthority> => {
@@ -218,14 +209,14 @@ export async function sync(
   // Render the selected target without materializing generated output, then
   // validate active selected outputs alongside retained active/passive records
   // before any migration or generated-tree write.
-  const { outputs: prospectiveOutputs, mutationInventory } =
-    await renderAllWithValidatedRuntime(
-      config,
-      validatedRuntime,
-      false,
-      options.strict,
-      options.target,
-    );
+  const projection = await renderAllWithValidatedRuntime(
+    config,
+    validatedRuntime,
+    false,
+    options.strict,
+    options.target,
+  );
+  const { outputs: prospectiveOutputs, mutationInventory } = projection;
   assertReconciledForeignGeneratedMutationReservations(
     reconciledForeignRecords,
     mutationInventory,
@@ -258,7 +249,43 @@ export async function sync(
     config,
   );
 
+  const plannedActions = await computePlan(
+    prospectiveOutputs,
+    manifest,
+    config.defaults.overwritePolicy,
+    options.force,
+    config.defaults.cleanManagedOutputs,
+    {
+      claude: options.mode ?? config.targets.claude.installMode,
+      codex: options.mode ?? config.targets.codex.installMode,
+    },
+    options.target,
+  );
+  const plan = protectReconciledForeignPaths(
+    plannedActions,
+    protectedInstalledPathKeys,
+  );
+  await preflightGeneratedRender(config, projection);
+
+  if (options.dryRun) {
+    printSourceRuntimePreview(validatedRuntime.sourceDisposition);
+    printReconciliationPreview(totalResult.reconciliation);
+    printPlan(plan);
+    return totalResult;
+  }
+
   try {
+    if (acceptedProvider && validatedRuntime.sourceDisposition !== "current") {
+      await reconcileDevcanonRuntimeSource(
+        runtimeDir,
+        acceptedProvider,
+        validatedRuntime,
+      );
+      validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
+        provider: acceptedProvider,
+      });
+    }
+
     // An existing legacy manifest is a migration, while a missing manifest is
     // bound before the first generated or installed output is persisted.
     if (!options.dryRun && legacy) {
@@ -269,44 +296,13 @@ export async function sync(
     }
 
     // Render outputs (filter by target, propagate strict mode)
-    const outputs = options.dryRun
-      ? prospectiveOutputs
-      : (
-          await renderAllWithValidatedRuntime(
-            config,
-            validatedRuntime,
-            true,
-            options.strict,
-            options.target,
-          )
-        ).outputs;
-    // Filter for install planning (renderAll already filtered, but keep for clarity)
-    const filteredOutputs = outputs;
-
-    // Compute plan
-    const plannedActions = await computePlan(
-      filteredOutputs,
-      manifest,
-      config.defaults.overwritePolicy,
-      options.force,
-      config.defaults.cleanManagedOutputs,
-      {
-        claude: options.mode ?? config.targets.claude.installMode,
-        codex: options.mode ?? config.targets.codex.installMode,
-      },
+    await renderAllWithValidatedRuntime(
+      config,
+      validatedRuntime,
+      true,
+      options.strict,
       options.target,
     );
-    const plan = protectReconciledForeignPaths(
-      plannedActions,
-      protectedInstalledPathKeys,
-    );
-
-    // Dry run
-    if (options.dryRun) {
-      printReconciliationPreview(totalResult.reconciliation);
-      printPlan(plan);
-      return totalResult;
-    }
 
     if (
       plan.some(
@@ -822,6 +818,18 @@ function printPlan(plan: PlanAction[]): void {
     }
     logger.verbose(`    ${action.reason}`);
   }
+}
+
+function printSourceRuntimePreview(
+  disposition: "current" | "repair-runtime" | "migrate-adapters-and-runtime",
+): void {
+  if (disposition === "current") return;
+  const logger = getLogger();
+  logger.info(
+    disposition === "repair-runtime"
+      ? "Source runtime: reconcile derived subtree"
+      : "Source runtime: migrate adapter pair and reconcile derived subtree",
+  );
 }
 
 function printReconciliationPreview(

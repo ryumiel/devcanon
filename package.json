@@ -36,7 +36,7 @@
     "prepack": "pnpm run build && node scripts/check-runtime-build.mjs --build-package",
     "typecheck": "tsc --noEmit",
     "dev": "tsx src/cli/source.ts",
-    "test": "vitest run",
+    "test": "pnpm run test:prepare-runtime && vitest run",
     "test:prepare-runtime": "pnpm run build:runtime",
     "test:unit": "pnpm run test:prepare-runtime && vitest run --project unit",
     "test:integration:posix": "pnpm run test:prepare-runtime && vitest run --project integration-posix",

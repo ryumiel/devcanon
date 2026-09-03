@@ -1,6 +1,9 @@
 import { loadConfig } from "../../config/load.js";
 import { reconcileDevcanonRuntimeSource } from "../../render/devcanon-runtime.js";
-import { renderAllWithValidatedRuntime } from "../../render/pipeline.js";
+import {
+  preflightGeneratedRender,
+  renderAllWithValidatedRuntime,
+} from "../../render/pipeline.js";
 import type { AcceptedProvider } from "../../runtime-build/provider.js";
 import { UserError } from "../../utils/errors.js";
 import { getLogger } from "../../utils/output.js";
@@ -41,7 +44,15 @@ export async function renderAction(
     operation: "compose",
     provider,
   });
-  if (provider) {
+  const projection = await renderAllWithValidatedRuntime(
+    config,
+    validatedRuntime,
+    false,
+    strict,
+    options.target as "claude" | "codex" | undefined,
+  );
+  await preflightGeneratedRender(config, projection);
+  if (provider && validatedRuntime.sourceDisposition !== "current") {
     await reconcileDevcanonRuntimeSource(
       runtimeDir,
       provider,

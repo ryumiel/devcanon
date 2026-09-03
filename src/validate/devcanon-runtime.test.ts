@@ -14,6 +14,7 @@ import {
   canMutateExecutableMode,
   cleanupTempDir,
   copyDevcanonRuntimeFixture,
+  createDevcanonRuntimeProviderFixture,
   createTempDir,
   makeResolvedConfig,
 } from "../__test-helpers__/fixtures.js";
@@ -97,6 +98,22 @@ describe("devcanon-runtime source validation", () => {
         legacy,
       ),
     ).toBe("modified");
+  });
+
+  it("ignores non-semantic adapter mode differences", () => {
+    const current = {
+      shell: Buffer.from("current"),
+      resolver: Buffer.from("resolver"),
+      shellMode: 0o755,
+      resolverMode: 0o644,
+    };
+
+    expect(
+      classifyAdapterPair(
+        { ...current, shellMode: 0o700, resolverMode: 0o600 },
+        current,
+      ),
+    ).toBe("current");
   });
 
   it("does not treat a mixed candidate as its own adapter authority", async () => {
@@ -200,6 +217,23 @@ describe("devcanon-runtime source validation", () => {
     });
   });
 
+  it("recognizes the closed production legacy adapter pair without caller input", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    const shellPath = path.join(runtimeDir, "scripts", "devcanon-runtime.sh");
+    const resolverPath = path.join(runtimeDir, "scripts", "resolve-bash.mjs");
+    const currentShell = await readFile(shellPath, "utf8");
+    const currentResolver = await readFile(resolverPath, "utf8");
+    await writeFile(shellPath, legacyShellAdapter(currentShell));
+    await writeFile(resolverPath, legacyResolverAdapter(currentResolver));
+
+    await expect(
+      validateDevcanonRuntime(runtimeDir, { operation: "compose" }),
+    ).resolves.toMatchObject({
+      adapterState: "pristine-legacy",
+      sourceDisposition: "migrate-adapters-and-runtime",
+    });
+  });
+
   it("reports each invalid adapter state with manual-adoption guidance", async () => {
     const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
     const scripts = path.join(runtimeDir, "scripts");
@@ -232,6 +266,18 @@ describe("devcanon-runtime source validation", () => {
     await expect(renderAll(config, true)).rejects.toMatchObject({
       message: expect.stringContaining("derived subtree is missing or stale"),
       hint: expect.stringContaining("devcanon render"),
+    } satisfies Partial<UserError>);
+  });
+
+  it.each([
+    ["config", "extra.json"],
+    ["scripts", "extra.mjs"],
+  ])("rejects an unexpected %s entry", async (directory, leaf) => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    await writeFile(path.join(runtimeDir, directory, leaf), "extra\n");
+
+    await expect(validateDevcanonRuntime(runtimeDir)).rejects.toMatchObject({
+      message: expect.stringContaining("derived subtree is missing or stale"),
     } satisfies Partial<UserError>);
   });
 
@@ -307,6 +353,28 @@ describe("devcanon-runtime source validation", () => {
     await expect(
       validateBundledDevcanonRuntime(authority, {
         adapterSourceDir: authority,
+      }),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining("adapter contract check failed"),
+    } satisfies Partial<UserError>);
+  });
+
+  it("validates authoritative adapters against a supplied provider", async () => {
+    const authority = path.join(tempDir, "authority");
+    await copyDevcanonRuntimeFixture(path.join(tempDir, "authority-parent"));
+    const copied = path.join(tempDir, "authority-parent", "devcanon-runtime");
+    const { rename } = await import("node:fs/promises");
+    await rename(copied, authority);
+    const provider = await createDevcanonRuntimeProviderFixture(tempDir);
+    await writeFile(
+      path.join(authority, "scripts", "resolve-bash.mjs"),
+      "throw new Error('broken');\n",
+    );
+
+    await expect(
+      validateBundledDevcanonRuntime(authority, {
+        adapterSourceDir: authority,
+        provider,
       }),
     ).rejects.toMatchObject({
       message: expect.stringContaining("adapter contract check failed"),
@@ -393,3 +461,71 @@ describe("devcanon-runtime source validation", () => {
     ).resolves.toBeUndefined();
   });
 });
+
+function legacyShellAdapter(current: string): string {
+  return current
+    .replace(
+      [
+        '  local js_entrypoint="$script_dir/runtime/devcanon-runtime.mjs"',
+        '  [ -f "$js_entrypoint" ] || runtime_error "devcanon-runtime bundle missing: $js_entrypoint"',
+        '  command -v node >/dev/null 2>&1 || runtime_error "node is required for devcanon-runtime typed helpers"',
+        "  unset DEBUG NODE_OPTIONS",
+        '  exec node "$js_entrypoint" runtime "$@"',
+      ].join("\n"),
+      [
+        '  local js_entrypoint="$script_dir/runtime/cli.js"',
+        '  [ -f "$js_entrypoint" ] || runtime_error "devcanon-runtime JS entrypoint missing: $js_entrypoint"',
+        '  command -v node >/dev/null 2>&1 || runtime_error "node is required for devcanon-runtime typed helpers"',
+        "  unset DEBUG NODE_OPTIONS",
+        '  exec node "$js_entrypoint" "$@"',
+      ].join("\n"),
+    )
+    .replace(
+      [
+        '  local js_entrypoint="$script_dir/runtime/devcanon-runtime.mjs"',
+        '  [ -f "$js_entrypoint" ] || runtime_error "devcanon-runtime bundle missing: $js_entrypoint"',
+        '  command -v node >/dev/null 2>&1 || runtime_error "node is required for devcanon-runtime bootstrap"',
+        '  exec node "$js_entrypoint" bootstrap "$@"',
+      ].join("\n"),
+      [
+        '  local js_entrypoint="$script_dir/runtime/bootstrap-cli.js"',
+        '  [ -f "$js_entrypoint" ] || runtime_error "devcanon-runtime bootstrap entrypoint missing: $js_entrypoint"',
+        '  command -v node >/dev/null 2>&1 || runtime_error "node is required for devcanon-runtime bootstrap"',
+        '  exec node "$js_entrypoint" "$@"',
+      ].join("\n"),
+    );
+}
+
+function legacyResolverAdapter(current: string): string {
+  return current
+    .replace(
+      'const cliPath = path.join(scriptDir, "runtime", "devcanon-runtime.mjs");',
+      'const cliPath = path.join(scriptDir, "runtime", "cli.js");',
+    )
+    .replaceAll(
+      "devcanon-runtime bundle missing",
+      "devcanon-runtime JS entrypoint missing",
+    )
+    .replace(
+      [
+        "const child = spawnSync(",
+        "  process.execPath,",
+        '  [cliPath, "runtime", "resolve-bash"],',
+        "  {",
+        '    encoding: "utf8",',
+        "    env: process.env,",
+        '    input: "",',
+        "    windowsHide: true,",
+        "  },",
+        ");",
+      ].join("\n"),
+      [
+        'const child = spawnSync(process.execPath, [cliPath, "resolve-bash"], {',
+        '  encoding: "utf8",',
+        "  env: process.env,",
+        '  input: "",',
+        "  windowsHide: true,",
+        "});",
+      ].join("\n"),
+    );
+}

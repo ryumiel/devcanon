@@ -1,4 +1,5 @@
-import { cp } from "node:fs/promises";
+import { cp, mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -92,7 +93,7 @@ async function seedRuntimeSkill(
   const targetDir = path.join(cwd, "skills", RUNTIME_SKILL_NAME);
 
   if (await pathOrSymlinkExists(targetDir)) {
-    await requireMatchingRuntimeSkill(sourceDir, targetDir);
+    await requireMatchingRuntimeSkill(sourceDir, targetDir, provider);
     logger.info(
       `Support runtime already present: skills/${RUNTIME_SKILL_NAME}/`,
     );
@@ -117,7 +118,7 @@ async function preflightRuntimeSkill(
 
   const targetDir = path.join(cwd, "skills", RUNTIME_SKILL_NAME);
   if (await pathOrSymlinkExists(targetDir)) {
-    await requireMatchingRuntimeSkill(sourceDir, targetDir);
+    await requireMatchingRuntimeSkill(sourceDir, targetDir, provider);
   }
 }
 
@@ -131,17 +132,38 @@ async function requireBundledRuntimeSkill(
 async function requireMatchingRuntimeSkill(
   sourceDir: string,
   targetDir: string,
+  provider?: AcceptedProvider,
 ): Promise<void> {
   try {
     await validateDevcanonRuntime(targetDir, {
-      adapterSourceDir: bundledDevcanonRuntimeDir(),
+      adapterSourceDir: sourceDir,
+      provider,
     });
   } catch {
     throw runtimeConflictError(targetDir);
   }
 
-  if ((await hashDirectory(sourceDir)) === (await hashDirectory(targetDir))) {
-    return;
+  if (provider === undefined) {
+    if ((await hashDirectory(sourceDir)) === (await hashDirectory(targetDir))) {
+      return;
+    }
+  } else {
+    const stageRoot = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-init-runtime-"),
+    );
+    const composedSource = path.join(stageRoot, RUNTIME_SKILL_NAME);
+    try {
+      await cp(sourceDir, composedSource, { recursive: true });
+      await reconcileDevcanonRuntimeSubtree(composedSource, provider);
+      if (
+        (await hashDirectory(composedSource)) ===
+        (await hashDirectory(targetDir))
+      ) {
+        return;
+      }
+    } finally {
+      await rm(stageRoot, { recursive: true, force: true });
+    }
   }
 
   throw runtimeConflictError(targetDir);

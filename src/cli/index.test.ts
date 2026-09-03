@@ -6,6 +6,7 @@ import {
   readFile,
   readdir,
   rm,
+  stat,
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
@@ -24,6 +25,7 @@ import {
   recoverInvalidManifest,
 } from "../install/manifest.js";
 import type { AcceptedProvider } from "../runtime-build/provider.js";
+import { ImmutableProviderBytes } from "../runtime-build/provider.js";
 import { createCliProgram } from "./run.js";
 
 const execFileAsync = promisify(execFile);
@@ -70,6 +72,32 @@ describe("CLI entrypoint", () => {
     ).rejects.toMatchObject({ code: "commander.helpDisplayed" });
   });
 
+  it("reports validate configuration errors before resolving the runtime provider", async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-cli-"));
+    try {
+      const configPath = path.join(tempDir, "invalid.yaml");
+      await writeFile(configPath, "not: [valid\n", "utf8");
+      let providerResolved = false;
+      const program = createCliProgram(async () => {
+        providerResolved = true;
+        throw new Error("provider must not win error precedence");
+      });
+
+      await expect(
+        program.parseAsync([
+          "node",
+          "devcanon",
+          "--config",
+          configPath,
+          "validate",
+        ]),
+      ).rejects.not.toThrow("provider must not win error precedence");
+      expect(providerResolved).toBe(false);
+    } finally {
+      await cleanupTempDir(tempDir);
+    }
+  });
+
   it.each(["absent", "provider-mismatched"] as const)(
     "repairs a %s source derived subtree through render",
     async (state) => {
@@ -112,6 +140,124 @@ describe("CLI entrypoint", () => {
         expect(
           await readFile(path.join(derived, "devcanon-runtime.mjs"), "utf8"),
         ).not.toBe("stale provider bytes\n");
+      } finally {
+        await cleanupTempDir(tempDir);
+      }
+    },
+  );
+
+  it("does not repair the source runtime before render validation succeeds", async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-cli-"));
+    try {
+      const configPath = await createConfigFile(tempDir);
+      const skillsDir = path.join(tempDir, "skills");
+      const runtimeBundle = path.join(
+        skillsDir,
+        "devcanon-runtime",
+        "scripts",
+        "runtime",
+        "devcanon-runtime.mjs",
+      );
+      await copyDevcanonRuntimeFixture(skillsDir);
+      await mkdir(path.join(tempDir, "agents"), { recursive: true });
+      await writeFile(
+        path.join(tempDir, "agents", "invalid.yaml"),
+        "name: invalid\n",
+        "utf8",
+      );
+      await writeFile(runtimeBundle, "stale provider bytes\n", "utf8");
+      const provider = await createDevcanonRuntimeProviderFixture(tempDir);
+
+      await expect(
+        createCliProgram(async () => provider).parseAsync([
+          "node",
+          "devcanon",
+          "--config",
+          configPath,
+          "render",
+        ]),
+      ).rejects.toThrow();
+      await expect(readFile(runtimeBundle, "utf8")).resolves.toBe(
+        "stale provider bytes\n",
+      );
+    } finally {
+      await cleanupTempDir(tempDir);
+    }
+  });
+
+  it("does not repair source before a generated-path preflight failure", async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-cli-"));
+    try {
+      const configPath = await createConfigFile(tempDir);
+      const skillsDir = path.join(tempDir, "skills");
+      const runtimeBundle = path.join(
+        skillsDir,
+        "devcanon-runtime",
+        "scripts",
+        "runtime",
+        "devcanon-runtime.mjs",
+      );
+      await copyDevcanonRuntimeFixture(skillsDir);
+      await mkdir(path.join(tempDir, "agents"), { recursive: true });
+      await writeFile(runtimeBundle, "stale provider bytes\n", "utf8");
+      const badGeneratedRuntime = path.join(
+        tempDir,
+        "generated",
+        "claude",
+        "skills",
+        "devcanon-runtime",
+      );
+      await mkdir(path.dirname(badGeneratedRuntime), { recursive: true });
+      await writeFile(badGeneratedRuntime, "not a directory\n", "utf8");
+      const provider = await createDevcanonRuntimeProviderFixture(tempDir);
+
+      await expect(
+        createCliProgram(async () => provider).parseAsync([
+          "node",
+          "devcanon",
+          "--config",
+          configPath,
+          "render",
+        ]),
+      ).rejects.toThrow(
+        /generated skill output must be absent or a directory/i,
+      );
+      await expect(readFile(runtimeBundle, "utf8")).resolves.toBe(
+        "stale provider bytes\n",
+      );
+    } finally {
+      await cleanupTempDir(tempDir);
+    }
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "does not rewrite a current source runtime during render",
+    async () => {
+      const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-cli-"));
+      try {
+        const configPath = await createConfigFile(tempDir);
+        const skillsDir = path.join(tempDir, "skills");
+        await copyDevcanonRuntimeFixture(skillsDir);
+        await mkdir(path.join(tempDir, "agents"), { recursive: true });
+        const runtime = path.join(
+          skillsDir,
+          "devcanon-runtime",
+          "scripts",
+          "runtime",
+        );
+        const bundle = path.join(runtime, "devcanon-runtime.mjs");
+        const beforeInode = (await stat(bundle)).ino;
+        const provider = await providerFromRuntime(runtime);
+
+        await createCliProgram(async () => provider).parseAsync([
+          "node",
+          "devcanon",
+          "--config",
+          configPath,
+          "render",
+        ]);
+
+        expect((await stat(bundle)).ino).toBe(beforeInode);
       } finally {
         await cleanupTempDir(tempDir);
       }
@@ -694,3 +840,22 @@ describe("CLI entrypoint", () => {
     },
   );
 });
+
+async function providerFromRuntime(runtime: string): Promise<AcceptedProvider> {
+  return {
+    origin: "source-build",
+    root: runtime,
+    manifest: JSON.parse(
+      await readFile(path.join(runtime, "runtime-manifest.json"), "utf8"),
+    ),
+    bundle: new ImmutableProviderBytes(
+      await readFile(path.join(runtime, "devcanon-runtime.mjs")),
+    ),
+    manifestBytes: new ImmutableProviderBytes(
+      await readFile(path.join(runtime, "runtime-manifest.json")),
+    ),
+    licenses: new ImmutableProviderBytes(
+      await readFile(path.join(runtime, "THIRD_PARTY_LICENSES")),
+    ),
+  };
+}

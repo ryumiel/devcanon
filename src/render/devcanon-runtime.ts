@@ -83,11 +83,15 @@ export async function hashDevcanonRuntimePayload(
   const leaves =
     validated?.providerLeaves ?? (await readProviderLeaves(runtimeDir));
   const shellMode =
-    validated?.adapterPair?.shellMode ??
-    (await lstat(path.join(runtimeDir, RUNTIME_ENTRYPOINT))).mode;
-  const catalogMode = (
-    await lstat(path.join(runtimeDir, "config", "runtime-config.json"))
-  ).mode;
+    process.platform === "win32"
+      ? 0
+      : (validated?.adapterPair?.shellMode ??
+        (await lstat(path.join(runtimeDir, RUNTIME_ENTRYPOINT))).mode);
+  const resolverMode =
+    process.platform === "win32"
+      ? 0
+      : (validated?.adapterPair?.resolverMode ??
+        (await lstat(path.join(runtimeDir, RUNTIME_BASH_RESOLVER))).mode);
   hashField(hash, "file", RUNTIME_ENTRYPOINT, String(shellMode));
   hashField(
     hash,
@@ -95,18 +99,10 @@ export async function hashDevcanonRuntimePayload(
     RUNTIME_ENTRYPOINT,
     normalizePackagedShellBytes(RUNTIME_ENTRYPOINT, adapterPair.shell),
   );
-  hashField(
-    hash,
-    "file",
-    RUNTIME_BASH_RESOLVER,
-    String(
-      validated?.adapterPair?.resolverMode ??
-        (await lstat(path.join(runtimeDir, RUNTIME_BASH_RESOLVER))).mode,
-    ),
-  );
+  hashField(hash, "file", RUNTIME_BASH_RESOLVER, String(resolverMode));
   hashField(hash, "bytes", RUNTIME_BASH_RESOLVER, adapterPair.resolver);
   const catalog = renderedRuntimeCatalog(config);
-  hashField(hash, "file", "config/runtime-config.json", String(catalogMode));
+  hashField(hash, "file", "config/runtime-config.json", "0");
   hashField(hash, "bytes", "config/runtime-config.json", catalog);
   for (const leaf of PROVIDER_LEAVES) {
     hashField(hash, "file", path.posix.join(RUNTIME_JS_DIR, leaf), "0");
@@ -482,12 +478,14 @@ async function assertStagedBundle(runtimeDirectory: string): Promise<void> {
 
 async function assertStagedRuntime(scriptsDirectory: string): Promise<void> {
   await assertStagedBundle(path.join(scriptsDirectory, "runtime"));
-  const { stdout } = await promisify(execFile)("bash", [
-    path.join(scriptsDirectory, "devcanon-runtime.sh"),
-    "runtime",
-    "resolve-bash",
-  ]);
-  await assertBashExecutable(stdout, "staged shell");
+  if (process.platform !== "win32") {
+    const { stdout } = await promisify(execFile)("bash", [
+      path.join(scriptsDirectory, "devcanon-runtime.sh"),
+      "runtime",
+      "resolve-bash",
+    ]);
+    await assertBashExecutable(stdout, "staged shell");
+  }
   const { stdout: resolverStdout } = await promisify(execFile)(
     process.execPath,
     [path.join(scriptsDirectory, "resolve-bash.mjs")],

@@ -78,7 +78,7 @@ export function createCliProgram(
     )
     .option("--strict", "treat warnings as errors")
     .action(async (options, command) =>
-      validateAction(options, command, await resolveProvider()),
+      validateAction(options, command, resolveProvider),
     );
   program
     .command("render")

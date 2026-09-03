@@ -26,6 +26,7 @@ import {
   type ResolvedConfig,
 } from "../../config/schema.js";
 import { sync } from "../../install/sync.js";
+import { reconcileDevcanonRuntimeSubtree } from "../../render/devcanon-runtime.js";
 import { renderAll } from "../../render/pipeline.js";
 import type { AcceptedProvider } from "../../runtime-build/provider.js";
 import type { UserError } from "../../utils/errors.js";
@@ -149,6 +150,32 @@ describe("initAction", () => {
       "devcanon-runtime.mjs",
       "runtime-manifest.json",
     ]);
+  });
+
+  it("accepts an existing runtime that matches the package payload after composition", async () => {
+    const packageRuntime = path.join(tempDir, ".fixture-package", "runtime");
+    const targetRuntime = path.join(tempDir, "skills", "devcanon-runtime");
+    await mkdir(path.join(packageRuntime, "config"), { recursive: true });
+    await mkdir(path.join(packageRuntime, "scripts"), { recursive: true });
+    for (const relativePath of [
+      path.join("config", "runtime-config.json"),
+      path.join("scripts", "devcanon-runtime.sh"),
+      path.join("scripts", "resolve-bash.mjs"),
+    ]) {
+      await cp(
+        path.join(originalCwd, "skills", "devcanon-runtime", relativePath),
+        path.join(packageRuntime, relativePath),
+      );
+    }
+    await copyBundledRuntimeTo(packageRuntime, targetRuntime);
+    await reconcileDevcanonRuntimeSubtree(targetRuntime, provider);
+
+    await expect(
+      initAction({ runtimeSourceDir: packageRuntime }, provider),
+    ).resolves.toBeUndefined();
+    expect(testLogger.infos).toContain(
+      "Support runtime already present: skills/devcanon-runtime/",
+    );
   });
 
   it("emits the exact version 2 capability profile catalog", async () => {

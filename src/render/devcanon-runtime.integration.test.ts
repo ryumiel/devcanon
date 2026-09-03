@@ -116,6 +116,31 @@ describe("devcanon-runtime rendering", () => {
     expect(second.contentHash).not.toBe(first.contentHash);
   });
 
+  it.skipIf(process.platform === "win32")(
+    "does not hash source catalog mode that rendered materialization does not preserve",
+    async () => {
+      const runtimeDir = path.join(
+        config.library.skillsDir,
+        "devcanon-runtime",
+      );
+      const catalog = path.join(runtimeDir, "config", "runtime-config.json");
+      await chmod(catalog, 0o600);
+      const first = await renderDevcanonRuntimeForTarget(
+        runtimeDir,
+        "codex",
+        config,
+      );
+      await chmod(catalog, 0o644);
+      const second = await renderDevcanonRuntimeForTarget(
+        runtimeDir,
+        "codex",
+        config,
+      );
+
+      expect(second.contentHash).toBe(first.contentHash);
+    },
+  );
+
   it("writes the validated provider snapshot even when source leaves change afterward", async () => {
     const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
     const authority = path.resolve("skills/devcanon-runtime");

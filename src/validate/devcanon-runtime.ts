@@ -1,5 +1,18 @@
+import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import { access, lstat, readFile, readdir, realpath } from "node:fs/promises";
+import {
+  access,
+  chmod,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -31,6 +44,11 @@ export const REQUIRED_RUNTIME_FILES = [
   RUNTIME_MANIFEST,
   RUNTIME_LICENSES,
 ] as const;
+
+const RECOGNIZED_LEGACY_ADAPTER_DIGESTS = Object.freeze({
+  shell: "507f7be8a9f11f03ef3eb64ce964bb8cfd735ed46404ff993f0cd605f3cfc2ff",
+  resolver: "9cf74a2caf4d782f09141251814ef0dcb04ee200c6eb12c7c91b4d13fcb62445",
+});
 
 /**
  * The adapter gate intentionally keeps every adoption outcome observable.
@@ -73,6 +91,10 @@ export interface ValidatedDevcanonRuntime {
   readonly adapterPair: RuntimeAdapterPair;
   /** Candidate state. A compose-time legacy candidate still publishes current bytes. */
   readonly adapterState: "current" | "pristine-legacy";
+  readonly sourceDisposition:
+    | "current"
+    | "repair-runtime"
+    | "migrate-adapters-and-runtime";
   readonly providerLeaves: ReadonlyMap<string, Buffer>;
   /** Compatibility evidence retained for existing identity callers. */
   readonly closureRecords: readonly RuntimeClosureRecord[];
@@ -91,6 +113,10 @@ class RuntimeCompositionSnapshot implements ValidatedDevcanonRuntime {
   readonly runtimeDir: string;
   readonly runtimeIdentity: string;
   readonly adapterState: "current" | "pristine-legacy";
+  readonly sourceDisposition:
+    | "current"
+    | "repair-runtime"
+    | "migrate-adapters-and-runtime";
   readonly closureRecords: readonly RuntimeClosureRecord[];
   declare readonly [validatedDevcanonRuntimeBrand]: true;
 
@@ -100,6 +126,10 @@ class RuntimeCompositionSnapshot implements ValidatedDevcanonRuntime {
     adapterPair: RuntimeAdapterPair;
     authoritativeAdapterPair: RuntimeAdapterPair;
     adapterState: "current" | "pristine-legacy";
+    sourceDisposition:
+      | "current"
+      | "repair-runtime"
+      | "migrate-adapters-and-runtime";
     providerLeaves: ReadonlyMap<string, Buffer>;
   }) {
     this.runtimeDir = input.runtimeDir;
@@ -110,6 +140,7 @@ class RuntimeCompositionSnapshot implements ValidatedDevcanonRuntime {
     );
     this.#providerLeaves = copyProviderLeaves(input.providerLeaves);
     this.adapterState = input.adapterState;
+    this.sourceDisposition = input.sourceDisposition;
     this.closureRecords = Object.freeze([]);
     Object.freeze(this);
   }
@@ -202,10 +233,22 @@ export async function validateDevcanonRuntime(
     runtimeDir,
     "scripts",
   );
+  await requireExactEntries(path.join(runtimeDir, "config"), [
+    "runtime-config.json",
+  ]);
+  const derivedPath = path.join(runtimeDir, RUNTIME_JS_DIR);
+  const derivedExists = await pathOrSymlinkExists(derivedPath);
+  await requireExactEntries(
+    path.join(runtimeDir, "scripts"),
+    !derivedExists && options.operation === "compose" && options.provider
+      ? ["devcanon-runtime.sh", "resolve-bash.mjs"]
+      : ["devcanon-runtime.sh", "resolve-bash.mjs", "runtime"],
+  );
   await loadRuntimeConfigCatalog(
     path.join(runtimeDir, RUNTIME_CONFIG_RELATIVE_PATH),
   );
   let providerLeaves: ReadonlyMap<string, Buffer>;
+  let runtimeNeedsRepair = false;
   try {
     providerLeaves = await readDerivedRuntime(runtimeDir, options.provider);
   } catch (error) {
@@ -215,6 +258,7 @@ export async function validateDevcanonRuntime(
         error instanceof Error ? error.message : "invalid runtime subtree",
       );
     }
+    runtimeNeedsRepair = true;
     providerLeaves = providerLeavesFromAcceptedProvider(options.provider);
   }
 
@@ -226,6 +270,12 @@ export async function validateDevcanonRuntime(
     adapterPair: currentPair,
     authoritativeAdapterPair: currentPair,
     adapterState,
+    sourceDisposition:
+      adapterState === "pristine-legacy"
+        ? "migrate-adapters-and-runtime"
+        : runtimeNeedsRepair
+          ? "repair-runtime"
+          : "current",
     providerLeaves,
   });
 }
@@ -237,14 +287,19 @@ export function classifyAdapterPair(
 ): AdapterPairState {
   if (typeof candidate === "string") return candidate;
   if (samePair(candidate, current)) return "current";
-  if (legacy !== undefined && samePair(candidate, legacy))
+  if (
+    (legacy !== undefined && samePair(candidate, legacy)) ||
+    isRecognizedLegacyPair(candidate)
+  )
     return "pristine-legacy";
   const shellCurrent = candidate.shell.equals(current.shell);
   const resolverCurrent = candidate.resolver.equals(current.resolver);
   const shellLegacy =
-    legacy !== undefined && candidate.shell.equals(legacy.shell);
+    (legacy !== undefined && candidate.shell.equals(legacy.shell)) ||
+    sha256(candidate.shell) === RECOGNIZED_LEGACY_ADAPTER_DIGESTS.shell;
   const resolverLegacy =
-    legacy !== undefined && candidate.resolver.equals(legacy.resolver);
+    (legacy !== undefined && candidate.resolver.equals(legacy.resolver)) ||
+    sha256(candidate.resolver) === RECOGNIZED_LEGACY_ADAPTER_DIGESTS.resolver;
   if (
     (shellCurrent || shellLegacy) !== (resolverCurrent || resolverLegacy) ||
     (shellCurrent && resolverLegacy) ||
@@ -270,6 +325,11 @@ export async function validateBundledDevcanonRuntime(
   if (options.provider === undefined) {
     await requireAdapterContracts(authority);
     await requireRuntimeContract(path.join(runtimeDir, RUNTIME_BUNDLE));
+  } else {
+    await requireComposedAdapterContracts(
+      validated.authoritativeAdapterPair,
+      options.provider,
+    );
   }
 }
 
@@ -426,12 +486,18 @@ function samePair(
   left: RuntimeAdapterPair,
   right: RuntimeAdapterPair,
 ): boolean {
+  return left.shell.equals(right.shell) && left.resolver.equals(right.resolver);
+}
+
+function isRecognizedLegacyPair(pair: RuntimeAdapterPair): boolean {
   return (
-    left.shell.equals(right.shell) &&
-    left.resolver.equals(right.resolver) &&
-    left.shellMode === right.shellMode &&
-    left.resolverMode === right.resolverMode
+    sha256(pair.shell) === RECOGNIZED_LEGACY_ADAPTER_DIGESTS.shell &&
+    sha256(pair.resolver) === RECOGNIZED_LEGACY_ADAPTER_DIGESTS.resolver
   );
+}
+
+function sha256(bytes: Buffer): string {
+  return createHash("sha256").update(bytes).digest("hex");
 }
 
 function copyAdapterPair(pair: RuntimeAdapterPair): RuntimeAdapterPair {
@@ -516,12 +582,14 @@ async function requireAdapterContracts(authority: string): Promise<void> {
     }
     const { execFile } = await import("node:child_process");
     const { promisify } = await import("node:util");
-    const { stdout: shellStdout } = await promisify(execFile)("bash", [
-      shell,
-      "runtime",
-      "resolve-bash",
-    ]);
-    await assertBashExecutable(shellStdout, "shell adapter");
+    if (process.platform !== "win32") {
+      const { stdout: shellStdout } = await promisify(execFile)("bash", [
+        shell,
+        "runtime",
+        "resolve-bash",
+      ]);
+      await assertBashExecutable(shellStdout, "shell adapter");
+    }
     const { stdout: resolverStdout } = await promisify(execFile)(
       process.execPath,
       [resolver],
@@ -533,6 +601,39 @@ async function requireAdapterContracts(authority: string): Promise<void> {
       authority,
       `Reinstall DevCanon or restore the bundled adapter pair. ${(error as Error).message}`,
     );
+  }
+}
+
+async function requireComposedAdapterContracts(
+  pair: RuntimeAdapterPair,
+  provider: AcceptedProvider,
+): Promise<void> {
+  const stage = await mkdtemp(path.join(os.tmpdir(), "devcanon-runtime-"));
+  try {
+    const scripts = path.join(stage, "scripts");
+    const runtime = path.join(scripts, "runtime");
+    await mkdir(runtime, { recursive: true });
+    await writeFile(path.join(scripts, "devcanon-runtime.sh"), pair.shell);
+    await writeFile(path.join(scripts, "resolve-bash.mjs"), pair.resolver);
+    if (process.platform !== "win32") {
+      await chmod(path.join(scripts, "devcanon-runtime.sh"), pair.shellMode);
+    }
+    await writeFile(
+      path.join(runtime, "devcanon-runtime.mjs"),
+      provider.bundle.copy(),
+    );
+    await writeFile(
+      path.join(runtime, "runtime-manifest.json"),
+      provider.manifestBytes.copy(),
+    );
+    await writeFile(
+      path.join(runtime, "THIRD_PARTY_LICENSES"),
+      provider.licenses.copy(),
+    );
+    await requireRuntimeContract(path.join(runtime, "devcanon-runtime.mjs"));
+    await requireAdapterContracts(stage);
+  } finally {
+    await rm(stage, { recursive: true, force: true });
   }
 }
 

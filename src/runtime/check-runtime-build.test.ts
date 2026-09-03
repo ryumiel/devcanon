@@ -53,6 +53,9 @@ describe("runtime build checker", () => {
     expect(packageJson.scripts?.["test:prepare-runtime"]).toBe(
       "pnpm run build:runtime",
     );
+    expect(packageJson.scripts?.test).toBe(
+      "pnpm run test:prepare-runtime && vitest run",
+    );
     for (const [scriptName, project] of Object.entries({
       "test:unit": "unit",
       "test:integration:posix": "integration-posix",

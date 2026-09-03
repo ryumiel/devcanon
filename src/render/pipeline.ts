@@ -60,6 +60,19 @@ export type RenderMutation =
       type: "agent" | "skill";
     }>;
 
+/** Read-only validation of every generated path a projected render may mutate. */
+export async function preflightGeneratedRender(
+  config: ResolvedConfig,
+  projection: Pick<RenderResult, "outputs" | "mutationInventory">,
+): Promise<void> {
+  await preflightGeneratedMutations(config, projection.mutationInventory);
+  await planStaleGeneratedCleanup(
+    config,
+    projection.mutationInventory,
+    projection.outputs,
+  );
+}
+
 export interface RenderLoadedOptions<
   TSkills extends readonly LoadedSkill[] = readonly LoadedSkill[],
   TAgents extends readonly LoadedAgent[] = readonly LoadedAgent[],
