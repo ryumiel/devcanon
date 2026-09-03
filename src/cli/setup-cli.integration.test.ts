@@ -267,7 +267,7 @@ describe.runIf(process.platform === "win32")("setup:cli", () => {
       );
       await writeFile(
         path.join(fakeBin, "npm.cmd"),
-        '@echo off\r\nif "%1"=="prefix" if "%2"=="--global" echo %DEVCANON_TEST_GLOBAL_BIN%\r\nexit /b 0\r\n',
+        '@echo off\r\nif "%~1"=="prefix" if "%~2"=="--global" echo %DEVCANON_TEST_GLOBAL_BIN%\r\nexit /b 0\r\n',
       );
 
       const inheritedPath = process.env.PATH;

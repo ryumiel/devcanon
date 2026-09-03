@@ -35,7 +35,9 @@ const PROVIDER_LEAVES = [
   "THIRD_PARTY_LICENSES",
 ] as const;
 
-type RuntimePublicationFaultStage = "replace-before-publish";
+type RuntimePublicationFaultStage =
+  | "replace-before-publish"
+  | "source-before-publish";
 type RuntimePublicationFaultInjector = (
   stage: RuntimePublicationFaultStage,
 ) => void | Promise<void>;
@@ -270,11 +272,14 @@ async function publishStagedSourceParts(
     for (const leaf of owned) {
       const target = path.join(destination, leaf);
       const backup = path.join(backupRoot, leaf);
-      await rename(target, backup).catch((error: NodeJS.ErrnoException) => {
-        if (error.code !== "ENOENT") throw error;
-      });
-      backups.set(target, backup);
+      try {
+        await rename(target, backup);
+        backups.set(target, backup);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
     }
+    await runtimePublicationFaultInjector?.("source-before-publish");
     for (const leaf of owned)
       await rename(path.join(stage, leaf), path.join(destination, leaf));
     published = true;

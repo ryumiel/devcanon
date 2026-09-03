@@ -353,6 +353,92 @@ describe("devcanon-runtime rendering", () => {
     ).toEqual([]);
   });
 
+  it("restores a pristine legacy pair after an absent-runtime publication race and retries cleanly", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    const scripts = path.join(runtimeDir, "scripts");
+    const runtime = path.join(scripts, "runtime");
+    const initiallyValidated = await validateDevcanonRuntime(runtimeDir, {
+      adapterSourceDir: path.resolve("skills/devcanon-runtime"),
+    });
+    const legacy = {
+      shell: await readFile(path.join(scripts, "devcanon-runtime.sh")),
+      resolver: await readFile(path.join(scripts, "resolve-bash.mjs")),
+      shellMode:
+        (await stat(path.join(scripts, "devcanon-runtime.sh"))).mode & 0o777,
+      resolverMode:
+        (await stat(path.join(scripts, "resolve-bash.mjs"))).mode & 0o777,
+    };
+    const provider = await providerFromValidated(runtime, initiallyValidated);
+    const authority = path.join(tempDir, "current-authority");
+    await mkdir(path.join(authority, "scripts"), { recursive: true });
+    const currentShell = Buffer.from(
+      '#!/usr/bin/env bash\nnode "$(cd -- "$(dirname -- "$0")" && pwd)/runtime/devcanon-runtime.mjs" "$@"\n',
+    );
+    const currentResolver = Buffer.from("console.log('/bin/bash');\n");
+    await writeFile(
+      path.join(authority, "scripts", "devcanon-runtime.sh"),
+      currentShell,
+    );
+    await chmod(path.join(authority, "scripts", "devcanon-runtime.sh"), 0o755);
+    await writeFile(
+      path.join(authority, "scripts", "resolve-bash.mjs"),
+      currentResolver,
+    );
+    await rm(runtime, { recursive: true });
+    const validated = await validateDevcanonRuntime(runtimeDir, {
+      adapterSourceDir: authority,
+      pristineLegacyPair: legacy,
+      operation: "compose",
+      provider,
+    });
+    const concurrentMarker = path.join(runtime, "concurrent.txt");
+
+    await expect(
+      withDevcanonRuntimePublicationFaultsForTesting(
+        async (stage) => {
+          if (stage !== "source-before-publish") return;
+          await mkdir(runtime);
+          await writeFile(concurrentMarker, "preserve\n");
+          throw new Error("forced source publication failure");
+        },
+        () => reconcileDevcanonRuntimeSource(runtimeDir, provider, validated),
+      ),
+    ).rejects.toThrow(/^forced source publication failure$/);
+
+    await expect(
+      readFile(path.join(scripts, "devcanon-runtime.sh")),
+    ).resolves.toEqual(legacy.shell);
+    await expect(
+      readFile(path.join(scripts, "resolve-bash.mjs")),
+    ).resolves.toEqual(legacy.resolver);
+    await expect(readFile(concurrentMarker, "utf8")).resolves.toBe(
+      "preserve\n",
+    );
+    expect(
+      (await readdir(runtimeDir)).filter((entry) =>
+        entry.startsWith(".runtime-source-stage-"),
+      ),
+    ).toEqual([]);
+    expect(
+      (await readdir(scripts)).filter((entry) =>
+        entry.startsWith(".devcanon-runtime-operation-"),
+      ),
+    ).toEqual([]);
+
+    await reconcileDevcanonRuntimeSource(runtimeDir, provider, validated);
+    await expect(
+      readFile(path.join(scripts, "devcanon-runtime.sh")),
+    ).resolves.toEqual(currentShell);
+    await expect(
+      readFile(path.join(scripts, "resolve-bash.mjs")),
+    ).resolves.toEqual(currentResolver);
+    await expect(readdir(runtime)).resolves.toEqual([
+      "THIRD_PARTY_LICENSES",
+      "devcanon-runtime.mjs",
+      "runtime-manifest.json",
+    ]);
+  });
+
   it("rejects source adapter byte drift after validation without publishing", async () => {
     const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
     const validated = await validateDevcanonRuntime(runtimeDir, {
