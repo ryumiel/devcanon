@@ -37,7 +37,7 @@ type InitActionOptions = {
 
 export async function initAction(
   options: InitActionOptions = {},
-  provider?: AcceptedProvider,
+  provider?: AcceptedProvider | (() => Promise<AcceptedProvider>),
 ): Promise<void> {
   const logger = getLogger();
   const cwd = process.cwd();
@@ -52,7 +52,10 @@ export async function initAction(
     );
   }
 
-  await preflightRuntimeSkill(cwd, runtimeSourceDir, provider);
+  const acceptedProvider =
+    typeof provider === "function" ? await provider() : provider;
+
+  await preflightRuntimeSkill(cwd, runtimeSourceDir, acceptedProvider);
 
   // Create config
   await writeTextFile(configPath, DEFAULT_CONFIG_YAML);
@@ -70,7 +73,7 @@ export async function initAction(
   await writeTextFile(path.join(sampleSkillDir, "SKILL.md"), SAMPLE_SKILL_MD);
   logger.info("Created sample skill: skills/example-skill/");
 
-  await seedRuntimeSkill(cwd, runtimeSourceDir, provider);
+  await seedRuntimeSkill(cwd, runtimeSourceDir, acceptedProvider);
 
   // Create sample agent
   await writeTextFile(

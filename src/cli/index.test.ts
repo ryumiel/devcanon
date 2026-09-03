@@ -73,6 +73,34 @@ describe("CLI entrypoint", () => {
     ).rejects.toMatchObject({ code: "commander.helpDisplayed" });
   });
 
+  it("reports an init config collision before resolving the runtime provider", async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-cli-"));
+    const originalCwd = process.cwd();
+    try {
+      await writeFile(
+        path.join(tempDir, "devcanon.config.yaml"),
+        "existing config\n",
+        "utf8",
+      );
+      process.chdir(tempDir);
+      let providerResolved = false;
+      const program = createCliProgram(async () => {
+        providerResolved = true;
+        throw new Error("provider must not win error precedence");
+      });
+
+      await expect(
+        program.parseAsync(["node", "devcanon", "init"]),
+      ).rejects.toThrow(
+        "devcanon.config.yaml already exists in this directory.",
+      );
+      expect(providerResolved).toBe(false);
+    } finally {
+      process.chdir(originalCwd);
+      await cleanupTempDir(tempDir);
+    }
+  });
+
   it("reports validate configuration errors before resolving the runtime provider", async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-cli-"));
     try {

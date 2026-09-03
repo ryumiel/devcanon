@@ -48,7 +48,7 @@ export function createCliProgram(
   program
     .command("init")
     .description("Initialize a new DevCanon library")
-    .action(async (options) => initAction(options, await resolveProvider()));
+    .action(async (options) => initAction(options, resolveProvider));
   const newCmd = program
     .command("new")
     .description("Create a new skill or agent");
