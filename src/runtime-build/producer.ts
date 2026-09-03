@@ -45,6 +45,28 @@ export interface ProductionDependencyProjection {
   packages: readonly ProductionPackageInstance[];
 }
 
+export function renderEsbuildResolution(
+  lockfileContents: string,
+  rootDevDependency: string,
+): Buffer {
+  const projection = extractPnpmProjection(
+    lockfileContents,
+    undefined,
+    new Set([`esbuild@${rootDevDependency}`]),
+  );
+  const esbuild = projection.packages.find(
+    (item) => item.name === "esbuild" && item.version === rootDevDependency,
+  );
+  if (esbuild === undefined) {
+    throw new Error(
+      "runtime producer requires the exact pinned esbuild lock resolution",
+    );
+  }
+  return Buffer.from(
+    `${JSON.stringify({ root_dev_dependency: rootDevDependency, package_closure: projection.packages })}\n`,
+  );
+}
+
 export interface ProduceProviderOptions {
   repositoryRoot: string;
   origin: ArtifactOrigin;
@@ -357,7 +379,7 @@ async function collectCanonicalInputs(
     repositoryRoot,
     metafile,
   );
-  const records = await Promise.all(
+  const records: CanonicalInputRecord[] = await Promise.all(
     sourceFiles.map(async (absolutePath) => ({
       path: path
         .relative(repositoryRoot, absolutePath)
@@ -380,16 +402,10 @@ async function collectCanonicalInputs(
   const projection = extractPnpmProjection(
     lockfileContents,
     undefined,
-    new Set([...instances.map((instance) => instance.id), "esbuild@0.27.4"]),
+    new Set(instances.map((instance) => instance.id)),
   );
   const selected = selectProjection(projection, instances);
-  const esbuild = projection.packages.find(
-    (item) => item.name === "esbuild" && item.version === esbuildVersion,
-  );
-  if (
-    packageJson.devDependencies?.esbuild !== "0.27.4" ||
-    esbuild === undefined
-  ) {
+  if (packageJson.devDependencies?.esbuild !== "0.27.4") {
     throw new Error(
       "runtime producer requires the exact pinned esbuild lock resolution",
     );
@@ -454,9 +470,7 @@ async function collectCanonicalInputs(
   });
   records.push({
     path: ".devcanon-runtime/esbuild-resolution.json",
-    content: Buffer.from(
-      `${JSON.stringify({ root_dev_dependency: esbuildTarget, package: esbuild })}\n`,
-    ),
+    content: renderEsbuildResolution(lockfileContents, esbuildTarget),
   });
   return records;
 }

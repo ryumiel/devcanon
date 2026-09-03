@@ -66,6 +66,12 @@ describe("runtime build checker", () => {
         `pnpm run test:prepare-runtime && vitest run --project ${project}`,
       );
     }
+    expect(packageJson.scripts?.["test:watch"]).toBe(
+      "pnpm run test:prepare-runtime && vitest",
+    );
+    expect(packageJson.scripts?.["test:coverage"]).toBe(
+      "pnpm run test:prepare-runtime && vitest run --coverage",
+    );
   });
 
   it("verifies the derived three-leaf source sibling without a node_modules closure", async () => {

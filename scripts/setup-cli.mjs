@@ -19,7 +19,7 @@ if (isWindows) {
   const gitBashLauncher = launcher.replaceAll("\\", "/");
   await writeFile(
     path.join(globalBin, "devcanon"),
-    `#!/bin/sh\nexec node "${gitBashLauncher}" "$@"\n`,
+    `#!/bin/sh\nexec node ${quotePosixShellLiteral(gitBashLauncher)} "$@"\n`,
     "utf8",
   );
   await writeFile(
@@ -29,8 +29,16 @@ if (isWindows) {
   );
 } else {
   const shim = path.join(globalBin, "devcanon");
-  await writeFile(shim, `#!/bin/sh\nexec node "${launcher}" "$@"\n`, "utf8");
+  await writeFile(
+    shim,
+    `#!/bin/sh\nexec node ${quotePosixShellLiteral(launcher)} "$@"\n`,
+    "utf8",
+  );
   await chmod(shim, 0o755);
+}
+
+function quotePosixShellLiteral(value) {
+  return `'${value.replaceAll("'", `'"'"'`)}'`;
 }
 
 function run(command, args, cwd, capture = false) {

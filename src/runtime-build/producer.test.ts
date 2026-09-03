@@ -7,6 +7,7 @@ import {
   canonicalizeDependencyProjection,
   extractPnpmProjection,
   publishVerifiedProvider,
+  renderEsbuildResolution,
   renderThirdPartyLicenses,
   resolveLockInstances,
   verifySourceProvider,
@@ -116,6 +117,62 @@ snapshots:
         target_id: "peer@1.0.0",
       },
     ]);
+  });
+
+  it("binds the closed esbuild optional-target projection and its integrities", () => {
+    const lockfile = `
+packages:
+  esbuild@0.27.4:
+    resolution: {integrity: sha512-esbuild}
+  '@esbuild/linux-x64@0.27.4':
+    resolution: {integrity: sha512-linux-x64}
+snapshots:
+  esbuild@0.27.4:
+    optionalDependencies:
+      '@esbuild/linux-x64': 0.27.4
+  '@esbuild/linux-x64@0.27.4': {}
+`;
+    const resolution = renderEsbuildResolution(lockfile, "0.27.4");
+    const parsed = JSON.parse(resolution.toString()) as {
+      root_dev_dependency: string;
+      package_closure: Array<{
+        id: string;
+        integrity: string;
+        dependencies: Array<{ target_id: string }>;
+      }>;
+    };
+
+    expect(parsed.root_dev_dependency).toBe("0.27.4");
+    expect(parsed.package_closure.map((item) => item.id)).toEqual([
+      "@esbuild/linux-x64@0.27.4",
+      "esbuild@0.27.4",
+    ]);
+    const ids = new Set(parsed.package_closure.map((item) => item.id));
+    expect(
+      parsed.package_closure.flatMap((item) =>
+        item.dependencies.map((edge) => ids.has(edge.target_id)),
+      ),
+    ).toEqual([true]);
+
+    const changedResolution = renderEsbuildResolution(
+      lockfile.replace("sha512-linux-x64", "sha512-linux-x64-changed"),
+      "0.27.4",
+    );
+    expect(
+      canonicalInputSha256([
+        {
+          path: ".devcanon-runtime/esbuild-resolution.json",
+          content: resolution,
+        },
+      ]),
+    ).not.toBe(
+      canonicalInputSha256([
+        {
+          path: ".devcanon-runtime/esbuild-resolution.json",
+          content: changedResolution,
+        },
+      ]),
+    );
   });
 
   it("selects bundled package records before unrelated malformed lock edges", () => {

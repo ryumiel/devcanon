@@ -1,5 +1,15 @@
 import { exec, execFile } from "node:child_process";
-import { access, mkdir, mkdtemp, rm } from "node:fs/promises";
+import {
+  access,
+  chmod,
+  cp,
+  mkdir,
+  mkdtemp,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -92,6 +102,69 @@ describe.runIf(process.platform !== "win32")("setup:cli", () => {
       });
     } finally {
       await rm(xdgDataHome, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves a shell-significant checkout path in the generated launcher", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "devcanon-setup-quote-"));
+    const checkout = path.join(root, "checkout $d `tick` 'single' \"double\"");
+    const fakeBin = path.join(root, "fake-bin");
+    const globalBin = path.join(root, "global bin");
+
+    try {
+      await mkdir(path.join(checkout, "scripts"), { recursive: true });
+      await mkdir(path.join(checkout, "dist", "cli"), { recursive: true });
+      await mkdir(fakeBin);
+      await cp(
+        path.resolve("scripts/setup-cli.mjs"),
+        path.join(checkout, "scripts", "setup-cli.mjs"),
+      );
+      await symlink(
+        path.resolve("node_modules"),
+        path.join(checkout, "node_modules"),
+        "dir",
+      );
+      const launcher = path.join(checkout, "dist", "cli", "source.js");
+      await writeFile(
+        launcher,
+        "process.stdout.write(JSON.stringify({ launcher: process.argv[1], args: process.argv.slice(2) }));\n",
+      );
+      const fakePnpm = path.join(fakeBin, "pnpm");
+      await writeFile(
+        fakePnpm,
+        `#!/usr/bin/env node
+if (process.argv[2] === "bin" && process.argv[3] === "--global") {
+  process.stdout.write(process.env.DEVCANON_TEST_GLOBAL_BIN + "\\n");
+}
+`,
+      );
+      await chmod(fakePnpm, 0o755);
+
+      const inheritedPath = process.env.PATH;
+      if (!inheritedPath) throw new Error("PATH is required to execute pnpm");
+      const env = {
+        ...process.env,
+        DEVCANON_TEST_GLOBAL_BIN: globalBin,
+        PATH: `${fakeBin}${path.delimiter}${inheritedPath}`,
+      };
+      await execFileAsync(process.execPath, ["scripts/setup-cli.mjs"], {
+        cwd: checkout,
+        env,
+      });
+
+      const { stdout } = await execFileAsync(
+        path.join(globalBin, "devcanon"),
+        ["argument with spaces"],
+        { env },
+      );
+      const invoked = JSON.parse(stdout) as {
+        launcher: string;
+        args: string[];
+      };
+      expect(await realpath(invoked.launcher)).toBe(await realpath(launcher));
+      expect(invoked.args).toEqual(["argument with spaces"]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
     }
   });
 });
