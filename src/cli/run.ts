@@ -85,7 +85,7 @@ export function createCliProgram(
     .description("Generate outputs to generated/ without installing")
     .option("--target <target>", "claude or codex")
     .action(async (options, command) =>
-      renderAction(options, command, await resolveProvider()),
+      renderAction(options, command, resolveProvider),
     );
   program
     .command("sync")

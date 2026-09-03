@@ -23,7 +23,7 @@ interface RenderOptions {
 export async function renderAction(
   options: RenderOptions,
   command: { parent?: { opts(): Record<string, unknown> } },
-  provider?: AcceptedProvider,
+  provider?: AcceptedProvider | (() => Promise<AcceptedProvider>),
 ): Promise<void> {
   const logger = getLogger();
   const globalOpts = command.parent?.opts() ?? {};
@@ -40,12 +40,14 @@ export async function renderAction(
     globalOpts.config as string | undefined,
     strict,
   );
+  const acceptedProvider =
+    typeof provider === "function" ? await provider() : provider;
 
   const runtimeDir = devcanonRuntimeDir(config.library.skillsDir);
   let validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
     adapterSourceDir: bundledDevcanonRuntimeDir(),
     operation: "compose",
-    provider,
+    provider: acceptedProvider,
   });
   const projection = await renderAllWithValidatedRuntime(
     config,
@@ -55,19 +57,19 @@ export async function renderAction(
     options.target as "claude" | "codex" | undefined,
   );
   await preflightGeneratedRender(config, projection);
-  if (provider && validatedRuntime.sourceDisposition !== "current") {
+  if (acceptedProvider && validatedRuntime.sourceDisposition !== "current") {
     if (validatedRuntime.sourceDisposition === "repair-runtime") {
-      await reconcileDevcanonRuntimeSubtree(runtimeDir, provider);
+      await reconcileDevcanonRuntimeSubtree(runtimeDir, acceptedProvider);
     } else {
       await reconcileDevcanonRuntimeSource(
         runtimeDir,
-        provider,
+        acceptedProvider,
         validatedRuntime,
       );
     }
     validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
       adapterSourceDir: bundledDevcanonRuntimeDir(),
-      provider,
+      provider: acceptedProvider,
     });
   }
   const { outputs } = await renderAllWithValidatedRuntime(

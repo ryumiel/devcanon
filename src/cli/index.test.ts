@@ -99,6 +99,45 @@ describe("CLI entrypoint", () => {
     }
   });
 
+  it("rejects render arguments before resolving the runtime provider", async () => {
+    let providerResolved = false;
+    const program = createCliProgram(async () => {
+      providerResolved = true;
+      throw new Error("provider must not win error precedence");
+    });
+
+    await expect(
+      program.parseAsync(["node", "devcanon", "render", "--target", "invalid"]),
+    ).rejects.not.toThrow("provider must not win error precedence");
+    expect(providerResolved).toBe(false);
+  });
+
+  it("reports render configuration errors before resolving the runtime provider", async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-cli-"));
+    try {
+      const configPath = path.join(tempDir, "invalid.yaml");
+      await writeFile(configPath, "not: [valid\n", "utf8");
+      let providerResolved = false;
+      const program = createCliProgram(async () => {
+        providerResolved = true;
+        throw new Error("provider must not win error precedence");
+      });
+
+      await expect(
+        program.parseAsync([
+          "node",
+          "devcanon",
+          "--config",
+          configPath,
+          "render",
+        ]),
+      ).rejects.not.toThrow("provider must not win error precedence");
+      expect(providerResolved).toBe(false);
+    } finally {
+      await cleanupTempDir(tempDir);
+    }
+  });
+
   it.each(["absent", "provider-mismatched"] as const)(
     "repairs a %s source derived subtree through render",
     async (state) => {
