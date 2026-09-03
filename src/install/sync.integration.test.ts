@@ -861,6 +861,52 @@ describe("sync", () => {
     expect(await pathExists(config.library.generatedDir)).toBe(false);
   });
 
+  it("validates a provider-backed source before invalid-manifest recovery", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const invalidBytes = "{corrupt manifest";
+    const generatedSentinel = path.join(
+      config.library.generatedDir,
+      "claude",
+      "skills",
+      "sentinel",
+      "keep",
+    );
+    const installedSentinel = path.join(
+      config.targets.claude.skillsHome,
+      "sentinel",
+      "keep",
+    );
+    const runtimeCatalog = path.join(
+      config.library.skillsDir,
+      "devcanon-runtime",
+      "config",
+      "runtime-config.json",
+    );
+    const provider = await createDevcanonRuntimeProviderFixture(tempDir);
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await mkdir(path.dirname(generatedSentinel), { recursive: true });
+    await mkdir(path.dirname(installedSentinel), { recursive: true });
+    await writeFile(config.manifest.path, invalidBytes, "utf8");
+    await writeFile(generatedSentinel, "generated sentinel", "utf8");
+    await writeFile(installedSentinel, "installed sentinel", "utf8");
+    await writeFile(runtimeCatalog, '{"schema":"incompatible"}\n', "utf8");
+
+    await expect(
+      sync(
+        config,
+        { dryRun: false, force: false, strict: false },
+        async () => provider,
+      ),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining("Invalid runtime configuration catalog"),
+    });
+
+    expect(await readTextFile(config.manifest.path)).toBe(invalidBytes);
+    expect(await pathExists(`${config.manifest.path}.bak`)).toBe(false);
+    expect(await readTextFile(generatedSentinel)).toBe("generated sentinel");
+    expect(await readTextFile(installedSentinel)).toBe("installed sentinel");
+  });
+
   it.each(["absent", "provider-mismatched"] as const)(
     "repairs a %s derived subtree only for non-dry provider-backed sync",
     async (state) => {

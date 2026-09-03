@@ -104,16 +104,13 @@ export async function sync(
       : typeof provider === "function"
         ? await provider()
         : provider;
-  let validatedRuntime:
-    | Awaited<ReturnType<typeof validateDevcanonRuntime>>
-    | undefined;
-  // Keep the established direct-library ordering. Public CLI calls always
-  // provide the resolver above, which gates recovery on provider acceptance.
-  if (provider === undefined) {
-    validatedRuntime = await validateDevcanonRuntime(
-      devcanonRuntimeDir(config.library.skillsDir),
-    );
-  }
+  const runtimeDir = devcanonRuntimeDir(config.library.skillsDir);
+  let validatedRuntime = acceptedProvider
+    ? await validateDevcanonRuntime(runtimeDir, {
+        operation: "compose",
+        provider: acceptedProvider,
+      })
+    : await validateDevcanonRuntime(runtimeDir);
   // A manifest must be accepted before rendering can create generated output
   // or an install action can touch a configured home.
   const loaded = await loadManifestForSync(config, options, inspection);
@@ -171,11 +168,6 @@ export async function sync(
     (index) => normalized.manifest.records[index],
   );
   assertReconciledForeignControlReservations(reconciledForeignRecords, config);
-  const runtimeDir = devcanonRuntimeDir(config.library.skillsDir);
-  validatedRuntime ??= await validateDevcanonRuntime(runtimeDir, {
-    operation: acceptedProvider ? "compose" : undefined,
-    provider: acceptedProvider,
-  });
   const operationId = `sync-${randomUUID()}`;
   let authority: ManifestBackupAuthority | undefined;
   const ensureAuthority = async (): Promise<ManifestBackupAuthority> => {
