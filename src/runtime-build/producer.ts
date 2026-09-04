@@ -336,9 +336,15 @@ export async function publishVerifiedProvider(options: {
   origin: ArtifactOrigin;
   devcanonVersion: string;
   inputSha256: string;
+  /** @internal Deterministic filesystem-boundary seam for focused tests. */
+  faultInjector?: (
+    stage: "after-prior-probe" | "before-backup-cleanup",
+  ) => void | Promise<void>;
 }): Promise<void> {
   const backup = `${options.stage}.prior`;
   let hadPrior = false;
+  let publishedByInvocation = false;
+  let verificationCommitted = false;
   try {
     await rename(options.destination, backup);
     hadPrior = true;
@@ -346,26 +352,42 @@ export async function publishVerifiedProvider(options: {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
   try {
+    await options.faultInjector?.("after-prior-probe");
     await rename(options.stage, options.destination);
+    publishedByInvocation = true;
     await verifyProvider({
       root: options.destination,
       origin: options.origin,
       devcanonVersion: options.devcanonVersion,
       inputSha256: options.inputSha256,
     });
-    if (hadPrior) await rm(backup, { recursive: true, force: true });
+    verificationCommitted = true;
+    if (hadPrior) {
+      await options.faultInjector?.("before-backup-cleanup");
+      await rm(backup, { recursive: true, force: true });
+    }
   } catch (error) {
+    if (verificationCommitted) {
+      throw new Error(
+        `runtime provider published and verified successfully; prior provider backup cleanup failed at ${backup}: ${(error as Error).message}`,
+        { cause: error },
+      );
+    }
     if (!hadPrior) {
-      await rm(options.destination, { recursive: true, force: true });
+      if (publishedByInvocation) {
+        await rm(options.destination, { recursive: true, force: true });
+      }
       throw error;
     }
     const failed = `${options.stage}.failed`;
     try {
-      await rename(options.destination, failed).catch(
-        (renameError: NodeJS.ErrnoException) => {
-          if (renameError.code !== "ENOENT") throw renameError;
-        },
-      );
+      if (publishedByInvocation) {
+        await rename(options.destination, failed).catch(
+          (renameError: NodeJS.ErrnoException) => {
+            if (renameError.code !== "ENOENT") throw renameError;
+          },
+        );
+      }
       await rename(backup, options.destination);
     } catch (restoreError) {
       throw new AggregateError(

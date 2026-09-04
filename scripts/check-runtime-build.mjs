@@ -18,6 +18,10 @@ const { reconcileDevcanonRuntimeSubtree } = await import(
   pathToFileURL(path.join(repositoryRoot, "dist/render/devcanon-runtime.js"))
     .href
 );
+const { validateBundledDevcanonRuntime } = await import(
+  pathToFileURL(path.join(repositoryRoot, "dist/validate/devcanon-runtime.js"))
+    .href
+);
 
 const packageJson = JSON.parse(
   await readFile(path.join(repositoryRoot, "package.json"), "utf8"),
@@ -36,11 +40,15 @@ if (mode === "--build-source") {
     provider,
   );
 } else if (mode === "--build-package") {
-  await produceProvider({
+  const provider = await produceProvider({
     repositoryRoot,
     origin: "package",
     devcanonVersion: version,
   });
+  await validateBundledDevcanonRuntime(
+    path.join(repositoryRoot, "skills", "devcanon-runtime"),
+    { provider },
+  );
 } else if (mode === undefined) {
   const provider = await verifySourceProvider({
     repositoryRoot,

@@ -142,6 +142,74 @@ async function expectRelativeSymlinkTarget(
   );
 }
 
+function legacyShellAdapter(current: string): string {
+  return current
+    .replace(
+      [
+        '  local js_entrypoint="$script_dir/runtime/devcanon-runtime.mjs"',
+        '  [ -f "$js_entrypoint" ] || runtime_error "devcanon-runtime bundle missing: $js_entrypoint"',
+        '  command -v node >/dev/null 2>&1 || runtime_error "node is required for devcanon-runtime typed helpers"',
+        "  unset DEBUG NODE_OPTIONS",
+        '  exec node "$js_entrypoint" runtime "$@"',
+      ].join("\n"),
+      [
+        '  local js_entrypoint="$script_dir/runtime/cli.js"',
+        '  [ -f "$js_entrypoint" ] || runtime_error "devcanon-runtime JS entrypoint missing: $js_entrypoint"',
+        '  command -v node >/dev/null 2>&1 || runtime_error "node is required for devcanon-runtime typed helpers"',
+        "  unset DEBUG NODE_OPTIONS",
+        '  exec node "$js_entrypoint" "$@"',
+      ].join("\n"),
+    )
+    .replace(
+      [
+        '  local js_entrypoint="$script_dir/runtime/devcanon-runtime.mjs"',
+        '  [ -f "$js_entrypoint" ] || runtime_error "devcanon-runtime bundle missing: $js_entrypoint"',
+        '  command -v node >/dev/null 2>&1 || runtime_error "node is required for devcanon-runtime bootstrap"',
+        '  exec node "$js_entrypoint" bootstrap "$@"',
+      ].join("\n"),
+      [
+        '  local js_entrypoint="$script_dir/runtime/bootstrap-cli.js"',
+        '  [ -f "$js_entrypoint" ] || runtime_error "devcanon-runtime bootstrap entrypoint missing: $js_entrypoint"',
+        '  command -v node >/dev/null 2>&1 || runtime_error "node is required for devcanon-runtime bootstrap"',
+        '  exec node "$js_entrypoint" "$@"',
+      ].join("\n"),
+    );
+}
+
+function legacyResolverAdapter(current: string): string {
+  return current
+    .replace(
+      'const cliPath = path.join(scriptDir, "runtime", "devcanon-runtime.mjs");',
+      'const cliPath = path.join(scriptDir, "runtime", "cli.js");',
+    )
+    .replaceAll(
+      "devcanon-runtime bundle missing",
+      "devcanon-runtime JS entrypoint missing",
+    )
+    .replace(
+      [
+        "const child = spawnSync(",
+        "  process.execPath,",
+        '  [cliPath, "runtime", "resolve-bash"],',
+        "  {",
+        '    encoding: "utf8",',
+        "    env: process.env,",
+        '    input: "",',
+        "    windowsHide: true,",
+        "  },",
+        ");",
+      ].join("\n"),
+      [
+        'const child = spawnSync(process.execPath, [cliPath, "resolve-bash"], {',
+        '  encoding: "utf8",',
+        "  env: process.env,",
+        '  input: "",',
+        "  windowsHide: true,",
+        "});",
+      ].join("\n"),
+    );
+}
+
 describe("sync", () => {
   let tempDir: string;
   let restoreLogger: () => void;
@@ -719,6 +787,66 @@ describe("sync", () => {
     expect(
       (await readdir(path.dirname(missingConfig.manifest.path))).filter(
         (entry) => entry.includes(".backup-"),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("leaves legacy adapters and runtime unchanged when manifest binding backup fails", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    const shell = path.join(runtimeDir, "scripts", "devcanon-runtime.sh");
+    const resolver = path.join(runtimeDir, "scripts", "resolve-bash.mjs");
+    const runtime = path.join(runtimeDir, "scripts", "runtime");
+    const runtimeLeaves = [
+      path.join(runtime, "devcanon-runtime.mjs"),
+      path.join(runtime, "runtime-manifest.json"),
+      path.join(runtime, "THIRD_PARTY_LICENSES"),
+    ];
+    const provider = await createDevcanonRuntimeProviderFixture(tempDir);
+    await writeFile(shell, legacyShellAdapter(await readFile(shell, "utf8")));
+    await writeFile(
+      resolver,
+      legacyResolverAdapter(await readFile(resolver, "utf8")),
+    );
+    await writeFile(runtimeLeaves[0], "stale provider bytes\n", "utf8");
+    const manifestBytes = makeManifestJson([], { legacy: true });
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(config.manifest.path, manifestBytes, "utf8");
+    const sourceBefore = await Promise.all(
+      [shell, resolver, ...runtimeLeaves].map((sourcePath) =>
+        readFile(sourcePath),
+      ),
+    );
+
+    await expect(
+      withManifestPersistenceFaultsForTesting(
+        (stage) => {
+          if (stage === "backup-write") {
+            throw new Error("forced legacy binding backup failure");
+          }
+        },
+        () =>
+          sync(
+            config,
+            { dryRun: false, force: false, strict: false },
+            provider,
+          ),
+      ),
+    ).rejects.toThrow("forced legacy binding backup failure");
+
+    await expect(readTextFile(config.manifest.path)).resolves.toBe(
+      manifestBytes,
+    );
+    await expect(
+      Promise.all(
+        [shell, resolver, ...runtimeLeaves].map((sourcePath) =>
+          readFile(sourcePath),
+        ),
+      ),
+    ).resolves.toEqual(sourceBefore);
+    expect(
+      (await readdir(path.dirname(config.manifest.path))).filter((entry) =>
+        entry.includes(".backup-"),
       ),
     ).toHaveLength(0);
   });

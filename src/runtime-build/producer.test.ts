@@ -52,6 +52,74 @@ describe("runtime provider canonical production", () => {
       await cleanupTempDir(root);
     }
   });
+
+  it("preserves another publisher's destination after losing an initially absent rename race", async () => {
+    const root = await createTempDir();
+    try {
+      const destination = path.join(root, "provider");
+      const stage = await createRejectedStage(root);
+
+      await expect(
+        publishVerifiedProvider({
+          stage,
+          destination,
+          origin: "package",
+          devcanonVersion: "2.0.0",
+          inputSha256: "a".repeat(64),
+          faultInjector: async (publicationStage) => {
+            if (publicationStage === "after-prior-probe") {
+              await writeProvider(
+                destination,
+                "export const concurrent = true;\n",
+              );
+            }
+          },
+        }),
+      ).rejects.toThrow();
+
+      await expect(
+        readFile(path.join(destination, PROVIDER_LEAVES.bundle), "utf8"),
+      ).resolves.toBe("export const concurrent = true;\n");
+    } finally {
+      await cleanupTempDir(root);
+    }
+  });
+
+  it("retains a verified publication and reports its prior backup when cleanup fails", async () => {
+    const root = await createTempDir();
+    try {
+      const destination = path.join(root, "provider");
+      const stage = path.join(root, "stage");
+      const backup = `${stage}.prior`;
+      await writeProvider(destination, "export const prior = true;\n");
+      await writeProvider(stage, "export const current = true;\n");
+
+      await expect(
+        publishVerifiedProvider({
+          stage,
+          destination,
+          origin: "package",
+          devcanonVersion: "2.0.0",
+          inputSha256: "a".repeat(64),
+          faultInjector: (publicationStage) => {
+            if (publicationStage === "before-backup-cleanup") {
+              throw new Error("forced provider backup cleanup failure");
+            }
+          },
+        }),
+      ).rejects.toThrow(`prior provider backup cleanup failed at ${backup}`);
+
+      await expect(
+        readFile(path.join(destination, PROVIDER_LEAVES.bundle), "utf8"),
+      ).resolves.toBe("export const current = true;\n");
+      await expect(
+        readFile(path.join(backup, PROVIDER_LEAVES.bundle), "utf8"),
+      ).resolves.toBe("export const prior = true;\n");
+    } finally {
+      await cleanupTempDir(root);
+    }
+  });
+
   it("sorts UTF-8 paths and frames records so concatenation collisions differ", () => {
     const first = canonicalInputSha256([
       { path: "ab", content: Buffer.from("c") },
@@ -474,9 +542,12 @@ async function createRejectedStage(root: string): Promise<string> {
   return stage;
 }
 
-async function writeProvider(root: string): Promise<void> {
+async function writeProvider(
+  root: string,
+  bundleText = "export {};\n",
+): Promise<void> {
   await mkdir(root);
-  const bundle = Buffer.from("export {};\n");
+  const bundle = Buffer.from(bundleText);
   const licenses = Buffer.from("license\n");
   await writeFile(path.join(root, PROVIDER_LEAVES.bundle), bundle);
   await writeFile(path.join(root, PROVIDER_LEAVES.licenses), licenses);

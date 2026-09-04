@@ -270,6 +270,16 @@ export async function sync(
   }
 
   try {
+    // Bind a legacy or missing manifest before source migration. Every pure
+    // validation and planning gate has passed, so a binding failure must still
+    // leave the source runtime untouched.
+    if (legacy) {
+      if (loaded.snapshot) {
+        await ensureAuthority();
+      }
+      await save(manifest);
+    }
+
     if (acceptedProvider && validatedRuntime.sourceDisposition !== "current") {
       if (validatedRuntime.sourceDisposition === "repair-runtime") {
         await reconcileDevcanonRuntimeSubtree(runtimeDir, acceptedProvider);
@@ -283,15 +293,6 @@ export async function sync(
       validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
         provider: acceptedProvider,
       });
-    }
-
-    // An existing legacy manifest is a migration, while a missing manifest is
-    // bound before the first generated or installed output is persisted.
-    if (!options.dryRun && legacy) {
-      if (loaded.snapshot) {
-        await ensureAuthority();
-      }
-      await save(manifest);
     }
 
     // Render outputs (filter by target, propagate strict mode)

@@ -1,5 +1,13 @@
 import { execFile } from "node:child_process";
-import { cp, mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import {
+  cp,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -122,6 +130,35 @@ describe("runtime build checker", () => {
           "devcanon-runtime.mjs",
           "runtime-manifest.json",
         ]);
+      } finally {
+        await rm(checkout, { recursive: true, force: true });
+      }
+    },
+    isolatedTestTimeoutMs,
+  );
+
+  it(
+    "rejects a package build whose produced runtime violates the existing contract",
+    async () => {
+      const checkout = await createIsolatedCheckout();
+      const runtimeCommand = path.join(checkout, "src/runtime/command.ts");
+      try {
+        const source = await readFile(runtimeCommand, "utf8");
+        const incompatible = source.replace(
+          "major_version: 1,\n  helper_foundation: true,",
+          "major_version: 2,\n  helper_foundation: true,",
+        );
+        expect(incompatible).not.toBe(source);
+        await writeFile(runtimeCommand, incompatible, "utf8");
+
+        await expect(
+          execFileAsync("pnpm", ["run", "prepack"], {
+            cwd: checkout,
+            timeout: isolatedCheckTimeoutMs,
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("contract check failed"),
+        });
       } finally {
         await rm(checkout, { recursive: true, force: true });
       }
