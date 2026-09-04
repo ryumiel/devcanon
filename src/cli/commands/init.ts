@@ -36,8 +36,8 @@ type InitActionOptions = {
 };
 
 export async function initAction(
-  options: InitActionOptions = {},
-  provider?: AcceptedProvider | (() => Promise<AcceptedProvider>),
+  options: InitActionOptions,
+  provider: AcceptedProvider | (() => Promise<AcceptedProvider>),
 ): Promise<void> {
   const logger = getLogger();
   const cwd = process.cwd();
@@ -90,7 +90,7 @@ export async function initAction(
 async function seedRuntimeSkill(
   cwd: string,
   sourceDir: string,
-  provider?: AcceptedProvider,
+  provider: AcceptedProvider,
 ): Promise<void> {
   const logger = getLogger();
   const targetDir = path.join(cwd, "skills", RUNTIME_SKILL_NAME);
@@ -108,14 +108,14 @@ async function seedRuntimeSkill(
     force: false,
     errorOnExist: true,
   });
-  if (provider) await reconcileDevcanonRuntimeSubtree(targetDir, provider);
+  await reconcileDevcanonRuntimeSubtree(targetDir, provider);
   logger.info(`Seeded support runtime: skills/${RUNTIME_SKILL_NAME}/`);
 }
 
 async function preflightRuntimeSkill(
   cwd: string,
   sourceDir: string,
-  provider?: AcceptedProvider,
+  provider: AcceptedProvider,
 ): Promise<void> {
   await requireBundledRuntimeSkill(sourceDir, provider);
 
@@ -127,7 +127,7 @@ async function preflightRuntimeSkill(
 
 async function requireBundledRuntimeSkill(
   sourceDir: string,
-  provider?: AcceptedProvider,
+  provider: AcceptedProvider,
 ): Promise<void> {
   await validateBundledDevcanonRuntime(sourceDir, { provider });
 }
@@ -135,7 +135,7 @@ async function requireBundledRuntimeSkill(
 async function requireMatchingRuntimeSkill(
   sourceDir: string,
   targetDir: string,
-  provider?: AcceptedProvider,
+  provider: AcceptedProvider,
 ): Promise<void> {
   try {
     await validateDevcanonRuntime(targetDir, {
@@ -146,27 +146,20 @@ async function requireMatchingRuntimeSkill(
     throw runtimeConflictError(targetDir);
   }
 
-  if (provider === undefined) {
-    if ((await hashDirectory(sourceDir)) === (await hashDirectory(targetDir))) {
+  const stageRoot = await mkdtemp(
+    path.join(os.tmpdir(), "devcanon-init-runtime-"),
+  );
+  const composedSource = path.join(stageRoot, RUNTIME_SKILL_NAME);
+  try {
+    await cp(sourceDir, composedSource, { recursive: true });
+    await reconcileDevcanonRuntimeSubtree(composedSource, provider);
+    if (
+      (await hashDirectory(composedSource)) === (await hashDirectory(targetDir))
+    ) {
       return;
     }
-  } else {
-    const stageRoot = await mkdtemp(
-      path.join(os.tmpdir(), "devcanon-init-runtime-"),
-    );
-    const composedSource = path.join(stageRoot, RUNTIME_SKILL_NAME);
-    try {
-      await cp(sourceDir, composedSource, { recursive: true });
-      await reconcileDevcanonRuntimeSubtree(composedSource, provider);
-      if (
-        (await hashDirectory(composedSource)) ===
-        (await hashDirectory(targetDir))
-      ) {
-        return;
-      }
-    } finally {
-      await rm(stageRoot, { recursive: true, force: true });
-    }
+  } finally {
+    await rm(stageRoot, { recursive: true, force: true });
   }
 
   throw runtimeConflictError(targetDir);

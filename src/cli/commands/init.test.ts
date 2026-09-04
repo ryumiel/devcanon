@@ -32,7 +32,7 @@ import type { AcceptedProvider } from "../../runtime-build/provider.js";
 import type { UserError } from "../../utils/errors.js";
 import { pathExists, readTextFile } from "../../utils/fs.js";
 import { validateBundledDevcanonRuntime } from "../../validate/devcanon-runtime.js";
-import { initAction } from "./init.js";
+import { initAction as initWithProvider } from "./init.js";
 
 const executableModeMutable = await canMutateExecutableMode();
 
@@ -42,6 +42,11 @@ describe("initAction", () => {
   let testLogger: TestLoggerResult;
   let restoreLogger: () => void;
   let provider: AcceptedProvider;
+
+  const initAction = (
+    options: Parameters<typeof initWithProvider>[0] = {},
+    acceptedProvider: Parameters<typeof initWithProvider>[1] = provider,
+  ) => initWithProvider(options, acceptedProvider);
 
   beforeEach(async () => {
     tempDir = await createTempDir();
@@ -330,7 +335,7 @@ describe("initAction", () => {
       tempDir,
     );
 
-    const renderResult = await renderAll(config, false);
+    const renderResult = await renderAll(config, provider, false);
     expect(
       renderResult.outputs
         .filter(
@@ -341,12 +346,16 @@ describe("initAction", () => {
         .sort(),
     ).toEqual(["claude", "codex"]);
 
-    const syncResult = await sync(config, {
-      dryRun: false,
-      force: false,
-      strict: false,
-      mode: "copy",
-    });
+    const syncResult = await sync(
+      config,
+      {
+        dryRun: false,
+        force: false,
+        strict: false,
+        mode: "copy",
+      },
+      provider,
+    );
 
     expect(syncResult.errors).toEqual([]);
     expect(
@@ -407,7 +416,7 @@ describe("initAction", () => {
     ).toBe(false);
   });
 
-  it("preflights broken bundled runtime payload before writing init files", async () => {
+  it("seeds a repairable bundled runtime mismatch with accepted provider bytes", async () => {
     const brokenRuntimeDir = path.join(
       tempDir,
       ".fake-package",
@@ -426,25 +435,46 @@ describe("initAction", () => {
     );
 
     await expect(
-      validateBundledDevcanonRuntime(brokenRuntimeDir, {
-        adapterSourceDir: brokenRuntimeDir,
-      }),
-    ).rejects.toMatchObject({
-      message:
-        "Fixed passive runtime support bundle devcanon-runtime contract check failed.",
-      filePath: path.join(
-        brokenRuntimeDir,
-        "scripts",
-        "runtime",
-        "devcanon-runtime.mjs",
-      ),
-    } satisfies Partial<UserError>);
-    expect(await pathExists(path.join(tempDir, "devcanon.config.yaml"))).toBe(
-      false,
-    );
-    expect(
-      await pathExists(path.join(tempDir, "skills", "example-skill")),
-    ).toBe(false);
+      initAction({ runtimeSourceDir: brokenRuntimeDir }),
+    ).resolves.toBeUndefined();
+    await expect(
+      Promise.all([
+        readFile(
+          path.join(
+            tempDir,
+            "skills",
+            "devcanon-runtime",
+            "scripts",
+            "runtime",
+            "devcanon-runtime.mjs",
+          ),
+        ),
+        readFile(
+          path.join(
+            tempDir,
+            "skills",
+            "devcanon-runtime",
+            "scripts",
+            "runtime",
+            "runtime-manifest.json",
+          ),
+        ),
+        readFile(
+          path.join(
+            tempDir,
+            "skills",
+            "devcanon-runtime",
+            "scripts",
+            "runtime",
+            "THIRD_PARTY_LICENSES",
+          ),
+        ),
+      ]),
+    ).resolves.toEqual([
+      provider.bundle.copy(),
+      provider.manifestBytes.copy(),
+      provider.licenses.copy(),
+    ]);
   });
 
   it("rejects a garbage but executable bundled shell adapter before writing init files", async () => {

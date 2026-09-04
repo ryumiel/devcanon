@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   cleanupTempDir,
   copyDevcanonRuntimeFixture,
+  createDevcanonRuntimeProviderFixture,
   createTempDir,
   makeResolvedConfig,
 } from "../__test-helpers__/fixtures.js";
@@ -65,7 +66,12 @@ describe("issue-worktree-setup render packaging", () => {
       await mkdir(config.library.agentsDir, { recursive: true });
       await copyDevcanonRuntimeFixture(config.library.skillsDir);
 
-      await renderAll(config, true, false);
+      await renderAll(
+        config,
+        await createDevcanonRuntimeProviderFixture(rootDir),
+        true,
+        false,
+      );
 
       for (const target of ["claude", "codex"] as const) {
         for (const [scriptName, sourceScript] of sourceScripts) {

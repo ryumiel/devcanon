@@ -73,7 +73,7 @@ export interface ReconciliationResult {
 export async function sync(
   config: ResolvedConfig,
   options: SyncOptions,
-  provider?: AcceptedProvider | (() => Promise<AcceptedProvider>),
+  provider: AcceptedProvider | (() => Promise<AcceptedProvider>),
 ): Promise<SyncResult> {
   const totalResult: SyncResult = {
     installed: 0,
@@ -99,18 +99,12 @@ export async function sync(
   // The public launcher passes a lazy resolver. Accept it after the
   // observational manifest preflight but before recovery or source mutation.
   const acceptedProvider =
-    provider === undefined
-      ? undefined
-      : typeof provider === "function"
-        ? await provider()
-        : provider;
+    typeof provider === "function" ? await provider() : provider;
   const runtimeDir = devcanonRuntimeDir(config.library.skillsDir);
-  let validatedRuntime = acceptedProvider
-    ? await validateDevcanonRuntime(runtimeDir, {
-        operation: "compose",
-        provider: acceptedProvider,
-      })
-    : await validateDevcanonRuntime(runtimeDir);
+  let validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
+    operation: "compose",
+    provider: acceptedProvider,
+  });
   // A manifest must be accepted before rendering can create generated output
   // or an install action can touch a configured home.
   const loaded = await loadManifestForSync(config, options, inspection);
@@ -280,7 +274,7 @@ export async function sync(
       await save(manifest);
     }
 
-    if (acceptedProvider && validatedRuntime.sourceDisposition !== "current") {
+    if (validatedRuntime.sourceDisposition !== "current") {
       if (validatedRuntime.sourceDisposition === "repair-runtime") {
         await reconcileDevcanonRuntimeSubtree(runtimeDir, acceptedProvider);
       } else {

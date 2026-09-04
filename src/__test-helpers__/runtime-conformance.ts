@@ -18,6 +18,7 @@ import {
   createSkillFixture,
   createTempDir,
   makeResolvedConfig,
+  providerFromRuntimeFixture,
 } from "./fixtures.js";
 import { installTestLogger } from "./logger.js";
 
@@ -137,19 +138,31 @@ export async function createRuntimeConformanceFixture(
 export async function renderRuntimeConformanceFixture(
   fixture: RuntimeConformanceFixture,
 ): Promise<void> {
-  await renderAll(fixture.config, true);
+  await renderAll(
+    fixture.config,
+    await providerFromRuntimeFixture(
+      path.join(fixture.config.library.skillsDir, "devcanon-runtime"),
+    ),
+    true,
+  );
 }
 
 export async function syncRuntimeConformanceFixture(
   fixture: RuntimeConformanceFixture,
   mode: InstallMode,
 ): Promise<SyncResult> {
-  return sync(fixture.config, {
-    dryRun: false,
-    force: false,
-    strict: false,
-    mode,
-  });
+  return sync(
+    fixture.config,
+    {
+      dryRun: false,
+      force: false,
+      strict: false,
+      mode,
+    },
+    await providerFromRuntimeFixture(
+      path.join(fixture.config.library.skillsDir, "devcanon-runtime"),
+    ),
+  );
 }
 
 export async function runRuntimeBackedAdapter(

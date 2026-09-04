@@ -24,9 +24,9 @@ import {
 
 export async function diffAll(
   config: ResolvedConfig,
-  targetFilter?: "claude" | "codex",
-  strict = false,
-  provider?: AcceptedProvider | (() => Promise<AcceptedProvider>),
+  targetFilter: "claude" | "codex" | undefined,
+  strict: boolean,
+  provider: AcceptedProvider | (() => Promise<AcceptedProvider>),
 ): Promise<DiffResult[]> {
   const loaded = await loadManifestWithSnapshot(config.manifest.path);
   let normalized: ReturnType<typeof normalizeManifestIdentity>;

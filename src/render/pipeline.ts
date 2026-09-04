@@ -10,6 +10,7 @@ import type {
   RenderedOutput,
   RenderedSkill,
 } from "../models/types.js";
+import type { AcceptedProvider } from "../runtime-build/provider.js";
 import { UserError } from "../utils/errors.js";
 import { ensureDir, readdir, writeTextFile } from "../utils/fs.js";
 import { loadAndValidateAgents } from "../validate/agents.js";
@@ -29,6 +30,8 @@ import { renderClaudeAgent } from "./claude.js";
 import { renderCodexAgent } from "./codex.js";
 import {
   hashDevcanonRuntimePayload,
+  reconcileDevcanonRuntimeSource,
+  reconcileDevcanonRuntimeSubtree,
   renderDevcanonRuntimeForTarget,
   writeRenderedDevcanonRuntime,
 } from "./devcanon-runtime.js";
@@ -87,15 +90,40 @@ export interface RenderLoadedOptions<
 
 export async function renderAll(
   config: ResolvedConfig,
+  provider: AcceptedProvider,
   writeToGenerated = true,
   strict = false,
   targetFilter?: "claude" | "codex",
 ): Promise<RenderResult> {
   const runtimeDir = devcanonRuntimeDir(config.library.skillsDir);
-  const validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
+  let validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
     adapterSourceDir: bundledDevcanonRuntimeDir(),
     operation: writeToGenerated ? "compose" : "read-only",
+    provider,
   });
+  if (writeToGenerated && validatedRuntime.sourceDisposition !== "current") {
+    const projection = await renderAllWithValidatedRuntime(
+      config,
+      validatedRuntime,
+      false,
+      strict,
+      targetFilter,
+    );
+    await preflightGeneratedRender(config, projection);
+    if (validatedRuntime.sourceDisposition === "repair-runtime") {
+      await reconcileDevcanonRuntimeSubtree(runtimeDir, provider);
+    } else {
+      await reconcileDevcanonRuntimeSource(
+        runtimeDir,
+        provider,
+        validatedRuntime,
+      );
+    }
+    validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
+      adapterSourceDir: bundledDevcanonRuntimeDir(),
+      provider,
+    });
+  }
   return renderAllWithValidatedRuntime(
     config,
     validatedRuntime,

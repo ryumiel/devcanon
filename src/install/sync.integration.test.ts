@@ -37,8 +37,8 @@ import {
 } from "../__test-helpers__/logger.js";
 import { loadConfig } from "../config/load.js";
 import type { ResolvedConfig } from "../config/schema.js";
-import { diffAll } from "../diff/diff.js";
-import { renderAll } from "../render/pipeline.js";
+import { diffAll as diffAllWithProvider } from "../diff/diff.js";
+import { renderAll as renderAllWithProvider } from "../render/pipeline.js";
 import { buildSkillContentHash } from "../render/skill.js";
 import { UserError } from "../utils/errors.js";
 import { pathExists, readTextFile } from "../utils/fs.js";
@@ -47,7 +47,7 @@ import {
   recoverInvalidManifest,
   withManifestPersistenceFaultsForTesting,
 } from "./manifest.js";
-import { sync } from "./sync.js";
+import { sync as syncWithProvider } from "./sync.js";
 import { uninstall } from "./uninstall.js";
 
 const symlinkFailure = vi.hoisted(() => ({ enabled: false }));
@@ -214,10 +214,38 @@ describe("sync", () => {
   let tempDir: string;
   let restoreLogger: () => void;
   let testLogger: TestLoggerResult;
+  let provider: Awaited<
+    ReturnType<typeof createDevcanonRuntimeProviderFixture>
+  >;
+
+  const sync = (
+    config: Parameters<typeof syncWithProvider>[0],
+    options: Parameters<typeof syncWithProvider>[1],
+    acceptedProvider: Parameters<typeof syncWithProvider>[2] = provider,
+  ) => syncWithProvider(config, options, acceptedProvider);
+  const renderAll = (
+    renderedConfig: ResolvedConfig,
+    writeToGenerated = true,
+    strict = false,
+    targetFilter?: "claude" | "codex",
+  ) =>
+    renderAllWithProvider(
+      renderedConfig,
+      provider,
+      writeToGenerated,
+      strict,
+      targetFilter,
+    );
+  const diffAll = (
+    comparedConfig: ResolvedConfig,
+    targetFilter?: "claude" | "codex",
+    strict = false,
+  ) => diffAllWithProvider(comparedConfig, targetFilter, strict, provider);
 
   beforeEach(async () => {
     tempDir = await createTempDir();
     await copyDevcanonRuntimeFixture(path.join(tempDir, "skills"));
+    provider = await createDevcanonRuntimeProviderFixture(tempDir);
     const installed = installTestLogger();
     restoreLogger = installed.restore;
     testLogger = installed.testLogger;

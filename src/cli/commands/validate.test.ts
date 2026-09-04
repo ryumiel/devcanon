@@ -6,20 +6,28 @@ import {
   copyDevcanonRuntimeFixture,
   createAgentFixture,
   createConfigFile,
+  createDevcanonRuntimeProviderFixture,
   createSkillFixture,
   createTempDir,
   makeAgentYaml,
   makeConfigYaml,
 } from "../../__test-helpers__/fixtures.js";
+import type { AcceptedProvider } from "../../runtime-build/provider.js";
 import { UserError } from "../../utils/errors.js";
 import { type Logger, getLogger, setLogger } from "../../utils/output.js";
-import { validateAction } from "./validate.js";
+import { validateAction as validateWithProvider } from "./validate.js";
 
 describe("validateAction", () => {
   let tempDir: string;
   let configPath: string;
   let skillsDir: string;
   let agentsDir: string;
+  let provider: AcceptedProvider;
+
+  const validateAction = (
+    options: Parameters<typeof validateWithProvider>[0],
+    command: Parameters<typeof validateWithProvider>[1],
+  ) => validateWithProvider(options, command, provider);
 
   beforeEach(async () => {
     tempDir = await createTempDir();
@@ -28,6 +36,7 @@ describe("validateAction", () => {
     await mkdir(skillsDir, { recursive: true });
     await mkdir(agentsDir, { recursive: true });
     await copyDevcanonRuntimeFixture(skillsDir);
+    provider = await createDevcanonRuntimeProviderFixture(tempDir);
     configPath = await createConfigFile(
       tempDir,
       makeConfigYaml({

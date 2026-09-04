@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
 import { readAgentSemanticRoleOwner } from "../__test-helpers__/agent-routing-policy.js";
+import { providerFromRuntimeFixture } from "../__test-helpers__/fixtures.js";
 import {
   parseRenderedMarkdownArtifact,
   parseRenderedTomlArtifact,
@@ -10,7 +11,7 @@ import {
 import { loadConfig } from "../config/load.js";
 import type { ResolvedConfig } from "../config/schema.js";
 import { sha256 } from "../utils/hash.js";
-import { renderAll } from "./pipeline.js";
+import { renderAll as renderAllWithProvider } from "./pipeline.js";
 
 interface AgentSourceFixture {
   name: string;
@@ -27,6 +28,23 @@ interface AgentSourceFixture {
     model_reasoning_effort?: string;
     sandbox_mode: string;
   };
+}
+
+async function renderAll(
+  config: ResolvedConfig,
+  writeToGenerated = true,
+  strict = false,
+  targetFilter?: "claude" | "codex",
+) {
+  return renderAllWithProvider(
+    config,
+    await providerFromRuntimeFixture(
+      path.join(config.library.skillsDir, "devcanon-runtime"),
+    ),
+    writeToGenerated,
+    strict,
+    targetFilter,
+  );
 }
 
 const PRE_CHANGE_CLAUDE_CONTENT_HASHES: Record<string, string> = {

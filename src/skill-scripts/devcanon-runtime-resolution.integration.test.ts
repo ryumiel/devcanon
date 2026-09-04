@@ -9,6 +9,7 @@ import {
   createSkillFixture,
   createTempDir,
   makeResolvedConfig,
+  providerFromRuntimeFixture,
 } from "../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../__test-helpers__/logger.js";
 import {
@@ -18,11 +19,41 @@ import {
   toBashPath,
 } from "../__test-helpers__/runtime-conformance.js";
 import type { ResolvedConfig } from "../config/schema.js";
-import { sync } from "../install/sync.js";
-import { renderAll } from "../render/pipeline.js";
+import { sync as syncWithProvider } from "../install/sync.js";
+import { renderAll as renderAllWithProvider } from "../render/pipeline.js";
 
 const execFileAsync = promisify(execFile);
 const symlinkAvailable = await canCreateSymlinks();
+
+async function renderAll(
+  config: ResolvedConfig,
+  writeToGenerated = true,
+  strict = false,
+  targetFilter?: "claude" | "codex",
+) {
+  return renderAllWithProvider(
+    config,
+    await providerFromRuntimeFixture(
+      path.join(config.library.skillsDir, "devcanon-runtime"),
+    ),
+    writeToGenerated,
+    strict,
+    targetFilter,
+  );
+}
+
+async function sync(
+  config: ResolvedConfig,
+  options: Parameters<typeof syncWithProvider>[1],
+) {
+  return syncWithProvider(
+    config,
+    options,
+    await providerFromRuntimeFixture(
+      path.join(config.library.skillsDir, "devcanon-runtime"),
+    ),
+  );
+}
 
 async function prepareRuntimeResolutionFixture(
   config: ResolvedConfig,

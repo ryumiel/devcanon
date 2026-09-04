@@ -19,11 +19,14 @@ import {
   makeResolvedConfig,
 } from "../__test-helpers__/fixtures.js";
 import { renderAll } from "../render/pipeline.js";
+import type { AcceptedProvider } from "../runtime-build/provider.js";
 import type { UserError } from "../utils/errors.js";
 import {
+  type ValidateBundledDevcanonRuntimeOptions,
+  type ValidateDevcanonRuntimeOptions,
   classifyAdapterPair,
-  validateBundledDevcanonRuntime,
-  validateDevcanonRuntime,
+  validateBundledDevcanonRuntime as validateProviderBackedBundledRuntime,
+  validateDevcanonRuntime as validateProviderBackedRuntime,
 } from "./devcanon-runtime.js";
 
 const symlinkAvailable = await canCreateSymlinks();
@@ -32,6 +35,22 @@ const executableModeMutable = await canMutateExecutableMode();
 describe("devcanon-runtime source validation", () => {
   let tempDir: string;
   let config: ReturnType<typeof makeResolvedConfig>;
+  let provider: AcceptedProvider;
+
+  const validateDevcanonRuntime = (
+    runtimeDir: string,
+    options: Omit<ValidateDevcanonRuntimeOptions, "provider"> = {},
+  ) => validateProviderBackedRuntime(runtimeDir, { ...options, provider });
+  const validateBundledDevcanonRuntime = (
+    runtimeDir: string,
+    options: Omit<ValidateBundledDevcanonRuntimeOptions, "provider"> & {
+      provider?: AcceptedProvider;
+    } = {},
+  ) =>
+    validateProviderBackedBundledRuntime(runtimeDir, {
+      ...options,
+      provider: options.provider ?? provider,
+    });
 
   beforeEach(async () => {
     tempDir = await createTempDir();
@@ -39,6 +58,7 @@ describe("devcanon-runtime source validation", () => {
     await mkdir(config.library.skillsDir, { recursive: true });
     await mkdir(config.library.agentsDir, { recursive: true });
     await copyDevcanonRuntimeFixture(config.library.skillsDir);
+    provider = await createDevcanonRuntimeProviderFixture(tempDir);
   });
 
   afterEach(async () => cleanupTempDir(tempDir));
@@ -56,6 +76,99 @@ describe("devcanon-runtime source validation", () => {
       runtimeDir,
     });
   });
+
+  it("rejects missing accepted-provider authority before inspecting the runtime tree", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+
+    await expect(
+      validateProviderBackedRuntime(runtimeDir, {} as never),
+    ).rejects.toThrow("accepted provider is required");
+  });
+
+  it("rejects missing bundled accepted-provider authority before inspecting the runtime tree", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+
+    await expect(
+      validateProviderBackedBundledRuntime(runtimeDir, {} as never),
+    ).rejects.toThrow("accepted provider is required");
+  });
+
+  it("rejects a read-only derived subtree that differs from the accepted provider", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    await writeFile(
+      path.join(runtimeDir, "scripts", "runtime", "devcanon-runtime.mjs"),
+      "stale provider bytes\n",
+    );
+
+    await expect(validateDevcanonRuntime(runtimeDir)).rejects.toMatchObject({
+      message: expect.stringContaining("derived subtree is missing or stale"),
+      hint: expect.stringContaining("devcanon render"),
+    } satisfies Partial<UserError>);
+  });
+
+  it("accepts bundled validation against package authority when local derived bytes are source-built", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    const manifestPath = path.join(
+      runtimeDir,
+      "scripts",
+      "runtime",
+      "runtime-manifest.json",
+    );
+    const localManifest = JSON.parse(
+      await readFile(manifestPath, "utf8"),
+    ) as Record<string, unknown>;
+    localManifest.artifact_origin = "source-build";
+    await writeFile(manifestPath, `${JSON.stringify(localManifest)}\n`);
+
+    await expect(
+      validateBundledDevcanonRuntime(runtimeDir),
+    ).resolves.toBeUndefined();
+  });
+
+  it.each([
+    [
+      "missing",
+      async (runtimePath: string) => rm(runtimePath, { recursive: true }),
+    ],
+    [
+      "mismatched",
+      async (runtimePath: string) =>
+        writeFile(path.join(runtimePath, "devcanon-runtime.mjs"), "stale\n"),
+    ],
+  ])(
+    "reconciles a %s derived subtree from the provider before publishing generated output",
+    async (_state, makeNonCurrent) => {
+      const runtimeDir = path.join(
+        config.library.skillsDir,
+        "devcanon-runtime",
+      );
+      const runtimePath = path.join(runtimeDir, "scripts", "runtime");
+      await makeNonCurrent(runtimePath);
+
+      await expect(renderAll(config, provider, true)).resolves.toMatchObject({
+        outputs: expect.any(Array),
+      });
+      await expect(validateDevcanonRuntime(runtimeDir)).resolves.toMatchObject({
+        sourceDisposition: "current",
+      });
+      await expect(
+        readFile(path.join(runtimePath, "runtime-manifest.json")),
+      ).resolves.toEqual(provider.manifestBytes.copy());
+      await expect(
+        readFile(
+          path.join(
+            config.library.generatedDir,
+            "codex",
+            "skills",
+            "devcanon-runtime",
+            "scripts",
+            "runtime",
+            "runtime-manifest.json",
+          ),
+        ),
+      ).resolves.toEqual(provider.manifestBytes.copy());
+    },
+  );
 
   it("keeps current, legacy, mixed, and modified adapter states distinct", () => {
     const current = {
@@ -264,7 +377,7 @@ describe("devcanon-runtime source validation", () => {
       path.join(runtimeDir, "scripts", "runtime", "extra.js"),
       "extra\n",
     );
-    await expect(renderAll(config, true)).rejects.toMatchObject({
+    await expect(renderAll(config, provider, false)).rejects.toMatchObject({
       message: expect.stringContaining("derived subtree is missing or stale"),
       hint: expect.stringContaining("devcanon render"),
     } satisfies Partial<UserError>);

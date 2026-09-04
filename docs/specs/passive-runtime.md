@@ -125,6 +125,22 @@ manifest parsing, hashing, composition, or transport.
 Provider acceptance precedes any authorized runtime recomposition, rendering,
 initialization, package acceptance, or installation mutation.
 
+### PR-PROV-04: Trusted runtime validation
+
+General passive-runtime validation requires caller-supplied accepted-provider
+authority. It compares every PR-ART-05 leaf with that provider before it can
+return trusted validation evidence; provider omission fails before runtime-tree
+inspection, and a read-only mismatch fails with existing render guidance.
+Compose validation may classify a missing or mismatched PR-ART-05 for the
+existing renderer-owned reconciliation lifecycle, but uses accepted-provider
+bytes and requires post-reconciliation validation before publication.
+
+Installed-copy identity is a separate, private, read-only structural
+observation. It validates the installed managed tree and hashes observed bytes
+only for manifest identity comparison; it neither consults a provider nor
+returns trusted runtime evidence, repairs state, or promotes structural
+observation into provider-backed validation.
+
 ## Adapter compatibility and bounded migration
 
 ### PR-ADAPT-01: Compatibility gate

@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { providerFromRuntimeFixture } from "../__test-helpers__/fixtures.js";
 import {
   getSkillOutput,
   listRelativeFiles,
@@ -11,7 +12,7 @@ import { loadConfig } from "../config/load.js";
 import type { SkillSource } from "../config/schema.js";
 import { pathExists } from "../utils/fs.js";
 import { parseFrontmatter } from "./frontmatter.js";
-import { renderAll } from "./pipeline.js";
+import { renderAll as renderAllWithProvider } from "./pipeline.js";
 import { buildGlossary, resolvePlaceholders } from "./placeholders.js";
 
 const TARGETS = ["claude", "codex"] as const;
@@ -44,6 +45,23 @@ const ROUTE_OWNER_SKILLS = [
   "play-subagent-execution",
   "pr-merge",
 ] as const;
+
+async function renderAll(
+  config: Awaited<ReturnType<typeof loadConfig>>,
+  writeToGenerated = true,
+  strict = false,
+  targetFilter?: "claude" | "codex",
+) {
+  return renderAllWithProvider(
+    config,
+    await providerFromRuntimeFixture(
+      path.join(config.library.skillsDir, "devcanon-runtime"),
+    ),
+    writeToGenerated,
+    strict,
+    targetFilter,
+  );
+}
 
 function normalizeContractText(content: string): string {
   return content.replace(/\s+/gu, " ").trim();
