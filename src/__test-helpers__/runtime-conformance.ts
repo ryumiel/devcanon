@@ -15,10 +15,10 @@ import { type SyncResult, sync } from "../install/sync.js";
 import { renderAll } from "../render/pipeline.js";
 import {
   cleanupTempDir,
-  createDevcanonRuntimeProviderFixture,
   createSkillFixture,
   createTempDir,
   makeResolvedConfig,
+  providerFromRuntimeFixture,
 } from "./fixtures.js";
 import { installTestLogger } from "./logger.js";
 
@@ -140,7 +140,9 @@ export async function renderRuntimeConformanceFixture(
 ): Promise<void> {
   await renderAll(
     fixture.config,
-    await createDevcanonRuntimeProviderFixture(fixture.tempDir),
+    await providerFromRuntimeFixture(
+      path.join(fixture.config.library.skillsDir, "devcanon-runtime"),
+    ),
     true,
   );
 }
@@ -157,7 +159,9 @@ export async function syncRuntimeConformanceFixture(
       strict: false,
       mode,
     },
-    await createDevcanonRuntimeProviderFixture(fixture.tempDir),
+    await providerFromRuntimeFixture(
+      path.join(fixture.config.library.skillsDir, "devcanon-runtime"),
+    ),
   );
 }
 

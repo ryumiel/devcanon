@@ -6,10 +6,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   canCreateSymlinks,
   cleanupTempDir,
-  createDevcanonRuntimeProviderFixture,
   createSkillFixture,
   createTempDir,
   makeResolvedConfig,
+  providerFromRuntimeFixture,
 } from "../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../__test-helpers__/logger.js";
 import {
@@ -33,8 +33,8 @@ async function renderAll(
 ) {
   return renderAllWithProvider(
     config,
-    await createDevcanonRuntimeProviderFixture(
-      path.dirname(config.library.skillsDir),
+    await providerFromRuntimeFixture(
+      path.join(config.library.skillsDir, "devcanon-runtime"),
     ),
     writeToGenerated,
     strict,
@@ -49,8 +49,8 @@ async function sync(
   return syncWithProvider(
     config,
     options,
-    await createDevcanonRuntimeProviderFixture(
-      path.dirname(config.library.skillsDir),
+    await providerFromRuntimeFixture(
+      path.join(config.library.skillsDir, "devcanon-runtime"),
     ),
   );
 }
