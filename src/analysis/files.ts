@@ -2,11 +2,11 @@ import { execFile } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { constants } from "node:fs";
 import {
-  link,
   lstat,
   open,
   readFile,
   realpath,
+  rename,
   unlink,
 } from "node:fs/promises";
 import path from "node:path";
@@ -190,19 +190,13 @@ export async function publishAnalysisResult(
       "result",
       true,
     );
-    await link(temporary, destination).catch((error) => {
-      if ((error as NodeJS.ErrnoException).code === "EEXIST") {
-        fail("result", "result destination appeared after preflight");
-      }
-      throw error;
-    });
+    await rename(temporary, destination);
     await assertSameDirectory(boundary.resultDirectory, parent);
     await assertOwnedDestination(
       destination,
       boundary.ephemeralDirectory,
       canonical.bytes,
     );
-    await unlinkOwnedTemporary(temporary, temporaryIdentity);
     createdTemporary = false;
   } catch (error) {
     if (createdTemporary && temporaryIdentity !== undefined) {

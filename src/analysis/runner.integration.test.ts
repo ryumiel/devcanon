@@ -41,6 +41,20 @@ describe("write-disabled analysis runner", () => {
       "utf8",
     );
     await mkdir(config.library.agentsDir, { recursive: true });
+    await mkdir(config.library.generatedDir, { recursive: true });
+    await mkdir(config.targets.codex.skillsHome, { recursive: true });
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    const generatedSentinel = path.join(
+      config.library.generatedDir,
+      "keep.txt",
+    );
+    const installedSentinel = path.join(
+      config.targets.codex.skillsHome,
+      "keep.txt",
+    );
+    await writeFile(generatedSentinel, "generated", "utf8");
+    await writeFile(installedSentinel, "installed", "utf8");
+    await writeFile(config.manifest.path, "manifest", "utf8");
     const skills = await loadAndValidateSkills(config.library.skillsDir);
     const agents = await loadAndValidateAgents(
       config.library.agentsDir,
@@ -71,7 +85,34 @@ describe("write-disabled analysis runner", () => {
     expect(await readFile(path.join(root, result.path))).toEqual(
       result.envelope.bytes,
     );
-    await expect(readFile(config.library.generatedDir)).rejects.toThrow();
+    const repeated = await runSkillContextAnalysis({
+      config,
+      skills,
+      agents,
+      skill: "example",
+      subject: "candidate",
+      targets: ["codex"],
+      scenarios: [
+        {
+          name: "full",
+          target: "codex",
+          supportPaths: ["references/guide.md"],
+        },
+      ],
+      repositoryRoot: root,
+      resultDirectory: path.join(root, ".ephemeral", "analysis"),
+    });
+    expect(repeated.payloadSha256).toBe(result.payloadSha256);
+    expect(repeated.envelope.bytes).toEqual(result.envelope.bytes);
+    await expect(readFile(generatedSentinel, "utf8")).resolves.toBe(
+      "generated",
+    );
+    await expect(readFile(installedSentinel, "utf8")).resolves.toBe(
+      "installed",
+    );
+    await expect(readFile(config.manifest.path, "utf8")).resolves.toBe(
+      "manifest",
+    );
   });
 
   it("refuses a noncanonical comparison before publishing a current result", async () => {
@@ -100,10 +141,33 @@ describe("write-disabled analysis runner", () => {
       repositoryRoot: root,
       resultDirectory: results,
     });
+    await expect(
+      runSkillContextAnalysis({
+        config,
+        skills,
+        agents,
+        skill: "example",
+        subject: "candidate",
+        targets: ["codex"],
+        scenarios: [{ name: "full", target: "codex", supportPaths: [] }],
+        repositoryRoot: root,
+        resultDirectory: results,
+        comparison: {
+          path: path.join(root, prior.path),
+          expectedPayloadSha256: "0".repeat(64),
+        },
+      }),
+    ).rejects.toThrow("expected hash");
     const tampered = path.join(results, "duplicate.json");
     await writeFile(
       tampered,
-      Buffer.concat([Buffer.from(" "), prior.envelope.bytes]),
+      prior.envelope.bytes
+        .toString("utf8")
+        .replace(
+          '{"payloadSha256":',
+          `{\"payloadSha256\":\"${prior.payloadSha256}\",\"payloadSha256\":`,
+        ),
+      "utf8",
     );
     const before = (await readFile(tampered)).toString("utf8");
 
@@ -256,6 +320,45 @@ describe("write-disabled analysis runner", () => {
         }),
       ).rejects.toMatchObject({ category: "request" });
     }
+  });
+
+  it("refuses nonignored and outside result directories before publication", async () => {
+    const root = await createTempDir();
+    temporary.push(root);
+    await run("git", ["init", "-q", root]);
+    const config = makeResolvedConfig(root);
+    await createSkillFixture(config.library.skillsDir, "example");
+    await mkdir(config.library.agentsDir, { recursive: true });
+    await mkdir(path.join(root, ".ephemeral", "analysis"), {
+      recursive: true,
+    });
+    const skills = await loadAndValidateSkills(config.library.skillsDir);
+    const agents = await loadAndValidateAgents(
+      config.library.agentsDir,
+      skills,
+    );
+    const request = {
+      config,
+      skills,
+      agents,
+      skill: "example",
+      subject: "candidate" as const,
+      targets: ["codex"] as const,
+      scenarios: [],
+      repositoryRoot: root,
+    };
+    await expect(
+      runSkillContextAnalysis({
+        ...request,
+        resultDirectory: path.join(root, ".ephemeral", "analysis"),
+      }),
+    ).rejects.toThrow("ignored");
+    await expect(
+      runSkillContextAnalysis({
+        ...request,
+        resultDirectory: path.join(root, "outside"),
+      }),
+    ).rejects.toMatchObject({ category: "request" });
   });
 
   it("refuses a wrong-kind deterministic destination without replacing it", async () => {
