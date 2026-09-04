@@ -252,6 +252,32 @@ function validateRequest(request: SkillContextAnalysisRequest): {
   );
   if (!Array.isArray(request.skills) || !Array.isArray(request.agents))
     fail("request", "validated skills and agents must be arrays");
+  for (const skill of request.skills) {
+    if (
+      !skill ||
+      typeof skill !== "object" ||
+      typeof skill.name !== "string" ||
+      typeof skill.dirPath !== "string" ||
+      typeof skill.skillMdContent !== "string" ||
+      !skill.source ||
+      typeof skill.source !== "object" ||
+      !Array.isArray(skill.subdirs)
+    ) {
+      fail("request", "validated skills must contain loaded-skill objects");
+    }
+  }
+  for (const agent of request.agents) {
+    if (
+      !agent ||
+      typeof agent !== "object" ||
+      typeof agent.name !== "string" ||
+      typeof agent.filePath !== "string" ||
+      !agent.source ||
+      typeof agent.source !== "object"
+    ) {
+      fail("request", "validated agents must contain loaded-agent objects");
+    }
+  }
   if (!SUBJECTS.includes(request.subject))
     fail("request", "analysis subject must be base or candidate");
   if (typeof request.skill !== "string" || request.skill.length === 0)

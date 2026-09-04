@@ -224,6 +224,40 @@ describe("write-disabled analysis runner", () => {
     );
   });
 
+  it("categorizes malformed validated-array members as request failures", async () => {
+    const root = await createTempDir();
+    temporary.push(root);
+    const config = makeResolvedConfig(root);
+    for (const member of [null, 1, "skill"]) {
+      await expect(
+        runSkillContextAnalysis({
+          config,
+          skills: [member] as never,
+          agents: [],
+          skill: "example",
+          subject: "candidate",
+          targets: ["codex"],
+          scenarios: [],
+          repositoryRoot: root,
+          resultDirectory: path.join(root, ".ephemeral", "analysis"),
+        }),
+      ).rejects.toMatchObject({ category: "request" });
+      await expect(
+        runSkillContextAnalysis({
+          config,
+          skills: [],
+          agents: [member] as never,
+          skill: "example",
+          subject: "candidate",
+          targets: ["codex"],
+          scenarios: [],
+          repositoryRoot: root,
+          resultDirectory: path.join(root, ".ephemeral", "analysis"),
+        }),
+      ).rejects.toMatchObject({ category: "request" });
+    }
+  });
+
   it("refuses a wrong-kind deterministic destination without replacing it", async () => {
     const root = await createTempDir();
     temporary.push(root);

@@ -8,7 +8,6 @@ import {
   readFile,
   realpath,
   unlink,
-  writeFile,
 } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -159,16 +158,25 @@ export async function publishAnalysisResult(
   const parent = await openNonsymlinkDirectory(boundary.resultDirectory);
   try {
     await assertSameDirectory(boundary.resultDirectory, parent);
-    await writeFile(temporary, canonical.bytes, { flag: "wx" });
-    createdTemporary = true;
-    const temporaryStat = await lstat(temporary);
-    if (!temporaryStat.isFile() || temporaryStat.isSymbolicLink()) {
-      fail(
-        "result",
-        "temporary result leaf must be a regular non-symlink file",
-      );
+    const temporaryHandle = await open(
+      temporary,
+      constants.O_WRONLY |
+        constants.O_CREAT |
+        constants.O_EXCL |
+        constants.O_NOFOLLOW,
+      0o600,
+    );
+    try {
+      await temporaryHandle.writeFile(canonical.bytes);
+      const temporaryStat = await temporaryHandle.stat();
+      if (!temporaryStat.isFile()) {
+        fail("result", "temporary result leaf must be a regular file");
+      }
+      temporaryIdentity = { dev: temporaryStat.dev, ino: temporaryStat.ino };
+      createdTemporary = true;
+    } finally {
+      await temporaryHandle.close().catch(() => undefined);
     }
-    temporaryIdentity = { dev: temporaryStat.dev, ino: temporaryStat.ino };
     await assertOwnedTemporary(
       temporary,
       boundary.ephemeralDirectory,
