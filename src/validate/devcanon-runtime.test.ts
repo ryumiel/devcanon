@@ -106,6 +106,70 @@ describe("devcanon-runtime source validation", () => {
     } satisfies Partial<UserError>);
   });
 
+  it("accepts bundled validation against package authority when local derived bytes are source-built", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    const manifestPath = path.join(
+      runtimeDir,
+      "scripts",
+      "runtime",
+      "runtime-manifest.json",
+    );
+    const localManifest = JSON.parse(
+      await readFile(manifestPath, "utf8"),
+    ) as Record<string, unknown>;
+    localManifest.artifact_origin = "source-build";
+    await writeFile(manifestPath, `${JSON.stringify(localManifest)}\n`);
+
+    await expect(
+      validateBundledDevcanonRuntime(runtimeDir),
+    ).resolves.toBeUndefined();
+  });
+
+  it.each([
+    [
+      "missing",
+      async (runtimePath: string) => rm(runtimePath, { recursive: true }),
+    ],
+    [
+      "mismatched",
+      async (runtimePath: string) =>
+        writeFile(path.join(runtimePath, "devcanon-runtime.mjs"), "stale\n"),
+    ],
+  ])(
+    "reconciles a %s derived subtree from the provider before publishing generated output",
+    async (_state, makeNonCurrent) => {
+      const runtimeDir = path.join(
+        config.library.skillsDir,
+        "devcanon-runtime",
+      );
+      const runtimePath = path.join(runtimeDir, "scripts", "runtime");
+      await makeNonCurrent(runtimePath);
+
+      await expect(renderAll(config, provider, true)).resolves.toMatchObject({
+        outputs: expect.any(Array),
+      });
+      await expect(validateDevcanonRuntime(runtimeDir)).resolves.toMatchObject({
+        sourceDisposition: "current",
+      });
+      await expect(
+        readFile(path.join(runtimePath, "runtime-manifest.json")),
+      ).resolves.toEqual(provider.manifestBytes.copy());
+      await expect(
+        readFile(
+          path.join(
+            config.library.generatedDir,
+            "codex",
+            "skills",
+            "devcanon-runtime",
+            "scripts",
+            "runtime",
+            "runtime-manifest.json",
+          ),
+        ),
+      ).resolves.toEqual(provider.manifestBytes.copy());
+    },
+  );
+
   it("keeps current, legacy, mixed, and modified adapter states distinct", () => {
     const current = {
       shell: Buffer.from("current"),

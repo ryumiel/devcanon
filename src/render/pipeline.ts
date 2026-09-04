@@ -30,6 +30,8 @@ import { renderClaudeAgent } from "./claude.js";
 import { renderCodexAgent } from "./codex.js";
 import {
   hashDevcanonRuntimePayload,
+  reconcileDevcanonRuntimeSource,
+  reconcileDevcanonRuntimeSubtree,
   renderDevcanonRuntimeForTarget,
   writeRenderedDevcanonRuntime,
 } from "./devcanon-runtime.js";
@@ -94,11 +96,26 @@ export async function renderAll(
   targetFilter?: "claude" | "codex",
 ): Promise<RenderResult> {
   const runtimeDir = devcanonRuntimeDir(config.library.skillsDir);
-  const validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
+  let validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
     adapterSourceDir: bundledDevcanonRuntimeDir(),
     operation: writeToGenerated ? "compose" : "read-only",
     provider,
   });
+  if (writeToGenerated && validatedRuntime.sourceDisposition !== "current") {
+    if (validatedRuntime.sourceDisposition === "repair-runtime") {
+      await reconcileDevcanonRuntimeSubtree(runtimeDir, provider);
+    } else {
+      await reconcileDevcanonRuntimeSource(
+        runtimeDir,
+        provider,
+        validatedRuntime,
+      );
+    }
+    validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
+      adapterSourceDir: bundledDevcanonRuntimeDir(),
+      provider,
+    });
+  }
   return renderAllWithValidatedRuntime(
     config,
     validatedRuntime,

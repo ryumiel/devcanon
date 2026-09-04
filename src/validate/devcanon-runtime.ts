@@ -333,12 +333,9 @@ export async function validateBundledDevcanonRuntime(
     throw new Error("An accepted provider is required for runtime validation.");
   }
   const authority = options.adapterSourceDir ?? bundledDevcanonRuntimeDir();
-  const derivedExists = await pathOrSymlinkExists(
-    path.join(runtimeDir, RUNTIME_JS_DIR),
-  );
   const validated = await validateDevcanonRuntime(runtimeDir, {
     adapterSourceDir: authority,
-    operation: derivedExists ? "read-only" : "compose",
+    operation: "compose",
     provider: options.provider,
   });
   if (validated.adapterState !== "current") {
