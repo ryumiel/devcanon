@@ -1,5 +1,12 @@
 import { execFile } from "node:child_process";
-import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
@@ -141,6 +148,7 @@ describe("write-disabled analysis runner", () => {
       repositoryRoot: root,
       resultDirectory: results,
     });
+    const beforeExpectedHashRejection = (await readdir(results)).sort();
     await expect(
       runSkillContextAnalysis({
         config,
@@ -158,6 +166,9 @@ describe("write-disabled analysis runner", () => {
         },
       }),
     ).rejects.toThrow("expected hash");
+    expect((await readdir(results)).sort()).toEqual(
+      beforeExpectedHashRejection,
+    );
     const tampered = path.join(results, "duplicate.json");
     await writeFile(
       tampered,
@@ -170,6 +181,7 @@ describe("write-disabled analysis runner", () => {
       "utf8",
     );
     const before = (await readFile(tampered)).toString("utf8");
+    const beforeDuplicateMemberRejection = (await readdir(results)).sort();
 
     await expect(
       runSkillContextAnalysis({
@@ -188,6 +200,9 @@ describe("write-disabled analysis runner", () => {
         },
       }),
     ).rejects.toThrow("comparison");
+    expect((await readdir(results)).sort()).toEqual(
+      beforeDuplicateMemberRejection,
+    );
     expect(
       (await readFile(path.join(root, prior.path))).equals(
         prior.envelope.bytes,
