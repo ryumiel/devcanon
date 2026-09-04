@@ -21,18 +21,32 @@ import {
   createSkillFixture,
   createTempDir,
   makeResolvedConfig,
+  providerFromRuntimeFixture,
 } from "../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../__test-helpers__/logger.js";
 import type { TestLoggerResult } from "../__test-helpers__/logger.js";
 import { parseNpmPackInventory } from "../__test-helpers__/npm-pack.js";
 import type { InstallMode, ResolvedConfig } from "../config/schema.js";
 import { pathExists } from "../utils/fs.js";
-import { sync } from "./sync.js";
+import { sync as syncWithProvider } from "./sync.js";
 import { uninstall } from "./uninstall.js";
 
 const symlinkAvailable = await canCreateSymlinks();
 const executableModeMutable = await canMutateExecutableMode();
 const execFileAsync = promisify(execFile);
+
+async function sync(
+  config: ResolvedConfig,
+  options: Parameters<typeof syncWithProvider>[1],
+) {
+  return syncWithProvider(
+    config,
+    options,
+    await providerFromRuntimeFixture(
+      path.join(config.library.skillsDir, "devcanon-runtime"),
+    ),
+  );
+}
 
 async function copyRuntimeFixture(skillsDir: string): Promise<void> {
   await cp(

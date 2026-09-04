@@ -16,6 +16,7 @@ import {
   canCreateSymlinks,
   cleanupTempDir,
   createAgentFixture,
+  createDevcanonRuntimeProviderFixture,
   createLightweightDevcanonRuntimeFixture,
   createSkillFixture,
   createTempDir,
@@ -38,10 +39,19 @@ import {
   recoverInvalidManifest,
   withManifestPersistenceFaultsForTesting,
 } from "./manifest.js";
-import { sync } from "./sync.js";
+import { sync as syncWithProvider } from "./sync.js";
 import { uninstall } from "./uninstall.js";
 
 const symlinkAvailable = await canCreateSymlinks();
+
+let syncProvider: Awaited<
+  ReturnType<typeof createDevcanonRuntimeProviderFixture>
+>;
+
+const sync = (
+  config: ResolvedConfig,
+  options: Parameters<typeof syncWithProvider>[1],
+) => syncWithProvider(config, options, syncProvider);
 
 vi.mock("../validate/devcanon-runtime.js", async (importOriginal) => {
   const actual =
@@ -175,6 +185,7 @@ describe("uninstall", () => {
 
   beforeEach(async () => {
     tempDir = await createTempDir();
+    syncProvider = await createDevcanonRuntimeProviderFixture(tempDir);
     await createLightweightDevcanonRuntimeFixture(path.join(tempDir, "skills"));
     const installed = installTestLogger();
     restoreLogger = installed.restore;

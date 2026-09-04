@@ -85,6 +85,14 @@ describe("devcanon-runtime source validation", () => {
     ).rejects.toThrow("accepted provider is required");
   });
 
+  it("rejects missing bundled accepted-provider authority before inspecting the runtime tree", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+
+    await expect(
+      validateProviderBackedBundledRuntime(runtimeDir, {} as never),
+    ).rejects.toThrow("accepted provider is required");
+  });
+
   it("rejects a read-only derived subtree that differs from the accepted provider", async () => {
     const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
     await writeFile(
@@ -305,7 +313,7 @@ describe("devcanon-runtime source validation", () => {
       path.join(runtimeDir, "scripts", "runtime", "extra.js"),
       "extra\n",
     );
-    await expect(renderAll(config, provider, true)).rejects.toMatchObject({
+    await expect(renderAll(config, provider, false)).rejects.toMatchObject({
       message: expect.stringContaining("derived subtree is missing or stale"),
       hint: expect.stringContaining("devcanon render"),
     } satisfies Partial<UserError>);

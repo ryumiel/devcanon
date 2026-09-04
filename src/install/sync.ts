@@ -73,7 +73,7 @@ export interface ReconciliationResult {
 export async function sync(
   config: ResolvedConfig,
   options: SyncOptions,
-  provider?: AcceptedProvider | (() => Promise<AcceptedProvider>),
+  provider: AcceptedProvider | (() => Promise<AcceptedProvider>),
 ): Promise<SyncResult> {
   const totalResult: SyncResult = {
     installed: 0,
@@ -100,9 +100,6 @@ export async function sync(
   // observational manifest preflight but before recovery or source mutation.
   const acceptedProvider =
     typeof provider === "function" ? await provider() : provider;
-  if (acceptedProvider === undefined) {
-    throw new Error("An accepted provider is required for runtime validation.");
-  }
   const runtimeDir = devcanonRuntimeDir(config.library.skillsDir);
   let validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
     operation: "compose",

@@ -7,11 +7,12 @@ import {
   createTempDir,
   linkDevcanonRuntimeFixture,
   makeResolvedConfig,
+  providerFromRuntimeFixture,
 } from "../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../__test-helpers__/logger.js";
 import type { ResolvedConfig } from "../config/schema.js";
-import { sync } from "../install/sync.js";
-import { diffAll } from "./diff.js";
+import { sync as syncWithProvider } from "../install/sync.js";
+import { diffAll as diffAllWithProvider } from "./diff.js";
 
 const symlinkAvailable = await canCreateSymlinks();
 
@@ -19,6 +20,17 @@ describe("devcanon-runtime diff", () => {
   let tempDir: string;
   let config: ResolvedConfig;
   let restoreLogger: () => void;
+  let provider: Awaited<ReturnType<typeof providerFromRuntimeFixture>>;
+
+  const sync = (
+    syncedConfig: ResolvedConfig,
+    options: Parameters<typeof syncWithProvider>[1],
+  ) => syncWithProvider(syncedConfig, options, provider);
+  const diffAll = (
+    comparedConfig: ResolvedConfig,
+    targetFilter: "claude" | "codex" | undefined = undefined,
+    strict = false,
+  ) => diffAllWithProvider(comparedConfig, targetFilter, strict, provider);
 
   beforeEach(async () => {
     tempDir = await createTempDir();
@@ -27,6 +39,9 @@ describe("devcanon-runtime diff", () => {
     restoreLogger = restore;
     await mkdir(config.library.skillsDir, { recursive: true });
     await linkDevcanonRuntimeFixture(config.library.skillsDir);
+    provider = await providerFromRuntimeFixture(
+      path.join(config.library.skillsDir, "devcanon-runtime"),
+    );
     await mkdir(config.library.agentsDir, { recursive: true });
   });
 

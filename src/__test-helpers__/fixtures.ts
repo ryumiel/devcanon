@@ -283,6 +283,7 @@ export async function validateLightweightDevcanonRuntimeFixture(
   }
   return Object.freeze({
     runtimeDir,
+    sourceDisposition: "current",
     closureRecords: [],
   }) as unknown as ValidatedDevcanonRuntime;
 }

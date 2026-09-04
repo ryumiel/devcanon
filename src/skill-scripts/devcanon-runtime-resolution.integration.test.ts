@@ -19,7 +19,7 @@ import {
   toBashPath,
 } from "../__test-helpers__/runtime-conformance.js";
 import type { ResolvedConfig } from "../config/schema.js";
-import { sync } from "../install/sync.js";
+import { sync as syncWithProvider } from "../install/sync.js";
 import { renderAll as renderAllWithProvider } from "../render/pipeline.js";
 
 const execFileAsync = promisify(execFile);
@@ -39,6 +39,19 @@ async function renderAll(
     writeToGenerated,
     strict,
     targetFilter,
+  );
+}
+
+async function sync(
+  config: ResolvedConfig,
+  options: Parameters<typeof syncWithProvider>[1],
+) {
+  return syncWithProvider(
+    config,
+    options,
+    await createDevcanonRuntimeProviderFixture(
+      path.dirname(config.library.skillsDir),
+    ),
   );
 }
 

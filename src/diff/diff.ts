@@ -24,9 +24,9 @@ import {
 
 export async function diffAll(
   config: ResolvedConfig,
-  targetFilter?: "claude" | "codex",
-  strict = false,
-  provider?: AcceptedProvider | (() => Promise<AcceptedProvider>),
+  targetFilter: "claude" | "codex" | undefined,
+  strict: boolean,
+  provider: AcceptedProvider | (() => Promise<AcceptedProvider>),
 ): Promise<DiffResult[]> {
   const loaded = await loadManifestWithSnapshot(config.manifest.path);
   let normalized: ReturnType<typeof normalizeManifestIdentity>;
@@ -64,9 +64,6 @@ export async function diffAll(
   const manifest = normalized.manifest;
   const acceptedProvider =
     typeof provider === "function" ? await provider() : provider;
-  if (acceptedProvider === undefined) {
-    throw new Error("An accepted provider is required for runtime validation.");
-  }
   const validatedRuntime = await validateDevcanonRuntime(
     devcanonRuntimeDir(config.library.skillsDir),
     {

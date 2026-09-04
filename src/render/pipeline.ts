@@ -96,7 +96,7 @@ export async function renderAll(
   const runtimeDir = devcanonRuntimeDir(config.library.skillsDir);
   const validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
     adapterSourceDir: bundledDevcanonRuntimeDir(),
-    operation: "read-only",
+    operation: writeToGenerated ? "compose" : "read-only",
     provider,
   });
   return renderAllWithValidatedRuntime(
