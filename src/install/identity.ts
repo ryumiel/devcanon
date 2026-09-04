@@ -1,16 +1,26 @@
 import { createHash } from "node:crypto";
-import { lstat, readFile, readdir, readlink } from "node:fs/promises";
+import { constants } from "node:fs";
+import { access, lstat, readFile, readdir, readlink } from "node:fs/promises";
 import path from "node:path";
+import {
+  RUNTIME_CONFIG_RELATIVE_PATH,
+  loadRuntimeConfigCatalog,
+} from "../config/runtime-config.js";
 import type {
   InstallMode,
   ManagedRecord,
   ResolvedConfig,
 } from "../config/schema.js";
+import { hashDevcanonRuntimeComposition } from "../render/devcanon-runtime.js";
 import { buildSkillContentHash } from "../render/skill.js";
 import { UserError } from "../utils/errors.js";
 import { sha256 } from "../utils/hash.js";
-import { validateDevcanonRuntime } from "../validate/devcanon-runtime.js";
-import type { RuntimeClosureRecord } from "../validate/devcanon-runtime.js";
+import {
+  RUNTIME_BASH_RESOLVER,
+  RUNTIME_ENTRYPOINT,
+  RUNTIME_JS_DIR,
+  type RuntimeAdapterPair,
+} from "../validate/devcanon-runtime.js";
 import {
   DEVCANON_RUNTIME_SKILL_NAME,
   KNOWN_SUBDIRS,
@@ -231,7 +241,7 @@ async function assertCopyIdentity(record: ManagedRecord): Promise<void> {
       record.type === "agent"
         ? [await hashInstalledAgent(record.installedPath)]
         : record.type === "skill" && record.name === DEVCANON_RUNTIME_SKILL_NAME
-          ? [await hashDevcanonRuntimePayload(record.installedPath)]
+          ? await hashDevcanonRuntimePayloadCandidates(record.installedPath)
           : await hashInstalledSkill(record);
   } catch (err) {
     throw identityError(
@@ -247,136 +257,233 @@ async function assertCopyIdentity(record: ManagedRecord): Promise<void> {
 
 export async function hashDevcanonRuntimePayload(
   installedPath: string,
+  _config?: ResolvedConfig,
 ): Promise<string> {
-  const validatedRuntime = await validateDevcanonRuntime(installedPath);
-
-  const hash = createHash("sha256");
-  await hashInstalledRuntimeTree(
-    path.join(installedPath, "config"),
-    "config",
-    hash,
-  );
-  await hashInstalledRuntimeTree(
-    path.join(installedPath, "scripts"),
-    "scripts",
-    hash,
-    validatedRuntime.closureRecords,
-  );
-  return hash.digest("hex");
+  const composition = await readInstalledRuntimeComposition(installedPath);
+  return hashDevcanonRuntimeComposition(composition);
 }
 
-async function hashInstalledRuntimeTree(
-  directory: string,
-  relativeDirectory: string,
-  hash: ReturnType<typeof createHash>,
-  closureRecords?: readonly RuntimeClosureRecord[],
-): Promise<void> {
-  const limit = createRuntimeIoLimit(16);
-  for (const record of await collectInstalledRuntimeTree(
-    directory,
-    relativeDirectory,
-    limit,
-    closureRecords,
-  )) {
-    hashRuntimeField(hash, record.kind, record.relativePath, record.mode);
-    if (record.bytes) {
-      hashRuntimeField(hash, "bytes", record.relativePath, record.bytes);
+async function hashDevcanonRuntimePayloadCandidates(
+  installedPath: string,
+): Promise<string[]> {
+  try {
+    return [await hashDevcanonRuntimePayload(installedPath)];
+  } catch (currentError) {
+    try {
+      return [await hashLegacyDevcanonRuntimePayload(installedPath)];
+    } catch {
+      throw currentError;
     }
   }
 }
 
-interface InstalledRuntimeRecord {
-  readonly kind: "directory" | "file";
-  readonly relativePath: string;
-  readonly mode: string;
-  readonly bytes?: Buffer;
+async function readInstalledRuntimeComposition(installedPath: string): Promise<{
+  adapterPair: RuntimeAdapterPair;
+  catalog: Buffer;
+  providerLeaves: ReadonlyMap<string, Buffer>;
+}> {
+  await assertNoRuntimeDeclarations(installedPath);
+  await requireExactRuntimeDirectory(installedPath, ["config", "scripts"]);
+  const configDir = path.join(installedPath, "config");
+  const scriptsDir = path.join(installedPath, "scripts");
+  const runtimeDir = path.join(scriptsDir, "runtime");
+  await requireExactRuntimeDirectory(configDir, ["runtime-config.json"]);
+  await requireExactRuntimeDirectory(scriptsDir, [
+    "devcanon-runtime.sh",
+    "resolve-bash.mjs",
+    "runtime",
+  ]);
+  await requireExactRuntimeDirectory(runtimeDir, [
+    "THIRD_PARTY_LICENSES",
+    "devcanon-runtime.mjs",
+    "runtime-manifest.json",
+  ]);
+
+  const catalogPath = path.join(installedPath, RUNTIME_CONFIG_RELATIVE_PATH);
+  const shellPath = path.join(installedPath, RUNTIME_ENTRYPOINT);
+  const resolverPath = path.join(installedPath, RUNTIME_BASH_RESOLVER);
+  await loadRuntimeConfigCatalog(catalogPath);
+  const [catalog, shell, resolver] = await Promise.all([
+    readRuntimeFile(catalogPath, RUNTIME_CONFIG_RELATIVE_PATH),
+    readRuntimeFile(shellPath, RUNTIME_ENTRYPOINT),
+    readRuntimeFile(resolverPath, RUNTIME_BASH_RESOLVER),
+  ]);
+  if (process.platform !== "win32" && (shell.mode & 0o111) === 0) {
+    throw new Error("Passive runtime adapter pair is posix-mode-invalid");
+  }
+  const providerLeaves = new Map<string, Buffer>();
+  for (const leaf of [
+    "devcanon-runtime.mjs",
+    "runtime-manifest.json",
+    "THIRD_PARTY_LICENSES",
+  ]) {
+    const record = await readRuntimeFile(
+      path.join(runtimeDir, leaf),
+      path.posix.join(RUNTIME_JS_DIR, leaf),
+    );
+    providerLeaves.set(leaf, record.bytes);
+  }
+  return {
+    adapterPair: {
+      shell: shell.bytes,
+      resolver: resolver.bytes,
+      shellMode: process.platform === "win32" ? 0 : shell.mode & 0o777,
+      resolverMode: process.platform === "win32" ? 0 : resolver.mode & 0o777,
+    },
+    catalog: catalog.bytes,
+    providerLeaves,
+  };
 }
 
-async function collectInstalledRuntimeTree(
+const LEGACY_RUNTIME_FILES = [
+  "artifacts.js",
+  "bash.js",
+  "bootstrap-cli.js",
+  "bootstrap.js",
+  "cleanup-git.js",
+  "cli.js",
+  "command.js",
+  "git-diff-parser.js",
+  "git-workspace-cleanup.js",
+  "git.js",
+  "index.js",
+  "issue-worktree-setup.js",
+  "issue-priming.js",
+  "paths.js",
+  "play-review-shared-context.js",
+  "planning-projection.js",
+  "pr-merge-worktree.js",
+  "pr-review-leases.js",
+  "pr-review-manifests.js",
+  "pr-review-result-validation.js",
+  "review-artifacts.js",
+  "runtime-config.js",
+  "schema.js",
+  "source-immutability.js",
+] as const;
+
+/** @internal Exact pre-provider tree shape using the historical full-tree hash. */
+export async function hashLegacyDevcanonRuntimePayload(
+  installedPath: string,
+): Promise<string> {
+  await assertNoRuntimeDeclarations(installedPath);
+  await requireExactRuntimeDirectory(installedPath, ["config", "scripts"]);
+  const configDir = path.join(installedPath, "config");
+  const scriptsDir = path.join(installedPath, "scripts");
+  const runtimeDir = path.join(scriptsDir, "runtime");
+  await requireExactRuntimeDirectory(configDir, ["runtime-config.json"]);
+  await requireExactRuntimeDirectory(scriptsDir, [
+    "devcanon-runtime.sh",
+    "resolve-bash.mjs",
+    "runtime",
+  ]);
+  await requireExactRuntimeDirectory(runtimeDir, [
+    "node_modules",
+    "package.json",
+    ...LEGACY_RUNTIME_FILES,
+  ]);
+  await loadRuntimeConfigCatalog(
+    path.join(installedPath, RUNTIME_CONFIG_RELATIVE_PATH),
+  );
+  const shell = await readRuntimeFile(
+    path.join(installedPath, RUNTIME_ENTRYPOINT),
+    RUNTIME_ENTRYPOINT,
+  );
+  if (process.platform !== "win32" && (shell.mode & 0o111) === 0) {
+    throw new Error("Passive runtime adapter pair is posix-mode-invalid");
+  }
+  const hash = createHash("sha256");
+  await hashLegacyRuntimeTree(configDir, "config", hash);
+  await hashLegacyRuntimeTree(scriptsDir, "scripts", hash);
+  return hash.digest("hex");
+}
+
+async function assertNoRuntimeDeclarations(
+  installedPath: string,
+): Promise<void> {
+  for (const forbiddenPath of [
+    "SKILL.md",
+    path.join("agents", "openai.yaml"),
+  ]) {
+    if (
+      await lstat(path.join(installedPath, forbiddenPath)).then(
+        () => true,
+        (error: NodeJS.ErrnoException) => {
+          if (error.code === "ENOENT") return false;
+          throw error;
+        },
+      )
+    ) {
+      throw new Error(
+        `${DEVCANON_RUNTIME_SKILL_NAME} support runtime must not contain ${forbiddenPath}`,
+      );
+    }
+  }
+}
+
+async function hashLegacyRuntimeTree(
   directory: string,
   relativeDirectory: string,
-  limit: RuntimeIoLimit,
-  closureRecords?: readonly RuntimeClosureRecord[],
-): Promise<InstalledRuntimeRecord[]> {
-  const stat = await limit(() => lstat(directory));
-  const entries = await limit(() =>
-    readdir(directory, { withFileTypes: true }),
+  hash: ReturnType<typeof createHash>,
+): Promise<void> {
+  const stat = await lstat(directory);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    throw new Error(
+      `installed legacy runtime directory is invalid: ${relativeDirectory}`,
+    );
+  }
+  hashRuntimeField(hash, "directory", relativeDirectory, String(stat.mode));
+  const entries = (await readdir(directory, { withFileTypes: true })).sort(
+    (left, right) =>
+      left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
   );
-  entries.sort((left, right) =>
-    left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
-  );
-  const children = await Promise.all(
-    entries.map(async (entry): Promise<InstalledRuntimeRecord[]> => {
-      const sourcePath = path.join(directory, entry.name);
-      const relativePath = path.posix.join(relativeDirectory, entry.name);
-      if (
-        closureRecords &&
-        relativeDirectory === "scripts/runtime" &&
-        (entry.name === "package.json" || entry.name === "node_modules")
-      ) {
-        return closureRecords
-          .filter(
-            (record) =>
-              record.relativePath === entry.name ||
-              record.relativePath.startsWith(`${entry.name}/`),
-          )
-          .map((record) => ({
-            ...record,
-            relativePath: path.posix.join(
-              relativeDirectory,
-              record.relativePath,
-            ),
-          }));
-      }
-      const entryStat = await limit(() => lstat(sourcePath));
-      if (entry.isDirectory()) {
-        return collectInstalledRuntimeTree(
-          sourcePath,
-          relativePath,
-          limit,
-          closureRecords,
-        );
-      }
-      if (entry.isFile()) {
-        return [
-          {
-            kind: "file",
-            relativePath,
-            mode: String(entryStat.mode),
-            bytes: await limit(() => readFile(sourcePath)),
-          },
-        ];
-      }
-      throw new Error(`installed runtime entry is unsupported: ${sourcePath}`);
-    }),
-  );
-  return [
-    {
-      kind: "directory",
-      relativePath: relativeDirectory,
-      mode: String(stat.mode),
-    },
-    ...children.flat(),
-  ];
+  for (const entry of entries) {
+    const entryPath = path.join(directory, entry.name);
+    const relativePath = path.posix.join(relativeDirectory, entry.name);
+    if (entry.isDirectory()) {
+      await hashLegacyRuntimeTree(entryPath, relativePath, hash);
+    } else if (entry.isFile() && !entry.isSymbolicLink()) {
+      const file = await readRuntimeFile(entryPath, relativePath);
+      hashRuntimeField(hash, "file", relativePath, String(file.mode));
+      hashRuntimeField(hash, "bytes", relativePath, file.bytes);
+    } else {
+      throw new Error(
+        `installed legacy runtime entry is unsupported: ${relativePath}`,
+      );
+    }
+  }
 }
 
-type RuntimeIoLimit = <T>(operation: () => Promise<T>) => Promise<T>;
+async function requireExactRuntimeDirectory(
+  directory: string,
+  expected: readonly string[],
+): Promise<void> {
+  const stat = await lstat(directory).catch(() => undefined);
+  if (stat === undefined || !stat.isDirectory() || stat.isSymbolicLink()) {
+    throw new Error(`installed runtime directory is invalid: ${directory}`);
+  }
+  const entries = (await readdir(directory)).sort();
+  const sortedExpected = [...expected].sort();
+  if (
+    entries.length !== sortedExpected.length ||
+    entries.some((entry, index) => entry !== sortedExpected[index])
+  ) {
+    throw new Error(
+      `installed runtime directory has unexpected entries: ${directory}`,
+    );
+  }
+}
 
-function createRuntimeIoLimit(concurrency: number): RuntimeIoLimit {
-  let active = 0;
-  const waiters: Array<() => void> = [];
-  return async <T>(operation: () => Promise<T>): Promise<T> => {
-    if (active >= concurrency) {
-      await new Promise<void>((resolve) => waiters.push(resolve));
-    }
-    active += 1;
-    try {
-      return await operation();
-    } finally {
-      active -= 1;
-      waiters.shift()?.();
-    }
-  };
+async function readRuntimeFile(
+  filePath: string,
+  relativePath: string,
+): Promise<{ bytes: Buffer; mode: number }> {
+  const stat = await lstat(filePath).catch(() => undefined);
+  if (stat === undefined || !stat.isFile() || stat.isSymbolicLink()) {
+    throw new Error(`installed runtime file is invalid: ${relativePath}`);
+  }
+  await access(filePath, constants.R_OK);
+  return { bytes: await readFile(filePath), mode: stat.mode };
 }
 
 function hashRuntimeField(

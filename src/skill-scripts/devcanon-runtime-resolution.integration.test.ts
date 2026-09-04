@@ -67,21 +67,20 @@ async function writeRuntimeOverride(root: string): Promise<string> {
     ].join("\n"),
   );
   await chmod(entrypoint, 0o755);
+  const bundle = path.join(typedRuntime, "devcanon-runtime.mjs");
   await writeFile(
-    path.join(typedRuntime, "cli.js"),
+    bundle,
     [
-      "const [command, argument] = process.argv.slice(2);",
-      "process.stdout.write(`${command}|${argument}|${process.env.DEVCANON_RUNTIME_DIR}\\n`);",
+      'process.stdout.write(`${process.argv.slice(2).join("|")}|${process.env.DEVCANON_RUNTIME_DIR}\\n`);',
       "",
     ].join("\n"),
   );
+  await chmod(bundle, 0o755);
   return runtime;
 }
 
 function expectedOverrideInvocation(runtimeOverride: string): string {
-  return process.platform === "win32"
-    ? `pr-review-leases|derive-path|${runtimeOverride}\n`
-    : `runtime|pr-review-leases|derive-path|${runtimeOverride}\n`;
+  return `runtime|pr-review-leases|derive-path|${runtimeOverride}\n`;
 }
 
 async function runTrustedWrapper(

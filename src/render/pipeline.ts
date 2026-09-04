@@ -15,6 +15,7 @@ import { ensureDir, readdir, writeTextFile } from "../utils/fs.js";
 import { loadAndValidateAgents } from "../validate/agents.js";
 import {
   type ValidatedDevcanonRuntime,
+  bundledDevcanonRuntimeDir,
   devcanonRuntimeDir,
   validateDevcanonRuntime,
 } from "../validate/devcanon-runtime.js";
@@ -59,6 +60,19 @@ export type RenderMutation =
       type: "agent" | "skill";
     }>;
 
+/** Read-only validation of every generated path a projected render may mutate. */
+export async function preflightGeneratedRender(
+  config: ResolvedConfig,
+  projection: Pick<RenderResult, "outputs" | "mutationInventory">,
+): Promise<void> {
+  await preflightGeneratedMutations(config, projection.mutationInventory);
+  await planStaleGeneratedCleanup(
+    config,
+    projection.mutationInventory,
+    projection.outputs,
+  );
+}
+
 export interface RenderLoadedOptions<
   TSkills extends readonly LoadedSkill[] = readonly LoadedSkill[],
   TAgents extends readonly LoadedAgent[] = readonly LoadedAgent[],
@@ -78,7 +92,10 @@ export async function renderAll(
   targetFilter?: "claude" | "codex",
 ): Promise<RenderResult> {
   const runtimeDir = devcanonRuntimeDir(config.library.skillsDir);
-  const validatedRuntime = await validateDevcanonRuntime(runtimeDir);
+  const validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
+    adapterSourceDir: bundledDevcanonRuntimeDir(),
+    operation: writeToGenerated ? "compose" : "read-only",
+  });
   return renderAllWithValidatedRuntime(
     config,
     validatedRuntime,
@@ -286,6 +303,7 @@ async function renderLoadedInternal<
         runtime.sourcePath,
         runtime.generatedPath,
         config,
+        validatedRuntime,
       );
     }
   }

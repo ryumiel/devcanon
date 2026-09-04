@@ -1,4 +1,5 @@
-import { cp } from "node:fs/promises";
+import { cp, mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -11,6 +12,8 @@ import {
   CONFIG_FILE_NAME,
   PRODUCT_NAME,
 } from "../../config/identity.js";
+import { reconcileDevcanonRuntimeSubtree } from "../../render/devcanon-runtime.js";
+import type { AcceptedProvider } from "../../runtime-build/provider.js";
 import { UserError } from "../../utils/errors.js";
 import {
   ensureDir,
@@ -21,6 +24,7 @@ import {
 import { hashDirectory } from "../../utils/hash.js";
 import { getLogger } from "../../utils/output.js";
 import {
+  bundledDevcanonRuntimeDir,
   validateBundledDevcanonRuntime,
   validateDevcanonRuntime,
 } from "../../validate/devcanon-runtime.js";
@@ -33,6 +37,7 @@ type InitActionOptions = {
 
 export async function initAction(
   options: InitActionOptions = {},
+  provider?: AcceptedProvider | (() => Promise<AcceptedProvider>),
 ): Promise<void> {
   const logger = getLogger();
   const cwd = process.cwd();
@@ -47,7 +52,10 @@ export async function initAction(
     );
   }
 
-  await preflightRuntimeSkill(cwd, runtimeSourceDir);
+  const acceptedProvider =
+    typeof provider === "function" ? await provider() : provider;
+
+  await preflightRuntimeSkill(cwd, runtimeSourceDir, acceptedProvider);
 
   // Create config
   await writeTextFile(configPath, DEFAULT_CONFIG_YAML);
@@ -65,7 +73,7 @@ export async function initAction(
   await writeTextFile(path.join(sampleSkillDir, "SKILL.md"), SAMPLE_SKILL_MD);
   logger.info("Created sample skill: skills/example-skill/");
 
-  await seedRuntimeSkill(cwd, runtimeSourceDir);
+  await seedRuntimeSkill(cwd, runtimeSourceDir, acceptedProvider);
 
   // Create sample agent
   await writeTextFile(
@@ -79,12 +87,16 @@ export async function initAction(
   );
 }
 
-async function seedRuntimeSkill(cwd: string, sourceDir: string): Promise<void> {
+async function seedRuntimeSkill(
+  cwd: string,
+  sourceDir: string,
+  provider?: AcceptedProvider,
+): Promise<void> {
   const logger = getLogger();
   const targetDir = path.join(cwd, "skills", RUNTIME_SKILL_NAME);
 
   if (await pathOrSymlinkExists(targetDir)) {
-    await requireMatchingRuntimeSkill(sourceDir, targetDir);
+    await requireMatchingRuntimeSkill(sourceDir, targetDir, provider);
     logger.info(
       `Support runtime already present: skills/${RUNTIME_SKILL_NAME}/`,
     );
@@ -96,37 +108,65 @@ async function seedRuntimeSkill(cwd: string, sourceDir: string): Promise<void> {
     force: false,
     errorOnExist: true,
   });
+  if (provider) await reconcileDevcanonRuntimeSubtree(targetDir, provider);
   logger.info(`Seeded support runtime: skills/${RUNTIME_SKILL_NAME}/`);
 }
 
 async function preflightRuntimeSkill(
   cwd: string,
   sourceDir: string,
+  provider?: AcceptedProvider,
 ): Promise<void> {
-  await requireBundledRuntimeSkill(sourceDir);
+  await requireBundledRuntimeSkill(sourceDir, provider);
 
   const targetDir = path.join(cwd, "skills", RUNTIME_SKILL_NAME);
   if (await pathOrSymlinkExists(targetDir)) {
-    await requireMatchingRuntimeSkill(sourceDir, targetDir);
+    await requireMatchingRuntimeSkill(sourceDir, targetDir, provider);
   }
 }
 
-async function requireBundledRuntimeSkill(sourceDir: string): Promise<void> {
-  await validateBundledDevcanonRuntime(sourceDir);
+async function requireBundledRuntimeSkill(
+  sourceDir: string,
+  provider?: AcceptedProvider,
+): Promise<void> {
+  await validateBundledDevcanonRuntime(sourceDir, { provider });
 }
 
 async function requireMatchingRuntimeSkill(
   sourceDir: string,
   targetDir: string,
+  provider?: AcceptedProvider,
 ): Promise<void> {
   try {
-    await validateDevcanonRuntime(targetDir);
+    await validateDevcanonRuntime(targetDir, {
+      adapterSourceDir: sourceDir,
+      provider,
+    });
   } catch {
     throw runtimeConflictError(targetDir);
   }
 
-  if ((await hashDirectory(sourceDir)) === (await hashDirectory(targetDir))) {
-    return;
+  if (provider === undefined) {
+    if ((await hashDirectory(sourceDir)) === (await hashDirectory(targetDir))) {
+      return;
+    }
+  } else {
+    const stageRoot = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-init-runtime-"),
+    );
+    const composedSource = path.join(stageRoot, RUNTIME_SKILL_NAME);
+    try {
+      await cp(sourceDir, composedSource, { recursive: true });
+      await reconcileDevcanonRuntimeSubtree(composedSource, provider);
+      if (
+        (await hashDirectory(composedSource)) ===
+        (await hashDirectory(targetDir))
+      ) {
+        return;
+      }
+    } finally {
+      await rm(stageRoot, { recursive: true, force: true });
+    }
   }
 
   throw runtimeConflictError(targetDir);

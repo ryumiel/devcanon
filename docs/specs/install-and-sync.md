@@ -28,16 +28,15 @@ root, then keep the checkout at a stable path because it remains both the CLI
 source and the default configuration root.
 
 CLI registration and managed-output synchronization are separate operations.
-Currently, `pnpm run setup:cli` builds and registers the CLI but does not render
-or install skills or agents; `devcanon sync` validates the fixed passive
-runtime, renders and installs managed outputs from the selected configuration,
+Currently, `pnpm run setup:cli` builds the source provider and registers the CLI
+but does not render or install skills or agents; `devcanon sync` accepts a
+verified prebuilt provider, renders and installs managed outputs from the selected configuration,
 and does not register the CLI.
 
-Required target provider behavior, whose implementation is deferred, makes
-`setup:cli` build and verify the source-build runtime artifact before
-registration and makes `sync` accept a verified prebuilt runtime artifact
-without building it. This addition does not merge registration and managed
-output synchronization.
+`setup:cli` builds and verifies the source-build runtime artifact before
+registration, while `sync` accepts a verified prebuilt runtime artifact without
+building it. This does not merge registration and managed-output
+synchronization.
 
 ---
 
@@ -72,17 +71,14 @@ Each bound managed record must include:
 - content hash
 - timestamp
 
-`devcanon-runtime` is currently a fixed passive bundle. Under the required
-deferred provider behavior, the same record transports the composed passive
-bundle. Its v1 record uses `type: "skill"` only as the existing skills-home
+`devcanon-runtime` is a provider-backed composed passive bundle. Its v1 record
+uses `type: "skill"` only as the existing skills-home
 transport identity; it is not a source skill and has neither `SKILL.md` nor a
 Codex invocation sidecar.
 
 ### Passive-runtime composition and transport
 
-This subsection defines required target provider behavior whose implementation
-is deferred. Current fixed-bundle validation and transport remain in force
-until that provider-backed composition is implemented.
+This subsection defines current provider-backed composition and transport.
 
 The manifest record's `sourcePath` for `devcanon-runtime` remains the resolved
 `library.skillsDir` joined with `devcanon-runtime`. That locator does not
@@ -97,7 +93,7 @@ composition, closed build manifest, and verification behavior. ADR-0024 records
 the architectural rationale, while ADR-0035 and Configuration own catalog
 schema, semantic contents, projection inputs, and selection behavior.
 
-Under the target behavior, after validation accepts the explicit provider, the
+After validation accepts the explicit provider, the
 rendered passive-runtime tree has the exact closed inventory in
 [PR-ART-06](passive-runtime.md#artifact-custody).
 
@@ -250,11 +246,9 @@ mutate, and invalid or residual-lock state fails actionably with exit 1.
 warning path rather than a healthy result; its overall exit behavior remains
 unchanged unless another check independently reports an error.
 
-After its accepted manifest identity checks, current `diff` validates the fixed
-passive runtime through its read-only render projection. Under the required
-deferred provider behavior, it instead accepts and validates the explicit
-prebuilt provider artifact through its source-driven composed projection.
-`uninstall` remains source-independent under both forms.
+After its accepted manifest identity checks, `diff` accepts and validates the
+explicit prebuilt provider artifact through its source-driven, read-only
+composed projection. `uninstall` remains source-independent.
 
 ### Managed component collisions
 
@@ -318,10 +312,8 @@ backups or manifest churn.
 1. load config
 2. inspect the manifest purely
 3. for an invalid dry manifest, stop with the manifest error before runtime
-   validation. Every other sync currently validates the fixed passive runtime
-   before non-dry recovery, normalization or binding, rendering, or an install
-   mutation. Under the required deferred provider behavior, that validation
-   first accepts the explicitly provided prebuilt passive-runtime artifact
+   validation. Every other sync first accepts the explicitly provided prebuilt
+   passive-runtime artifact
    and applies PR-ADAPT-01 before remaining authored/catalog acceptance,
    composition, and the same later effects. Dry run uses the read-only
    PR-LIFE-07 projection and only previews an eligible adapter migration and
@@ -432,15 +424,17 @@ generated or source root. If the original symlink spelling can no longer be
 reconstructed without unbounded guessing, identity verification fails closed and
 keeps the manifest record.
 
-For the passive `devcanon-runtime` bundle, current copy identity validates and
-hashes the exact fixed payload against the recorded full-tree content hash.
-Under the required deferred provider behavior, the same rule covers the exact
-composed payload. Neither form has an installed legacy scripts-only fallback or
-installed-output migration path. The source-library PR-ADAPT-02 transition is
-separate and occurs before rendered transport. Symlink identity verifies the
-applicable rendered tree as its expected target, while `diff` also checks the
-resolved runtime payload against the
-rendered hash.
+For the passive `devcanon-runtime` bundle, current copy identity structurally
+validates and hashes the exact installed composed payload against its recorded
+full-tree content hash. It uses the installed catalog, adapters, semantic modes,
+and provider leaves rather than prospective source configuration or the
+executing distribution's adapter pair. The one pre-provider fixed-tree hash
+algorithm remains a bounded compatibility candidate for existing manifest
+records. There is no installed legacy scripts-only fallback or installed-output
+migration path. The source-library PR-ADAPT-02 transition is separate and
+occurs before rendered transport. Symlink identity verifies the applicable
+rendered tree as its expected target, while `diff` also checks the resolved
+runtime payload against the rendered hash.
 
 During uninstall, a valid manifest record whose installed path is already
 missing is treated as removed only after target-home containment and symlink
@@ -465,11 +459,9 @@ If multiple targets are requested and one fails:
 manifest. The command is symmetric to `sync` for tool retirement and
 target wipes.
 
-Uninstall is currently source-independent: it does not validate or otherwise
-read the fixed source or rendered passive runtime. The required deferred
-provider behavior does not change that boundary; uninstall will not validate
-or read the authored root, generated artifact provider, or composed rendered
-runtime either.
+Uninstall is source-independent and provider-independent: it does not validate
+or read the authored root, executing distribution's adapters, generated
+artifact provider, or composed rendered runtime.
 
 Behavior:
 

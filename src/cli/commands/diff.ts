@@ -1,6 +1,7 @@
 import pc from "picocolors";
 import { loadConfig } from "../../config/load.js";
 import { diffAll } from "../../diff/diff.js";
+import type { AcceptedProvider } from "../../runtime-build/provider.js";
 import { UserError } from "../../utils/errors.js";
 import { getLogger } from "../../utils/output.js";
 
@@ -11,6 +12,7 @@ interface DiffCommandOptions {
 export async function diffAction(
   options: DiffCommandOptions,
   command: { parent?: { opts(): Record<string, unknown> } },
+  provider?: AcceptedProvider | (() => Promise<AcceptedProvider>),
 ): Promise<void> {
   const logger = getLogger();
   const globalOpts = command.parent?.opts() ?? {};
@@ -29,6 +31,7 @@ export async function diffAction(
     config,
     options.target as "claude" | "codex" | undefined,
     strict,
+    provider,
   );
 
   const added = results.filter((r) => r.status === "added");

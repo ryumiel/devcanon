@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import {
+  chmod,
   cp,
   lstat,
   mkdir,
@@ -19,9 +20,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   canCreateSymlinks,
   cleanupTempDir,
+  copyDevcanonRuntimeFixture,
   createAgentFixture,
   createConfigFile,
-  createLightweightDevcanonRuntimeFixture,
+  createDevcanonRuntimeProviderFixture,
   createSkillFixture,
   createTempDir,
   makeAgentYaml,
@@ -67,22 +69,6 @@ vi.mock("./symlink.js", async (importOriginal) => {
   };
 });
 
-vi.mock("../validate/devcanon-runtime.js", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("../validate/devcanon-runtime.js")>();
-  const { validateLightweightDevcanonRuntimeFixture } = await import(
-    "../__test-helpers__/fixtures.js"
-  );
-  return {
-    ...actual,
-    validateDevcanonRuntime: (runtimeDir: string) =>
-      validateLightweightDevcanonRuntimeFixture(
-        runtimeDir,
-        actual.validateDevcanonRuntime,
-      ),
-  };
-});
-
 const symlinkAvailable = await canCreateSymlinks();
 
 function normalizePackagedShellBytes(bytes: Buffer): Buffer {
@@ -102,7 +88,7 @@ const execFileAsync = promisify(execFile);
 async function seedPassiveRuntime(config: ResolvedConfig): Promise<void> {
   const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
   if (!(await pathExists(runtimeDir))) {
-    await createLightweightDevcanonRuntimeFixture(config.library.skillsDir);
+    await copyDevcanonRuntimeFixture(config.library.skillsDir);
   }
 }
 
@@ -156,6 +142,74 @@ async function expectRelativeSymlinkTarget(
   );
 }
 
+function legacyShellAdapter(current: string): string {
+  return current
+    .replace(
+      [
+        '  local js_entrypoint="$script_dir/runtime/devcanon-runtime.mjs"',
+        '  [ -f "$js_entrypoint" ] || runtime_error "devcanon-runtime bundle missing: $js_entrypoint"',
+        '  command -v node >/dev/null 2>&1 || runtime_error "node is required for devcanon-runtime typed helpers"',
+        "  unset DEBUG NODE_OPTIONS",
+        '  exec node "$js_entrypoint" runtime "$@"',
+      ].join("\n"),
+      [
+        '  local js_entrypoint="$script_dir/runtime/cli.js"',
+        '  [ -f "$js_entrypoint" ] || runtime_error "devcanon-runtime JS entrypoint missing: $js_entrypoint"',
+        '  command -v node >/dev/null 2>&1 || runtime_error "node is required for devcanon-runtime typed helpers"',
+        "  unset DEBUG NODE_OPTIONS",
+        '  exec node "$js_entrypoint" "$@"',
+      ].join("\n"),
+    )
+    .replace(
+      [
+        '  local js_entrypoint="$script_dir/runtime/devcanon-runtime.mjs"',
+        '  [ -f "$js_entrypoint" ] || runtime_error "devcanon-runtime bundle missing: $js_entrypoint"',
+        '  command -v node >/dev/null 2>&1 || runtime_error "node is required for devcanon-runtime bootstrap"',
+        '  exec node "$js_entrypoint" bootstrap "$@"',
+      ].join("\n"),
+      [
+        '  local js_entrypoint="$script_dir/runtime/bootstrap-cli.js"',
+        '  [ -f "$js_entrypoint" ] || runtime_error "devcanon-runtime bootstrap entrypoint missing: $js_entrypoint"',
+        '  command -v node >/dev/null 2>&1 || runtime_error "node is required for devcanon-runtime bootstrap"',
+        '  exec node "$js_entrypoint" "$@"',
+      ].join("\n"),
+    );
+}
+
+function legacyResolverAdapter(current: string): string {
+  return current
+    .replace(
+      'const cliPath = path.join(scriptDir, "runtime", "devcanon-runtime.mjs");',
+      'const cliPath = path.join(scriptDir, "runtime", "cli.js");',
+    )
+    .replaceAll(
+      "devcanon-runtime bundle missing",
+      "devcanon-runtime JS entrypoint missing",
+    )
+    .replace(
+      [
+        "const child = spawnSync(",
+        "  process.execPath,",
+        '  [cliPath, "runtime", "resolve-bash"],',
+        "  {",
+        '    encoding: "utf8",',
+        "    env: process.env,",
+        '    input: "",',
+        "    windowsHide: true,",
+        "  },",
+        ");",
+      ].join("\n"),
+      [
+        'const child = spawnSync(process.execPath, [cliPath, "resolve-bash"], {',
+        '  encoding: "utf8",',
+        "  env: process.env,",
+        '  input: "",',
+        "  windowsHide: true,",
+        "});",
+      ].join("\n"),
+    );
+}
+
 describe("sync", () => {
   let tempDir: string;
   let restoreLogger: () => void;
@@ -163,7 +217,7 @@ describe("sync", () => {
 
   beforeEach(async () => {
     tempDir = await createTempDir();
-    await createLightweightDevcanonRuntimeFixture(path.join(tempDir, "skills"));
+    await copyDevcanonRuntimeFixture(path.join(tempDir, "skills"));
     const installed = installTestLogger();
     restoreLogger = installed.restore;
     testLogger = installed.testLogger;
@@ -737,6 +791,66 @@ describe("sync", () => {
     ).toHaveLength(0);
   });
 
+  it("leaves legacy adapters and runtime unchanged when manifest binding backup fails", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    const shell = path.join(runtimeDir, "scripts", "devcanon-runtime.sh");
+    const resolver = path.join(runtimeDir, "scripts", "resolve-bash.mjs");
+    const runtime = path.join(runtimeDir, "scripts", "runtime");
+    const runtimeLeaves = [
+      path.join(runtime, "devcanon-runtime.mjs"),
+      path.join(runtime, "runtime-manifest.json"),
+      path.join(runtime, "THIRD_PARTY_LICENSES"),
+    ];
+    const provider = await createDevcanonRuntimeProviderFixture(tempDir);
+    await writeFile(shell, legacyShellAdapter(await readFile(shell, "utf8")));
+    await writeFile(
+      resolver,
+      legacyResolverAdapter(await readFile(resolver, "utf8")),
+    );
+    await writeFile(runtimeLeaves[0], "stale provider bytes\n", "utf8");
+    const manifestBytes = makeManifestJson([], { legacy: true });
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(config.manifest.path, manifestBytes, "utf8");
+    const sourceBefore = await Promise.all(
+      [shell, resolver, ...runtimeLeaves].map((sourcePath) =>
+        readFile(sourcePath),
+      ),
+    );
+
+    await expect(
+      withManifestPersistenceFaultsForTesting(
+        (stage) => {
+          if (stage === "backup-write") {
+            throw new Error("forced legacy binding backup failure");
+          }
+        },
+        () =>
+          sync(
+            config,
+            { dryRun: false, force: false, strict: false },
+            provider,
+          ),
+      ),
+    ).rejects.toThrow("forced legacy binding backup failure");
+
+    await expect(readTextFile(config.manifest.path)).resolves.toBe(
+      manifestBytes,
+    );
+    await expect(
+      Promise.all(
+        [shell, resolver, ...runtimeLeaves].map((sourcePath) =>
+          readFile(sourcePath),
+        ),
+      ),
+    ).resolves.toEqual(sourceBefore);
+    expect(
+      (await readdir(path.dirname(config.manifest.path))).filter((entry) =>
+        entry.includes(".backup-"),
+      ),
+    ).toHaveLength(0);
+  });
+
   it("keeps invalid dry sync observationally pure and explicitly recovers a real sync", async () => {
     const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
     const invalidBytes = "{corrupt manifest";
@@ -835,7 +949,7 @@ describe("sync", () => {
       sync(config, { dryRun: false, force: false, strict: false }),
     ).rejects.toMatchObject({
       message: expect.stringContaining(
-        "passive runtime support bundle devcanon-runtime is incomplete",
+        "Passive runtime adapter pair is missing",
       ),
     });
 
@@ -846,6 +960,238 @@ describe("sync", () => {
     );
     expect(await readTextFile(path.join(homeSentinel, "keep"))).toBe(
       "installed",
+    );
+  });
+
+  it("accepts the provider before invalid-manifest recovery or any source mutation", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const invalidBytes = "{corrupt manifest";
+    const runtimeBundle = path.join(
+      config.library.skillsDir,
+      "devcanon-runtime",
+      "scripts",
+      "runtime",
+      "devcanon-runtime.mjs",
+    );
+    const beforeBundle = await readFile(runtimeBundle, "utf8");
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(config.manifest.path, invalidBytes, "utf8");
+
+    await expect(
+      sync(config, { dryRun: false, force: false, strict: false }, async () => {
+        throw new Error("provider acceptance failed");
+      }),
+    ).rejects.toThrow("provider acceptance failed");
+
+    expect(await readTextFile(config.manifest.path)).toBe(invalidBytes);
+    expect(await pathExists(`${config.manifest.path}.bak`)).toBe(false);
+    expect(await readFile(runtimeBundle, "utf8")).toBe(beforeBundle);
+    expect(await pathExists(config.library.generatedDir)).toBe(false);
+  });
+
+  it("validates a provider-backed source before invalid-manifest recovery", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const invalidBytes = "{corrupt manifest";
+    const generatedSentinel = path.join(
+      config.library.generatedDir,
+      "claude",
+      "skills",
+      "sentinel",
+      "keep",
+    );
+    const installedSentinel = path.join(
+      config.targets.claude.skillsHome,
+      "sentinel",
+      "keep",
+    );
+    const runtimeCatalog = path.join(
+      config.library.skillsDir,
+      "devcanon-runtime",
+      "config",
+      "runtime-config.json",
+    );
+    const provider = await createDevcanonRuntimeProviderFixture(tempDir);
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await mkdir(path.dirname(generatedSentinel), { recursive: true });
+    await mkdir(path.dirname(installedSentinel), { recursive: true });
+    await writeFile(config.manifest.path, invalidBytes, "utf8");
+    await writeFile(generatedSentinel, "generated sentinel", "utf8");
+    await writeFile(installedSentinel, "installed sentinel", "utf8");
+    await writeFile(runtimeCatalog, '{"schema":"incompatible"}\n', "utf8");
+
+    await expect(
+      sync(
+        config,
+        { dryRun: false, force: false, strict: false },
+        async () => provider,
+      ),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining("Invalid runtime configuration catalog"),
+    });
+
+    expect(await readTextFile(config.manifest.path)).toBe(invalidBytes);
+    expect(await pathExists(`${config.manifest.path}.bak`)).toBe(false);
+    expect(await readTextFile(generatedSentinel)).toBe("generated sentinel");
+    expect(await readTextFile(installedSentinel)).toBe("installed sentinel");
+  });
+
+  it.each(["absent", "provider-mismatched"] as const)(
+    "repairs a %s derived subtree only for non-dry provider-backed sync",
+    async (state) => {
+      const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+      const runtimeDir = path.join(
+        config.library.skillsDir,
+        "devcanon-runtime",
+      );
+      const derived = path.join(runtimeDir, "scripts", "runtime");
+      const shell = path.join(runtimeDir, "scripts", "devcanon-runtime.sh");
+      const resolver = path.join(runtimeDir, "scripts", "resolve-bash.mjs");
+      const provider = await createDevcanonRuntimeProviderFixture(tempDir);
+      if (process.platform !== "win32") {
+        await chmod(shell, 0o700);
+        await chmod(resolver, 0o600);
+      }
+      const [shellBefore, resolverBefore] = await Promise.all([
+        readFile(shell),
+        readFile(resolver),
+      ]);
+      if (state === "absent") {
+        await rm(derived, { recursive: true, force: true });
+      } else {
+        await writeFile(
+          path.join(derived, "devcanon-runtime.mjs"),
+          "stale provider bytes\n",
+          "utf8",
+        );
+      }
+
+      const dry = await sync(
+        config,
+        { dryRun: true, force: false, strict: false },
+        provider,
+      );
+      expect(dry.errors).toEqual([]);
+      expect(testLogger.infos.join("\n")).toContain(
+        "Source runtime: reconcile derived subtree",
+      );
+      if (state === "absent") expect(await pathExists(derived)).toBe(false);
+      else {
+        await expect(
+          readFile(path.join(derived, "devcanon-runtime.mjs"), "utf8"),
+        ).resolves.toBe("stale provider bytes\n");
+      }
+      expect(await pathExists(config.library.generatedDir)).toBe(false);
+
+      const applied = await sync(
+        config,
+        { dryRun: false, force: false, strict: false },
+        provider,
+      );
+      expect(applied.errors).toEqual([]);
+      expect(await readdir(derived)).toEqual([
+        "THIRD_PARTY_LICENSES",
+        "devcanon-runtime.mjs",
+        "runtime-manifest.json",
+      ]);
+      await expect(readFile(shell)).resolves.toEqual(shellBefore);
+      await expect(readFile(resolver)).resolves.toEqual(resolverBefore);
+      if (process.platform !== "win32") {
+        expect((await stat(shell)).mode & 0o777).toBe(0o700);
+        expect((await stat(resolver)).mode & 0o777).toBe(0o600);
+      }
+    },
+  );
+
+  it("updates an installed runtime copy after capability-profile intent changes", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const options = { dryRun: false, force: false, strict: false } as const;
+    const first = await sync(config, options);
+    expect(first.errors).toEqual([]);
+    config.capabilityProfiles = {
+      ...config.capabilityProfiles,
+      balanced: {
+        ...config.capabilityProfiles.balanced,
+        codex: "updated-profile-model",
+      },
+    };
+
+    const second = await sync(config, options);
+
+    expect(second.errors).toEqual([]);
+    expect(second.updated).toBe(1);
+    await expect(
+      readFile(
+        path.join(
+          config.targets.claude.skillsHome,
+          "devcanon-runtime",
+          "config",
+          "runtime-config.json",
+        ),
+        "utf8",
+      ),
+    ).resolves.toContain("updated-profile-model");
+  });
+
+  it("refuses to replace an installed runtime whose shell line endings changed", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const options = { dryRun: false, force: false, strict: false } as const;
+    const first = await sync(config, options);
+    expect(first.errors).toEqual([]);
+    const installedPath = path.join(
+      config.targets.claude.skillsHome,
+      "devcanon-runtime",
+    );
+    const shell = path.join(installedPath, "scripts", "devcanon-runtime.sh");
+    const original = await readFile(shell);
+    const crlf = Buffer.from(
+      original.toString("utf8").replaceAll("\n", "\r\n"),
+      "utf8",
+    );
+    expect(crlf).not.toEqual(original);
+    await writeFile(shell, crlf);
+    config.capabilityProfiles = {
+      ...config.capabilityProfiles,
+      balanced: {
+        ...config.capabilityProfiles.balanced,
+        codex: "updated-after-installed-shell-mutation",
+      },
+    };
+    const manifestBefore = await readTextFile(config.manifest.path);
+
+    const second = await sync(config, options);
+
+    expect(second.updated).toBe(0);
+    expect(second.errors).toEqual([
+      expect.stringContaining("installed copy content hash mismatch"),
+    ]);
+    await expect(readFile(shell)).resolves.toEqual(crlf);
+    await expect(readTextFile(config.manifest.path)).resolves.toBe(
+      manifestBefore,
+    );
+  });
+
+  it("does not repair the source runtime before prospective output validation succeeds", async () => {
+    const config = makeResolvedConfig(tempDir, { codex: { enabled: false } });
+    const runtimeBundle = path.join(
+      config.library.skillsDir,
+      "devcanon-runtime",
+      "scripts",
+      "runtime",
+      "devcanon-runtime.mjs",
+    );
+    const provider = await createDevcanonRuntimeProviderFixture(tempDir);
+    await writeFile(runtimeBundle, "stale provider bytes\n", "utf8");
+    await createAgentFixture(
+      config.library.agentsDir,
+      "invalid-agent",
+      "name: invalid-agent\n",
+    );
+
+    await expect(
+      sync(config, { dryRun: false, force: false, strict: false }, provider),
+    ).rejects.toThrow();
+    await expect(readFile(runtimeBundle, "utf8")).resolves.toBe(
+      "stale provider bytes\n",
     );
   });
 

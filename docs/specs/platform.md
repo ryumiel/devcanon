@@ -67,9 +67,8 @@ bypass the helper or infer success from missing output.
 
 ### Runtime package and isolation boundary
 
-The following portable-execution acceptance proof is required target behavior;
-its implementation is deferred with the prebuilt runtime. It has three distinct
-environments on every supported platform.
+The portable-execution acceptance proof has three distinct environments on
+every supported platform.
 
 1. A package manager may create only a clean fixture by installing the packed
    tarball and its declared CLI dependencies into a temporary prefix.

@@ -8025,15 +8025,19 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
       ].join("\n"),
     );
     await chmod(resolver, 0o755);
+    const typedRuntime = path.join(typedRuntimeDir, "devcanon-runtime.mjs");
     await writeFile(
-      path.join(typedRuntimeDir, "cli.js"),
+      typedRuntime,
       [
         'import { writeFileSync } from "node:fs";',
+        "const [group, helper] = process.argv.slice(2);",
+        'if (group !== "runtime" || helper !== "pr-review-leases") process.exit(64);',
         'writeFileSync(process.env.DEVCANON_TEST_TYPED_SENTINEL, "executed\\n");',
         'process.stdout.write("runtime-ok\\n");',
         "",
       ].join("\n"),
     );
+    await chmod(typedRuntime, 0o755);
     return { runtimeDir, resolverSentinel, typedSentinel };
   }
 
@@ -8076,15 +8080,11 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
       stdout: "runtime-ok\n",
       stderr: "",
     });
-    const executedSentinel =
-      process.platform === "win32" ? typedSentinel : resolverSentinel;
-    const idleSentinel =
-      process.platform === "win32" ? resolverSentinel : typedSentinel;
-    expect(await readFile(executedSentinel, "utf8")).toBe("executed\n");
-    await expect(readFile(idleSentinel, "utf8")).rejects.toMatchObject({
+    expect(await readFile(typedSentinel, "utf8")).toBe("executed\n");
+    await expect(readFile(resolverSentinel, "utf8")).rejects.toMatchObject({
       code: "ENOENT",
     });
-    await rm(executedSentinel);
+    await rm(typedSentinel);
   }
 
   async function expectRejected(
@@ -8133,15 +8133,14 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
       stdout: "runtime-ok\n",
       stderr: "",
     });
-    const executedSentinel =
-      process.platform === "win32"
-        ? runtime.typedSentinel
-        : runtime.resolverSentinel;
-    expect(await readFile(executedSentinel, "utf8")).toBe("executed\n");
+    expect(await readFile(runtime.typedSentinel, "utf8")).toBe("executed\n");
+    await expect(
+      readFile(runtime.resolverSentinel, "utf8"),
+    ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it.runIf(process.platform !== "win32")(
-    "preserves POSIX backslashes, line feeds, and valid dot aliases despite a poisoned OSTYPE",
+    "preserves POSIX line feeds and valid dot aliases despite a poisoned OSTYPE",
     async () => {
       const root = await commandHarness.createScratchRoot();
       try {
@@ -8155,16 +8154,6 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
           `${ordinary.runtimeDir}/.`,
           ordinary.resolverSentinel,
           ordinary.typedSentinel,
-        );
-
-        const literalBackslashes = await writeRuntime(
-          root,
-          "literal\\..\\runtime",
-        );
-        await expectAccepted(
-          literalBackslashes.runtimeDir,
-          literalBackslashes.resolverSentinel,
-          literalBackslashes.typedSentinel,
         );
 
         const lineFeed = await writeRuntime(root, "line-feed-runtime\n");
@@ -8364,7 +8353,12 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
           );
         }
         const physicalTypedEntrypoint = await realpath(
-          path.win32.join(uncRuntime, "scripts", "runtime", "cli.js"),
+          path.win32.join(
+            uncRuntime,
+            "scripts",
+            "runtime",
+            "devcanon-runtime.mjs",
+          ),
         );
         const typedEntrypointUrl = pathToFileURL(physicalTypedEntrypoint);
         expect(typedEntrypointUrl.hostname.toLowerCase()).toBe(

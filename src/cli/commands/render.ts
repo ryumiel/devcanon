@@ -1,7 +1,20 @@
 import { loadConfig } from "../../config/load.js";
-import { renderAll } from "../../render/pipeline.js";
+import {
+  reconcileDevcanonRuntimeSource,
+  reconcileDevcanonRuntimeSubtree,
+} from "../../render/devcanon-runtime.js";
+import {
+  preflightGeneratedRender,
+  renderAllWithValidatedRuntime,
+} from "../../render/pipeline.js";
+import type { AcceptedProvider } from "../../runtime-build/provider.js";
 import { UserError } from "../../utils/errors.js";
 import { getLogger } from "../../utils/output.js";
+import {
+  bundledDevcanonRuntimeDir,
+  devcanonRuntimeDir,
+  validateDevcanonRuntime,
+} from "../../validate/devcanon-runtime.js";
 
 interface RenderOptions {
   target?: string;
@@ -10,6 +23,7 @@ interface RenderOptions {
 export async function renderAction(
   options: RenderOptions,
   command: { parent?: { opts(): Record<string, unknown> } },
+  provider?: AcceptedProvider | (() => Promise<AcceptedProvider>),
 ): Promise<void> {
   const logger = getLogger();
   const globalOpts = command.parent?.opts() ?? {};
@@ -26,9 +40,41 @@ export async function renderAction(
     globalOpts.config as string | undefined,
     strict,
   );
+  const acceptedProvider =
+    typeof provider === "function" ? await provider() : provider;
 
-  const { outputs } = await renderAll(
+  const runtimeDir = devcanonRuntimeDir(config.library.skillsDir);
+  let validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
+    adapterSourceDir: bundledDevcanonRuntimeDir(),
+    operation: "compose",
+    provider: acceptedProvider,
+  });
+  const projection = await renderAllWithValidatedRuntime(
     config,
+    validatedRuntime,
+    false,
+    strict,
+    options.target as "claude" | "codex" | undefined,
+  );
+  await preflightGeneratedRender(config, projection);
+  if (acceptedProvider && validatedRuntime.sourceDisposition !== "current") {
+    if (validatedRuntime.sourceDisposition === "repair-runtime") {
+      await reconcileDevcanonRuntimeSubtree(runtimeDir, acceptedProvider);
+    } else {
+      await reconcileDevcanonRuntimeSource(
+        runtimeDir,
+        acceptedProvider,
+        validatedRuntime,
+      );
+    }
+    validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
+      adapterSourceDir: bundledDevcanonRuntimeDir(),
+      provider: acceptedProvider,
+    });
+  }
+  const { outputs } = await renderAllWithValidatedRuntime(
+    config,
+    validatedRuntime,
     true,
     strict,
     options.target as "claude" | "codex" | undefined,

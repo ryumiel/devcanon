@@ -12,14 +12,21 @@ import {
 import { loadManifestWithSnapshot } from "../install/manifest.js";
 import { resolveEffectiveInstallMode } from "../install/mode.js";
 import type { DiffResult } from "../models/types.js";
-import { renderAll } from "../render/pipeline.js";
+import { renderAllWithValidatedRuntime } from "../render/pipeline.js";
+import type { AcceptedProvider } from "../runtime-build/provider.js";
 import { UserError } from "../utils/errors.js";
 import { pathExists, readTextFile } from "../utils/fs.js";
+import {
+  bundledDevcanonRuntimeDir,
+  devcanonRuntimeDir,
+  validateDevcanonRuntime,
+} from "../validate/devcanon-runtime.js";
 
 export async function diffAll(
   config: ResolvedConfig,
   targetFilter?: "claude" | "codex",
   strict = false,
+  provider?: AcceptedProvider | (() => Promise<AcceptedProvider>),
 ): Promise<DiffResult[]> {
   const loaded = await loadManifestWithSnapshot(config.manifest.path);
   let normalized: ReturnType<typeof normalizeManifestIdentity>;
@@ -55,7 +62,22 @@ export async function diffAll(
     );
   }
   const manifest = normalized.manifest;
-  const { outputs } = await renderAll(config, false, strict, targetFilter);
+  const acceptedProvider =
+    typeof provider === "function" ? await provider() : provider;
+  const validatedRuntime = await validateDevcanonRuntime(
+    devcanonRuntimeDir(config.library.skillsDir),
+    {
+      adapterSourceDir: bundledDevcanonRuntimeDir(),
+      provider: acceptedProvider,
+    },
+  );
+  const { outputs } = await renderAllWithValidatedRuntime(
+    config,
+    validatedRuntime,
+    false,
+    strict,
+    targetFilter,
+  );
   const results: DiffResult[] = [];
 
   for (const output of outputs) {
@@ -168,6 +190,7 @@ async function hasMatchingRuntimeIdentity(
       return (
         (await hashDevcanonRuntimePayload(
           await realpath(record.installedPath),
+          config,
         )) === expectedHash
       );
     }

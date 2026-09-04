@@ -8,10 +8,15 @@ import type {
 } from "../config/schema.js";
 import type { PlanAction, SyncOptions } from "../models/types.js";
 import {
+  reconcileDevcanonRuntimeSource,
+  reconcileDevcanonRuntimeSubtree,
+} from "../render/devcanon-runtime.js";
+import {
   type RenderMutation,
-  renderAll,
+  preflightGeneratedRender,
   renderAllWithValidatedRuntime,
 } from "../render/pipeline.js";
+import type { AcceptedProvider } from "../runtime-build/provider.js";
 import { UserError } from "../utils/errors.js";
 import { ensureDir } from "../utils/fs.js";
 import { getLogger } from "../utils/output.js";
@@ -68,6 +73,7 @@ export interface ReconciliationResult {
 export async function sync(
   config: ResolvedConfig,
   options: SyncOptions,
+  provider?: AcceptedProvider | (() => Promise<AcceptedProvider>),
 ): Promise<SyncResult> {
   const totalResult: SyncResult = {
     installed: 0,
@@ -90,10 +96,21 @@ export async function sync(
       dryInvalidManifestHint(inspection.message, config.manifest.path),
     );
   }
-  const validatedRuntime = await validateDevcanonRuntime(
-    devcanonRuntimeDir(config.library.skillsDir),
-  );
-
+  // The public launcher passes a lazy resolver. Accept it after the
+  // observational manifest preflight but before recovery or source mutation.
+  const acceptedProvider =
+    provider === undefined
+      ? undefined
+      : typeof provider === "function"
+        ? await provider()
+        : provider;
+  const runtimeDir = devcanonRuntimeDir(config.library.skillsDir);
+  let validatedRuntime = acceptedProvider
+    ? await validateDevcanonRuntime(runtimeDir, {
+        operation: "compose",
+        provider: acceptedProvider,
+      })
+    : await validateDevcanonRuntime(runtimeDir);
   // A manifest must be accepted before rendering can create generated output
   // or an install action can touch a configured home.
   const loaded = await loadManifestForSync(config, options, inspection);
@@ -187,14 +204,14 @@ export async function sync(
   // Render the selected target without materializing generated output, then
   // validate active selected outputs alongside retained active/passive records
   // before any migration or generated-tree write.
-  const { outputs: prospectiveOutputs, mutationInventory } =
-    await renderAllWithValidatedRuntime(
-      config,
-      validatedRuntime,
-      false,
-      options.strict,
-      options.target,
-    );
+  const projection = await renderAllWithValidatedRuntime(
+    config,
+    validatedRuntime,
+    false,
+    options.strict,
+    options.target,
+  );
+  const { outputs: prospectiveOutputs, mutationInventory } = projection;
   assertReconciledForeignGeneratedMutationReservations(
     reconciledForeignRecords,
     mutationInventory,
@@ -227,47 +244,65 @@ export async function sync(
     config,
   );
 
+  const plannedActions = await computePlan(
+    prospectiveOutputs,
+    manifest,
+    config.defaults.overwritePolicy,
+    options.force,
+    config.defaults.cleanManagedOutputs,
+    {
+      claude: options.mode ?? config.targets.claude.installMode,
+      codex: options.mode ?? config.targets.codex.installMode,
+    },
+    options.target,
+  );
+  const plan = protectReconciledForeignPaths(
+    plannedActions,
+    protectedInstalledPathKeys,
+  );
+  await preflightGeneratedRender(config, projection);
+
+  if (options.dryRun) {
+    printSourceRuntimePreview(validatedRuntime.sourceDisposition);
+    printReconciliationPreview(totalResult.reconciliation);
+    printPlan(plan);
+    return totalResult;
+  }
+
   try {
-    // An existing legacy manifest is a migration, while a missing manifest is
-    // bound before the first generated or installed output is persisted.
-    if (!options.dryRun && legacy) {
+    // Bind a legacy or missing manifest before source migration. Every pure
+    // validation and planning gate has passed, so a binding failure must still
+    // leave the source runtime untouched.
+    if (legacy) {
       if (loaded.snapshot) {
         await ensureAuthority();
       }
       await save(manifest);
     }
 
-    // Render outputs (filter by target, propagate strict mode)
-    const outputs = options.dryRun
-      ? prospectiveOutputs
-      : (await renderAll(config, true, options.strict, options.target)).outputs;
-    // Filter for install planning (renderAll already filtered, but keep for clarity)
-    const filteredOutputs = outputs;
+    if (acceptedProvider && validatedRuntime.sourceDisposition !== "current") {
+      if (validatedRuntime.sourceDisposition === "repair-runtime") {
+        await reconcileDevcanonRuntimeSubtree(runtimeDir, acceptedProvider);
+      } else {
+        await reconcileDevcanonRuntimeSource(
+          runtimeDir,
+          acceptedProvider,
+          validatedRuntime,
+        );
+      }
+      validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
+        provider: acceptedProvider,
+      });
+    }
 
-    // Compute plan
-    const plannedActions = await computePlan(
-      filteredOutputs,
-      manifest,
-      config.defaults.overwritePolicy,
-      options.force,
-      config.defaults.cleanManagedOutputs,
-      {
-        claude: options.mode ?? config.targets.claude.installMode,
-        codex: options.mode ?? config.targets.codex.installMode,
-      },
+    // Render outputs (filter by target, propagate strict mode)
+    await renderAllWithValidatedRuntime(
+      config,
+      validatedRuntime,
+      true,
+      options.strict,
       options.target,
     );
-    const plan = protectReconciledForeignPaths(
-      plannedActions,
-      protectedInstalledPathKeys,
-    );
-
-    // Dry run
-    if (options.dryRun) {
-      printReconciliationPreview(totalResult.reconciliation);
-      printPlan(plan);
-      return totalResult;
-    }
 
     if (
       plan.some(
@@ -783,6 +818,18 @@ function printPlan(plan: PlanAction[]): void {
     }
     logger.verbose(`    ${action.reason}`);
   }
+}
+
+function printSourceRuntimePreview(
+  disposition: "current" | "repair-runtime" | "migrate-adapters-and-runtime",
+): void {
+  if (disposition === "current") return;
+  const logger = getLogger();
+  logger.info(
+    disposition === "repair-runtime"
+      ? "Source runtime: reconcile derived subtree"
+      : "Source runtime: migrate adapter pair and reconcile derived subtree",
+  );
 }
 
 function printReconciliationPreview(

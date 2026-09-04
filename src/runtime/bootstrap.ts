@@ -2,15 +2,17 @@ import { spawn } from "node:child_process";
 import { constants, type Stats } from "node:fs";
 import { access, lstat, realpath } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   type RuntimeDirectoryPath,
   RuntimePathError,
   parseRuntimeDirectoryPath,
 } from "./paths.js";
 
-const runtimeEntrypointRelativePath = ["scripts", "devcanon-runtime.sh"];
-const typedEntrypointRelativePath = ["scripts", "runtime", "cli.js"];
+const runtimeEntrypointRelativePath = [
+  "scripts",
+  "runtime",
+  "devcanon-runtime.mjs",
+];
 const forwardedSignals: readonly NodeJS.Signals[] = [
   "SIGINT",
   "SIGTERM",
@@ -30,7 +32,6 @@ export interface ValidatedRuntimeOverride {
   inspectionPath: string;
   runtimeDirectory: string;
   entrypoint: string;
-  typedEntrypoint: string;
 }
 
 export interface RuntimeDispatchResult {
@@ -86,15 +87,15 @@ export async function validateRuntimeOverride(
   let entrypointStat: Stats;
   try {
     entrypointStat = await lstat(lexicalEntrypoint);
-    await access(lexicalEntrypoint, constants.X_OK);
+    await access(lexicalEntrypoint, constants.R_OK);
   } catch {
     throw new RuntimeBootstrapError(
-      "devcanon-runtime entrypoint must be an executable non-symlink file",
+      "devcanon-runtime entrypoint must be a readable non-symlink file",
     );
   }
   if (!entrypointStat.isFile() || entrypointStat.isSymbolicLink()) {
     throw new RuntimeBootstrapError(
-      "devcanon-runtime entrypoint must be an executable non-symlink file",
+      "devcanon-runtime entrypoint must be a readable non-symlink file",
     );
   }
 
@@ -105,20 +106,11 @@ export async function validateRuntimeOverride(
       "devcanon-runtime entrypoint resolves outside DEVCANON_RUNTIME_DIR",
     );
   }
-  const typedEntrypoint = await validateTypedEntrypoint(
-    parsed.inspectionPath,
-    runtimeDirectory,
-  );
-  if (process.platform === "win32") {
-    assertWindowsTypedEntrypointDispatchable(typedEntrypoint);
-  }
-
   return {
     rawPath,
     inspectionPath: parsed.inspectionPath,
     runtimeDirectory,
     entrypoint,
-    typedEntrypoint,
   };
 }
 
@@ -128,17 +120,15 @@ export async function dispatchRuntimeOverride(
 ): Promise<RuntimeDispatchResult> {
   const runtime = await validateRuntimeOverride(rawPath);
   return new Promise((resolve, reject) => {
-    const command =
-      process.platform === "win32" ? process.execPath : runtime.entrypoint;
-    const args =
-      process.platform === "win32"
-        ? [runtime.typedEntrypoint, ...childArguments]
-        : ["runtime", ...childArguments];
-    const child = spawn(command, args, {
-      detached: process.platform !== "win32",
-      env: runtimeEnvironment(process.env),
-      stdio: "inherit",
-    });
+    const child = spawn(
+      process.execPath,
+      [runtime.entrypoint, "runtime", ...childArguments],
+      {
+        detached: process.platform !== "win32",
+        env: runtimeEnvironment(process.env),
+        stdio: "inherit",
+      },
+    );
     const signalHandlers = new Map<NodeJS.Signals, () => void>();
     for (const signal of forwardedSignals) {
       const handler = () => {
@@ -191,41 +181,6 @@ function forwardSignalToChild(
   }
 }
 
-async function validateTypedEntrypoint(
-  runtimeDirectory: string,
-  physicalRuntimeDirectory: string,
-): Promise<string> {
-  const lexicalEntrypoint = path.join(
-    runtimeDirectory,
-    ...typedEntrypointRelativePath,
-  );
-  await assertNoSymlinkedEntrypointComponent(
-    runtimeDirectory,
-    typedEntrypointRelativePath,
-    "devcanon-runtime typed entrypoint",
-  );
-  let stat: Stats;
-  try {
-    stat = await lstat(lexicalEntrypoint);
-  } catch {
-    throw new RuntimeBootstrapError(
-      "devcanon-runtime typed entrypoint must be a non-symlink file",
-    );
-  }
-  if (!stat.isFile() || stat.isSymbolicLink()) {
-    throw new RuntimeBootstrapError(
-      "devcanon-runtime typed entrypoint must be a non-symlink file",
-    );
-  }
-  const typedEntrypoint = await realpath(lexicalEntrypoint);
-  if (isOutsideDirectory(physicalRuntimeDirectory, typedEntrypoint)) {
-    throw new RuntimeBootstrapError(
-      "devcanon-runtime typed entrypoint resolves outside DEVCANON_RUNTIME_DIR",
-    );
-  }
-  return typedEntrypoint;
-}
-
 async function assertNoSymlinkedEntrypointComponent(
   runtimeDirectory: string,
   components: readonly string[],
@@ -257,26 +212,6 @@ function isOutsideDirectory(root: string, candidate: string): boolean {
     relative.startsWith(`..${path.sep}`) ||
     path.isAbsolute(relative)
   );
-}
-
-function assertWindowsTypedEntrypointDispatchable(
-  typedEntrypoint: string,
-): void {
-  let roundTripPath: string;
-  try {
-    roundTripPath = fileURLToPath(pathToFileURL(typedEntrypoint));
-  } catch {
-    throw new RuntimeBootstrapError(
-      "devcanon-runtime typed entrypoint is not representable as a Windows file URL",
-    );
-  }
-  const normalizeIdentity = (value: string) =>
-    path.win32.normalize(value).toLowerCase();
-  if (normalizeIdentity(roundTripPath) !== normalizeIdentity(typedEntrypoint)) {
-    throw new RuntimeBootstrapError(
-      "devcanon-runtime typed entrypoint is not representable as a Windows file URL",
-    );
-  }
 }
 
 export function formatBootstrapError(error: unknown): string {

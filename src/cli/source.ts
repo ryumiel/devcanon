@@ -5,6 +5,6 @@ import { fileURLToPath } from "node:url";
 import { runCli } from "./run.js";
 
 void runCli(
-  "package",
+  "source-build",
   path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../.."),
 );

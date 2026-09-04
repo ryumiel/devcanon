@@ -1,23 +1,84 @@
+import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { lstat, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import {
+  access,
+  chmod,
+  lstat,
+  mkdir,
+  mkdtemp,
+  realpath,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { RUNTIME_CONFIG_SCHEMA } from "../config/runtime-config.js";
 import type { ResolvedConfig } from "../config/schema.js";
 import type { RenderedSkill } from "../models/types.js";
-import { cloneTree } from "../utils/clone-tree.js";
-import { ensureDir } from "../utils/fs.js";
-import type { ValidatedDevcanonRuntime } from "../validate/devcanon-runtime.js";
-import { DEVCANON_RUNTIME_SKILL_NAME } from "../validate/skills.js";
+import type { AcceptedProvider } from "../runtime-build/provider.js";
 import {
-  normalizePackagedShellBytes,
-  normalizePackagedShellTree,
-} from "./packaged-shell.js";
+  RUNTIME_BASH_RESOLVER,
+  RUNTIME_ENTRYPOINT,
+  RUNTIME_JS_DIR,
+  type RuntimeAdapterPair,
+  type ValidatedDevcanonRuntime,
+} from "../validate/devcanon-runtime.js";
+import { DEVCANON_RUNTIME_SKILL_NAME } from "../validate/skills.js";
+import { normalizePackagedShellBytes } from "./packaged-shell.js";
+
+const PROVIDER_LEAVES = [
+  "devcanon-runtime.mjs",
+  "runtime-manifest.json",
+  "THIRD_PARTY_LICENSES",
+] as const;
+
+type RuntimePublicationFaultStage =
+  | "replace-before-publish"
+  | "replace-cleanup"
+  | "source-before-publish"
+  | "source-cleanup";
+type RuntimePublicationFaultInjector = (
+  stage: RuntimePublicationFaultStage,
+) => void | Promise<void>;
+let runtimePublicationFaultInjector:
+  | RuntimePublicationFaultInjector
+  | undefined;
+
+/** @internal Scoped, test-only deterministic runtime publication fault seam. */
+export async function withDevcanonRuntimePublicationFaultsForTesting<T>(
+  injector: RuntimePublicationFaultInjector,
+  callback: () => Promise<T>,
+): Promise<T> {
+  if (process.env.NODE_ENV !== "test") {
+    throw new Error("Runtime publication fault injection is test-only");
+  }
+  if (runtimePublicationFaultInjector !== undefined) {
+    throw new Error(
+      "Runtime publication fault injection does not support nesting",
+    );
+  }
+  runtimePublicationFaultInjector = injector;
+  try {
+    return await callback();
+  } finally {
+    runtimePublicationFaultInjector = undefined;
+  }
+}
+
+export interface RuntimeCompositionOptions {
+  readonly provider?: AcceptedProvider;
+  readonly adapterPair?: RuntimeAdapterPair;
+}
 
 export async function renderDevcanonRuntimeForTarget(
   runtimeDir: string,
   target: "claude" | "codex",
   config: ResolvedConfig,
   contentHash?: string,
+  validatedRuntime?: ValidatedDevcanonRuntime,
 ): Promise<RenderedSkill> {
   const generatedPath = path.join(
     config.library.generatedDir,
@@ -38,208 +99,559 @@ export async function renderDevcanonRuntimeForTarget(
     content: "",
     contentHash:
       contentHash ??
-      (await hashRuntimePayload(runtimeDir, renderedRuntimeCatalog(config))),
+      (await hashDevcanonRuntimePayload(runtimeDir, config, validatedRuntime)),
   };
 }
 
+/** Hashes the exact captured composition inputs, never reopening provider leaves. */
 export async function hashDevcanonRuntimePayload(
   runtimeDir: string,
   config: ResolvedConfig,
   validatedRuntime?: ValidatedDevcanonRuntime,
 ): Promise<string> {
-  return hashRuntimePayload(
-    runtimeDir,
-    renderedRuntimeCatalog(config),
-    validatedRuntime,
-  );
+  const validated = validatedRuntime;
+  const adapterPair =
+    validated?.adapterPair ?? (await readAdapterPair(runtimeDir));
+  const leaves =
+    validated?.providerLeaves ?? (await readProviderLeaves(runtimeDir));
+  const shellMode =
+    process.platform === "win32"
+      ? 0
+      : (validated?.adapterPair?.shellMode ??
+        (await lstat(path.join(runtimeDir, RUNTIME_ENTRYPOINT))).mode);
+  const resolverMode =
+    process.platform === "win32"
+      ? 0
+      : (validated?.adapterPair?.resolverMode ??
+        (await lstat(path.join(runtimeDir, RUNTIME_BASH_RESOLVER))).mode);
+  return hashDevcanonRuntimeComposition({
+    adapterPair: {
+      ...adapterPair,
+      shell: normalizePackagedShellBytes(RUNTIME_ENTRYPOINT, adapterPair.shell),
+      shellMode: shellMode & 0o777,
+      resolverMode: resolverMode & 0o777,
+    },
+    catalog: renderedRuntimeCatalog(config),
+    providerLeaves: leaves,
+  });
 }
 
+export interface DevcanonRuntimeCompositionHashInput {
+  readonly adapterPair: RuntimeAdapterPair;
+  readonly catalog: Buffer;
+  readonly providerLeaves: ReadonlyMap<string, Buffer>;
+}
+
+/** Hashes one exact six-file composition without consulting prospective config. */
+export function hashDevcanonRuntimeComposition({
+  adapterPair,
+  catalog,
+  providerLeaves,
+}: DevcanonRuntimeCompositionHashInput): string {
+  const hash = createHash("sha256");
+  hashField(hash, "file", RUNTIME_ENTRYPOINT, String(adapterPair.shellMode));
+  hashField(hash, "bytes", RUNTIME_ENTRYPOINT, adapterPair.shell);
+  hashField(
+    hash,
+    "file",
+    RUNTIME_BASH_RESOLVER,
+    String(adapterPair.resolverMode),
+  );
+  hashField(hash, "bytes", RUNTIME_BASH_RESOLVER, adapterPair.resolver);
+  hashField(hash, "file", "config/runtime-config.json", "0");
+  hashField(hash, "bytes", "config/runtime-config.json", catalog);
+  for (const leaf of PROVIDER_LEAVES) {
+    hashField(hash, "file", path.posix.join(RUNTIME_JS_DIR, leaf), "0");
+    hashField(
+      hash,
+      "bytes",
+      path.posix.join(RUNTIME_JS_DIR, leaf),
+      providerLeaves.get(leaf) ?? Buffer.alloc(0),
+    );
+  }
+  return hash.digest("hex");
+}
+
+/** Renderer-owned, whole-subtree materialization from an accepted snapshot. */
+export async function reconcileDevcanonRuntimeSubtree(
+  runtimeDir: string,
+  provider: AcceptedProvider,
+): Promise<void> {
+  const destination = path.join(runtimeDir, RUNTIME_JS_DIR);
+  const scratchParent = path.dirname(path.dirname(runtimeDir));
+  const stage = await mkdtemp(path.join(scratchParent, ".runtime-stage-"));
+  try {
+    await writeProviderLeaves(stage, providerLeaves(provider));
+    await assertStagedBundle(stage);
+    await replaceDirectory(stage, destination, scratchParent);
+  } catch (error) {
+    await rm(stage, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+/**
+ * Bounded PR-ADAPT publication. Staging validates a coherent pair plus
+ * subtree, and publication touches only the owned pair and runtime directory.
+ */
+export async function reconcileDevcanonRuntimeSource(
+  runtimeDir: string,
+  provider: AcceptedProvider,
+  validatedRuntime: ValidatedDevcanonRuntime,
+): Promise<void> {
+  await assertSnapshotRuntimeDir(runtimeDir, validatedRuntime);
+  const publicationPair = validatedRuntime.adapterPair;
+  if (
+    !sameAdapterPair(publicationPair, validatedRuntime.authoritativeAdapterPair)
+  )
+    throw new Error(
+      "source reconciliation adapter pair does not match the authoritative validated snapshot",
+    );
+  const observedSourcePair = validatedRuntime.sourceAdapterPair;
+  const destination = path.join(runtimeDir, "scripts");
+  const scratchParent = path.dirname(path.dirname(runtimeDir));
+  const stage = await mkdtemp(
+    path.join(scratchParent, ".runtime-source-stage-"),
+  );
+  try {
+    await writeFile(
+      path.join(stage, "devcanon-runtime.sh"),
+      normalizePackagedShellBytes(RUNTIME_ENTRYPOINT, publicationPair.shell),
+    );
+    if (process.platform !== "win32")
+      await chmod(
+        path.join(stage, "devcanon-runtime.sh"),
+        publicationPair.shellMode,
+      );
+    await writeFile(
+      path.join(stage, "resolve-bash.mjs"),
+      publicationPair.resolver,
+    );
+    if (process.platform !== "win32")
+      await chmod(
+        path.join(stage, "resolve-bash.mjs"),
+        publicationPair.resolverMode,
+      );
+    await writeProviderLeaves(
+      path.join(stage, "runtime"),
+      providerLeaves(provider),
+    );
+    await assertStagedRuntime(stage);
+    await publishStagedSourceParts(
+      stage,
+      destination,
+      observedSourcePair,
+      scratchParent,
+    );
+  } catch (error) {
+    await rm(stage, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+async function publishStagedSourceParts(
+  stage: string,
+  destination: string,
+  observedSourcePair: RuntimeAdapterPair,
+  scratchParent: string,
+): Promise<void> {
+  const owned = ["devcanon-runtime.sh", "resolve-bash.mjs", "runtime"] as const;
+  const backups = new Map<string, string>();
+  const backupRoot = await mkdtemp(
+    path.join(scratchParent, ".devcanon-runtime-operation-"),
+  );
+  let published = false;
+  try {
+    const liveSourcePair = await readAdapterPair(
+      path.dirname(destination),
+    ).catch(() => undefined);
+    if (
+      liveSourcePair === undefined ||
+      !sameAdapterPair(liveSourcePair, observedSourcePair)
+    ) {
+      throw new Error(
+        "runtime source adapters changed after validation; rerun the operation",
+      );
+    }
+    for (const leaf of owned) {
+      const target = path.join(destination, leaf);
+      const backup = path.join(backupRoot, leaf);
+      try {
+        await rename(target, backup);
+        backups.set(target, backup);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
+    }
+    await runtimePublicationFaultInjector?.("source-before-publish");
+    for (const leaf of owned)
+      await rename(path.join(stage, leaf), path.join(destination, leaf));
+    published = true;
+    await cleanupPublishedOperation(
+      backupRoot,
+      "source-cleanup",
+      "runtime source",
+    );
+    await rm(stage, { recursive: true, force: true });
+  } catch (error) {
+    if (published) throw error;
+    if (!published) {
+      const restored = await restoreOwnedSourceParts(
+        owned,
+        destination,
+        backups,
+        backupRoot,
+      );
+      if (!restored) {
+        // The old composition remains in this operation-owned root for
+        // diagnosis/recovery. Never erase it after a failed restoration.
+        throw new Error(
+          `runtime source publication failed and retained its operation backup: ${(error as Error).message}`,
+        );
+      }
+    }
+    await rm(backupRoot, { recursive: true, force: true }).catch(
+      () => undefined,
+    );
+    throw error;
+  }
+}
+
+async function restoreOwnedSourceParts(
+  owned: readonly string[],
+  destination: string,
+  backups: ReadonlyMap<string, string>,
+  backupRoot: string,
+): Promise<boolean> {
+  const displacedRoot = path.join(backupRoot, "new");
+  await mkdir(displacedRoot, { recursive: true });
+  let restored = true;
+  for (const leaf of owned) {
+    const target = path.join(destination, leaf);
+    const backup = backups.get(target);
+    if (backup === undefined) continue;
+    const displaced = path.join(displacedRoot, leaf);
+    const targetExists = await lstat(target).then(
+      () => true,
+      () => false,
+    );
+    try {
+      // Preserve any newly published leaf before attempting restoration; a
+      // failed old->live rename can put that complete leaf back in place.
+      if (targetExists) await rename(target, displaced);
+      await rename(backup, target);
+    } catch {
+      const liveMissing = await lstat(target).then(
+        () => false,
+        () => true,
+      );
+      if (liveMissing) {
+        // A bounded retry covers the handled publication seam where the
+        // first restoration rename fails transiently. The old leaf remains
+        // in our backup until this succeeds.
+        const retried = await rename(backup, target).then(
+          () => true,
+          () => false,
+        );
+        if (retried) continue;
+        await rename(displaced, target).catch(() => undefined);
+      }
+      restored = false;
+    }
+  }
+  return restored;
+}
+
+/** Writes precisely the rendered six-file composition through a complete staged tree. */
 export async function writeRenderedDevcanonRuntime(
   runtimeDir: string,
   generatedPath: string,
   config: ResolvedConfig,
+  validatedRuntime?: ValidatedDevcanonRuntime,
 ): Promise<void> {
-  await rm(generatedPath, { recursive: true, force: true });
-  await ensureDir(generatedPath);
-  await cloneTree(
-    path.join(runtimeDir, "config"),
-    path.join(generatedPath, "config"),
+  const validated = validatedRuntime;
+  const pair = validated?.adapterPair ?? (await readAdapterPair(runtimeDir));
+  const leaves =
+    validated?.providerLeaves ?? (await readProviderLeaves(runtimeDir));
+  const shellMode =
+    validated?.adapterPair?.shellMode ??
+    (await lstat(path.join(runtimeDir, RUNTIME_ENTRYPOINT))).mode & 0o777;
+  await mkdir(path.dirname(generatedPath), { recursive: true });
+  const scratchParent = path.dirname(path.dirname(generatedPath));
+  const stage = await mkdtemp(
+    path.join(scratchParent, ".runtime-render-stage-"),
   );
-  await writeFile(
-    path.join(generatedPath, "config", "runtime-config.json"),
-    renderedRuntimeCatalog(config),
-    "utf-8",
-  );
-  await cloneTree(
-    path.join(runtimeDir, "scripts"),
-    path.join(generatedPath, "scripts"),
-  );
-  await normalizePackagedShellTree(path.join(generatedPath, "scripts"));
+  try {
+    await mkdir(path.join(stage, "config"), { recursive: true });
+    await mkdir(path.join(stage, "scripts", "runtime"), { recursive: true });
+    await writeFile(
+      path.join(stage, "config", "runtime-config.json"),
+      renderedRuntimeCatalog(config),
+    );
+    await writeFile(
+      path.join(stage, RUNTIME_ENTRYPOINT),
+      normalizePackagedShellBytes(RUNTIME_ENTRYPOINT, pair.shell),
+    );
+    if (process.platform !== "win32")
+      await chmod(path.join(stage, RUNTIME_ENTRYPOINT), shellMode);
+    await writeFile(path.join(stage, RUNTIME_BASH_RESOLVER), pair.resolver);
+    if (process.platform !== "win32")
+      await chmod(path.join(stage, RUNTIME_BASH_RESOLVER), pair.resolverMode);
+    await writeProviderLeaves(path.join(stage, RUNTIME_JS_DIR), leaves);
+    if (validated?.adapterPair !== undefined) {
+      await assertStagedRuntime(path.join(stage, "scripts"));
+    }
+    await replaceDirectory(stage, generatedPath, scratchParent);
+  } catch (error) {
+    await rm(stage, { recursive: true, force: true });
+    throw error;
+  }
 }
 
-async function hashRuntimePayload(
-  runtimeDir: string,
-  catalogBytes: Buffer,
-  validatedRuntime?: ValidatedDevcanonRuntime,
-): Promise<string> {
-  const hash = createHash("sha256");
-  const configDirectory = path.join(runtimeDir, "config");
-  const configStat = await lstat(configDirectory);
-  const catalogPath = path.join(configDirectory, "runtime-config.json");
-  const catalogStat = await lstat(catalogPath);
-  hashRuntimeField(hash, "directory", "config", String(configStat.mode));
-  hashRuntimeField(
-    hash,
-    "file",
-    "config/runtime-config.json",
-    String(catalogStat.mode),
-  );
-  hashRuntimeField(hash, "bytes", "config/runtime-config.json", catalogBytes);
+function providerLeaves(
+  provider: AcceptedProvider,
+): ReadonlyMap<string, Buffer> {
+  return new Map([
+    ["devcanon-runtime.mjs", provider.bundle.copy()],
+    ["runtime-manifest.json", provider.manifestBytes.copy()],
+    ["THIRD_PARTY_LICENSES", provider.licenses.copy()],
+  ]);
+}
 
-  const scripts = await lstat(path.join(runtimeDir, "scripts"));
-  hashRuntimeField(hash, "directory", "scripts", String(scripts.mode));
-  await hashRuntimeTree(
-    path.join(runtimeDir, "scripts"),
-    "scripts",
-    hash,
-    validatedRuntime,
+function sameAdapterPair(
+  left: RuntimeAdapterPair,
+  right: RuntimeAdapterPair,
+): boolean {
+  return (
+    left.shell.equals(right.shell) &&
+    left.resolver.equals(right.resolver) &&
+    left.shellMode === right.shellMode &&
+    left.resolverMode === right.resolverMode
   );
-  return hash.digest("hex");
+}
+
+async function assertSnapshotRuntimeDir(
+  runtimeDir: string,
+  snapshot: ValidatedDevcanonRuntime,
+): Promise<void> {
+  const physicalRuntimeDir = await realpath(runtimeDir);
+  if (physicalRuntimeDir !== snapshot.runtimeIdentity) {
+    throw new Error(
+      "source reconciliation snapshot was validated for a different runtime directory",
+    );
+  }
+}
+
+async function readAdapterPair(
+  runtimeDir: string,
+): Promise<RuntimeAdapterPair> {
+  const { readFile } = await import("node:fs/promises");
+  const shellPath = path.join(runtimeDir, RUNTIME_ENTRYPOINT);
+  const resolverPath = path.join(runtimeDir, RUNTIME_BASH_RESOLVER);
+  const [shell, resolver, shellStat, resolverStat] = await Promise.all([
+    readFile(shellPath),
+    readFile(resolverPath),
+    lstat(shellPath),
+    lstat(resolverPath),
+  ]);
+  return {
+    shell,
+    resolver,
+    shellMode: shellStat.mode & 0o777,
+    resolverMode: resolverStat.mode & 0o777,
+  };
+}
+
+async function readProviderLeaves(
+  runtimeDir: string,
+): Promise<ReadonlyMap<string, Buffer>> {
+  const { readFile } = await import("node:fs/promises");
+  return new Map(
+    await Promise.all(
+      PROVIDER_LEAVES.map(
+        async (leaf) =>
+          [
+            leaf,
+            await readFile(path.join(runtimeDir, RUNTIME_JS_DIR, leaf)),
+          ] as const,
+      ),
+    ),
+  );
+}
+
+async function writeProviderLeaves(
+  directory: string,
+  leaves: ReadonlyMap<string, Buffer>,
+): Promise<void> {
+  await mkdir(directory, { recursive: true });
+  for (const leaf of PROVIDER_LEAVES)
+    await writeFile(
+      path.join(directory, leaf),
+      leaves.get(leaf) ?? Buffer.alloc(0),
+    );
+}
+
+async function replaceDirectory(
+  stage: string,
+  destination: string,
+  scratchParent: string,
+): Promise<void> {
+  const backupRoot = await mkdtemp(
+    path.join(scratchParent, ".devcanon-runtime-operation-"),
+  );
+  const backup = path.join(backupRoot, "previous");
+  let priorMoved = false;
+  let published = false;
+  try {
+    try {
+      await rename(destination, backup);
+      priorMoved = true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    await runtimePublicationFaultInjector?.("replace-before-publish");
+    await rename(stage, destination);
+    published = true;
+    await cleanupPublishedOperation(
+      backupRoot,
+      "replace-cleanup",
+      "runtime directory",
+    );
+  } catch (error) {
+    if (published) throw error;
+    if (!published && priorMoved) {
+      const displaced = path.join(backupRoot, "new");
+      const destinationExists = await lstat(destination).then(
+        () => true,
+        () => false,
+      );
+      try {
+        if (destinationExists) await rename(destination, displaced);
+        await rename(backup, destination);
+      } catch {
+        const liveMissing = await lstat(destination).then(
+          () => false,
+          () => true,
+        );
+        if (liveMissing) {
+          const retried = await rename(backup, destination).then(
+            () => true,
+            () => false,
+          );
+          if (retried) {
+            await rm(backupRoot, { recursive: true, force: true }).catch(
+              () => undefined,
+            );
+            throw error;
+          }
+          await rename(displaced, destination).catch(() => undefined);
+        }
+        throw new Error(
+          `runtime directory publication failed and retained its operation backup: ${(error as Error).message}`,
+        );
+      }
+    }
+    await rm(backupRoot, { recursive: true, force: true }).catch(
+      () => undefined,
+    );
+    throw error;
+  }
+}
+
+async function cleanupPublishedOperation(
+  operationPath: string,
+  faultStage: RuntimePublicationFaultStage,
+  description: string,
+): Promise<void> {
+  try {
+    await runtimePublicationFaultInjector?.(faultStage);
+    await rm(operationPath, { recursive: true, force: true });
+  } catch (error) {
+    throw new Error(
+      `${description} published successfully, but cleanup failed; retained operation backup at ${operationPath}: ${(error as Error).message}`,
+    );
+  }
+}
+
+async function assertStagedBundle(runtimeDirectory: string): Promise<void> {
+  const { stdout } = await promisify(execFile)(process.execPath, [
+    path.join(runtimeDirectory, "devcanon-runtime.mjs"),
+    "runtime",
+    "contract",
+  ]);
+  assertRuntimeContract(stdout);
+}
+
+async function assertStagedRuntime(scriptsDirectory: string): Promise<void> {
+  await assertStagedBundle(path.join(scriptsDirectory, "runtime"));
+  if (process.platform !== "win32") {
+    const { stdout } = await promisify(execFile)("bash", [
+      path.join(scriptsDirectory, "devcanon-runtime.sh"),
+      "runtime",
+      "resolve-bash",
+    ]);
+    await assertBashExecutable(stdout, "staged shell");
+  }
+  const { stdout: resolverStdout } = await promisify(execFile)(
+    process.execPath,
+    [path.join(scriptsDirectory, "resolve-bash.mjs")],
+  );
+  await assertBashExecutable(resolverStdout, "staged resolver");
+}
+
+async function assertBashExecutable(
+  stdout: string,
+  source: string,
+): Promise<void> {
+  const executable = stdout.trim();
+  if (!path.isAbsolute(executable) || executable.includes("\n"))
+    throw new Error(`${source} did not emit an absolute bash path`);
+  const stat = await lstat(executable).catch(() => undefined);
+  if (stat === undefined || !stat.isFile() || stat.isSymbolicLink())
+    throw new Error(`${source} emitted a missing bash path`);
+  await access(executable, constants.X_OK).catch(() => {
+    throw new Error(`${source} emitted a non-executable bash path`);
+  });
+  const bashVersion = await promisify(execFile)(executable, [
+    "-c",
+    'printf "%s\\n" "${BASH_VERSION-}"',
+  ])
+    .then(({ stdout }) => stdout)
+    .catch(() => "");
+  if (!isBashIdentity(bashVersion))
+    throw new Error(`${source} emitted a non-Bash executable path`);
+}
+
+function isBashIdentity(stdout: string): boolean {
+  const identity = stdout.trim();
+  return (
+    identity.length > 0 &&
+    !identity.includes("\n") &&
+    !identity.includes("\r") &&
+    /^[0-9]+(?:\.[0-9]+)+(?:[A-Za-z0-9()._-]*)$/.test(identity)
+  );
+}
+
+function assertRuntimeContract(stdout: string): void {
+  const value = JSON.parse(stdout) as {
+    command_group?: unknown;
+    major_version?: unknown;
+  };
+  if (value.command_group !== "devcanon-runtime" || value.major_version !== 1) {
+    throw new Error(
+      "staged runtime contract did not match devcanon-runtime/v1",
+    );
+  }
 }
 
 function renderedRuntimeCatalog(config: ResolvedConfig): Buffer {
   return Buffer.from(
-    `${JSON.stringify(
-      {
-        schema: RUNTIME_CONFIG_SCHEMA,
-        capabilityProfiles: config.capabilityProfiles,
-      },
-      null,
-      2,
-    )}\n`,
+    `${JSON.stringify({ schema: RUNTIME_CONFIG_SCHEMA, capabilityProfiles: config.capabilityProfiles }, null, 2)}\n`,
     "utf-8",
   );
 }
 
-async function hashRuntimeTree(
-  directory: string,
-  relativeDirectory: string,
-  hash: ReturnType<typeof createHash>,
-  validatedRuntime?: ValidatedDevcanonRuntime,
-): Promise<void> {
-  const limit = createRuntimeIoLimit(32);
-  for (const record of await collectRuntimeTree(
-    directory,
-    relativeDirectory,
-    limit,
-    validatedRuntime,
-  )) {
-    hashRuntimeField(hash, record.kind, record.relativePath, record.mode);
-    if (record.bytes) {
-      hashRuntimeField(hash, "bytes", record.relativePath, record.bytes);
-    }
-  }
-}
-
-interface RuntimeTreeRecord {
-  readonly kind: "directory" | "file";
-  readonly relativePath: string;
-  readonly mode: string;
-  readonly bytes?: Buffer;
-}
-
-async function collectRuntimeTree(
-  directory: string,
-  relativeDirectory: string,
-  limit: RuntimeIoLimit,
-  validatedRuntime?: ValidatedDevcanonRuntime,
-): Promise<RuntimeTreeRecord[]> {
-  const entries = await limit(() =>
-    readdir(directory, { withFileTypes: true }),
-  );
-  entries.sort((left, right) =>
-    left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
-  );
-  const children = await Promise.all(
-    entries.map(async (entry): Promise<RuntimeTreeRecord[]> => {
-      const sourcePath = path.join(directory, entry.name);
-      const relativePath = path.posix.join(relativeDirectory, entry.name);
-      if (
-        validatedRuntime &&
-        relativeDirectory === "scripts/runtime" &&
-        (entry.name === "package.json" || entry.name === "node_modules")
-      ) {
-        return validatedRuntime.closureRecords
-          .filter(
-            (record) =>
-              record.relativePath === entry.name ||
-              record.relativePath.startsWith(`${entry.name}/`),
-          )
-          .map((record) => ({
-            ...record,
-            relativePath: path.posix.join(
-              relativeDirectory,
-              record.relativePath,
-            ),
-          }));
-      }
-      const stat = await limit(() => lstat(sourcePath));
-      if (stat.isDirectory()) {
-        return [
-          {
-            kind: "directory",
-            relativePath,
-            mode: String(stat.mode),
-          },
-          ...(await collectRuntimeTree(
-            sourcePath,
-            relativePath,
-            limit,
-            validatedRuntime,
-          )),
-        ];
-      }
-      if (stat.isFile()) {
-        return [
-          {
-            kind: "file",
-            relativePath,
-            mode: String(stat.mode),
-            bytes: normalizePackagedShellBytes(
-              relativePath,
-              await limit(() => readFile(sourcePath)),
-            ),
-          },
-        ];
-      }
-      throw new Error(
-        `Unsupported devcanon-runtime payload entry: ${sourcePath}`,
-      );
-    }),
-  );
-  return children.flat();
-}
-
-type RuntimeIoLimit = <T>(operation: () => Promise<T>) => Promise<T>;
-
-function createRuntimeIoLimit(concurrency: number): RuntimeIoLimit {
-  let active = 0;
-  const waiters: Array<() => void> = [];
-  return async <T>(operation: () => Promise<T>): Promise<T> => {
-    if (active >= concurrency) {
-      await new Promise<void>((resolve) => waiters.push(resolve));
-    }
-    active += 1;
-    try {
-      return await operation();
-    } finally {
-      active -= 1;
-      waiters.shift()?.();
-    }
-  };
-}
-
-function hashRuntimeField(
+function hashField(
   hash: ReturnType<typeof createHash>,
   ...fields: Array<string | Buffer>
 ): void {

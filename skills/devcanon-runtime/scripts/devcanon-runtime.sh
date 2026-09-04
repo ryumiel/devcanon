@@ -122,20 +122,20 @@ resolve_entrypoint() {
 run_typed_runtime() {
   local script_dir
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-  local js_entrypoint="$script_dir/runtime/cli.js"
-  [ -f "$js_entrypoint" ] || runtime_error "devcanon-runtime JS entrypoint missing: $js_entrypoint"
+  local js_entrypoint="$script_dir/runtime/devcanon-runtime.mjs"
+  [ -f "$js_entrypoint" ] || runtime_error "devcanon-runtime bundle missing: $js_entrypoint"
   command -v node >/dev/null 2>&1 || runtime_error "node is required for devcanon-runtime typed helpers"
   unset DEBUG NODE_OPTIONS
-  exec node "$js_entrypoint" "$@"
+  exec node "$js_entrypoint" runtime "$@"
 }
 
 run_bootstrap() {
   local script_dir
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-  local js_entrypoint="$script_dir/runtime/bootstrap-cli.js"
-  [ -f "$js_entrypoint" ] || runtime_error "devcanon-runtime bootstrap entrypoint missing: $js_entrypoint"
+  local js_entrypoint="$script_dir/runtime/devcanon-runtime.mjs"
+  [ -f "$js_entrypoint" ] || runtime_error "devcanon-runtime bundle missing: $js_entrypoint"
   command -v node >/dev/null 2>&1 || runtime_error "node is required for devcanon-runtime bootstrap"
-  exec node "$js_entrypoint" "$@"
+  exec node "$js_entrypoint" bootstrap "$@"
 }
 
 main() {

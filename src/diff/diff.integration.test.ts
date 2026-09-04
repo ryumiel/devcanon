@@ -15,8 +15,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   canCreateSymlinks,
   cleanupTempDir,
+  copyDevcanonRuntimeFixture,
   createAgentFixture,
-  createLightweightDevcanonRuntimeFixture,
   createSkillFixture,
   createTempDir,
   makeAgentYaml,
@@ -34,22 +34,6 @@ import { diffAll } from "./diff.js";
 
 const symlinkAvailable = await canCreateSymlinks();
 const execFileAsync = promisify(execFile);
-
-vi.mock("../validate/devcanon-runtime.js", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("../validate/devcanon-runtime.js")>();
-  const { validateLightweightDevcanonRuntimeFixture } = await import(
-    "../__test-helpers__/fixtures.js"
-  );
-  return {
-    ...actual,
-    validateDevcanonRuntime: (runtimeDir: string) =>
-      validateLightweightDevcanonRuntimeFixture(
-        runtimeDir,
-        actual.validateDevcanonRuntime,
-      ),
-  };
-});
 
 async function canCreateFifo(): Promise<boolean> {
   if (process.platform === "win32") return false;
@@ -155,7 +139,7 @@ describe("diffAll integration", () => {
 
     // Ensure required directories exist
     await mkdir(config.library.skillsDir, { recursive: true });
-    await createLightweightDevcanonRuntimeFixture(config.library.skillsDir);
+    await copyDevcanonRuntimeFixture(config.library.skillsDir);
     await mkdir(config.library.agentsDir, { recursive: true });
     await mkdir(config.library.generatedDir, { recursive: true });
     await mkdir(config.targets.claude.agentsHome, { recursive: true });
@@ -167,6 +151,26 @@ describe("diffAll integration", () => {
   afterEach(async () => {
     restoreLogger();
     await cleanupTempDir(tempDir);
+  });
+
+  it("reads an invalid manifest before resolving the runtime provider", async () => {
+    const invalidBytes = "{corrupt manifest";
+    await mkdir(path.dirname(config.manifest.path), { recursive: true });
+    await writeFile(config.manifest.path, invalidBytes, "utf8");
+    let providerRequested = false;
+
+    await expect(
+      diffAll(config, undefined, false, async () => {
+        providerRequested = true;
+        throw new Error("provider must not be resolved");
+      }),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining("Manifest is invalid: corrupt JSON"),
+    });
+
+    expect(providerRequested).toBe(false);
+    expect(await readFile(config.manifest.path, "utf8")).toBe(invalidBytes);
+    expect(await readdir(config.library.generatedDir)).toEqual([]);
   });
 
   async function writeAgentManifest(

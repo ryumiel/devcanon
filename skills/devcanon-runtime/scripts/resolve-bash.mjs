@@ -14,22 +14,26 @@ if (process.argv.length !== 2) {
 }
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const cliPath = path.join(scriptDir, "runtime", "cli.js");
+const cliPath = path.join(scriptDir, "runtime", "devcanon-runtime.mjs");
 try {
   const stat = lstatSync(cliPath);
   if (!stat.isFile() || stat.isSymbolicLink()) {
-    fail(`devcanon-runtime JS entrypoint missing: ${cliPath}`);
+    fail(`devcanon-runtime bundle missing: ${cliPath}`);
   }
 } catch {
-  fail(`devcanon-runtime JS entrypoint missing: ${cliPath}`);
+  fail(`devcanon-runtime bundle missing: ${cliPath}`);
 }
 
-const child = spawnSync(process.execPath, [cliPath, "resolve-bash"], {
-  encoding: "utf8",
-  env: process.env,
-  input: "",
-  windowsHide: true,
-});
+const child = spawnSync(
+  process.execPath,
+  [cliPath, "runtime", "resolve-bash"],
+  {
+    encoding: "utf8",
+    env: process.env,
+    input: "",
+    windowsHide: true,
+  },
+);
 if (child.error) fail(child.error.message);
 if (child.status !== 0) {
   if (child.stdout) process.stdout.write(child.stdout);
