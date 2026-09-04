@@ -236,7 +236,7 @@ export async function createDiscoveryFieldRecord(
   validateName(input.skill, "skill");
   validateTarget(input.target);
   validateName(input.name, "discovery name");
-  validateName(input.description, "discovery description");
+  validateText(input.description, "discovery description");
   const controls = [...input.invocationControls];
   for (const control of controls)
     validateSingleLine(control, "invocation control");
@@ -273,7 +273,7 @@ export function serializeDiscoveryText(
   description: string,
 ): string {
   validateName(name, "discovery name");
-  validateName(description, "discovery description");
+  validateText(description, "discovery description");
   return JSON.stringify({ name, description });
 }
 
@@ -344,10 +344,10 @@ export function createScenarioRecord(
   });
 }
 
-export function canonicalizeSkillContext(
+export async function canonicalizeSkillContext(
   input: SkillContextPayloadInput,
-): SkillContextEnvelope {
-  const payload = createCanonicalPayload(input);
+): Promise<SkillContextEnvelope> {
+  const payload = await createCanonicalPayload(input);
   const payloadBytes = Buffer.from(`${JSON.stringify(payload)}\n`, "utf8");
   const payloadSha256 = sha256(payloadBytes);
   const envelope = { payloadSha256, payload } as const;
@@ -355,9 +355,9 @@ export function canonicalizeSkillContext(
   return withBytes(envelope, bytes);
 }
 
-export function parseCanonicalSkillContextEnvelope(
+export async function parseCanonicalSkillContextEnvelope(
   bytes: Uint8Array,
-): SkillContextEnvelope {
+): Promise<SkillContextEnvelope> {
   let text: string;
   try {
     text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
@@ -370,16 +370,16 @@ export function parseCanonicalSkillContextEnvelope(
   } catch {
     fail("envelope bytes are not valid JSON");
   }
-  const envelope = validateEnvelopeObject(parsed, Buffer.from(bytes));
+  const envelope = await validateEnvelopeObject(parsed, Buffer.from(bytes));
   return envelope;
 }
 
-export function compareSkillContextEnvelopes(
+export async function compareSkillContextEnvelopes(
   first: SkillContextEnvelope,
   second: SkillContextEnvelope,
-): SkillContextComparison {
-  const left = validateEnvelopeObject(first, first.bytes);
-  const right = validateEnvelopeObject(second, second.bytes);
+): Promise<SkillContextComparison> {
+  const left = await validateEnvelopeObject(first, first.bytes);
+  const right = await validateEnvelopeObject(second, second.bytes);
   if (left.payload.subject === right.payload.subject) {
     fail("comparison requires one base and one candidate envelope");
   }
@@ -412,6 +412,13 @@ export function compareSkillContextEnvelopes(
     const candidateRecord = candidateRecords.get(key) as SkillContextRecord;
     if (baseRecord.kind !== candidateRecord.kind)
       fail("comparison record kind mismatch");
+    if (
+      baseRecord.kind === "declared-scenario" &&
+      candidateRecord.kind === "declared-scenario" &&
+      !sameArray(baseRecord.componentKeys, candidateRecord.componentKeys)
+    ) {
+      fail("comparison scenario composition mismatch");
+    }
     const baseValue = metricValue(baseRecord);
     const candidateValue = metricValue(candidateRecord);
     const estimatedTokensDelta = checkedSubtract(
@@ -451,9 +458,9 @@ export function compareSkillContextEnvelopes(
   });
 }
 
-function createCanonicalPayload(
+async function createCanonicalPayload(
   input: SkillContextPayloadInput,
-): SkillContextPayload {
+): Promise<SkillContextPayload> {
   validateSubject(input.subject);
   validateName(input.skill, "skill");
   validateIdentities(input.identities);
@@ -468,6 +475,9 @@ function createCanonicalPayload(
   const discoveryTargets = new Set<AnalysisTarget>();
   for (const record of records) {
     validateRecord(record);
+    if (record.kind !== "declared-scenario") {
+      await validateMeasuredExactTextRecord(record);
+    }
     if (record.subject !== input.subject || record.skill !== input.skill) {
       fail("record subject or skill mismatch");
     }
@@ -597,14 +607,14 @@ function canonicalizeRecord(record: SkillContextRecord): SkillContextRecord {
   });
 }
 
-function validateEnvelopeObject(
+async function validateEnvelopeObject(
   value: unknown,
   bytes: Buffer,
-): SkillContextEnvelope {
+): Promise<SkillContextEnvelope> {
   if (!isObject(value)) fail("comparison envelope must be an object");
   requireKeys(value, ["payloadSha256", "payload"]);
   if (!isSha256(value.payloadSha256)) fail("invalid envelope hash");
-  const payload = validatePayload(value.payload);
+  const payload = await validatePayload(value.payload);
   const payloadBytes = Buffer.from(`${JSON.stringify(payload)}\n`, "utf8");
   if (sha256(payloadBytes) !== value.payloadSha256)
     fail("envelope self-hash mismatch");
@@ -616,7 +626,7 @@ function validateEnvelopeObject(
   return withBytes({ payloadSha256: value.payloadSha256, payload }, canonical);
 }
 
-function validatePayload(value: unknown): SkillContextPayload {
+async function validatePayload(value: unknown): Promise<SkillContextPayload> {
   if (!isObject(value)) fail("payload must be an object");
   requireKeys(value, [
     "schema",
@@ -634,7 +644,7 @@ function validatePayload(value: unknown): SkillContextPayload {
     identities: value.identities,
     records: value.records,
   } as unknown as SkillContextPayloadInput;
-  const canonical = createCanonicalPayload(input);
+  const canonical = await createCanonicalPayload(input);
   if (JSON.stringify(canonical) !== JSON.stringify(value))
     fail("noncanonical payload");
   return canonical;
@@ -728,9 +738,7 @@ function validateExactTextRecord(record: ExactTextRecord): void {
   if (record.schema !== ANALYSIS_RECORD_SCHEMA)
     fail("unknown exact-text record schema");
   validateCommonRecordIdentity(record, kind !== "raw-source");
-  if (typeof record.exactText !== "string" || record.exactText.length === 0) {
-    fail("exact text must be nonempty");
-  }
+  validateText(record.exactText, "exact text");
   if (
     !isSha256(record.exactInputSha256) ||
     record.exactInputSha256 !== sha256(record.exactText)
@@ -761,9 +769,22 @@ function validateExactTextRecord(record: ExactTextRecord): void {
     validateSupportRecord(record as SupportFileRecord);
 }
 
+async function validateMeasuredExactTextRecord(
+  record: ExactTextRecord,
+): Promise<void> {
+  const metrics = await measureSkillPrompt(record.exactText);
+  if (
+    metrics.encoding !== GPT_TOKEN_ESTIMATE_ENCODING ||
+    metrics.estimatedTokens !== record.estimatedTokens ||
+    metrics.bytes !== record.utf8Bytes
+  ) {
+    fail("exact-text measurement mismatch");
+  }
+}
+
 function validateDiscoveryRecord(record: DiscoveryFieldRecord): void {
   validateName(record.name, "discovery name");
-  validateName(record.description, "discovery description");
+  validateText(record.description, "discovery description");
   if (record.serialization !== DISCOVERY_SERIALIZATION_ID)
     fail("unknown discovery serialization");
   if (
@@ -773,8 +794,14 @@ function validateDiscoveryRecord(record: DiscoveryFieldRecord): void {
   }
   if (!Array.isArray(record.invocationControls))
     fail("invocation controls must be an array");
+  const controls = new Set<string>();
   for (const control of record.invocationControls) {
     validateSingleLine(control, "invocation control");
+    if (controls.has(control)) fail("duplicate invocation control");
+    controls.add(control);
+  }
+  if (!sameArray(record.invocationControls, [...controls].sort(compareUtf8))) {
+    fail("noncanonical invocation control order");
   }
 }
 
@@ -798,8 +825,7 @@ function validateExactInput(input: ExactTextRecordInput): void {
   }
   validateSubject(input.subject);
   validateName(input.skill, "skill");
-  if (typeof input.text !== "string" || input.text.length === 0)
-    fail("exact text must be nonempty");
+  validateText(input.text, "exact text");
   if (input.kind === "raw-source") {
     if (
       input.target !== undefined ||
@@ -948,14 +974,34 @@ function validateTarget(value: unknown): asserts value is AnalysisTarget {
 }
 
 function validateName(value: unknown, label: string): asserts value is string {
-  if (
-    typeof value !== "string" ||
-    value.length === 0 ||
-    /[\r\n]/u.test(value) ||
-    value.includes("\u0000")
-  ) {
+  validateText(value, label);
+  if (value.length === 0 || /[\r\n]/u.test(value)) {
     fail(`${label} must be a nonempty single-line string`);
   }
+}
+
+function validateText(value: unknown, label: string): asserts value is string {
+  if (
+    typeof value !== "string" ||
+    value.includes("\u0000") ||
+    hasUnpairedSurrogate(value)
+  ) {
+    fail(`${label} must be well-formed Unicode text without NUL`);
+  }
+}
+
+function hasUnpairedSurrogate(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = value.charCodeAt(index + 1);
+      if (!(next >= 0xdc00 && next <= 0xdfff)) return true;
+      index += 1;
+    } else if (code >= 0xdc00 && code <= 0xdfff) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function validateSingleLine(
@@ -996,6 +1042,8 @@ function sameArray<T>(left: readonly T[], right: readonly T[]): boolean {
 }
 
 function compareUtf8(left: string, right: string): number {
+  validateText(left, "UTF-8 sort input");
+  validateText(right, "UTF-8 sort input");
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
 
@@ -1004,6 +1052,7 @@ function isSha256(value: unknown): value is string {
 }
 
 function sha256(value: string | Uint8Array): string {
+  if (typeof value === "string") validateText(value, "hash input");
   return createHash("sha256").update(value).digest("hex");
 }
 
