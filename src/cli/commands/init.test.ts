@@ -416,7 +416,7 @@ describe("initAction", () => {
     ).toBe(false);
   });
 
-  it("preflights broken bundled runtime payload before writing init files", async () => {
+  it("seeds a repairable bundled runtime mismatch with accepted provider bytes", async () => {
     const brokenRuntimeDir = path.join(
       tempDir,
       ".fake-package",
@@ -435,20 +435,46 @@ describe("initAction", () => {
     );
 
     await expect(
-      validateBundledDevcanonRuntime(brokenRuntimeDir, {
-        adapterSourceDir: brokenRuntimeDir,
-        provider,
-      }),
-    ).rejects.toMatchObject({
-      message: expect.stringContaining("derived subtree is missing or stale"),
-      filePath: path.join(brokenRuntimeDir, "scripts", "runtime"),
-    } satisfies Partial<UserError>);
-    expect(await pathExists(path.join(tempDir, "devcanon.config.yaml"))).toBe(
-      false,
-    );
-    expect(
-      await pathExists(path.join(tempDir, "skills", "example-skill")),
-    ).toBe(false);
+      initAction({ runtimeSourceDir: brokenRuntimeDir }),
+    ).resolves.toBeUndefined();
+    await expect(
+      Promise.all([
+        readFile(
+          path.join(
+            tempDir,
+            "skills",
+            "devcanon-runtime",
+            "scripts",
+            "runtime",
+            "devcanon-runtime.mjs",
+          ),
+        ),
+        readFile(
+          path.join(
+            tempDir,
+            "skills",
+            "devcanon-runtime",
+            "scripts",
+            "runtime",
+            "runtime-manifest.json",
+          ),
+        ),
+        readFile(
+          path.join(
+            tempDir,
+            "skills",
+            "devcanon-runtime",
+            "scripts",
+            "runtime",
+            "THIRD_PARTY_LICENSES",
+          ),
+        ),
+      ]),
+    ).resolves.toEqual([
+      provider.bundle.copy(),
+      provider.manifestBytes.copy(),
+      provider.licenses.copy(),
+    ]);
   });
 
   it("rejects a garbage but executable bundled shell adapter before writing init files", async () => {
