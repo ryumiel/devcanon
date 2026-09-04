@@ -154,6 +154,7 @@ export async function publishAnalysisResult(
   );
   const temporary = `${destination}.tmp-${process.pid}-${randomBytes(12).toString("hex")}`;
   let createdTemporary = false;
+  let openedTemporary = false;
   let temporaryIdentity: { dev: number; ino: number } | undefined;
   const parent = await openNonsymlinkDirectory(boundary.resultDirectory);
   try {
@@ -166,6 +167,7 @@ export async function publishAnalysisResult(
         constants.O_NOFOLLOW,
       0o600,
     );
+    openedTemporary = true;
     try {
       const temporaryStat = await temporaryHandle.stat();
       if (!temporaryStat.isFile()) {
@@ -201,6 +203,8 @@ export async function publishAnalysisResult(
   } catch (error) {
     if (createdTemporary && temporaryIdentity !== undefined) {
       await unlinkOwnedTemporary(temporary, temporaryIdentity);
+    } else if (openedTemporary) {
+      await unlink(temporary).catch(() => undefined);
     }
     throw error instanceof AnalysisFilesError
       ? error
