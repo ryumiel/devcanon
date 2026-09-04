@@ -30,13 +30,16 @@ writes disabled, measures the renderer's exact output content, and reuses the
 token primitive in `src/utils/token-count.ts`. Production render, validation,
 CLI, configuration, install, and sync modules do not depend on analysis.
 
-Analysis reads only declared support files within validated skill-bundle
-boundaries and treats result directories and comparison outputs as guarded,
-point-in-time filesystem inputs. Result publication is limited to an existing,
-ignored directory beneath `.ephemeral/`. It verifies containment and file
-state, writes a complete private temporary file, verifies the owned temporary,
-and renames it into place only after those checks. Failure cleanup removes only
-the temporary file whose ownership and identity the publisher established.
+Analysis creates support-file measurement records only for declared paths
+within validated skill-bundle boundaries. Its write-disabled `renderLoaded()`
+call retains ADR-0021's source-backed reads of mirrored skill subdirectories
+for every supplied skill. Analysis treats result directories and comparison
+outputs as guarded, point-in-time filesystem inputs. Result publication is
+limited to an existing, ignored directory beneath `.ephemeral/`. It verifies
+containment and file state, writes a complete private temporary file, verifies
+the owned temporary, and renames it into place only after those checks. Failure
+cleanup removes only the temporary file whose ownership and identity the
+publisher established.
 
 This decision adds no public CLI command, configuration key, validation
 behavior, rendered format, install behavior, or sync behavior. ADR-0021
