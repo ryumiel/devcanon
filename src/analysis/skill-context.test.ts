@@ -403,7 +403,7 @@ describe("skill context analysis contracts", () => {
   });
 
   it("rejects independent scenario mismatch families before aggregation", async () => {
-    const { rendered, support, discovery } = await exactRecords("base");
+    const { raw, rendered, support, discovery } = await exactRecords("base");
     const foreignTarget = await createExactTextRecord({
       kind: "support-file",
       subject: "base",
@@ -426,7 +426,6 @@ describe("skill context analysis contracts", () => {
       ...support,
       estimatedTokens: Number.MAX_SAFE_INTEGER,
     };
-    const overflowingRendered = { ...rendered, estimatedTokens: 1 };
     for (const [component, error] of [
       [foreignTarget, "target mismatch"],
       [foreignSkill, "skill mismatch"],
@@ -448,9 +447,54 @@ describe("skill context analysis contracts", () => {
         subject: "base",
         skill: "skill-a",
         target: "codex",
-        components: [overflowingRendered, overflowingSupport],
+        components: [rendered, overflowingSupport],
       }),
     ).toThrow("overflow");
+    expect(() =>
+      createScenarioRecord({
+        name: "raw-forbidden",
+        subject: "base",
+        skill: "skill-a",
+        target: "codex",
+        components: [rendered, raw],
+      }),
+    ).toThrow("rendered-skill or support-file");
+  });
+
+  it("independently blocks every comparison identity mismatch", async () => {
+    const base = await completeEnvelope("base");
+    const cases = [
+      ["rendererSemantic", "other-renderer", "comparison identity mismatch"],
+      ["renderConfigSha256", "b".repeat(64), "comparison identity mismatch"],
+      ["analyzerSemantic", "other-analyzer", "comparison identity mismatch"],
+      [
+        "measureSkillPromptSemantic",
+        "other-token-primitive",
+        "comparison identity mismatch",
+      ],
+      ["tokenizer", "other-tokenizer", "unsupported tokenizer identity"],
+      [
+        "exactInputSerialization",
+        "other-input-serialization",
+        "comparison identity mismatch",
+      ],
+      [
+        "scenarioAggregation",
+        "other-aggregation",
+        "unknown scenario aggregation identity",
+      ],
+    ] as const;
+
+    for (const [field, value, error] of cases) {
+      const candidate = retagIdentity(
+        await completeEnvelope("candidate"),
+        field,
+        value,
+      );
+      await expect(
+        compareSkillContextEnvelopes(base, candidate),
+      ).rejects.toThrow(error);
+    }
   });
 
   it("rejects kind-specific scenario duplicates before generic component identity", async () => {
@@ -656,4 +700,25 @@ function supportRecord(envelope: Awaited<ReturnType<typeof completeEnvelope>>) {
   return envelope.payload.records.find(
     (record) => record.kind === "support-file",
   ) as SupportFileRecord;
+}
+
+function retagIdentity(
+  envelope: Awaited<ReturnType<typeof completeEnvelope>>,
+  field: keyof AnalysisIdentities,
+  value: string,
+) {
+  const identities = {
+    ...envelope.payload.identities,
+    [field]: value,
+  } as AnalysisIdentities;
+  const payload = { ...envelope.payload, identities };
+  const payloadSha256 = sha256(`${JSON.stringify(payload)}\n`);
+  const bytes = Buffer.from(
+    `${JSON.stringify({ payloadSha256, payload })}\n`,
+    "utf8",
+  );
+  return Object.defineProperty({ payloadSha256, payload }, "bytes", {
+    value: bytes,
+    enumerable: false,
+  }) as typeof envelope;
 }

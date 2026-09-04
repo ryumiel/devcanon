@@ -300,8 +300,6 @@ export function createScenarioRecord(
       fail("scenario component subject mismatch");
     if (component.skill !== input.skill)
       fail("scenario component skill mismatch");
-    if (component.target !== input.target)
-      fail("scenario component target mismatch");
     if (component.kind === "rendered-skill") {
       if (rendered !== undefined)
         fail("duplicate rendered-skill scenario component");
@@ -315,6 +313,8 @@ export function createScenarioRecord(
         "scenario components must be rendered-skill or support-file records",
       );
     }
+    if (component.target !== input.target)
+      fail("scenario component target mismatch");
     if (componentKeys.has(component.key))
       fail("duplicate scenario component key");
     componentKeys.add(component.key);
