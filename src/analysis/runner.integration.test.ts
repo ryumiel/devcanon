@@ -261,6 +261,86 @@ describe("write-disabled analysis runner", () => {
     await expect(readFile(destination)).rejects.toThrow();
   });
 
+  it("uses a deep immutable snapshot across the first await and projects only invocation controls", async () => {
+    const root = await createTempDir();
+    temporary.push(root);
+    await run("git", ["init", "-q", root]);
+    await writeFile(path.join(root, ".gitignore"), ".ephemeral/\n", "utf8");
+    const results = path.join(root, ".ephemeral", "analysis");
+    await mkdir(results, { recursive: true });
+    const config = makeResolvedConfig(root);
+    await createSkillFixture(
+      config.library.skillsDir,
+      "example",
+      [
+        "---",
+        "name: example",
+        "description: Original description.",
+        "allowed-tools: Bash",
+        "codex:",
+        "  license: MIT",
+        "  metadata:",
+        "    ignored: yes",
+        "codex_sidecar:",
+        "  interface:",
+        "    default_prompt: Original prompt",
+        "  policy:",
+        "    allow_implicit_invocation: true",
+        "  dependencies:",
+        "    tools: [web]",
+        "---",
+        "",
+        "# Original",
+      ].join("\n"),
+    );
+    await mkdir(config.library.agentsDir, { recursive: true });
+    const skills = await loadAndValidateSkills(config.library.skillsDir);
+    const agents = await loadAndValidateAgents(
+      config.library.agentsDir,
+      skills,
+    );
+    const request = {
+      config,
+      skills,
+      agents,
+      skill: "example",
+      subject: "candidate" as const,
+      targets: ["codex"] as const,
+      scenarios: [],
+      repositoryRoot: root,
+      resultDirectory: results,
+    };
+    const pending = runSkillContextAnalysis(request);
+    queueMicrotask(() => {
+      (request as { subject: "base" | "candidate" }).subject = "base";
+      skills[0].skillMdContent = "mutated";
+      skills[0].source.description = "Mutated description.";
+      config.targets.codex.skillDisplayNameSuffix = "Mutated";
+    });
+    const result = await pending;
+    const raw = result.envelope.payload.records.find(
+      (record) => record.kind === "raw-source",
+    );
+    const discovery = result.envelope.payload.records.find(
+      (record) => record.kind === "discovery-field",
+    );
+
+    expect(result.envelope.payload.subject).toBe("candidate");
+    expect(raw).toMatchObject({
+      exactText: expect.stringContaining("Original"),
+    });
+    expect(discovery).toMatchObject({
+      invocationControls: [
+        'allowed-tools:"Bash"',
+        'codex_sidecar.dependencies:{"tools":["web"]}',
+        'codex_sidecar.interface.default_prompt:"Original prompt"',
+        'codex_sidecar.policy:{"allow_implicit_invocation":true}',
+      ],
+    });
+    expect(JSON.stringify(discovery)).not.toContain("MIT");
+    expect(JSON.stringify(discovery)).not.toContain("ignored");
+  });
+
   it("refuses a symlinked selected result directory", async () => {
     const root = await createTempDir();
     temporary.push(root);

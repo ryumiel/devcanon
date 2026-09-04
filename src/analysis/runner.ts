@@ -84,22 +84,24 @@ export interface SkillContextAnalysisResult {
 export async function runSkillContextAnalysis(
   request: SkillContextAnalysisRequest,
 ): Promise<SkillContextAnalysisResult> {
-  const validated = validateRequest(request);
-  const executionRequest = Object.freeze({
-    ...request,
-    skills: validated.skills,
-    agents: validated.agents,
-  });
+  validateRequest(request);
+  let executionRequest: Readonly<SkillContextAnalysisRequest>;
+  try {
+    executionRequest = freezeDeep(structuredClone(request));
+  } catch {
+    fail("request", "analysis request must contain cloneable plain data");
+  }
+  const validated = validateRequest(executionRequest);
   try {
     await validateResultDirectory(
-      request.repositoryRoot,
-      request.resultDirectory,
+      executionRequest.repositoryRoot,
+      executionRequest.resultDirectory,
     ).catch((error) => {
       throw new AnalysisRunnerError("request", (error as Error).message);
     });
     const raw = await createExactTextRecord({
       kind: "raw-source",
-      subject: request.subject,
+      subject: executionRequest.subject,
       skill: validated.skill.name,
       text: validated.skill.skillMdContent,
     });
@@ -119,7 +121,7 @@ export async function runSkillContextAnalysis(
       targetRenderings.set(target, rendered);
       const renderedRecord = await createExactTextRecord({
         kind: "rendered-skill",
-        subject: request.subject,
+        subject: executionRequest.subject,
         skill: validated.skill.name,
         target,
         text: rendered.content,
@@ -128,7 +130,7 @@ export async function runSkillContextAnalysis(
       records.push(renderedRecord);
       records.push(
         await createDiscoveryFieldRecord({
-          subject: request.subject,
+          subject: executionRequest.subject,
           skill: validated.skill.name,
           target,
           name: validated.skill.source.name,
@@ -155,7 +157,7 @@ export async function runSkillContextAnalysis(
           });
           supportRecord = await createExactTextRecord({
             kind: "support-file",
-            subject: request.subject,
+            subject: executionRequest.subject,
             skill: validated.skill.name,
             target: scenario.target,
             path: support.path,
@@ -170,7 +172,7 @@ export async function runSkillContextAnalysis(
       records.push(
         createScenarioRecord({
           name: scenario.name,
-          subject: request.subject,
+          subject: executionRequest.subject,
           skill: validated.skill.name,
           target: scenario.target,
           components,
@@ -179,17 +181,17 @@ export async function runSkillContextAnalysis(
     }
 
     const envelope = await canonicalizeSkillContext({
-      subject: request.subject,
+      subject: executionRequest.subject,
       skill: validated.skill.name,
       targets: validated.targets,
-      identities: identitiesFor(request.config),
+      identities: identitiesFor(executionRequest.config),
       records,
     });
     let comparison: SkillContextComparison | undefined;
     if (validated.comparison !== undefined) {
       try {
         const prior = await readComparisonResult({
-          repositoryRoot: request.repositoryRoot,
+          repositoryRoot: executionRequest.repositoryRoot,
           resultPath: validated.comparison.path,
           expectedPayloadSha256: validated.comparison.expectedPayloadSha256,
         });
@@ -201,7 +203,7 @@ export async function runSkillContextAnalysis(
         );
       }
     }
-    const published = await publishEnvelope(request, envelope);
+    const published = await publishEnvelope(executionRequest, envelope);
     return Object.freeze({
       path: published.relativePath,
       payloadSha256: envelope.payloadSha256,
@@ -454,6 +456,11 @@ function targetControls(skill: LoadedSkill, target: AnalysisTarget): string[] {
         `codex_sidecar.dependencies:${stableJson(sidecar.dependencies)}`,
       );
     }
+    if (sidecar?.interface?.default_prompt !== undefined) {
+      controls.push(
+        `codex_sidecar.interface.default_prompt:${stableJson(sidecar.interface.default_prompt)}`,
+      );
+    }
   }
   return controls.sort(compareUtf8);
 }
@@ -501,6 +508,15 @@ function fail(
   message: string,
 ): never {
   throw new AnalysisRunnerError(category, message);
+}
+
+function freezeDeep<T>(value: T): T {
+  if (!value || typeof value !== "object" || Object.isFrozen(value))
+    return value;
+  for (const child of Object.values(value as Record<string, unknown>)) {
+    freezeDeep(child);
+  }
+  return Object.freeze(value);
 }
 
 function assertExactKeys(

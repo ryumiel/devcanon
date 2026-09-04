@@ -2,11 +2,11 @@ import { execFile } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { constants } from "node:fs";
 import {
+  link,
   lstat,
   open,
   readFile,
   realpath,
-  rename,
   unlink,
   writeFile,
 } from "node:fs/promises";
@@ -134,12 +134,19 @@ export async function publishAnalysisResult(
   }
   const leaf = `analysis-${canonical.payloadSha256}.json`;
   const destination = path.join(boundary.resultDirectory, leaf);
-  await assertIgnoredAndTrackedState(boundary, destination, canonical.bytes);
-  await assertReplaceableDestination(
+  await assertIgnoredAndTrackedState(boundary, destination);
+  const existingIdentical = await assertReplaceableDestination(
     destination,
     boundary.ephemeralDirectory,
     canonical.bytes,
   );
+  if (existingIdentical) {
+    const relativePath = path
+      .relative(boundary.repositoryRoot, destination)
+      .split(path.sep)
+      .join("/");
+    return Object.freeze({ path: destination, relativePath });
+  }
   await assertNonsymlinkPath(
     boundary.ephemeralDirectory,
     destination,
@@ -148,11 +155,26 @@ export async function publishAnalysisResult(
   );
   const temporary = `${destination}.tmp-${process.pid}-${randomBytes(12).toString("hex")}`;
   let createdTemporary = false;
+  let temporaryIdentity: { dev: number; ino: number } | undefined;
   const parent = await openNonsymlinkDirectory(boundary.resultDirectory);
   try {
     await assertSameDirectory(boundary.resultDirectory, parent);
     await writeFile(temporary, canonical.bytes, { flag: "wx" });
     createdTemporary = true;
+    const temporaryStat = await lstat(temporary);
+    if (!temporaryStat.isFile() || temporaryStat.isSymbolicLink()) {
+      fail(
+        "result",
+        "temporary result leaf must be a regular non-symlink file",
+      );
+    }
+    temporaryIdentity = { dev: temporaryStat.dev, ino: temporaryStat.ino };
+    await assertOwnedTemporary(
+      temporary,
+      boundary.ephemeralDirectory,
+      temporaryIdentity,
+      canonical.bytes,
+    );
     await assertSameDirectory(boundary.resultDirectory, parent);
     await assertNonsymlinkPath(
       boundary.ephemeralDirectory,
@@ -160,15 +182,24 @@ export async function publishAnalysisResult(
       "result",
       true,
     );
-    await rename(temporary, destination);
+    await link(temporary, destination).catch((error) => {
+      if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+        fail("result", "result destination appeared after preflight");
+      }
+      throw error;
+    });
     await assertSameDirectory(boundary.resultDirectory, parent);
     await assertOwnedDestination(
       destination,
       boundary.ephemeralDirectory,
       canonical.bytes,
     );
+    await unlinkOwnedTemporary(temporary, temporaryIdentity);
+    createdTemporary = false;
   } catch (error) {
-    if (createdTemporary) await unlink(temporary).catch(() => undefined);
+    if (createdTemporary && temporaryIdentity !== undefined) {
+      await unlinkOwnedTemporary(temporary, temporaryIdentity);
+    }
     throw error instanceof AnalysisFilesError
       ? error
       : new AnalysisFilesError("result", "could not publish analysis result");
@@ -195,13 +226,17 @@ export async function readComparisonResult(
   if (!SHA256.test(input.expectedPayloadSha256)) {
     fail("comparison", "comparison expected payload hash must be SHA-256");
   }
-  const boundary = await validateRepositoryBoundary(input.repositoryRoot);
+  const boundary = await validateRepositoryBoundary(
+    input.repositoryRoot,
+    "comparison",
+  );
   const rawComparisonPath = requireAbsolute(
     input.resultPath,
     "comparison result path",
+    "comparison",
   );
   const rawEphemeralDirectory = path.join(
-    requireAbsolute(input.repositoryRoot, "repository root"),
+    requireAbsolute(input.repositoryRoot, "repository root", "comparison"),
     ".ephemeral",
   );
   if (!isWithin(rawEphemeralDirectory, rawComparisonPath)) {
@@ -306,13 +341,16 @@ export async function validateResultDirectory(
   });
 }
 
-async function validateRepositoryBoundary(repositoryRoot: string): Promise<{
+async function validateRepositoryBoundary(
+  repositoryRoot: string,
+  category: AnalysisFilesError["category"] = "result",
+): Promise<{
   readonly repositoryRoot: string;
   readonly ephemeralDirectory: string;
 }> {
   const root = await requireDirectory(
     repositoryRoot,
-    "result",
+    category,
     "repository root",
   );
   try {
@@ -323,20 +361,20 @@ async function validateRepositoryBoundary(repositoryRoot: string): Promise<{
       "--show-toplevel",
     ]);
     if (path.resolve(stdout.trim()) !== root)
-      fail("result", "repository root must be the Git worktree root");
+      fail(category, "repository root must be the Git worktree root");
   } catch (error) {
     if (error instanceof AnalysisFilesError) throw error;
-    fail("result", "repository root must be a Git worktree root");
+    fail(category, "repository root must be a Git worktree root");
   }
   const ephemeral = path.join(root, ".ephemeral");
-  await assertNonsymlinkPath(root, ephemeral, "result");
+  await assertNonsymlinkPath(root, ephemeral, category);
   const ephemeralReal = await requireDirectory(
     ephemeral,
-    "result",
+    category,
     ".ephemeral",
   );
   if (!isWithin(root, ephemeralReal))
-    fail("result", ".ephemeral physically escapes repository root");
+    fail(category, ".ephemeral physically escapes repository root");
   return Object.freeze({
     repositoryRoot: root,
     ephemeralDirectory: ephemeralReal,
@@ -481,7 +519,6 @@ async function readOpenedRegularFile(
 async function assertIgnoredAndTrackedState(
   boundary: Awaited<ReturnType<typeof validateResultDirectory>>,
   destination: string,
-  bytes: Buffer,
 ): Promise<void> {
   const relative = path.relative(boundary.repositoryRoot, destination);
   if (!isWithin(boundary.ephemeralDirectory, destination)) {
@@ -500,24 +537,21 @@ async function assertIgnoredAndTrackedState(
   } catch {
     fail("result", "derived result leaf must be ignored by Git");
   }
-  const tracked = await execute("git", [
-    "-C",
-    boundary.repositoryRoot,
-    "ls-files",
-    "--error-unmatch",
-    "--",
-    relative,
-  ])
-    .then(() => true)
-    .catch(() => false);
-  if (!tracked) return;
-  const current = await readOpenedRegularFile(
-    destination,
-    boundary.ephemeralDirectory,
-    "result",
-  );
-  if (!current.equals(bytes)) {
-    fail("result", "tracked result leaf must remain byte-identical");
+  try {
+    await execute("git", [
+      "-C",
+      boundary.repositoryRoot,
+      "ls-files",
+      "--error-unmatch",
+      "--",
+      relative,
+    ]);
+    fail("result", "tracked result leaf is never publishable");
+  } catch (error) {
+    if (error instanceof AnalysisFilesError) throw error;
+    if (Number((error as NodeJS.ErrnoException).code) !== 1) {
+      fail("result", "could not inspect Git tracked state for result leaf");
+    }
   }
 }
 
@@ -545,7 +579,7 @@ async function assertReplaceableDestination(
   destination: string,
   root: string,
   expectedBytes: Buffer,
-): Promise<void> {
+): Promise<boolean> {
   try {
     const stat = await lstat(destination);
     if (!stat.isFile() || stat.isSymbolicLink()) {
@@ -561,10 +595,46 @@ async function assertReplaceableDestination(
         "existing result destination is not this owned analysis result",
       );
     }
+    return true;
   } catch (error) {
     if (error instanceof AnalysisFilesError) throw error;
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
     fail("result", "result destination could not be inspected");
+  }
+}
+
+async function assertOwnedTemporary(
+  temporary: string,
+  root: string,
+  identity: { dev: number; ino: number },
+  expectedBytes: Buffer,
+): Promise<void> {
+  const stat = await lstat(temporary);
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    stat.dev !== identity.dev ||
+    stat.ino !== identity.ino
+  ) {
+    fail("result", "temporary result leaf changed during publication");
+  }
+  const bytes = await readOpenedRegularFile(temporary, root, "result");
+  if (!bytes.equals(expectedBytes)) {
+    fail("result", "temporary result leaf bytes changed during publication");
+  }
+}
+
+async function unlinkOwnedTemporary(
+  temporary: string,
+  identity: { dev: number; ino: number },
+): Promise<void> {
+  try {
+    const stat = await lstat(temporary);
+    if (stat.dev !== identity.dev || stat.ino !== identity.ino) return;
+    await unlink(temporary);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw error;
   }
 }
 
