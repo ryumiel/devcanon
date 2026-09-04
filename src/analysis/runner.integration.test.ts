@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
@@ -103,9 +103,9 @@ describe("write-disabled analysis runner", () => {
     const tampered = path.join(results, "duplicate.json");
     await writeFile(
       tampered,
-      `{"payloadSha256":"${prior.payloadSha256}","payload":{},"payload":{}}\n`,
-      "utf8",
+      Buffer.concat([Buffer.from(" "), prior.envelope.bytes]),
     );
+    const before = (await readFile(tampered)).toString("utf8");
 
     await expect(
       runSkillContextAnalysis({
@@ -129,6 +129,136 @@ describe("write-disabled analysis runner", () => {
         prior.envelope.bytes,
       ),
     ).toBe(true);
+    expect(await readFile(tampered, "utf8")).toBe(before);
+  });
+
+  it("accepts zero and partial scenario declarations without adding undeclared support records", async () => {
+    const root = await createTempDir();
+    temporary.push(root);
+    await run("git", ["init", "-q", root]);
+    await writeFile(path.join(root, ".gitignore"), ".ephemeral/\n", "utf8");
+    const results = path.join(root, ".ephemeral", "analysis");
+    await mkdir(results, { recursive: true });
+    const config = makeResolvedConfig(root);
+    await createSkillFixture(config.library.skillsDir, "example");
+    await mkdir(config.library.agentsDir, { recursive: true });
+    const skills = await loadAndValidateSkills(config.library.skillsDir);
+    const agents = await loadAndValidateAgents(
+      config.library.agentsDir,
+      skills,
+    );
+
+    const zero = await runSkillContextAnalysis({
+      config,
+      skills,
+      agents,
+      skill: "example",
+      subject: "candidate",
+      targets: ["claude"],
+      scenarios: [],
+      repositoryRoot: root,
+      resultDirectory: results,
+    });
+    const partial = await runSkillContextAnalysis({
+      config,
+      skills,
+      agents,
+      skill: "example",
+      subject: "base",
+      targets: ["claude", "codex"],
+      scenarios: [{ name: "codex-only", target: "codex", supportPaths: [] }],
+      repositoryRoot: root,
+      resultDirectory: results,
+    });
+
+    expect(
+      zero.envelope.payload.records.filter(
+        (record) => record.kind === "declared-scenario",
+      ),
+    ).toHaveLength(0);
+    expect(
+      partial.envelope.payload.records.filter(
+        (record) => record.kind === "declared-scenario",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("rejects an unknown request member before rendering or publishing", async () => {
+    const root = await createTempDir();
+    temporary.push(root);
+    await run("git", ["init", "-q", root]);
+    await writeFile(path.join(root, ".gitignore"), ".ephemeral/\n", "utf8");
+    const results = path.join(root, ".ephemeral", "analysis");
+    await mkdir(results, { recursive: true });
+    const config = makeResolvedConfig(root);
+    await createSkillFixture(config.library.skillsDir, "example");
+    await mkdir(config.library.agentsDir, { recursive: true });
+    await mkdir(config.library.generatedDir, { recursive: true });
+    const generatedSentinel = path.join(
+      config.library.generatedDir,
+      "keep.txt",
+    );
+    await writeFile(generatedSentinel, "unchanged", "utf8");
+    const skills = await loadAndValidateSkills(config.library.skillsDir);
+    const agents = await loadAndValidateAgents(
+      config.library.agentsDir,
+      skills,
+    );
+
+    await expect(
+      runSkillContextAnalysis({
+        config,
+        skills,
+        agents,
+        skill: "example",
+        subject: "candidate",
+        targets: ["codex"],
+        scenarios: [],
+        repositoryRoot: root,
+        resultDirectory: results,
+        unexpected: true,
+      } as never),
+    ).rejects.toThrow("unknown member");
+    await expect(readFile(generatedSentinel, "utf8")).resolves.toBe(
+      "unchanged",
+    );
+  });
+
+  it("refuses a wrong-kind deterministic destination without replacing it", async () => {
+    const root = await createTempDir();
+    temporary.push(root);
+    await run("git", ["init", "-q", root]);
+    await writeFile(path.join(root, ".gitignore"), ".ephemeral/\n", "utf8");
+    const results = path.join(root, ".ephemeral", "analysis");
+    await mkdir(results, { recursive: true });
+    const config = makeResolvedConfig(root);
+    await createSkillFixture(config.library.skillsDir, "example");
+    await mkdir(config.library.agentsDir, { recursive: true });
+    const skills = await loadAndValidateSkills(config.library.skillsDir);
+    const agents = await loadAndValidateAgents(
+      config.library.agentsDir,
+      skills,
+    );
+    const request = {
+      config,
+      skills,
+      agents,
+      skill: "example",
+      subject: "candidate" as const,
+      targets: ["codex"] as const,
+      scenarios: [],
+      repositoryRoot: root,
+      resultDirectory: results,
+    };
+    const first = await runSkillContextAnalysis(request);
+    const destination = path.join(root, first.path);
+    await rm(destination);
+    await mkdir(destination);
+
+    await expect(runSkillContextAnalysis(request)).rejects.toThrow(
+      "destination",
+    );
+    await expect(readFile(destination)).rejects.toThrow();
   });
 
   it("refuses a symlinked selected result directory", async () => {

@@ -1,7 +1,9 @@
 import { execFile } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
+import { constants } from "node:fs";
 import {
   lstat,
+  open,
   readFile,
   realpath,
   rename,
@@ -50,6 +52,9 @@ export interface ReadDeclaredSupportFileInput {
 export async function readDeclaredSupportFile(
   input: ReadDeclaredSupportFileInput,
 ): Promise<DeclaredSupportFile> {
+  if (input.target !== "claude" && input.target !== "codex") {
+    fail("support-file", "support target must be claude or codex");
+  }
   const relativePath = validateSupportPath(input.path, input.skill);
   const root = await requireDirectory(
     input.skill.dirPath,
@@ -77,7 +82,7 @@ export async function readDeclaredSupportFile(
 
   let rawBytes: Buffer;
   try {
-    rawBytes = await readFile(filePath);
+    rawBytes = await readOpenedRegularFile(filePath, root, "support-file");
   } catch {
     fail("support-file", "declared support file could not be read");
   }
@@ -129,6 +134,12 @@ export async function publishAnalysisResult(
   }
   const leaf = `analysis-${canonical.payloadSha256}.json`;
   const destination = path.join(boundary.resultDirectory, leaf);
+  await assertIgnoredAndTrackedState(boundary, destination, canonical.bytes);
+  await assertReplaceableDestination(
+    destination,
+    boundary.ephemeralDirectory,
+    canonical.bytes,
+  );
   await assertNonsymlinkPath(
     boundary.ephemeralDirectory,
     destination,
@@ -136,14 +147,33 @@ export async function publishAnalysisResult(
     true,
   );
   const temporary = `${destination}.tmp-${process.pid}-${randomBytes(12).toString("hex")}`;
+  let createdTemporary = false;
+  const parent = await openNonsymlinkDirectory(boundary.resultDirectory);
   try {
+    await assertSameDirectory(boundary.resultDirectory, parent);
     await writeFile(temporary, canonical.bytes, { flag: "wx" });
+    createdTemporary = true;
+    await assertSameDirectory(boundary.resultDirectory, parent);
+    await assertNonsymlinkPath(
+      boundary.ephemeralDirectory,
+      destination,
+      "result",
+      true,
+    );
     await rename(temporary, destination);
+    await assertSameDirectory(boundary.resultDirectory, parent);
+    await assertOwnedDestination(
+      destination,
+      boundary.ephemeralDirectory,
+      canonical.bytes,
+    );
   } catch (error) {
-    await unlink(temporary).catch(() => undefined);
+    if (createdTemporary) await unlink(temporary).catch(() => undefined);
     throw error instanceof AnalysisFilesError
       ? error
       : new AnalysisFilesError("result", "could not publish analysis result");
+  } finally {
+    await parent.close().catch(() => undefined);
   }
   const relativePath = path
     .relative(boundary.repositoryRoot, destination)
@@ -198,7 +228,11 @@ export async function readComparisonResult(
   }
   let bytes: Buffer;
   try {
-    bytes = await readFile(comparisonPath);
+    bytes = await readOpenedRegularFile(
+      comparisonPath,
+      boundary.ephemeralDirectory,
+      "comparison",
+    );
   } catch {
     fail("comparison", "comparison result could not be read");
   }
@@ -337,9 +371,13 @@ function validateSupportPath(raw: string, skill: LoadedSkill): string {
   return raw;
 }
 
-function requireAbsolute(value: string, label: string): string {
+function requireAbsolute(
+  value: string,
+  label: string,
+  category: AnalysisFilesError["category"] = "result",
+): string {
   if (typeof value !== "string" || !path.isAbsolute(value))
-    fail("result", `${label} must be an absolute path`);
+    fail(category, `${label} must be an absolute path`);
   return path.resolve(value);
 }
 
@@ -348,7 +386,7 @@ async function requireDirectory(
   category: AnalysisFilesError["category"],
   label: string,
 ): Promise<string> {
-  const directory = requireAbsolute(value, label);
+  const directory = requireAbsolute(value, label, category);
   const stat = await requireStat(directory, category, label);
   if (!stat.isDirectory() || stat.isSymbolicLink())
     fail(category, `${label} must be a non-symlink directory`);
@@ -398,8 +436,173 @@ function isWithin(root: string, candidate: string): boolean {
   const relative = path.relative(root, candidate);
   return (
     relative === "" ||
-    (!relative.startsWith(`..${path.sep}`) && relative !== "..")
+    (!path.isAbsolute(relative) &&
+      !relative.startsWith(`..${path.sep}`) &&
+      relative !== "..")
   );
+}
+
+async function readOpenedRegularFile(
+  filePath: string,
+  root: string,
+  category: AnalysisFilesError["category"],
+): Promise<Buffer> {
+  let handle: Awaited<ReturnType<typeof open>> | undefined;
+  try {
+    handle = await open(filePath, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const opened = await handle.stat();
+    const current = await lstat(filePath);
+    const physical = await realpath(filePath);
+    if (
+      !opened.isFile() ||
+      current.isSymbolicLink() ||
+      !current.isFile() ||
+      opened.dev !== current.dev ||
+      opened.ino !== current.ino ||
+      !isWithin(root, physical)
+    ) {
+      fail(
+        category,
+        "opened file no longer satisfies containment and regular-file checks",
+      );
+    }
+    return await handle.readFile();
+  } catch (error) {
+    if (error instanceof AnalysisFilesError) throw error;
+    return fail(
+      category,
+      "declared file could not be opened without following links",
+    );
+  } finally {
+    await handle?.close().catch(() => undefined);
+  }
+}
+
+async function assertIgnoredAndTrackedState(
+  boundary: Awaited<ReturnType<typeof validateResultDirectory>>,
+  destination: string,
+  bytes: Buffer,
+): Promise<void> {
+  const relative = path.relative(boundary.repositoryRoot, destination);
+  if (!isWithin(boundary.ephemeralDirectory, destination)) {
+    fail("result", "derived result leaf escapes .ephemeral");
+  }
+  try {
+    await execute("git", [
+      "-C",
+      boundary.repositoryRoot,
+      "check-ignore",
+      "--quiet",
+      "--no-index",
+      "--",
+      relative,
+    ]);
+  } catch {
+    fail("result", "derived result leaf must be ignored by Git");
+  }
+  const tracked = await execute("git", [
+    "-C",
+    boundary.repositoryRoot,
+    "ls-files",
+    "--error-unmatch",
+    "--",
+    relative,
+  ])
+    .then(() => true)
+    .catch(() => false);
+  if (!tracked) return;
+  const current = await readOpenedRegularFile(
+    destination,
+    boundary.ephemeralDirectory,
+    "result",
+  );
+  if (!current.equals(bytes)) {
+    fail("result", "tracked result leaf must remain byte-identical");
+  }
+}
+
+async function assertOwnedDestination(
+  destination: string,
+  root: string,
+  expectedBytes: Buffer,
+): Promise<void> {
+  try {
+    const stat = await lstat(destination);
+    if (!stat.isFile() || stat.isSymbolicLink()) {
+      fail("result", "result destination must be an owned regular file");
+    }
+  } catch (error) {
+    if (error instanceof AnalysisFilesError) throw error;
+    fail("result", "result destination could not be inspected");
+  }
+  const current = await readOpenedRegularFile(destination, root, "result");
+  if (!current.equals(expectedBytes)) {
+    fail("result", "result destination bytes changed during publication");
+  }
+}
+
+async function assertReplaceableDestination(
+  destination: string,
+  root: string,
+  expectedBytes: Buffer,
+): Promise<void> {
+  try {
+    const stat = await lstat(destination);
+    if (!stat.isFile() || stat.isSymbolicLink()) {
+      fail(
+        "result",
+        "result destination must be absent or an owned regular file",
+      );
+    }
+    const current = await readOpenedRegularFile(destination, root, "result");
+    if (!current.equals(expectedBytes)) {
+      fail(
+        "result",
+        "existing result destination is not this owned analysis result",
+      );
+    }
+  } catch (error) {
+    if (error instanceof AnalysisFilesError) throw error;
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    fail("result", "result destination could not be inspected");
+  }
+}
+
+async function openNonsymlinkDirectory(directory: string) {
+  try {
+    const handle = await open(
+      directory,
+      constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+    );
+    const stat = await handle.stat();
+    if (!stat.isDirectory()) {
+      await handle.close();
+      fail("result", "result directory must be a directory");
+    }
+    return handle;
+  } catch (error) {
+    if (error instanceof AnalysisFilesError) throw error;
+    fail(
+      "result",
+      "result directory could not be opened without following links",
+    );
+  }
+}
+
+async function assertSameDirectory(
+  directory: string,
+  handle: Awaited<ReturnType<typeof open>>,
+): Promise<void> {
+  const opened = await handle.stat();
+  const current = await lstat(directory);
+  if (
+    !current.isDirectory() ||
+    current.isSymbolicLink() ||
+    opened.dev !== current.dev ||
+    opened.ino !== current.ino
+  ) {
+    fail("result", "result directory changed during publication");
+  }
 }
 
 function hash(bytes: Uint8Array): string {

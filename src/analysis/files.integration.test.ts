@@ -130,4 +130,34 @@ describe("analysis support files", () => {
     expect(support.targetText).toBe("\ufeffa\r\nb");
     expect(support.rawBytesSha256).toBe(support.targetTextSha256);
   });
+
+  it("refuses a runtime-invalid target and a malformed support root as support-file failures", async () => {
+    const root = await createTempDir();
+    temporary.push(root);
+    const skills = path.join(root, "skills");
+    const directory = await createSkillFixture(skills, "example", undefined, [
+      "references",
+    ]);
+    await writeFile(
+      path.join(directory, "references", "guide.md"),
+      "guide",
+      "utf8",
+    );
+    const [skill] = await loadAndValidateSkills(skills);
+
+    await expect(
+      readDeclaredSupportFile({
+        skill,
+        target: "other" as never,
+        path: "references/guide.md",
+      }),
+    ).rejects.toMatchObject({ category: "support-file" });
+    await expect(
+      readDeclaredSupportFile({
+        skill: { ...skill, dirPath: "relative" },
+        target: "codex",
+        path: "references/guide.md",
+      }),
+    ).rejects.toMatchObject({ category: "support-file" });
+  });
 });

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import path from "node:path";
 import type { ResolvedConfig } from "../config/schema.js";
 import type {
   LoadedAgent,
@@ -11,6 +12,7 @@ import {
   publishAnalysisResult,
   readComparisonResult,
   readDeclaredSupportFile,
+  validateResultDirectory,
 } from "./files.js";
 import {
   type AnalysisTarget,
@@ -83,7 +85,18 @@ export async function runSkillContextAnalysis(
   request: SkillContextAnalysisRequest,
 ): Promise<SkillContextAnalysisResult> {
   const validated = validateRequest(request);
+  const executionRequest = Object.freeze({
+    ...request,
+    skills: validated.skills,
+    agents: validated.agents,
+  });
   try {
+    await validateResultDirectory(
+      request.repositoryRoot,
+      request.resultDirectory,
+    ).catch((error) => {
+      throw new AnalysisRunnerError("request", (error as Error).message);
+    });
     const raw = await createExactTextRecord({
       kind: "raw-source",
       subject: request.subject,
@@ -98,7 +111,11 @@ export async function runSkillContextAnalysis(
     const supportRecords = new Map<string, ExactTextRecord>();
 
     for (const target of validated.targets) {
-      const rendered = await renderExactSkill(request, validated.skill, target);
+      const rendered = await renderExactSkill(
+        executionRequest,
+        validated.skill,
+        target,
+      );
       targetRenderings.set(target, rendered);
       const renderedRecord = await createExactTextRecord({
         kind: "rendered-skill",
@@ -169,12 +186,12 @@ export async function runSkillContextAnalysis(
       records,
     });
     let comparison: SkillContextComparison | undefined;
-    if (request.comparison !== undefined) {
+    if (validated.comparison !== undefined) {
       try {
         const prior = await readComparisonResult({
           repositoryRoot: request.repositoryRoot,
-          resultPath: request.comparison.path,
-          expectedPayloadSha256: request.comparison.expectedPayloadSha256,
+          resultPath: validated.comparison.path,
+          expectedPayloadSha256: validated.comparison.expectedPayloadSha256,
         });
         comparison = await compareSkillContextEnvelopes(prior, envelope);
       } catch (error) {
@@ -207,11 +224,30 @@ export async function runSkillContextAnalysis(
 
 function validateRequest(request: SkillContextAnalysisRequest): {
   readonly skill: LoadedSkill;
+  readonly skills: readonly LoadedSkill[];
+  readonly agents: readonly LoadedAgent[];
   readonly targets: readonly AnalysisTarget[];
   readonly scenarios: readonly DeclaredAnalysisScenario[];
+  readonly comparison?: SkillContextAnalysisComparison;
 } {
   if (!request || typeof request !== "object")
     fail("request", "analysis request must be an object");
+  assertExactKeys(
+    request,
+    [
+      "config",
+      "skills",
+      "agents",
+      "skill",
+      "subject",
+      "targets",
+      "scenarios",
+      "repositoryRoot",
+      "resultDirectory",
+      "comparison",
+    ],
+    "analysis request",
+  );
   if (!Array.isArray(request.skills) || !Array.isArray(request.agents))
     fail("request", "validated skills and agents must be arrays");
   if (!SUBJECTS.includes(request.subject))
@@ -244,16 +280,26 @@ function validateRequest(request: SkillContextAnalysisRequest): {
   ) {
     fail("request", "selected skill is not a valid loaded skill");
   }
+  validateAbsolutePath(skill.dirPath, "skill bundle root");
   if (!request.config || typeof request.config !== "object")
     fail("request", "resolved config is required");
+  validateAbsolutePath(request.repositoryRoot, "repository root");
+  validateAbsolutePath(request.resultDirectory, "result directory");
+  if (
+    !isPathWithin(
+      path.join(path.resolve(request.repositoryRoot), ".ephemeral"),
+      path.resolve(request.resultDirectory),
+    )
+  ) {
+    fail("request", "result directory must be inside repository .ephemeral");
+  }
   for (const target of targets) {
     if (request.config.targets?.[target]?.enabled !== true)
       fail("request", `analysis target ${target} is disabled`);
   }
-  if (!Array.isArray(request.scenarios) || request.scenarios.length === 0)
-    fail("request", "analysis requires closed scenario declarations");
+  if (!Array.isArray(request.scenarios))
+    fail("request", "scenario declarations must be an array");
   const scenarioKeys = new Set<string>();
-  const coverage = new Set<AnalysisTarget>();
   for (const scenario of request.scenarios) {
     if (
       !scenario ||
@@ -263,6 +309,8 @@ function validateRequest(request: SkillContextAnalysisRequest): {
     ) {
       fail("request", "scenario name must be nonempty");
     }
+    validateSingleLineName(scenario.name, "scenario name");
+    assertExactKeys(scenario, ["name", "target", "supportPaths"], "scenario");
     if (!targets.includes(scenario.target))
       fail("request", "scenario target must be selected");
     if (!Array.isArray(scenario.supportPaths))
@@ -271,6 +319,7 @@ function validateRequest(request: SkillContextAnalysisRequest): {
     for (const supportPath of scenario.supportPaths) {
       if (typeof supportPath !== "string" || supportPath.length === 0)
         fail("request", "scenario support path must be nonempty");
+      validateSupportVocabulary(supportPath, skill);
       if (rawSupportPaths.has(supportPath))
         fail("request", "duplicate raw support path declaration");
       rawSupportPaths.add(supportPath);
@@ -279,10 +328,7 @@ function validateRequest(request: SkillContextAnalysisRequest): {
     if (scenarioKeys.has(key))
       fail("request", "duplicate scenario declaration");
     scenarioKeys.add(key);
-    coverage.add(scenario.target);
   }
-  if (coverage.size !== targets.length)
-    fail("request", "each selected target requires a scenario declaration");
   if (request.comparison !== undefined) {
     if (
       !request.comparison ||
@@ -294,11 +340,43 @@ function validateRequest(request: SkillContextAnalysisRequest): {
         "comparison requires an exact path and expected payload hash",
       );
     }
+    assertExactKeys(
+      request.comparison,
+      ["path", "expectedPayloadSha256"],
+      "comparison",
+    );
+    validateAbsolutePath(request.comparison.path, "comparison path");
+    if (
+      !isPathWithin(
+        path.join(path.resolve(request.repositoryRoot), ".ephemeral"),
+        path.resolve(request.comparison.path),
+      )
+    ) {
+      fail("request", "comparison path must be inside repository .ephemeral");
+    }
   }
   return Object.freeze({
     skill,
+    skills: Object.freeze([...request.skills]),
+    agents: Object.freeze([...request.agents]),
     targets: Object.freeze(targets),
-    scenarios: request.scenarios,
+    scenarios: Object.freeze(
+      request.scenarios.map((scenario) =>
+        Object.freeze({
+          name: scenario.name,
+          target: scenario.target,
+          supportPaths: Object.freeze([...scenario.supportPaths]),
+        }),
+      ),
+    ),
+    ...(request.comparison === undefined
+      ? {}
+      : {
+          comparison: Object.freeze({
+            path: request.comparison.path,
+            expectedPayloadSha256: request.comparison.expectedPayloadSha256,
+          }),
+        }),
   });
 }
 
@@ -356,12 +434,28 @@ async function publishEnvelope(
 }
 
 function targetControls(skill: LoadedSkill, target: AnalysisTarget): string[] {
-  const controls = skill.source[target];
-  if (!controls) return [];
-  return Object.entries(controls)
-    .filter(([, value]) => value !== undefined)
-    .map(([key, value]) => `${key}:${JSON.stringify(value)}`)
-    .sort(compareUtf8);
+  const controls: string[] = [];
+  if (skill.source["allowed-tools"] !== undefined) {
+    controls.push(`allowed-tools:${stableJson(skill.source["allowed-tools"])}`);
+  }
+  if (target === "claude") {
+    for (const [key, value] of Object.entries(skill.source.claude ?? {})) {
+      if (value !== undefined)
+        controls.push(`claude.${key}:${stableJson(value)}`);
+    }
+  }
+  if (target === "codex") {
+    const sidecar = skill.source.codex_sidecar;
+    if (sidecar?.policy !== undefined) {
+      controls.push(`codex_sidecar.policy:${stableJson(sidecar.policy)}`);
+    }
+    if (sidecar?.dependencies !== undefined) {
+      controls.push(
+        `codex_sidecar.dependencies:${stableJson(sidecar.dependencies)}`,
+      );
+    }
+  }
+  return controls.sort(compareUtf8);
 }
 
 function identitiesFor(config: ResolvedConfig) {
@@ -407,4 +501,64 @@ function fail(
   message: string,
 ): never {
   throw new AnalysisRunnerError(category, message);
+}
+
+function assertExactKeys(
+  value: object,
+  allowed: readonly string[],
+  label: string,
+): void {
+  const allowedKeys = new Set(allowed);
+  for (const key of Object.keys(value)) {
+    if (!allowedKeys.has(key))
+      fail("request", `${label} contains unknown member ${key}`);
+  }
+}
+
+function validateAbsolutePath(value: unknown, label: string): void {
+  if (typeof value !== "string" || !path.isAbsolute(value)) {
+    fail("request", `${label} must be an absolute path`);
+  }
+}
+
+function validateSupportVocabulary(
+  pathValue: string,
+  skill: LoadedSkill,
+): void {
+  if (
+    pathValue.includes("\\") ||
+    pathValue.includes("\u0000") ||
+    /[\r\n]/u.test(pathValue) ||
+    path.posix.isAbsolute(pathValue)
+  ) {
+    fail(
+      "request",
+      "support path must be a normalized repository-style relative path",
+    );
+  }
+  const segments = pathValue.split("/");
+  if (
+    segments.some(
+      (segment) => segment.length === 0 || segment === "." || segment === "..",
+    ) ||
+    !skill.subdirs.includes(segments[0])
+  ) {
+    fail("request", "support path must be under a declared skill subdirectory");
+  }
+}
+
+function validateSingleLineName(value: string, label: string): void {
+  if (value.includes("\u0000") || /[\r\n]/u.test(value)) {
+    fail("request", `${label} must be a nonempty single-line string`);
+  }
+}
+
+function isPathWithin(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
+  return (
+    relative === "" ||
+    (!path.isAbsolute(relative) &&
+      !relative.startsWith(`..${path.sep}`) &&
+      relative !== "..")
+  );
 }
