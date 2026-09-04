@@ -240,6 +240,28 @@ describe("renderAll", () => {
     expect(await pathExists(generatedDir)).toBe(false);
   });
 
+  it("retains a stale runtime when prospective skill validation rejects", async () => {
+    const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
+    await rm(runtimeDir, { recursive: true, force: true });
+    await copyDevcanonRuntimeFixture(config.library.skillsDir);
+    const staleRuntimeFile = path.join(
+      runtimeDir,
+      "scripts",
+      "runtime",
+      "THIRD_PARTY_LICENSES",
+    );
+    const staleBytes = Buffer.from("stale provider runtime\n", "utf-8");
+    await writeFile(staleRuntimeFile, staleBytes);
+    await createSkillFixture(
+      config.library.skillsDir,
+      "invalid-skill",
+      "missing required skill frontmatter\n",
+    );
+
+    await expect(renderAll(config, true)).rejects.toThrow(UserError);
+    await expect(readFile(staleRuntimeFile)).resolves.toEqual(staleBytes);
+  });
+
   it("returns only claude outputs when targetFilter is 'claude'", async () => {
     await createSkillFixture(config.library.skillsDir, "s1");
     await createAgentFixture(

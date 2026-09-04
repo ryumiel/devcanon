@@ -102,6 +102,14 @@ export async function renderAll(
     provider,
   });
   if (writeToGenerated && validatedRuntime.sourceDisposition !== "current") {
+    const projection = await renderAllWithValidatedRuntime(
+      config,
+      validatedRuntime,
+      false,
+      strict,
+      targetFilter,
+    );
+    await preflightGeneratedRender(config, projection);
     if (validatedRuntime.sourceDisposition === "repair-runtime") {
       await reconcileDevcanonRuntimeSubtree(runtimeDir, provider);
     } else {
