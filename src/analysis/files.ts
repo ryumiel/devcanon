@@ -1,14 +1,7 @@
 import { execFile } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { constants } from "node:fs";
-import {
-  lstat,
-  open,
-  readFile,
-  realpath,
-  rename,
-  unlink,
-} from "node:fs/promises";
+import { lstat, open, realpath, rename, unlink } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import type { LoadedSkill } from "../models/types.js";
