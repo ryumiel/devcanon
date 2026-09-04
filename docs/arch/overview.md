@@ -43,7 +43,7 @@ render -> config, models, utils, validate
 install -> config, models, render, utils, validate
 validate -> config, models, render, utils
 diff -> config, install, models, render, utils
-analysis -> models, render, utils
+analysis -> config, models, render, utils
 config -> utils
 runtime -> (node built-ins, zod)
 runtime-build -> (build-time bundler, package metadata, node built-ins)
