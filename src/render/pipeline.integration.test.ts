@@ -240,7 +240,7 @@ describe("renderAll", () => {
     expect(await pathExists(generatedDir)).toBe(false);
   });
 
-  it("retains a stale runtime when prospective skill validation rejects", async () => {
+  it("retains a stale runtime when generated preflight rejects", async () => {
     const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
     await rm(runtimeDir, { recursive: true, force: true });
     await copyDevcanonRuntimeFixture(config.library.skillsDir);
@@ -252,13 +252,22 @@ describe("renderAll", () => {
     );
     const staleBytes = Buffer.from("stale provider runtime\n", "utf-8");
     await writeFile(staleRuntimeFile, staleBytes);
-    await createSkillFixture(
-      config.library.skillsDir,
-      "invalid-skill",
-      "missing required skill frontmatter\n",
+    await createAgentFixture(
+      config.library.agentsDir,
+      "later-agent",
+      makeAgentYaml("later-agent"),
     );
+    const invalidAgentDestination = path.join(
+      config.library.generatedDir,
+      "claude",
+      "agents",
+      "later-agent.md",
+    );
+    await mkdir(invalidAgentDestination, { recursive: true });
 
-    await expect(renderAll(config, true)).rejects.toThrow(UserError);
+    await expect(renderAll(config, true)).rejects.toThrow(
+      /must be absent or a regular file/i,
+    );
     await expect(readFile(staleRuntimeFile)).resolves.toEqual(staleBytes);
   });
 
