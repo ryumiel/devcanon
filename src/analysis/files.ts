@@ -167,13 +167,13 @@ export async function publishAnalysisResult(
       0o600,
     );
     try {
-      await temporaryHandle.writeFile(canonical.bytes);
       const temporaryStat = await temporaryHandle.stat();
       if (!temporaryStat.isFile()) {
         fail("result", "temporary result leaf must be a regular file");
       }
       temporaryIdentity = { dev: temporaryStat.dev, ino: temporaryStat.ino };
       createdTemporary = true;
+      await temporaryHandle.writeFile(canonical.bytes);
     } finally {
       await temporaryHandle.close().catch(() => undefined);
     }
