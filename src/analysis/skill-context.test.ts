@@ -161,10 +161,7 @@ describe("skill context analysis contracts", () => {
         target: "codex",
         components: [rendered, rendered],
       }),
-    ).toThrow("duplicate scenario component key");
-    await expectScenarioFailure(support);
-    const candidateRendered = (await exactRecords("candidate")).rendered;
-    await expectScenarioFailure(candidateRendered);
+    ).toThrow("duplicate rendered-skill scenario component");
   });
 
   it("rejects unsafe component totals before arithmetic", async () => {
@@ -262,6 +259,7 @@ describe("skill context analysis contracts", () => {
     const reduced = supportMetric(
       await compareSkillContextEnvelopes(reducedBase, reducedCandidate),
     );
+    assertComparisonFormula(reduced, reducedBase, reducedCandidate);
     expect(reduced.estimatedTokensDelta).toBeLessThan(0);
     expect(reduced.reductionNumerator).toBeGreaterThan(0);
     expect(reduced.reduction).toBe(true);
@@ -278,6 +276,13 @@ describe("skill context analysis contracts", () => {
         }),
       ),
     );
+    assertComparisonFormula(
+      increased,
+      await completeEnvelope("base", { supportText: "one" }),
+      await completeEnvelope("candidate", {
+        supportText: "many tokens ".repeat(20),
+      }),
+    );
     expect(increased.estimatedTokensDelta).toBeGreaterThan(0);
     expect(increased.reductionNumerator).toBeLessThan(0);
     expect(increased.reduction).toBe(false);
@@ -289,11 +294,26 @@ describe("skill context analysis contracts", () => {
     const zero = supportMetric(
       await compareSkillContextEnvelopes(zeroBase, nonzeroCandidate),
     );
+    assertComparisonFormula(zero, zeroBase, nonzeroCandidate);
     expect(zero).toMatchObject({
       reductionDenominator: 0,
       reduction: false,
     });
     expect(zero.reductionRatio).toBeUndefined();
+
+    const equalBase = await completeEnvelope("base", { supportText: "equal" });
+    const equalCandidate = await completeEnvelope("candidate", {
+      supportText: "equal",
+    });
+    const equal = supportMetric(
+      await compareSkillContextEnvelopes(equalBase, equalCandidate),
+    );
+    assertComparisonFormula(equal, equalBase, equalCandidate);
+    expect(equal).toMatchObject({
+      estimatedTokensDelta: 0,
+      reductionNumerator: 0,
+      reduction: false,
+    });
   });
 
   it("sorts discovery controls, rejects duplicates, and preserves multiline descriptions", async () => {
@@ -325,6 +345,26 @@ describe("skill context analysis contracts", () => {
         invocationControls: ["same", "same"],
       }),
     ).rejects.toThrow("duplicate invocation control");
+    await expect(
+      createDiscoveryFieldRecord({
+        subject: "base",
+        skill: "skill-a",
+        target: "codex",
+        name: "skill-a",
+        description: "valid",
+        invocationControls: "not-an-array" as unknown as readonly string[],
+      }),
+    ).rejects.toThrow("invocation controls must be an array");
+    await expect(
+      createDiscoveryFieldRecord({
+        subject: "base",
+        skill: "skill-a",
+        target: "codex",
+        name: "skill-a",
+        description: "valid",
+        invocationControls: { invalid: true } as unknown as readonly string[],
+      }),
+    ).rejects.toThrow("invocation controls must be an array");
     const envelope = await completeEnvelope("base");
     await expect(
       canonicalizeSkillContext({
@@ -413,6 +453,50 @@ describe("skill context analysis contracts", () => {
     ).toThrow("overflow");
   });
 
+  it("rejects kind-specific scenario duplicates before generic component identity", async () => {
+    const { rendered, support } = await exactRecords("base");
+    expect(() =>
+      createScenarioRecord({
+        name: "duplicate-rendered",
+        subject: "base",
+        skill: "skill-a",
+        target: "codex",
+        components: [rendered, rendered],
+      }),
+    ).toThrow("duplicate rendered-skill scenario component");
+    expect(() =>
+      createScenarioRecord({
+        name: "duplicate-support",
+        subject: "base",
+        skill: "skill-a",
+        target: "codex",
+        components: [rendered, support, support],
+      }),
+    ).toThrow("duplicate normalized support path");
+  });
+
+  it("rejects a single-fault scenario subject mismatch with a unique support path", async () => {
+    const { rendered } = await exactRecords("base");
+    const candidateSupport = await createExactTextRecord({
+      kind: "support-file",
+      subject: "candidate",
+      skill: "skill-a",
+      target: "codex",
+      path: "references/candidate.md",
+      rawBytesSha256: sha256("candidate support"),
+      text: "candidate support",
+    });
+    expect(() =>
+      createScenarioRecord({
+        name: "subject-mismatch",
+        subject: "base",
+        skill: "skill-a",
+        target: "codex",
+        components: [rendered, candidateSupport],
+      }),
+    ).toThrow("scenario component subject mismatch");
+  });
+
   it("rejects duplicate payload identities and validates canonical parse round-trips", async () => {
     const envelope = await completeEnvelope("base");
     await expect(
@@ -439,6 +523,34 @@ describe("skill context analysis contracts", () => {
     ).rejects.toThrow("noncanonical");
   });
 
+  it("accepts semantically identical scenario fields regardless of property insertion order", async () => {
+    const envelope = await completeEnvelope("base");
+    const reordered = envelope.payload.records.map((record) => {
+      if (record.kind !== "declared-scenario") return record;
+      return {
+        componentEstimatedTokensTotal: record.componentEstimatedTokensTotal,
+        componentKeys: record.componentKeys,
+        aggregation: record.aggregation,
+        name: record.name,
+        target: record.target,
+        skill: record.skill,
+        subject: record.subject,
+        kind: record.kind,
+        key: record.key,
+        schema: record.schema,
+      };
+    });
+    await expect(
+      canonicalizeSkillContext({
+        subject: "base",
+        skill: "skill-a",
+        targets: ["codex"],
+        identities,
+        records: reordered,
+      }),
+    ).resolves.toMatchObject({ payloadSha256: envelope.payloadSha256 });
+  });
+
   it("rejects comparison role, record-set, and scenario-composition mismatches", async () => {
     const base = await completeEnvelope("base");
     await expect(
@@ -460,21 +572,6 @@ describe("skill context analysis contracts", () => {
     ).rejects.toThrow("scenario composition mismatch");
   });
 });
-
-async function expectScenarioFailure(
-  component: ExactTextRecord,
-): Promise<void> {
-  const { rendered, support } = await exactRecords("base");
-  expect(() =>
-    createScenarioRecord({
-      name: "full-context",
-      subject: "base",
-      skill: "skill-a",
-      target: "codex",
-      components: [rendered, support, component],
-    }),
-  ).toThrow(/duplicate|subject/);
-}
 
 async function completeEnvelope(
   subject: "base" | "candidate",
@@ -539,4 +636,24 @@ function supportMetric(
   return comparison.metrics.find((metric) =>
     metric.recordKey.startsWith("support-file:"),
   ) as (typeof comparison.metrics)[number];
+}
+
+function assertComparisonFormula(
+  metric: Awaited<
+    ReturnType<typeof compareSkillContextEnvelopes>
+  >["metrics"][number],
+  base: Awaited<ReturnType<typeof completeEnvelope>>,
+  candidate: Awaited<ReturnType<typeof completeEnvelope>>,
+): void {
+  const baseValue = supportRecord(base).estimatedTokens;
+  const candidateValue = supportRecord(candidate).estimatedTokens;
+  expect(metric.estimatedTokensDelta).toBe(candidateValue - baseValue);
+  expect(metric.reductionNumerator).toBe(baseValue - candidateValue);
+  expect(metric.reductionDenominator).toBe(baseValue);
+}
+
+function supportRecord(envelope: Awaited<ReturnType<typeof completeEnvelope>>) {
+  return envelope.payload.records.find(
+    (record) => record.kind === "support-file",
+  ) as SupportFileRecord;
 }

@@ -237,6 +237,9 @@ export async function createDiscoveryFieldRecord(
   validateTarget(input.target);
   validateName(input.name, "discovery name");
   validateText(input.description, "discovery description");
+  if (!Array.isArray(input.invocationControls)) {
+    fail("invocation controls must be an array");
+  }
   const controls = [...input.invocationControls];
   for (const control of controls)
     validateSingleLine(control, "invocation control");
@@ -299,9 +302,6 @@ export function createScenarioRecord(
       fail("scenario component skill mismatch");
     if (component.target !== input.target)
       fail("scenario component target mismatch");
-    if (componentKeys.has(component.key))
-      fail("duplicate scenario component key");
-    componentKeys.add(component.key);
     if (component.kind === "rendered-skill") {
       if (rendered !== undefined)
         fail("duplicate rendered-skill scenario component");
@@ -315,6 +315,9 @@ export function createScenarioRecord(
         "scenario components must be rendered-skill or support-file records",
       );
     }
+    if (componentKeys.has(component.key))
+      fail("duplicate scenario component key");
+    componentKeys.add(component.key);
     total = checkedAdd(
       total,
       component.estimatedTokens,
@@ -515,7 +518,7 @@ async function createCanonicalPayload(
       target: record.target,
       components,
     });
-    if (JSON.stringify(rebuilt) !== JSON.stringify(record)) {
+    if (!sameScenarioRecord(rebuilt, record)) {
       fail("scenario aggregation mismatch");
     }
   }
@@ -605,6 +608,24 @@ function canonicalizeRecord(record: SkillContextRecord): SkillContextRecord {
     tokenizer: GPT_TOKEN_ESTIMATE_ENCODING,
     estimatedTokens: record.estimatedTokens,
   });
+}
+
+function sameScenarioRecord(
+  left: ScenarioRecord,
+  right: ScenarioRecord,
+): boolean {
+  return (
+    left.schema === right.schema &&
+    left.key === right.key &&
+    left.kind === right.kind &&
+    left.subject === right.subject &&
+    left.skill === right.skill &&
+    left.target === right.target &&
+    left.name === right.name &&
+    left.aggregation === right.aggregation &&
+    sameArray(left.componentKeys, right.componentKeys) &&
+    left.componentEstimatedTokensTotal === right.componentEstimatedTokensTotal
+  );
 }
 
 async function validateEnvelopeObject(
