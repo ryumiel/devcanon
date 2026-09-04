@@ -64,6 +64,9 @@ export async function diffAll(
   const manifest = normalized.manifest;
   const acceptedProvider =
     typeof provider === "function" ? await provider() : provider;
+  if (acceptedProvider === undefined) {
+    throw new Error("An accepted provider is required for runtime validation.");
+  }
   const validatedRuntime = await validateDevcanonRuntime(
     devcanonRuntimeDir(config.library.skillsDir),
     {

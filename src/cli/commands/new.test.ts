@@ -7,6 +7,7 @@ import {
   cleanupTempDir,
   copyDevcanonRuntimeFixture,
   createConfigFile,
+  createDevcanonRuntimeProviderFixture,
   createTempDir,
   makeConfigYaml,
 } from "../../__test-helpers__/fixtures.js";
@@ -14,6 +15,7 @@ import { installTestLogger } from "../../__test-helpers__/logger.js";
 import { loadConfig } from "../../config/load.js";
 import { AgentSourceSchema } from "../../config/schema.js";
 import { renderAll } from "../../render/pipeline.js";
+import type { AcceptedProvider } from "../../runtime-build/provider.js";
 import { readTextFile } from "../../utils/fs.js";
 import { newAgentAction } from "./new.js";
 
@@ -21,10 +23,12 @@ describe("newAgentAction", () => {
   let tempDir: string;
   let configPath: string;
   let restore: () => void;
+  let provider: AcceptedProvider;
 
   beforeEach(async () => {
     tempDir = await createTempDir();
     configPath = await createConfigFile(tempDir);
+    provider = await createDevcanonRuntimeProviderFixture(tempDir);
     ({ restore } = installTestLogger());
   });
 
@@ -76,7 +80,7 @@ describe("newAgentAction", () => {
 
     const config = await loadConfig(configPath);
     await copyDevcanonRuntimeFixture(config.library.skillsDir);
-    const result = await renderAll(config, false);
+    const result = await renderAll(config, provider, false);
 
     const claudeAgent = result.outputs.find(
       (output) => output.type === "agent" && output.target === "claude",

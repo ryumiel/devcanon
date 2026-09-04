@@ -51,10 +51,14 @@ vi.mock("../validate/devcanon-runtime.js", async (importOriginal) => {
   );
   return {
     ...actual,
-    validateDevcanonRuntime: (runtimeDir: string) =>
+    validateDevcanonRuntime: (
+      runtimeDir: string,
+      options: Parameters<typeof actual.validateDevcanonRuntime>[1],
+    ) =>
       validateLightweightDevcanonRuntimeFixture(
         runtimeDir,
-        actual.validateDevcanonRuntime,
+        (candidateRuntimeDir) =>
+          actual.validateDevcanonRuntime(candidateRuntimeDir, options),
       ),
   };
 });

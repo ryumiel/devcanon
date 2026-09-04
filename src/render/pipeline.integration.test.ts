@@ -6,6 +6,7 @@ import {
   cleanupTempDir,
   copyDevcanonRuntimeFixture,
   createAgentFixture,
+  createDevcanonRuntimeProviderFixture,
   createLightweightDevcanonRuntimeFixture,
   createSkillFixture,
   createTempDir,
@@ -19,6 +20,7 @@ import {
 } from "../__test-helpers__/render.js";
 import type { ResolvedConfig } from "../config/schema.js";
 import type { RenderedAgent } from "../models/types.js";
+import type { AcceptedProvider } from "../runtime-build/provider.js";
 import { UserError } from "../utils/errors.js";
 import { pathExists } from "../utils/fs.js";
 import { loadAndValidateAgents } from "../validate/agents.js";
@@ -26,7 +28,10 @@ import {
   DEVCANON_RUNTIME_SKILL_NAME,
   loadAndValidateSkills,
 } from "../validate/skills.js";
-import { renderAll, renderLoaded } from "./pipeline.js";
+import {
+  renderAll as renderAllWithProvider,
+  renderLoaded,
+} from "./pipeline.js";
 
 const symlinkAvailable = await canCreateSymlinks();
 
@@ -38,10 +43,14 @@ vi.mock("../validate/devcanon-runtime.js", async (importOriginal) => {
   );
   return {
     ...actual,
-    validateDevcanonRuntime: (runtimeDir: string) =>
+    validateDevcanonRuntime: (
+      runtimeDir: string,
+      options: Parameters<typeof actual.validateDevcanonRuntime>[1],
+    ) =>
       validateLightweightDevcanonRuntimeFixture(
         runtimeDir,
-        actual.validateDevcanonRuntime,
+        (candidateRuntimeDir) =>
+          actual.validateDevcanonRuntime(candidateRuntimeDir, options),
       ),
   };
 });
@@ -50,6 +59,21 @@ describe("renderAll", () => {
   let tempDir: string;
   let config: ResolvedConfig;
   let restore: () => void;
+  let provider: AcceptedProvider;
+
+  const renderAll = (
+    renderedConfig: ResolvedConfig,
+    writeToGenerated = true,
+    strict = false,
+    targetFilter?: "claude" | "codex",
+  ) =>
+    renderAllWithProvider(
+      renderedConfig,
+      provider,
+      writeToGenerated,
+      strict,
+      targetFilter,
+    );
 
   beforeEach(async () => {
     tempDir = await createTempDir();
@@ -60,6 +84,7 @@ describe("renderAll", () => {
     await mkdir(config.library.skillsDir, { recursive: true });
     await mkdir(config.library.agentsDir, { recursive: true });
     await createLightweightDevcanonRuntimeFixture(config.library.skillsDir);
+    provider = await createDevcanonRuntimeProviderFixture(tempDir);
   });
 
   afterEach(async () => {
@@ -1478,6 +1503,21 @@ describe("renderLoaded", () => {
   let tempDir: string;
   let config: ResolvedConfig;
   let restore: () => void;
+  let provider: AcceptedProvider;
+
+  const renderAll = (
+    renderedConfig: ResolvedConfig,
+    writeToGenerated = true,
+    strict = false,
+    targetFilter?: "claude" | "codex",
+  ) =>
+    renderAllWithProvider(
+      renderedConfig,
+      provider,
+      writeToGenerated,
+      strict,
+      targetFilter,
+    );
 
   beforeEach(async () => {
     tempDir = await createTempDir();
@@ -1487,6 +1527,7 @@ describe("renderLoaded", () => {
     await mkdir(config.library.skillsDir, { recursive: true });
     await mkdir(config.library.agentsDir, { recursive: true });
     await copyDevcanonRuntimeFixture(config.library.skillsDir);
+    provider = await createDevcanonRuntimeProviderFixture(tempDir);
   });
 
   afterEach(async () => {

@@ -23,7 +23,7 @@ interface RenderOptions {
 export async function renderAction(
   options: RenderOptions,
   command: { parent?: { opts(): Record<string, unknown> } },
-  provider?: AcceptedProvider | (() => Promise<AcceptedProvider>),
+  provider: AcceptedProvider | (() => Promise<AcceptedProvider>),
 ): Promise<void> {
   const logger = getLogger();
   const globalOpts = command.parent?.opts() ?? {};
@@ -57,7 +57,7 @@ export async function renderAction(
     options.target as "claude" | "codex" | undefined,
   );
   await preflightGeneratedRender(config, projection);
-  if (acceptedProvider && validatedRuntime.sourceDisposition !== "current") {
+  if (validatedRuntime.sourceDisposition !== "current") {
     if (validatedRuntime.sourceDisposition === "repair-runtime") {
       await reconcileDevcanonRuntimeSubtree(runtimeDir, acceptedProvider);
     } else {

@@ -19,7 +19,10 @@ import { stringify as yamlStringify } from "yaml";
 import type { ManifestBoundary, ResolvedConfig } from "../config/schema.js";
 import type { LoadedAgent } from "../models/types.js";
 import { sha256, verifyProvider } from "../runtime-build/provider.js";
-import type { AcceptedProvider } from "../runtime-build/provider.js";
+import type {
+  AcceptedProvider,
+  RuntimeManifest,
+} from "../runtime-build/provider.js";
 import type { ValidatedDevcanonRuntime } from "../validate/devcanon-runtime.js";
 
 type CodexSource = NonNullable<LoadedAgent["source"]["codex"]>;
@@ -182,6 +185,29 @@ export async function createDevcanonRuntimeProviderFixture(
   });
   await rm(providerRoot, { recursive: true, force: true });
   return provider;
+}
+
+/** Verifies accepted-provider authority from an already-composed test runtime. */
+export async function providerFromRuntimeFixture(
+  runtimeDir: string,
+): Promise<AcceptedProvider> {
+  const root = path.join(runtimeDir, "scripts", "runtime");
+  const manifest = JSON.parse(
+    await readFile(path.join(root, "runtime-manifest.json"), "utf8"),
+  ) as RuntimeManifest;
+  if (manifest.artifact_origin === "package") {
+    return verifyProvider({
+      root,
+      origin: manifest.artifact_origin,
+      devcanonVersion: manifest.devcanon_version,
+    });
+  }
+  const { verifySourceProvider } = await import("../runtime-build/producer.js");
+  return verifySourceProvider({
+    repositoryRoot: process.cwd(),
+    root,
+    devcanonVersion: manifest.devcanon_version,
+  });
 }
 
 const LIGHTWEIGHT_RUNTIME_MARKER =

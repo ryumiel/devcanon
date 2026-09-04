@@ -21,7 +21,7 @@ interface ValidateOptions {
 export async function validateAction(
   options: ValidateOptions,
   command: { parent?: { opts(): Record<string, unknown> } },
-  provider?: AcceptedProvider | (() => Promise<AcceptedProvider>),
+  provider: AcceptedProvider | (() => Promise<AcceptedProvider>),
 ): Promise<void> {
   const logger = getLogger();
   const globalOpts = command.parent?.opts() ?? {};

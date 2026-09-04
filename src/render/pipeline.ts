@@ -10,6 +10,7 @@ import type {
   RenderedOutput,
   RenderedSkill,
 } from "../models/types.js";
+import type { AcceptedProvider } from "../runtime-build/provider.js";
 import { UserError } from "../utils/errors.js";
 import { ensureDir, readdir, writeTextFile } from "../utils/fs.js";
 import { loadAndValidateAgents } from "../validate/agents.js";
@@ -87,6 +88,7 @@ export interface RenderLoadedOptions<
 
 export async function renderAll(
   config: ResolvedConfig,
+  provider: AcceptedProvider,
   writeToGenerated = true,
   strict = false,
   targetFilter?: "claude" | "codex",
@@ -94,7 +96,8 @@ export async function renderAll(
   const runtimeDir = devcanonRuntimeDir(config.library.skillsDir);
   const validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
     adapterSourceDir: bundledDevcanonRuntimeDir(),
-    operation: writeToGenerated ? "compose" : "read-only",
+    operation: "read-only",
+    provider,
   });
   return renderAllWithValidatedRuntime(
     config,

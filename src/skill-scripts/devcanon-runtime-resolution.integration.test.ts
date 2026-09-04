@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   canCreateSymlinks,
   cleanupTempDir,
+  createDevcanonRuntimeProviderFixture,
   createSkillFixture,
   createTempDir,
   makeResolvedConfig,
@@ -19,10 +20,27 @@ import {
 } from "../__test-helpers__/runtime-conformance.js";
 import type { ResolvedConfig } from "../config/schema.js";
 import { sync } from "../install/sync.js";
-import { renderAll } from "../render/pipeline.js";
+import { renderAll as renderAllWithProvider } from "../render/pipeline.js";
 
 const execFileAsync = promisify(execFile);
 const symlinkAvailable = await canCreateSymlinks();
+
+async function renderAll(
+  config: ResolvedConfig,
+  writeToGenerated = true,
+  strict = false,
+  targetFilter?: "claude" | "codex",
+) {
+  return renderAllWithProvider(
+    config,
+    await createDevcanonRuntimeProviderFixture(
+      path.dirname(config.library.skillsDir),
+    ),
+    writeToGenerated,
+    strict,
+    targetFilter,
+  );
+}
 
 async function prepareRuntimeResolutionFixture(
   config: ResolvedConfig,

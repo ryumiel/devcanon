@@ -1,13 +1,31 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { readAgentRoutingPolicyOwner } from "../__test-helpers__/agent-routing-policy.js";
+import { providerFromRuntimeFixture } from "../__test-helpers__/fixtures.js";
 import { getSkillOutput } from "../__test-helpers__/render.js";
 import { loadConfig } from "../config/load.js";
 import { parseFrontmatter } from "./frontmatter.js";
-import { renderAll } from "./pipeline.js";
+import { renderAll as renderAllWithProvider } from "./pipeline.js";
 
 const OWNER_PATH = "docs/guidelines/agent-routing-and-mutation-policy.md";
 const TARGETS = ["claude", "codex"] as const;
+
+async function renderAll(
+  config: Awaited<ReturnType<typeof loadConfig>>,
+  writeToGenerated = true,
+  strict = false,
+  targetFilter?: "claude" | "codex",
+) {
+  return renderAllWithProvider(
+    config,
+    await providerFromRuntimeFixture(
+      path.join(config.library.skillsDir, "devcanon-runtime"),
+    ),
+    writeToGenerated,
+    strict,
+    targetFilter,
+  );
+}
 
 describe("route-owner packaging smoke", () => {
   it("packages every route owner named by the structural policy inventory", async () => {

@@ -16,7 +16,7 @@ interface SyncCommandOptions {
 export async function syncAction(
   options: SyncCommandOptions,
   command: { parent?: { opts(): Record<string, unknown> } },
-  provider?: () => Promise<AcceptedProvider>,
+  provider: () => Promise<AcceptedProvider>,
 ): Promise<void> {
   const logger = getLogger();
   const globalOpts = command.parent?.opts() ?? {};

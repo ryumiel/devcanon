@@ -74,10 +74,10 @@ export interface RuntimeAdapterPair {
 
 export interface ValidateDevcanonRuntimeOptions {
   /** Required executing-distribution authority; never defaults to the candidate. */
+  readonly provider: AcceptedProvider;
   readonly adapterSourceDir?: string;
   readonly operation?: "read-only" | "compose";
   readonly pristineLegacyPair?: RuntimeAdapterPair;
-  readonly provider?: AcceptedProvider;
 }
 
 declare const validatedDevcanonRuntimeBrand: unique symbol;
@@ -177,8 +177,8 @@ export interface RuntimeClosureRecord {
 export interface ValidateBundledDevcanonRuntimeOptions {
   /** Test-only bounded authority seam; defaults to this executing distribution. */
   readonly adapterSourceDir?: string;
-  /** Accepted package/source provider may materialize an absent derived subtree. */
-  readonly provider?: AcceptedProvider;
+  /** Required executing-distribution authority for bundled runtime validation. */
+  readonly provider: AcceptedProvider;
 }
 
 export function devcanonRuntimeDir(skillsDir: string): string {
@@ -196,8 +196,11 @@ export function bundledDevcanonRuntimeDir(): string {
 /** Read-only authored and derived-state validation. Provider acceptance belongs upstream. */
 export async function validateDevcanonRuntime(
   runtimeDir: string,
-  options: ValidateDevcanonRuntimeOptions = {},
+  options: ValidateDevcanonRuntimeOptions,
 ): Promise<ValidatedDevcanonRuntime> {
+  if (options?.provider === undefined) {
+    throw new Error("An accepted provider is required for runtime validation.");
+  }
   const root = await lstat(runtimeDir).catch(() => undefined);
   if (root === undefined) throw runtimeSourceMissingError(runtimeDir);
   await requireDirectory(runtimeDir, runtimeDir, ".");
@@ -252,7 +255,7 @@ export async function validateDevcanonRuntime(
   const derivedExists = await pathOrSymlinkExists(derivedPath);
   await requireExactEntries(
     path.join(runtimeDir, "scripts"),
-    !derivedExists && options.operation === "compose" && options.provider
+    !derivedExists && options.operation === "compose"
       ? ["devcanon-runtime.sh", "resolve-bash.mjs"]
       : ["devcanon-runtime.sh", "resolve-bash.mjs", "runtime"],
   );
@@ -264,7 +267,7 @@ export async function validateDevcanonRuntime(
   try {
     providerLeaves = await readDerivedRuntime(runtimeDir, options.provider);
   } catch (error) {
-    if (options.operation !== "compose" || options.provider === undefined) {
+    if (options.operation !== "compose") {
       throw renderRepairError(
         runtimeDir,
         error instanceof Error ? error.message : "invalid runtime subtree",
@@ -324,26 +327,24 @@ export function classifyAdapterPair(
 
 export async function validateBundledDevcanonRuntime(
   runtimeDir: string,
-  options: ValidateBundledDevcanonRuntimeOptions = {},
+  options: ValidateBundledDevcanonRuntimeOptions,
 ): Promise<void> {
   const authority = options.adapterSourceDir ?? bundledDevcanonRuntimeDir();
+  const derivedExists = await pathOrSymlinkExists(
+    path.join(runtimeDir, RUNTIME_JS_DIR),
+  );
   const validated = await validateDevcanonRuntime(runtimeDir, {
     adapterSourceDir: authority,
-    operation: options.provider ? "compose" : undefined,
+    operation: derivedExists ? "read-only" : "compose",
     provider: options.provider,
   });
   if (validated.adapterState !== "current") {
     throw adapterAdoptionError(runtimeDir, "legacy adapter pair");
   }
-  if (options.provider === undefined) {
-    await requireAdapterContracts(authority);
-    await requireRuntimeContract(path.join(runtimeDir, RUNTIME_BUNDLE));
-  } else {
-    await requireComposedAdapterContracts(
-      validated.authoritativeAdapterPair,
-      options.provider,
-    );
-  }
+  await requireComposedAdapterContracts(
+    validated.authoritativeAdapterPair,
+    options.provider,
+  );
 }
 
 async function readAdapterPair(root: string): Promise<RuntimeAdapterPair> {
@@ -393,7 +394,7 @@ async function inspectAdapterPair(
 
 async function readDerivedRuntime(
   runtimeDir: string,
-  provider?: AcceptedProvider,
+  provider: AcceptedProvider,
 ): Promise<ReadonlyMap<string, Buffer>> {
   const directory = path.join(runtimeDir, RUNTIME_JS_DIR);
   await requireDirectory(directory, runtimeDir, RUNTIME_JS_DIR);
@@ -426,18 +427,16 @@ async function readDerivedRuntime(
     ),
   );
   const result = new Map(records);
-  if (provider !== undefined) {
-    const expected = new Map([
-      ["devcanon-runtime.mjs", provider.bundle.copy()],
-      ["runtime-manifest.json", provider.manifestBytes.copy()],
-      ["THIRD_PARTY_LICENSES", provider.licenses.copy()],
-    ]);
-    for (const [leaf, bytes] of expected) {
-      if (!Buffer.from(result.get(leaf) ?? []).equals(bytes)) {
-        throw new Error(
-          `runtime subtree ${leaf} does not match the accepted provider`,
-        );
-      }
+  const expected = new Map([
+    ["devcanon-runtime.mjs", provider.bundle.copy()],
+    ["runtime-manifest.json", provider.manifestBytes.copy()],
+    ["THIRD_PARTY_LICENSES", provider.licenses.copy()],
+  ]);
+  for (const [leaf, bytes] of expected) {
+    if (!Buffer.from(result.get(leaf) ?? []).equals(bytes)) {
+      throw new Error(
+        `runtime subtree ${leaf} does not match the accepted provider`,
+      );
     }
   }
   return result;

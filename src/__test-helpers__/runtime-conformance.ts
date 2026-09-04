@@ -15,6 +15,7 @@ import { type SyncResult, sync } from "../install/sync.js";
 import { renderAll } from "../render/pipeline.js";
 import {
   cleanupTempDir,
+  createDevcanonRuntimeProviderFixture,
   createSkillFixture,
   createTempDir,
   makeResolvedConfig,
@@ -137,19 +138,27 @@ export async function createRuntimeConformanceFixture(
 export async function renderRuntimeConformanceFixture(
   fixture: RuntimeConformanceFixture,
 ): Promise<void> {
-  await renderAll(fixture.config, true);
+  await renderAll(
+    fixture.config,
+    await createDevcanonRuntimeProviderFixture(fixture.tempDir),
+    true,
+  );
 }
 
 export async function syncRuntimeConformanceFixture(
   fixture: RuntimeConformanceFixture,
   mode: InstallMode,
 ): Promise<SyncResult> {
-  return sync(fixture.config, {
-    dryRun: false,
-    force: false,
-    strict: false,
-    mode,
-  });
+  return sync(
+    fixture.config,
+    {
+      dryRun: false,
+      force: false,
+      strict: false,
+      mode,
+    },
+    await createDevcanonRuntimeProviderFixture(fixture.tempDir),
+  );
 }
 
 export async function runRuntimeBackedAdapter(

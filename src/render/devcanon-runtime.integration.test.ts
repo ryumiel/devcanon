@@ -12,12 +12,19 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   cleanupTempDir,
   copyDevcanonRuntimeFixture,
+  createDevcanonRuntimeProviderFixture,
   createTempDir,
   makeResolvedConfig,
 } from "../__test-helpers__/fixtures.js";
 import type { ResolvedConfig } from "../config/schema.js";
-import { ImmutableProviderBytes } from "../runtime-build/provider.js";
-import { validateDevcanonRuntime } from "../validate/devcanon-runtime.js";
+import {
+  type AcceptedProvider,
+  ImmutableProviderBytes,
+} from "../runtime-build/provider.js";
+import {
+  type ValidateDevcanonRuntimeOptions,
+  validateDevcanonRuntime as validateProviderBackedRuntime,
+} from "../validate/devcanon-runtime.js";
 import {
   hashDevcanonRuntimePayload,
   reconcileDevcanonRuntimeSubtree,
@@ -26,11 +33,36 @@ import {
 } from "./devcanon-runtime.js";
 import { reconcileDevcanonRuntimeSource } from "./devcanon-runtime.js";
 import { writeRenderedDevcanonRuntime } from "./devcanon-runtime.js";
-import { renderAll } from "./pipeline.js";
+import { renderAll as renderAllWithProvider } from "./pipeline.js";
 
 describe("devcanon-runtime rendering", () => {
   let tempDir: string;
   let config: ResolvedConfig;
+  let provider: AcceptedProvider;
+
+  const validateDevcanonRuntime = (
+    runtimeDir: string,
+    options: Omit<ValidateDevcanonRuntimeOptions, "provider"> & {
+      provider?: AcceptedProvider;
+    } = {},
+  ) =>
+    validateProviderBackedRuntime(runtimeDir, {
+      ...options,
+      provider: options.provider ?? provider,
+    });
+  const renderAll = (
+    renderedConfig: ResolvedConfig,
+    writeToGenerated = true,
+    strict = false,
+    targetFilter?: "claude" | "codex",
+  ) =>
+    renderAllWithProvider(
+      renderedConfig,
+      provider,
+      writeToGenerated,
+      strict,
+      targetFilter,
+    );
 
   beforeEach(async () => {
     tempDir = await createTempDir();
@@ -38,6 +70,7 @@ describe("devcanon-runtime rendering", () => {
     await mkdir(config.library.skillsDir, { recursive: true });
     await mkdir(config.library.agentsDir, { recursive: true });
     await copyDevcanonRuntimeFixture(config.library.skillsDir);
+    provider = await createDevcanonRuntimeProviderFixture(tempDir);
   });
 
   afterEach(async () => cleanupTempDir(tempDir));
@@ -716,7 +749,7 @@ describe("devcanon-runtime rendering", () => {
 });
 
 function requiredProviderLeaf(
-  validated: Awaited<ReturnType<typeof validateDevcanonRuntime>>,
+  validated: Awaited<ReturnType<typeof validateProviderBackedRuntime>>,
   leaf: string,
 ): Buffer {
   const bytes = validated.providerLeaves.get(leaf);
@@ -727,7 +760,7 @@ function requiredProviderLeaf(
 
 async function providerFromValidated(
   runtime: string,
-  validated: Awaited<ReturnType<typeof validateDevcanonRuntime>>,
+  validated: Awaited<ReturnType<typeof validateProviderBackedRuntime>>,
 ) {
   return {
     origin: "source-build",
@@ -748,7 +781,7 @@ async function providerFromValidated(
 }
 
 function forgedSnapshot(
-  validated: Awaited<ReturnType<typeof validateDevcanonRuntime>>,
+  validated: Awaited<ReturnType<typeof validateProviderBackedRuntime>>,
   overrides: Partial<{
     adapterPair: typeof validated.adapterPair;
     authoritativeAdapterPair: typeof validated.authoritativeAdapterPair;

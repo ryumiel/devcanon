@@ -17,6 +17,7 @@ import {
   cleanupTempDir,
   copyDevcanonRuntimeFixture,
   createAgentFixture,
+  createDevcanonRuntimeProviderFixture,
   createSkillFixture,
   createTempDir,
   makeAgentYaml,
@@ -28,9 +29,9 @@ import type { ResolvedConfig } from "../config/schema.js";
 import { withManifestPersistenceFaultsForTesting } from "../install/manifest.js";
 import { sync } from "../install/sync.js";
 import type { RenderedAgent } from "../models/types.js";
-import { renderAll } from "../render/pipeline.js";
+import { renderAll as renderAllWithProvider } from "../render/pipeline.js";
 import { sha256 } from "../utils/hash.js";
-import { diffAll } from "./diff.js";
+import { diffAll as diffAllWithProvider } from "./diff.js";
 
 const symlinkAvailable = await canCreateSymlinks();
 const execFileAsync = promisify(execFile);
@@ -130,6 +131,30 @@ describe("diffAll integration", () => {
   let tempDir: string;
   let config: ResolvedConfig;
   let restoreLogger: () => void;
+  let provider: Awaited<
+    ReturnType<typeof createDevcanonRuntimeProviderFixture>
+  >;
+
+  const diffAll = (
+    comparedConfig: Parameters<typeof diffAllWithProvider>[0],
+    targetFilter: Parameters<typeof diffAllWithProvider>[1] = undefined,
+    strict = false,
+    acceptedProvider: Parameters<typeof diffAllWithProvider>[3] = provider,
+  ) =>
+    diffAllWithProvider(comparedConfig, targetFilter, strict, acceptedProvider);
+  const renderAll = (
+    renderedConfig: ResolvedConfig,
+    writeToGenerated = true,
+    strict = false,
+    targetFilter?: "claude" | "codex",
+  ) =>
+    renderAllWithProvider(
+      renderedConfig,
+      provider,
+      writeToGenerated,
+      strict,
+      targetFilter,
+    );
 
   beforeEach(async () => {
     tempDir = await createTempDir();
@@ -140,6 +165,7 @@ describe("diffAll integration", () => {
     // Ensure required directories exist
     await mkdir(config.library.skillsDir, { recursive: true });
     await copyDevcanonRuntimeFixture(config.library.skillsDir);
+    provider = await createDevcanonRuntimeProviderFixture(tempDir);
     await mkdir(config.library.agentsDir, { recursive: true });
     await mkdir(config.library.generatedDir, { recursive: true });
     await mkdir(config.targets.claude.agentsHome, { recursive: true });
