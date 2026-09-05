@@ -24,6 +24,7 @@ src/
 ├─ render/     Deterministic rendering to Claude (.md) and Codex (.toml)
 ├─ install/    Sync orchestration, install plan, manifest, copy/symlink modes
 ├─ diff/       Diff between generated outputs and installed managed outputs
+├─ analysis/   Internal skill-context measurement and guarded local results
 ├─ runtime/    Shared typed helper foundation for the packaged passive runtime
 ├─ runtime-build/
 │              Prebuilt runtime-provider production and package-safe acceptance
@@ -42,6 +43,7 @@ render -> config, models, utils, validate
 install -> config, models, render, utils, validate
 validate -> config, models, render, utils
 diff -> config, install, models, render, utils
+analysis -> config, models, render, utils
 config -> utils
 runtime -> (node built-ins, zod)
 runtime-build -> (build-time bundler, package metadata, node built-ins)
@@ -242,6 +244,22 @@ The render module exposes two orchestration levels:
 Generated-output cleanup is a full-library operation. Partial loaded-input
 renders may write the supplied outputs when explicitly requested, but omitted
 skills or agents are not treated as stale.
+
+### Internal Skill Context Analysis Boundary
+
+`src/analysis/` is an internal, one-way consumer of validated loaded skill and
+agent values. It obtains exact target content through `renderLoaded()` with
+generated writes disabled, reuses the existing token-count utility, and keeps
+support-file and local-result handling within its guarded filesystem owner.
+Its ignored `.ephemeral/` result publication completes and verifies a private
+temporary file before renaming it, and cleanup is limited to a temporary file
+the publisher owns.
+
+Analysis is outside the public CLI, configuration, validation, rendered-format,
+install, and sync surfaces. This is a non-normative module summary;
+[ADR-0036](../adr/adr-0036-internal-skill-context-analysis.md) owns the
+decision and rationale, while [ADR-0021](../adr/adr-0021-render-loaded-boundary.md)
+continues to own write-disabled loaded rendering.
 
 ---
 

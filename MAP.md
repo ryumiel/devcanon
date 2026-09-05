@@ -80,6 +80,9 @@ Quick navigation index for the DevCanon repository.
 - Where is the Vitest config? -> [`vitest.config.ts`](vitest.config.ts)
 - Where is the CLI config (dogfooding)? -> [`devcanon.config.yaml`](devcanon.config.yaml)
 - Where are direct skill helper script runtime tests? -> [`src/skill-scripts/`](src/skill-scripts/)
+- Where are the internal skill-context analysis runner and contract owners? ->
+  [`src/analysis/runner.ts`](src/analysis/runner.ts) and
+  [`src/analysis/skill-context.ts`](src/analysis/skill-context.ts)
 - Where are shared typed runtime helper modules? -> [`src/runtime/`](src/runtime/)
 - Where is installed passive-runtime sibling catalog loading and validation? ->
   [`src/runtime/runtime-config.ts`](src/runtime/runtime-config.ts)
@@ -103,6 +106,8 @@ Quick navigation index for the DevCanon repository.
   [`docs/adr/adr-0020-subagent-lifecycle-ownership.md`](docs/adr/adr-0020-subagent-lifecycle-ownership.md)
 - Where is the render loaded boundary decision recorded? ->
   [`docs/adr/adr-0021-render-loaded-boundary.md`](docs/adr/adr-0021-render-loaded-boundary.md)
+- Where is the internal skill-context analysis boundary decision recorded? ->
+  [`docs/adr/adr-0036-internal-skill-context-analysis.md`](docs/adr/adr-0036-internal-skill-context-analysis.md)
 - Where is the three-topical play-review fanout decision recorded? ->
   [`docs/adr/adr-0022-three-topical-play-review-fanout.md`](docs/adr/adr-0022-three-topical-play-review-fanout.md)
 - Where is the current play-planning readiness and parallel digest-gate
