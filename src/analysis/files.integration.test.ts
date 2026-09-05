@@ -107,6 +107,20 @@ describe("analysis support files", () => {
         readDeclaredSupportFile({ skill, target: "codex", path: declared }),
       ).rejects.toThrow();
     }
+
+    for (const declared of [
+      "references/nul\0name.md",
+      "references/carriage\rreturn.md",
+      "references/line\nfeed.md",
+    ]) {
+      await expect(
+        readDeclaredSupportFile({ skill, target: "codex", path: declared }),
+      ).rejects.toMatchObject({
+        category: "support-file",
+        message:
+          "support path must be a normalized repository-style relative path",
+      });
+    }
   });
 
   it("preserves BOM, CRLF, trailing bytes, and a missing final newline for non-shell support", async () => {

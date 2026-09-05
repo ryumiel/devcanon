@@ -383,7 +383,13 @@ async function validateRepositoryBoundary(
 function validateSupportPath(raw: string, skill: LoadedSkill): string {
   if (typeof raw !== "string" || raw.length === 0)
     fail("support-file", "support path must be a nonempty relative path");
-  if (raw.includes("\\") || path.posix.isAbsolute(raw))
+  if (
+    raw.includes("\\") ||
+    raw.includes("\0") ||
+    raw.includes("\r") ||
+    raw.includes("\n") ||
+    path.posix.isAbsolute(raw)
+  )
     fail(
       "support-file",
       "support path must be a normalized repository-style relative path",
