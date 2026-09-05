@@ -598,6 +598,92 @@ describe("skill context analysis contracts", () => {
     ).rejects.toThrow("envelope must be an object");
   });
 
+  it("rejects a comparison envelope that inherits its root wire fields", async () => {
+    const base = await completeEnvelope("base");
+    const candidate = await completeEnvelope("candidate");
+    const inheritedEnvelope = Object.create(candidate) as typeof candidate;
+
+    await expect(
+      compareSkillContextEnvelopes(base, inheritedEnvelope),
+    ).rejects.toThrow("invalid envelope structure");
+  });
+
+  it("rejects inherited required fields at every nested wire-object node", async () => {
+    const base = await completeEnvelope("base");
+    const candidate = await completeEnvelope("candidate");
+    const nestedCases = [
+      {
+        node: "payload",
+        replace: () =>
+          bindEnvelopeBytes(candidate, Object.create(candidate.payload)),
+      },
+      {
+        node: "identities",
+        replace: () =>
+          bindEnvelopeBytes(candidate, {
+            ...candidate.payload,
+            identities: Object.create(candidate.payload.identities),
+          }),
+      },
+      ...[
+        "raw-source",
+        "rendered-skill",
+        "discovery-field",
+        "support-file",
+        "declared-scenario",
+      ].map((kind) => ({
+        node: kind,
+        replace: () =>
+          bindEnvelopeBytes(candidate, {
+            ...candidate.payload,
+            records: candidate.payload.records.map((record) =>
+              record.kind === kind ? Object.create(record) : record,
+            ),
+          }),
+      })),
+    ];
+
+    for (const { node, replace } of nestedCases) {
+      await expect(
+        compareSkillContextEnvelopes(base, replace()),
+        `wire node: ${node}`,
+      ).rejects.toThrow("invalid envelope structure");
+    }
+  });
+
+  it("rejects a non-plain wire object even when all required fields are own", async () => {
+    const base = await completeEnvelope("base");
+    const candidate = await completeEnvelope("candidate");
+    const nonPlainIdentities = Object.assign(
+      Object.create({}),
+      candidate.payload.identities,
+    );
+    const nonPlainCandidate = bindEnvelopeBytes(candidate, {
+      ...candidate.payload,
+      identities: nonPlainIdentities,
+    });
+
+    await expect(
+      compareSkillContextEnvelopes(base, nonPlainCandidate),
+    ).rejects.toThrow("invalid envelope structure");
+  });
+
+  it("compares valid JSON-parsed canonical envelopes", async () => {
+    const base = await completeEnvelope("base");
+    const candidate = await completeEnvelope("candidate");
+    const parsedBase = await parseCanonicalSkillContextEnvelope(base.bytes);
+    const parsedCandidate = await parseCanonicalSkillContextEnvelope(
+      candidate.bytes,
+    );
+
+    await expect(
+      compareSkillContextEnvelopes(parsedBase, parsedCandidate),
+    ).resolves.toMatchObject({
+      basePayloadSha256: base.payloadSha256,
+      candidatePayloadSha256: candidate.payloadSha256,
+    });
+  });
+
   it("keeps domain integrity checks after structural wire parsing", async () => {
     const envelope = await completeEnvelope("base");
     const tampered = mutateEnvelope(envelope, (wire) => {
@@ -787,4 +873,18 @@ function mutateEnvelope(
   ) as MutableEnvelopeWire;
   mutate(wire);
   return Buffer.from(`${JSON.stringify(wire)}\n`, "utf8");
+}
+
+function bindEnvelopeBytes(
+  envelope: Awaited<ReturnType<typeof completeEnvelope>>,
+  payload: unknown,
+): Awaited<ReturnType<typeof completeEnvelope>> {
+  return Object.defineProperty(
+    { payloadSha256: envelope.payloadSha256, payload },
+    "bytes",
+    {
+      value: envelope.bytes,
+      enumerable: false,
+    },
+  ) as Awaited<ReturnType<typeof completeEnvelope>>;
 }

@@ -751,6 +751,7 @@ async function validateEnvelopeObject(
   bytes: Buffer,
 ): Promise<SkillContextEnvelope> {
   if (!isObject(value)) fail("envelope must be an object");
+  requireEnvelopeWireNodes(value);
   const result = EnvelopeWireSchema.safeParse(value);
   if (!result.success) failWireStructure(result.error.issues);
   const wire = result.data;
@@ -765,6 +766,58 @@ async function validateEnvelopeObject(
   );
   if (!canonical.equals(bytes)) fail("noncanonical envelope bytes");
   return withBytes({ payloadSha256: wire.payloadSha256, payload }, canonical);
+}
+
+function requireEnvelopeWireNodes(value: Record<string, unknown>): void {
+  requireOwnPlainWireNode(value, EnvelopeWireSchema);
+  const payload = value.payload;
+  requireOwnPlainWireNode(payload, PayloadWireSchema);
+  requireOwnPlainWireNode(payload.identities, IdentitiesWireSchema);
+  if (!Array.isArray(payload.records)) return;
+  for (const record of payload.records) {
+    requirePlainWireRecord(record);
+  }
+}
+
+function requirePlainWireRecord(value: unknown): void {
+  if (!isPlainWireObject(value) || !Object.hasOwn(value, "kind")) {
+    fail("invalid envelope structure");
+  }
+  switch (value.kind) {
+    case "raw-source":
+      requireOwnPlainWireNode(value, RawSourceWireSchema);
+      return;
+    case "rendered-skill":
+      requireOwnPlainWireNode(value, RenderedSkillWireSchema);
+      return;
+    case "discovery-field":
+      requireOwnPlainWireNode(value, DiscoveryFieldWireSchema);
+      return;
+    case "support-file":
+      requireOwnPlainWireNode(value, SupportFileWireSchema);
+      return;
+    case "declared-scenario":
+      requireOwnPlainWireNode(value, ScenarioWireSchema);
+      return;
+  }
+}
+
+function requireOwnPlainWireNode(
+  value: unknown,
+  schema: z.AnyZodObject,
+): asserts value is Record<string, unknown> {
+  if (
+    !isPlainWireObject(value) ||
+    !Object.keys(schema.shape).every((key) => Object.hasOwn(value, key))
+  ) {
+    fail("invalid envelope structure");
+  }
+}
+
+function isPlainWireObject(value: unknown): value is Record<string, unknown> {
+  if (!isObject(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
 
 async function validatePayload(
