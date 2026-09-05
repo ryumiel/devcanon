@@ -1,5 +1,6 @@
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
+import { type ZodIssue, z } from "zod";
 import {
   GPT_TOKEN_ESTIMATE_ENCODING,
   measureSkillPrompt,
@@ -21,6 +22,123 @@ const EXACT_KINDS = [
   "support-file",
 ] as const;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/u;
+
+const SubjectWireSchema = z.enum(SUBJECTS);
+const TargetWireSchema = z.enum(TARGETS);
+const IdentitiesWireSchema = z
+  .object({
+    rendererSemantic: z.string(),
+    renderConfigSha256: z.string(),
+    analyzerSemantic: z.string(),
+    measureSkillPromptSemantic: z.string(),
+    tokenizer: z.literal(GPT_TOKEN_ESTIMATE_ENCODING),
+    exactInputSerialization: z.string(),
+    scenarioAggregation: z.literal(SCENARIO_AGGREGATION_ID),
+  })
+  .strict();
+const ExactTextWireTailShape = {
+  exactText: z.string(),
+  exactInputSha256: z.string(),
+  utf8Bytes: z.number(),
+  tokenizer: z.literal(GPT_TOKEN_ESTIMATE_ENCODING),
+  estimatedTokens: z.number(),
+} as const;
+const RawSourceWireSchema = z
+  .object({
+    schema: z.literal(ANALYSIS_RECORD_SCHEMA),
+    key: z.string(),
+    kind: z.literal("raw-source"),
+    subject: SubjectWireSchema,
+    skill: z.string(),
+    ...ExactTextWireTailShape,
+  })
+  .strict();
+const RenderedSkillWireSchema = z
+  .object({
+    schema: z.literal(ANALYSIS_RECORD_SCHEMA),
+    key: z.string(),
+    kind: z.literal("rendered-skill"),
+    subject: SubjectWireSchema,
+    skill: z.string(),
+    target: TargetWireSchema,
+    ...ExactTextWireTailShape,
+  })
+  .strict();
+const DiscoveryFieldWireSchema = z
+  .object({
+    schema: z.literal(ANALYSIS_RECORD_SCHEMA),
+    key: z.string(),
+    kind: z.literal("discovery-field"),
+    subject: SubjectWireSchema,
+    skill: z.string(),
+    target: TargetWireSchema,
+    ...ExactTextWireTailShape,
+    name: z.string(),
+    description: z.string(),
+    invocationControls: z.array(z.string()),
+    serialization: z.literal(DISCOVERY_SERIALIZATION_ID),
+  })
+  .strict();
+const SupportFileWireSchema = z
+  .object({
+    schema: z.literal(ANALYSIS_RECORD_SCHEMA),
+    key: z.string(),
+    kind: z.literal("support-file"),
+    subject: SubjectWireSchema,
+    skill: z.string(),
+    target: TargetWireSchema,
+    ...ExactTextWireTailShape,
+    path: z.string(),
+    rawBytesSha256: z.string(),
+    targetTextSha256: z.string(),
+  })
+  .strict();
+const ExactTextRecordWireSchema = z.discriminatedUnion("kind", [
+  RawSourceWireSchema,
+  RenderedSkillWireSchema,
+  DiscoveryFieldWireSchema,
+  SupportFileWireSchema,
+]);
+const ScenarioWireSchema = z
+  .object({
+    schema: z.literal(ANALYSIS_RECORD_SCHEMA),
+    key: z.string(),
+    kind: z.literal("declared-scenario"),
+    subject: SubjectWireSchema,
+    skill: z.string(),
+    target: TargetWireSchema,
+    name: z.string(),
+    aggregation: z.literal("sum-of-components"),
+    componentKeys: z.array(z.string()),
+    componentEstimatedTokensTotal: z.number(),
+  })
+  .strict();
+const RecordWireSchema = z.discriminatedUnion("kind", [
+  RawSourceWireSchema,
+  RenderedSkillWireSchema,
+  DiscoveryFieldWireSchema,
+  SupportFileWireSchema,
+  ScenarioWireSchema,
+]);
+const PayloadWireSchema = z
+  .object({
+    schema: z.literal(ANALYSIS_PAYLOAD_SCHEMA),
+    subject: SubjectWireSchema,
+    skill: z.string(),
+    targets: z.array(TargetWireSchema),
+    identities: IdentitiesWireSchema,
+    records: z.array(RecordWireSchema),
+  })
+  .strict();
+const EnvelopeWireSchema = z
+  .object({
+    payloadSha256: z.string(),
+    payload: PayloadWireSchema,
+  })
+  .strict();
+
+type ExactTextWireRecord = z.infer<typeof ExactTextRecordWireSchema>;
+type SkillContextWirePayload = z.infer<typeof PayloadWireSchema>;
 
 export type AnalysisTarget = (typeof TARGETS)[number];
 export type AnalysisSubject = (typeof SUBJECTS)[number];
@@ -632,132 +750,97 @@ async function validateEnvelopeObject(
   value: unknown,
   bytes: Buffer,
 ): Promise<SkillContextEnvelope> {
-  if (!isObject(value)) fail("comparison envelope must be an object");
-  requireKeys(value, ["payloadSha256", "payload"]);
-  if (!isSha256(value.payloadSha256)) fail("invalid envelope hash");
-  const payload = await validatePayload(value.payload);
+  if (!isObject(value)) fail("envelope must be an object");
+  const result = EnvelopeWireSchema.safeParse(value);
+  if (!result.success) failWireStructure(result.error.issues);
+  const wire = result.data;
+  if (!isSha256(wire.payloadSha256)) fail("invalid envelope hash");
+  const payload = await validatePayload(wire.payload);
   const payloadBytes = Buffer.from(`${JSON.stringify(payload)}\n`, "utf8");
-  if (sha256(payloadBytes) !== value.payloadSha256)
+  if (sha256(payloadBytes) !== wire.payloadSha256)
     fail("envelope self-hash mismatch");
   const canonical = Buffer.from(
-    `${JSON.stringify({ payloadSha256: value.payloadSha256, payload })}\n`,
+    `${JSON.stringify({ payloadSha256: wire.payloadSha256, payload })}\n`,
     "utf8",
   );
   if (!canonical.equals(bytes)) fail("noncanonical envelope bytes");
-  return withBytes({ payloadSha256: value.payloadSha256, payload }, canonical);
+  return withBytes({ payloadSha256: wire.payloadSha256, payload }, canonical);
 }
 
-async function validatePayload(value: unknown): Promise<SkillContextPayload> {
-  if (!isObject(value)) fail("payload must be an object");
-  requireKeys(value, [
-    "schema",
-    "subject",
-    "skill",
-    "targets",
-    "identities",
-    "records",
-  ]);
-  if (value.schema !== ANALYSIS_PAYLOAD_SCHEMA) fail("unknown payload schema");
-  const input = {
-    subject: value.subject,
-    skill: value.skill,
-    targets: value.targets,
-    identities: value.identities,
-    records: value.records,
-  } as unknown as SkillContextPayloadInput;
-  const canonical = await createCanonicalPayload(input);
+async function validatePayload(
+  value: SkillContextWirePayload,
+): Promise<SkillContextPayload> {
+  const canonical = await createCanonicalPayload(value);
   if (JSON.stringify(canonical) !== JSON.stringify(value))
     fail("noncanonical payload");
   return canonical;
 }
 
+function failWireStructure(issues: readonly ZodIssue[]): never {
+  if (
+    issues.some(
+      (issue) =>
+        issue.path.at(-2) === "identities" && issue.path.at(-1) === "tokenizer",
+    )
+  ) {
+    fail("unsupported tokenizer identity");
+  }
+  if (
+    issues.some(
+      (issue) =>
+        issue.path.at(-2) === "identities" &&
+        issue.path.at(-1) === "scenarioAggregation",
+    )
+  ) {
+    fail("unknown scenario aggregation identity");
+  }
+  fail("invalid envelope structure");
+}
+
 function validateRecord(record: unknown): asserts record is SkillContextRecord {
-  if (!isObject(record) || typeof record.kind !== "string")
-    fail("unknown record");
-  if (record.kind === "declared-scenario") {
-    requireKeys(record, [
-      "schema",
-      "key",
-      "kind",
-      "subject",
-      "skill",
-      "target",
-      "name",
-      "aggregation",
-      "componentKeys",
-      "componentEstimatedTokensTotal",
-    ]);
-    if (
-      record.schema !== ANALYSIS_RECORD_SCHEMA ||
-      record.aggregation !== "sum-of-components"
-    ) {
-      fail("unknown scenario record schema or aggregation");
-    }
-    validateCommonRecordIdentity(record, true);
-    validateName(record.name, "scenario name");
-    if (
-      !Array.isArray(record.componentKeys) ||
-      record.componentKeys.length === 0
-    ) {
+  const result = RecordWireSchema.safeParse(record);
+  if (!result.success) fail("invalid record structure");
+  const wire = result.data;
+  if (wire.kind === "declared-scenario") {
+    validateCommonRecordIdentity(wire, true);
+    validateName(wire.name, "scenario name");
+    if (!Array.isArray(wire.componentKeys) || wire.componentKeys.length === 0) {
       fail("scenario component keys must be nonempty");
     }
     const unique = new Set<string>();
-    for (const key of record.componentKeys) {
+    for (const key of wire.componentKeys) {
       validateName(key, "scenario component key");
       if (unique.has(key)) fail("duplicate scenario component key");
       unique.add(key);
     }
-    if (!sameArray(record.componentKeys, [...unique].sort(compareUtf8))) {
+    if (!sameArray(wire.componentKeys, [...unique].sort(compareUtf8))) {
       fail("noncanonical scenario component order");
     }
     validateSafeNonnegative(
-      record.componentEstimatedTokensTotal,
+      wire.componentEstimatedTokensTotal,
       "scenario component total",
     );
     if (
-      record.key !==
-      recordKey(
-        record.kind,
-        record.subject as AnalysisSubject,
-        record.skill as string,
-        record.target as AnalysisTarget,
-        record.name as string,
-      )
+      wire.key !==
+      recordKey(wire.kind, wire.subject, wire.skill, wire.target, wire.name)
     ) {
       fail("scenario record key mismatch");
     }
     return;
   }
-  if (!EXACT_KINDS.includes(record.kind as ExactTextKind))
-    fail("unknown exact-text record kind");
-  validateExactTextRecord(record as unknown as ExactTextRecord);
+  validateExactTextRecordDomain(wire);
 }
 
-function validateExactTextRecord(record: ExactTextRecord): void {
-  if (!isObject(record)) fail("exact-text record must be an object");
+function validateExactTextRecord(
+  record: unknown,
+): asserts record is ExactTextRecord {
+  const result = ExactTextRecordWireSchema.safeParse(record);
+  if (!result.success) fail("invalid exact-text record structure");
+  validateExactTextRecordDomain(result.data);
+}
+
+function validateExactTextRecordDomain(record: ExactTextWireRecord): void {
   const kind = record.kind;
-  const keys = [
-    "schema",
-    "key",
-    "kind",
-    "subject",
-    "skill",
-    "exactText",
-    "exactInputSha256",
-    "utf8Bytes",
-    "tokenizer",
-    "estimatedTokens",
-  ];
-  if (kind !== "raw-source") keys.splice(5, 0, "target");
-  if (kind === "discovery-field") {
-    keys.push("name", "description", "invocationControls", "serialization");
-  }
-  if (kind === "support-file")
-    keys.push("path", "rawBytesSha256", "targetTextSha256");
-  requireKeys(record, keys);
-  if (!EXACT_KINDS.includes(kind)) fail("unknown exact-text record kind");
-  if (record.schema !== ANALYSIS_RECORD_SCHEMA)
-    fail("unknown exact-text record schema");
   validateCommonRecordIdentity(record, kind !== "raw-source");
   validateText(record.exactText, "exact text");
   if (
@@ -778,16 +861,14 @@ function validateExactTextRecord(record: ExactTextRecord): void {
       kind,
       record.subject,
       record.skill,
-      record.target,
+      record.kind === "raw-source" ? undefined : record.target,
       record.kind === "support-file" ? record.path : undefined,
     )
   ) {
     fail("exact-text record key mismatch");
   }
-  if (kind === "discovery-field")
-    validateDiscoveryRecord(record as DiscoveryFieldRecord);
-  if (kind === "support-file")
-    validateSupportRecord(record as SupportFileRecord);
+  if (record.kind === "discovery-field") validateDiscoveryRecord(record);
+  if (record.kind === "support-file") validateSupportRecord(record);
 }
 
 async function validateMeasuredExactTextRecord(
@@ -870,7 +951,12 @@ function validateExactInput(input: ExactTextRecordInput): void {
 }
 
 function validateCommonRecordIdentity(
-  record: Record<string, unknown>,
+  record: {
+    readonly subject: unknown;
+    readonly skill: unknown;
+    readonly key: unknown;
+    readonly target?: unknown;
+  },
   requiresTarget: boolean,
 ): void {
   validateSubject(record.subject);
@@ -884,33 +970,31 @@ function validateCommonRecordIdentity(
 function validateIdentities(
   value: unknown,
 ): asserts value is AnalysisIdentities {
-  if (!isObject(value)) fail("identities must be an object");
-  requireKeys(value, [
-    "rendererSemantic",
-    "renderConfigSha256",
-    "analyzerSemantic",
-    "measureSkillPromptSemantic",
-    "tokenizer",
-    "exactInputSerialization",
-    "scenarioAggregation",
-  ]);
-  validateName(value.rendererSemantic, "renderer semantic identity");
-  if (!isSha256(value.renderConfigSha256))
+  const result = IdentitiesWireSchema.safeParse(value);
+  if (!result.success) failIdentityStructure(result.error.issues);
+  const identities = result.data;
+  validateName(identities.rendererSemantic, "renderer semantic identity");
+  if (!isSha256(identities.renderConfigSha256))
     fail("render config identity must be SHA-256");
-  validateName(value.analyzerSemantic, "analyzer semantic identity");
+  validateName(identities.analyzerSemantic, "analyzer semantic identity");
   validateName(
-    value.measureSkillPromptSemantic,
+    identities.measureSkillPromptSemantic,
     "measureSkillPrompt semantic identity",
   );
-  if (value.tokenizer !== GPT_TOKEN_ESTIMATE_ENCODING)
-    fail("unsupported tokenizer identity");
   validateName(
-    value.exactInputSerialization,
+    identities.exactInputSerialization,
     "exact-input serialization identity",
   );
-  if (value.scenarioAggregation !== SCENARIO_AGGREGATION_ID) {
+}
+
+function failIdentityStructure(issues: readonly ZodIssue[]): never {
+  if (issues.some((issue) => issue.path.at(-1) === "tokenizer")) {
+    fail("unsupported tokenizer identity");
+  }
+  if (issues.some((issue) => issue.path.at(-1) === "scenarioAggregation")) {
     fail("unknown scenario aggregation identity");
   }
+  fail("invalid identities structure");
 }
 
 function uniqueSortedTargets(
@@ -1043,16 +1127,6 @@ function validateNormalizedPath(value: unknown): asserts value is string {
   ) {
     fail("support path must be normalized bundle-relative path");
   }
-}
-
-function requireKeys(
-  value: Record<string, unknown>,
-  expected: readonly string[],
-): void {
-  const actual = Object.keys(value).sort(compareUtf8);
-  const sortedExpected = [...expected].sort(compareUtf8);
-  if (!sameArray(actual, sortedExpected))
-    fail("unknown or missing object members");
 }
 
 function sameArray<T>(left: readonly T[], right: readonly T[]): boolean {

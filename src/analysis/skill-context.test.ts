@@ -567,6 +567,51 @@ describe("skill context analysis contracts", () => {
     ).rejects.toThrow("noncanonical");
   });
 
+  it("uses strict wire schemas before canonical and integrity validation", async () => {
+    const envelope = await completeEnvelope("base");
+    const cases = [
+      (wire: MutableEnvelopeWire) => {
+        wire.unknown = true;
+      },
+      (wire: MutableEnvelopeWire) => {
+        Reflect.deleteProperty(wire.payload, "skill");
+      },
+      (wire: MutableEnvelopeWire) => {
+        wire.payload.identities.rendererSemantic = 42;
+      },
+      (wire: MutableEnvelopeWire) => {
+        const raw = wire.payload.records.find(
+          (record) => record.kind === "raw-source",
+        );
+        if (raw !== undefined) raw.target = "codex";
+      },
+    ];
+
+    for (const mutate of cases) {
+      await expect(
+        parseCanonicalSkillContextEnvelope(mutateEnvelope(envelope, mutate)),
+      ).rejects.toThrow("invalid envelope structure");
+    }
+
+    await expect(
+      parseCanonicalSkillContextEnvelope(Buffer.from("[]\n", "utf8")),
+    ).rejects.toThrow("envelope must be an object");
+  });
+
+  it("keeps domain integrity checks after structural wire parsing", async () => {
+    const envelope = await completeEnvelope("base");
+    const tampered = mutateEnvelope(envelope, (wire) => {
+      const support = wire.payload.records.find(
+        (record) => record.kind === "support-file",
+      );
+      if (support !== undefined) support.exactText = "tampered support";
+    });
+
+    await expect(parseCanonicalSkillContextEnvelope(tampered)).rejects.toThrow(
+      "exact input hash mismatch",
+    );
+  });
+
   it("accepts semantically identical scenario fields regardless of property insertion order", async () => {
     const envelope = await completeEnvelope("base");
     const reordered = envelope.payload.records.map((record) => {
@@ -721,4 +766,25 @@ function retagIdentity(
     value: bytes,
     enumerable: false,
   }) as typeof envelope;
+}
+
+interface MutableEnvelopeWire {
+  payloadSha256: string;
+  payload: {
+    skill?: string;
+    identities: Record<string, unknown>;
+    records: Array<Record<string, unknown>>;
+  };
+  unknown?: boolean;
+}
+
+function mutateEnvelope(
+  envelope: Awaited<ReturnType<typeof completeEnvelope>>,
+  mutate: (wire: MutableEnvelopeWire) => void,
+): Buffer {
+  const wire = JSON.parse(
+    envelope.bytes.toString("utf8"),
+  ) as MutableEnvelopeWire;
+  mutate(wire);
+  return Buffer.from(`${JSON.stringify(wire)}\n`, "utf8");
 }
