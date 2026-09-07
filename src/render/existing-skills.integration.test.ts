@@ -481,6 +481,32 @@ describe("shipped skill rendering", () => {
     }
   });
 
+  it("keeps conditional Phase 3 controller support linked and packaged for both write-disabled targets", async () => {
+    const config = await loadConfig(
+      path.join(process.cwd(), "devcanon.config.yaml"),
+    );
+    const { outputs, skills } = await renderAll(config, false, true);
+    const workflow = skills.find(
+      (skill) => skill.name === "issue-priming-workflow",
+    );
+    const reference = "references/phase-3-research-controller.md";
+
+    expect(workflow).toBeDefined();
+    expect(workflow?.subdirs).toContain("references");
+    expect(
+      await pathExists(path.join(workflow?.dirPath ?? "", reference)),
+    ).toBe(true);
+
+    for (const target of TARGETS) {
+      const { body } = parseFrontmatter(
+        getSkillOutput(outputs, "issue-priming-workflow", target).content,
+      );
+      expect(body).toContain(
+        "[`references/phase-3-research-controller.md`](references/phase-3-research-controller.md)",
+      );
+    }
+  });
+
   it("renders every validated source skill once for each enabled target", async () => {
     const config = await loadConfig(
       path.join(process.cwd(), "devcanon.config.yaml"),
