@@ -25,6 +25,7 @@ import {
   RUNTIME_JS_DIR,
   type RuntimeAdapterPair,
   type ValidatedDevcanonRuntime,
+  assertNativeResolverContract,
 } from "../validate/devcanon-runtime.js";
 import { DEVCANON_RUNTIME_SKILL_NAME } from "../validate/skills.js";
 import { normalizePackagedShellBytes } from "./packaged-shell.js";
@@ -584,14 +585,16 @@ async function assertStagedBundle(runtimeDirectory: string): Promise<void> {
 
 async function assertStagedRuntime(scriptsDirectory: string): Promise<void> {
   await assertStagedBundle(path.join(scriptsDirectory, "runtime"));
-  if (process.platform !== "win32") {
-    const { stdout } = await promisify(execFile)("bash", [
-      path.join(scriptsDirectory, "devcanon-runtime.sh"),
-      "runtime",
-      "resolve-bash",
-    ]);
-    await assertBashExecutable(stdout, "staged shell");
+  if (process.platform === "win32") {
+    await assertNativeResolverContract(scriptsDirectory);
+    return;
   }
+  const { stdout } = await promisify(execFile)("bash", [
+    path.join(scriptsDirectory, "devcanon-runtime.sh"),
+    "runtime",
+    "resolve-bash",
+  ]);
+  await assertBashExecutable(stdout, "staged shell");
   const { stdout: resolverStdout } = await promisify(execFile)(
     process.execPath,
     [path.join(scriptsDirectory, "resolve-bash.mjs")],

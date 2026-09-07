@@ -66,7 +66,9 @@ describe("devcanon-runtime source validation", () => {
   it("accepts the closed three-leaf derived runtime subtree", async () => {
     const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
     await expect(
-      readdir(path.join(runtimeDir, "scripts", "runtime")),
+      readdir(path.join(runtimeDir, "scripts", "runtime")).then((entries) =>
+        entries.sort(),
+      ),
     ).resolves.toEqual([
       "THIRD_PARTY_LICENSES",
       "devcanon-runtime.mjs",
@@ -327,7 +329,7 @@ describe("devcanon-runtime source validation", () => {
     ).resolves.toMatchObject({
       adapterState: "pristine-legacy",
       adapterPair: { shell: currentShell, resolver: currentResolver },
-      sourceAdapterPair: legacy,
+      sourceAdapterPair: { shell: legacy.shell, resolver: legacy.resolver },
     });
   });
 
@@ -432,27 +434,33 @@ describe("devcanon-runtime source validation", () => {
     },
   );
 
-  it("rejects a broken authoritative shell even when authority equals candidate", async () => {
-    const authority = path.join(tempDir, "authority");
-    await copyDevcanonRuntimeFixture(path.join(tempDir, "authority-parent"));
-    const copied = path.join(tempDir, "authority-parent", "devcanon-runtime");
-    await mkdir(path.dirname(authority), { recursive: true });
-    // Rename gives a bounded local authority seam without touching checkout bytes.
-    const { rename } = await import("node:fs/promises");
-    await rename(copied, authority);
-    await writeFile(
-      path.join(authority, "scripts", "devcanon-runtime.sh"),
-      "#!/usr/bin/env bash\necho not-contract\n",
-    );
-    await chmod(path.join(authority, "scripts", "devcanon-runtime.sh"), 0o755);
-    await expect(
-      validateBundledDevcanonRuntime(authority, {
-        adapterSourceDir: authority,
-      }),
-    ).rejects.toMatchObject({
-      message: expect.stringContaining("adapter contract check failed"),
-    } satisfies Partial<UserError>);
-  });
+  it.skipIf(process.platform === "win32")(
+    "rejects a broken authoritative shell even when authority equals candidate",
+    async () => {
+      const authority = path.join(tempDir, "authority");
+      await copyDevcanonRuntimeFixture(path.join(tempDir, "authority-parent"));
+      const copied = path.join(tempDir, "authority-parent", "devcanon-runtime");
+      await mkdir(path.dirname(authority), { recursive: true });
+      // Rename gives a bounded local authority seam without touching checkout bytes.
+      const { rename } = await import("node:fs/promises");
+      await rename(copied, authority);
+      await writeFile(
+        path.join(authority, "scripts", "devcanon-runtime.sh"),
+        "#!/usr/bin/env bash\necho not-contract\n",
+      );
+      await chmod(
+        path.join(authority, "scripts", "devcanon-runtime.sh"),
+        0o755,
+      );
+      await expect(
+        validateBundledDevcanonRuntime(authority, {
+          adapterSourceDir: authority,
+        }),
+      ).rejects.toMatchObject({
+        message: expect.stringContaining("adapter contract check failed"),
+      } satisfies Partial<UserError>);
+    },
+  );
 
   it("rejects a broken authoritative resolver even when authority equals candidate", async () => {
     const authority = path.join(tempDir, "authority");
@@ -495,33 +503,39 @@ describe("devcanon-runtime source validation", () => {
     } satisfies Partial<UserError>);
   });
 
-  it("rejects an authoritative shell that targets a removed entrypoint", async () => {
-    const authority = path.join(tempDir, "authority");
-    await copyDevcanonRuntimeFixture(path.join(tempDir, "authority-parent"));
-    const { rename } = await import("node:fs/promises");
-    await rename(
-      path.join(tempDir, "authority-parent", "devcanon-runtime"),
-      authority,
-    );
-    await writeFile(
-      path.join(authority, "scripts", "devcanon-runtime.sh"),
-      [
-        "#!/usr/bin/env bash",
-        'if [ "$1" = contract ]; then printf \'%s\\n\' \'{"command_group":"devcanon-runtime","major_version":1}\'; exit 0; fi',
-        'exec node "$(dirname "$0")/runtime/cli.js" "$@"',
-        "",
-      ].join("\n"),
-    );
-    await chmod(path.join(authority, "scripts", "devcanon-runtime.sh"), 0o755);
+  it.skipIf(process.platform === "win32")(
+    "rejects an authoritative shell that targets a removed entrypoint",
+    async () => {
+      const authority = path.join(tempDir, "authority");
+      await copyDevcanonRuntimeFixture(path.join(tempDir, "authority-parent"));
+      const { rename } = await import("node:fs/promises");
+      await rename(
+        path.join(tempDir, "authority-parent", "devcanon-runtime"),
+        authority,
+      );
+      await writeFile(
+        path.join(authority, "scripts", "devcanon-runtime.sh"),
+        [
+          "#!/usr/bin/env bash",
+          'if [ "$1" = contract ]; then printf \'%s\\n\' \'{"command_group":"devcanon-runtime","major_version":1}\'; exit 0; fi',
+          'exec node "$(dirname "$0")/runtime/cli.js" "$@"',
+          "",
+        ].join("\n"),
+      );
+      await chmod(
+        path.join(authority, "scripts", "devcanon-runtime.sh"),
+        0o755,
+      );
 
-    await expect(
-      validateBundledDevcanonRuntime(authority, {
-        adapterSourceDir: authority,
-      }),
-    ).rejects.toMatchObject({
-      message: expect.stringContaining("adapter contract check failed"),
-    } satisfies Partial<UserError>);
-  });
+      await expect(
+        validateBundledDevcanonRuntime(authority, {
+          adapterSourceDir: authority,
+        }),
+      ).rejects.toMatchObject({
+        message: expect.stringContaining("adapter contract check failed"),
+      } satisfies Partial<UserError>);
+    },
+  );
 
   it("rejects an authoritative resolver that prints a nonexistent absolute path", async () => {
     const authority = path.join(tempDir, "authority");
@@ -564,7 +578,11 @@ describe("devcanon-runtime source validation", () => {
       }),
     ).rejects.toMatchObject({
       message: expect.stringContaining("adapter contract check failed"),
-      hint: expect.stringContaining("non-Bash executable path"),
+      hint: expect.stringContaining(
+        process.platform === "win32"
+          ? "resolver output did not match the selected runtime"
+          : "non-Bash executable path",
+      ),
     } satisfies Partial<UserError>);
   });
 

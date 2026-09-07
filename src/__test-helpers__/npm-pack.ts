@@ -1,3 +1,34 @@
+import { execFile } from "node:child_process";
+import { createRequire } from "node:module";
+import { promisify } from "node:util";
+
+const crossSpawn = createRequire(import.meta.url)("cross-spawn") as {
+  sync: typeof import("node:child_process").spawnSync;
+};
+
+/** Package fixture setup must support Windows npm/pnpm .cmd shims. */
+export async function runPackageManager(
+  command: "npm" | "pnpm",
+  args: string[],
+  options: { cwd: string; env?: NodeJS.ProcessEnv },
+): Promise<{ stdout: string; stderr: string }> {
+  if (process.platform !== "win32") {
+    return promisify(execFile)(command, args, options);
+  }
+  const result = crossSpawn.sync(command, args, {
+    ...options,
+    encoding: "utf8",
+    windowsHide: true,
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(
+      `${command} ${args.join(" ")} failed:\n${result.stderr}\n${result.stdout}`,
+    );
+  }
+  return { stdout: result.stdout, stderr: result.stderr };
+}
+
 export interface PackedFile {
   path: string;
 }

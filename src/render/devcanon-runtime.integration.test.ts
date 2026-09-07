@@ -94,7 +94,9 @@ describe("devcanon-runtime rendering", () => {
         "runtime",
       ]);
       await expect(
-        readdir(path.join(root, "scripts", "runtime")),
+        readdir(path.join(root, "scripts", "runtime")).then((entries) =>
+          entries.sort(),
+        ),
       ).resolves.toEqual([
         "THIRD_PARTY_LICENSES",
         "devcanon-runtime.mjs",
@@ -429,7 +431,9 @@ describe("devcanon-runtime rendering", () => {
       /runtime directory published successfully, but cleanup failed; retained operation backup at .*forced subtree cleanup failure/i,
     );
 
-    await expect(readdir(runtime)).resolves.toEqual([
+    await expect(
+      readdir(runtime).then((entries) => entries.sort()),
+    ).resolves.toEqual([
       "THIRD_PARTY_LICENSES",
       "devcanon-runtime.mjs",
       "runtime-manifest.json",
@@ -523,7 +527,9 @@ describe("devcanon-runtime rendering", () => {
     await expect(
       readFile(path.join(scripts, "resolve-bash.mjs")),
     ).resolves.toEqual(currentResolver);
-    await expect(readdir(runtime)).resolves.toEqual([
+    await expect(
+      readdir(runtime).then((entries) => entries.sort()),
+    ).resolves.toEqual([
       "THIRD_PARTY_LICENSES",
       "devcanon-runtime.mjs",
       "runtime-manifest.json",
@@ -662,7 +668,9 @@ describe("devcanon-runtime rendering", () => {
       "keep old name\n",
     );
     await expect(
-      readdir(path.join(runtimeDir, "scripts", "runtime")),
+      readdir(path.join(runtimeDir, "scripts", "runtime")).then((entries) =>
+        entries.sort(),
+      ),
     ).resolves.toEqual([
       "THIRD_PARTY_LICENSES",
       "devcanon-runtime.mjs",
@@ -741,7 +749,11 @@ describe("devcanon-runtime rendering", () => {
           authoritativeAdapterPair: brokenPair,
         }),
       ),
-    ).rejects.toThrow(/staged resolver emitted a non-Bash executable path/i);
+    ).rejects.toThrow(
+      process.platform === "win32"
+        ? /resolver output did not match the selected runtime/i
+        : /staged resolver emitted a non-Bash executable path/i,
+    );
     await expect(
       readFile(path.join(runtimeDir, "scripts", "resolve-bash.mjs")),
     ).resolves.toEqual(before);

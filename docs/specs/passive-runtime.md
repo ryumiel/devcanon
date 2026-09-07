@@ -8,8 +8,7 @@ This specification is the sole behavior owner for the passive runtime's
 artifact custody, provider acceptance, composition lifecycle, trusted-bootstrap
 selection boundary, canonical build inputs, attribution ordering, and
 recomposition behavior. The provider-backed behavior in this specification is
-current implementation behavior except where a requirement explicitly records
-deferred native-Windows proof.
+current implementation behavior on supported platforms.
 
 [ADR-0024](../adr/adr-0024-shared-support-skill-runtime.md) records the
 architectural decisions and rationale. It does not duplicate this observable
@@ -162,6 +161,11 @@ when both adapters' bytes match. Native Windows ignores POSIX mode for this
 classification.
 Fresh `init` instead creates the version-matched pair under PR-LIFE-04 and has
 no existing pair to classify or migrate.
+
+Native Windows checks the Node resolver's output and exit status against the
+accepted runtime under a controlled environment without Git Bash. A matching
+no-usable-Bash refusal is valid delegation, so composition does not require a
+shell installation. This check does not execute the POSIX shell adapter.
 
 A missing adapter, mixed pair, modified legacy adapter, or unrecognized pair
 fails before adapter, catalog, or PR-ART-05 mutation. The diagnostic identifies

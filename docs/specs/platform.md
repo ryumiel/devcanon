@@ -128,15 +128,15 @@ stdout bytes, stderr bytes, and exit status each match the corresponding direct
 `.mjs` call exactly. The shell file is only a delegation proof; direct Node
 execution remains the cross-platform proof surface.
 
-Native Windows implementation and machine proof are deferred to the dedicated
-Windows follow-up. That work runs the fixture, package-local CLI, copied-runtime
-and disjoint selected-runtime phases from native Node. Native Node, rather than
-Bash or a `.sh` adapter, launches the copied runtime and public resolver; the
-resolver may execute a controlled Git-for-Windows Bash candidate as the
-behavior under proof. The work must prove direct `.mjs` runtime and bootstrap
-behavior, copied public-resolver success and actionable refusal, exact output
-and exit propagation, and absence of ambient resolution. The follow-up's live
-state is not a normative dependency of this specification.
+Native Windows runs the fixture, package-local CLI, copied-runtime, and disjoint
+selected-runtime phases from native Node. Initialization, validation, rendering,
+and synchronization do not require Git Bash: adapter validation checks that the
+Node resolver preserves the selected runtime's result, including its documented
+no-Bash refusal. Native Node launches the copied runtime and public resolver;
+only the controlled resolver-success case may probe Git-for-Windows Bash.
+The package integration test covers direct execution, bootstrap forwarding,
+traversal and junction rejection, resolver outcomes, and absence of ambient
+resolution on an actual Windows host.
 
 For the same canonical inputs and `artifact_origin`, clean independent builds
 must produce byte-identical runtime bundle, manifest, and third-party-license

@@ -589,19 +589,19 @@ async function requireAdapterContracts(authority: string): Promise<void> {
   const shell = path.join(authority, RUNTIME_ENTRYPOINT);
   const resolver = path.join(authority, RUNTIME_BASH_RESOLVER);
   try {
-    if (process.platform !== "win32") {
-      await access(shell, constants.X_OK);
+    if (process.platform === "win32") {
+      await assertNativeResolverContract(path.join(authority, "scripts"));
+      return;
     }
+    await access(shell, constants.X_OK);
     const { execFile } = await import("node:child_process");
     const { promisify } = await import("node:util");
-    if (process.platform !== "win32") {
-      const { stdout: shellStdout } = await promisify(execFile)("bash", [
-        shell,
-        "runtime",
-        "resolve-bash",
-      ]);
-      await assertBashExecutable(shellStdout, "shell adapter");
-    }
+    const { stdout: shellStdout } = await promisify(execFile)("bash", [
+      shell,
+      "runtime",
+      "resolve-bash",
+    ]);
+    await assertBashExecutable(shellStdout, "shell adapter");
     const { stdout: resolverStdout } = await promisify(execFile)(
       process.execPath,
       [resolver],
@@ -613,6 +613,41 @@ async function requireAdapterContracts(authority: string): Promise<void> {
       authority,
       `Reinstall DevCanon or restore the bundled adapter pair. ${(error as Error).message}`,
     );
+  }
+}
+
+/** Native composition validates delegation without requiring an installed Bash. */
+export async function assertNativeResolverContract(
+  scriptsDirectory: string,
+): Promise<void> {
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  const env = { SystemRoot: process.env.SystemRoot, PATH: "" };
+  const invoke = (args: string[]) =>
+    promisify(execFile)(process.execPath, args, {
+      env,
+      windowsHide: true,
+    }).then(
+      ({ stdout, stderr }) => ({ code: 0, stdout, stderr }),
+      (error: { code?: number | string; stdout?: string; stderr?: string }) => {
+        if (typeof error.code !== "number") throw error;
+        return { code: error.code, stdout: error.stdout, stderr: error.stderr };
+      },
+    );
+  const expected = await invoke([
+    path.join(scriptsDirectory, "runtime", "devcanon-runtime.mjs"),
+    "runtime",
+    "resolve-bash",
+  ]);
+  const actual = await invoke([
+    path.join(scriptsDirectory, "resolve-bash.mjs"),
+  ]);
+  if (
+    actual.code !== expected.code ||
+    actual.stdout !== expected.stdout ||
+    actual.stderr !== expected.stderr
+  ) {
+    throw new Error("resolver output did not match the selected runtime");
   }
 }
 
