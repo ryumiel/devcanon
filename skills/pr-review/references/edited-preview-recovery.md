@@ -55,12 +55,17 @@ must not be `## Root-Cause Synthesis`.
 
 ## Re-enter the Phase 5 gate
 
-For either route, continue through existing public owners in this order:
-`write-review-body`, `recover-review-body-publication` when needed,
-`render-review-preview`, result update, `gated` lease write, then
-`render-phase5-audit-summary`. Do not move later owners into
-`replace-findings`. Present the re-rendered artifact-backed stdout and the
-updated result-manifest notice, then wait for a new explicit approval of that
-latest preview. Do not rebuild the preview from conversation text or current
-checkout state, reuse approval for the earlier preview, or proceed to Phase 6
-before renewed approval.
+For an ordinary body edit or successful findings replacement, continue through
+existing public owners in this order: `write-review-body`,
+`recover-review-body-publication` when needed, `render-review-preview`,
+`update_pr_review_result_manifest "edited"`, `gated` lease write with
+`PRESENTATION_STATUS="edited"`, then `render-phase5-audit-summary`. For an
+already interrupted `write-review-body`, run
+`recover-review-body-publication` first before any retry, render, result
+update, lease write, or audit; then continue through the remaining applicable
+owners in that order. Do not move later owners into `replace-findings`.
+Present the re-rendered artifact-backed stdout and the updated result-manifest
+notice, then wait for a new explicit approval of that latest preview. Do not
+rebuild the preview from conversation text or current checkout state, reuse
+approval for the earlier preview, or proceed to Phase 6 before renewed
+approval.
