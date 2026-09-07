@@ -349,9 +349,10 @@ persists. D2 and D3 are direct depth-1 response-only `investigator` leaves:
 Codex-bound `D2_MODEL` = `{{model-codex:balanced}}` or `D3_MODEL` =
 `{{model-codex:balanced}}`; independent `reasoning_effort: high`;
 `source_authority: source-immutable`; `external_authority: none`; and zero
-handoffs. D2 has no network access. D3 has dispatch-named `named-network`
-access only for its one root-curated question; neither route may mutate an
-external system. A missing, blank, unresolved, or mismatched model/tuple
+handoffs. D2 has no network access. D3's network binding is exactly
+`dispatch-named`, and its evidence qualifier is exactly `named-network`, only
+for its one root-curated question; neither route may mutate an external system.
+A missing, blank, unresolved, or mismatched model/tuple
 blocks before capture or spawn: no ambient inference, alias, fallback, effort
 change, retry, escalation, or role substitution. Each child has fresh history,
 does not spawn, write files, invoke helpers, persist reports, or emit notices.
