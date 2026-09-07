@@ -19,26 +19,13 @@ placeholder substitution. The role identity is already promoted; per
 [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md)
 §4, workflow-local prompt assembly stays as a template.
 
-## Controller Input Contract
+## Root-Supplied Inputs
 
-Before creating lifecycle state or dispatching this template, the root
-validates the worktree and guarded artifact paths, then validates the complete
-placeholder tuple. `SOURCE` is exactly `github` or `linear`. `ID`, `TITLE`,
-`ISSUE_BODY_PATH`, `GATE_REASON`, and `REPO_ROOT` are required, nonblank, and
-single-line.
-`COMMENT_EVIDENCE_PATH_OR_NONE` is a guarded comment-evidence path or exactly
-`(none)`. Every required scalar is nonblank after trimming and single-line.
-`RESEARCH_SCOPE` is exactly `internal` or `external`.
-`EXTERNAL_NECESSITY_OR_NONE` is scope-paired: external uses exactly `required`
-or `useful`; internal uses exactly `(none)`. `EXTERNAL_QUESTION_OR_NONE` is
-scope-paired: external requires one nonblank single-line question of at most
-500 characters; internal uses exactly `(none)`.
-
-A missing, empty, whitespace-only, multiline, over-limit, invalid, or incompletely substituted
-value stops Phase 3 before lifecycle dispatch, helper invocation, artifact
-creation, notice emission, or Phase 4. The root creates a fresh, fully
-populated prompt for each sibling; a child never infers its source, scope,
-external necessity, or external question.
+The root independently validates and substitutes every visible dispatch input
+before it creates lifecycle state or dispatches this template. Each child gets a
+fresh complete prompt and never infers source, scope, external necessity, or
+external question; root-side tuple validation and returned-report consumption
+remain owned by Phase 3 in [`SKILL.md`](../SKILL.md).
 
 ````text
     You are a source-immutable research leaf preparing one bounded report for
@@ -170,20 +157,3 @@ external necessity, or external question.
     permitted, and alone owns helper invocation, artifact persistence, the
     exact producer notice, and the Phase 4 handoff.
 ````
-
-## Placeholder Reference
-
-Replace every placeholder independently for every dispatch:
-
-| Placeholder                       | Source                                                                   |
-| --------------------------------- | ------------------------------------------------------------------------ |
-| `<SOURCE>`                        | `payload.source` (`linear` or `github`)                                  |
-| `<ID>`                            | `payload.identifier` (for example `ENG-123` or `#149`)                   |
-| `<TITLE>`                         | `payload.title`                                                          |
-| `<ISSUE_BODY_PATH>`               | guarded `payload.issue-body-path`                                        |
-| `<COMMENT_EVIDENCE_PATH_OR_NONE>` | guarded `payload.comment-evidence-path`, otherwise `(none)`              |
-| `<GATE_REASON>`                   | Gate response reason, or `forced by --research`                          |
-| `<REPO_ROOT>`                     | Phase 1 issue worktree root                                              |
-| `<RESEARCH_SCOPE>`                | Root-assigned `internal` or `external`                                   |
-| `<EXTERNAL_NECESSITY_OR_NONE>`    | `(none)` for internal; root-recorded `required` or `useful` for external |
-| `<EXTERNAL_QUESTION_OR_NONE>`     | `(none)` for internal; root-curated bounded question for external        |
