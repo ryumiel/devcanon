@@ -320,12 +320,9 @@ describe("play-planning execution projection contract", () => {
     expect(digestGate).toBeGreaterThanOrEqual(0);
     expect(helperGate).toBeGreaterThan(digestGate);
     expect(execution).toContain("closed `planning-projection/v1` success");
-    expect(execution).toMatch(
-      /zero-status malformed or unknown success or\s+inconsistent result/u,
-    );
   });
 
-  it("keeps the path-backed success envelope closed before controller consumption", async () => {
+  it("keeps the detailed path-backed envelope in usage while main enforces intake", async () => {
     const [usage, execution] = await Promise.all([
       readRepoFile(
         "skills/play-subagent-execution/references/inspect-plan-projection-usage.md",
@@ -354,12 +351,14 @@ describe("play-planning execution projection contract", () => {
       "nonnegative integers",
     ];
 
-    for (const original of [usage, execution]) {
-      const source = original.replace(/\s+/gu, " ");
-      for (const term of requiredContractTerms) {
-        expect(source).toContain(term);
-      }
+    const normalizedUsage = usage.replace(/\s+/gu, " ");
+    for (const term of requiredContractTerms) {
+      expect(normalizedUsage).toContain(term);
     }
+
+    expect(execution).toMatch(
+      /\[[^\]]+\]\(references\/inspect-plan-projection-usage\.md\)/u,
+    );
   });
 
   it("blocks zero-status malformed and channel-violating path-backed success before every consumer", async () => {
@@ -370,14 +369,20 @@ describe("play-planning execution projection contract", () => {
       readRepoFile("skills/play-subagent-execution/SKILL.md"),
     ]);
 
-    for (const original of [usage, execution]) {
-      const source = original.replace(/\s+/gu, " ");
-      expect(source).toContain("zero-status malformed or unknown success");
-      expect(source).toContain("extra stdout bytes");
-      expect(source).toContain("nonempty success stderr");
-      expect(source).toContain("`BLOCKED/NEEDS_CONTEXT`");
-      expect(source).toContain("no repair, fallback, or partial use");
-    }
+    const normalizedUsage = usage.replace(/\s+/gu, " ");
+    expect(normalizedUsage).toContain(
+      "zero-status malformed or unknown success",
+    );
+    expect(normalizedUsage).toContain("extra stdout bytes");
+    expect(normalizedUsage).toContain("nonempty success stderr");
+    expect(normalizedUsage).toContain("`BLOCKED/NEEDS_CONTEXT`");
+    expect(normalizedUsage).toContain("no repair, fallback, or partial use");
+
+    const normalizedExecution = execution.replace(/\s+/gu, " ");
+    expect(normalizedExecution).toContain("`BLOCKED/NEEDS_CONTEXT`");
+    expect(normalizedExecution).toContain(
+      "no repair, fallback, or partial use",
+    );
     expect(execution.replace(/\s+/gu, " ")).toContain(
       "before skip evaluation, inline execution, implementer/reviewer dispatch, or final review",
     );
@@ -401,13 +406,11 @@ describe("play-planning execution projection contract", () => {
       "bad identifier, empty affected surfaces, or invalid range",
     ];
 
-    for (const original of [usage, execution]) {
-      const source = original.replace(/\s+/gu, " ");
-      for (const constraint of requiredConstraints) {
-        expect(source).toContain(constraint);
-      }
-      expect(source).toContain("`BLOCKED/NEEDS_CONTEXT`");
+    const normalizedUsage = usage.replace(/\s+/gu, " ");
+    for (const constraint of requiredConstraints) {
+      expect(normalizedUsage).toContain(constraint);
     }
+    expect(normalizedUsage).toContain("`BLOCKED/NEEDS_CONTEXT`");
     expect(usage.replace(/\s+/gu, " ")).toContain(
       "before every path-backed consumer",
     );
@@ -465,6 +468,7 @@ describe("play-planning execution projection contract", () => {
 
     expect(inlineStart).toBeGreaterThanOrEqual(0);
     expect(inline).not.toContain("inspect-plan-projection");
+    expect(execution).toContain("`^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*$");
     expect(execution).toContain(
       "each field only against\nits declared record kind",
     );

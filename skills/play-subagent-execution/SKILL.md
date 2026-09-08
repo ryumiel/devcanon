@@ -77,40 +77,18 @@ Before any implementer dispatch or inline execution, run a structural
 projection gate before fallback or route selection. For a reviewed `Plan: <path>`
 handoff, after the existing path guards and reviewed-digest comparison, invoke
 `inspect-plan-projection.sh --path <repo-relative-plan-path>` with that exact
-guarded path. Treat every zero-status result as untrusted until it satisfies the
-closed `planning-projection/v1` success contract: exactly one newline-terminated
-JSON object on stdout, empty stderr, and status 0; root keys exactly `schema`,
-`plan_path`, `projection`, and `tasks`; literal schema; and a nonempty string
-`plan_path` that exactly equals the guarded repository-relative path.
-`projection` has exactly `start`, `end`, and `entries`, with nonnegative
-integers as range bounds and a nonempty entries array. Each entry has exactly `entry_id`,
-`affected_surfaces`, `owner_source`, `mode`, `implementation_task_ids`,
-`no_code_reason`, `proof`, `start`, and `end`; unique nonempty `entry_id`
-values; `owner_source` is a nonempty string; and both `entry_id` and `task_id`
-strings match the UPPER-ASCII-KEBAB
-grammar `^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*$`; a nonempty array of nonempty unique
-strings for `affected_surfaces`; and mode `authority`, `reference`,
-`derived representation`, `non-normative summary`, or `verification`.
+guarded path. Treat every zero-status result as untrusted. Before interpreting
+or selecting a result, read the full success-envelope contract in that
+[inspect-plan-projection usage](references/inspect-plan-projection-usage.md)
+for the closed `planning-projection/v1` success contract and validate its
+status and channels, exact guarded path, and every required schema, type,
+cardinality, identifier, range, and reference constraint. Use only validated
+projection entries to mechanically select entries whose explicit implementation
+disposition or task-valued proof names each returned Task ID.
 
-Each entry's disposition is either nonempty unique task IDs with
-`no_code_reason: null`, or an empty task-ID array with a nonempty no-code
-reason. Its proof has exactly `owner_type`, `owner`, and `boundary`, with
-nonempty owner and boundary strings and owner type `task`, `reviewer`, or
-`controller`. `tasks` is an array of task objects with unique nonempty
-`task_id` values, each with exactly `task_id`, `heading`, `start`, and `end`,
-and nonempty strings. All ranges are zero-based, end-exclusive integer offsets
-in the decoded saved-plan input: `0 <= projection.start < projection.end <= input.length`,
-`projection.start <= entry.start < entry.end <= projection.end`, and
-`0 <= task.start < task.end <= input.length`. Every task-valued
-disposition or proof reference must resolve exactly once against `tasks`.
-Use validated projection entries to mechanically select entries whose explicit
-implementation disposition or task-valued proof names each returned Task ID.
-
-A nonzero helper/runtime status, zero-status malformed or unknown success or
-inconsistent result, extra stdout bytes, nonempty success stderr, extra key, bad identifier, empty
-affected surfaces, or invalid range, path mismatch, nested type/cardinality/reference
-inconsistency, or other channel violation
-returns `BLOCKED/NEEDS_CONTEXT` before skip evaluation, inline execution,
+A nonzero helper/runtime status or any malformed, unknown, inconsistent, or
+channel-violating success, including unavailable usage, returns
+`BLOCKED/NEEDS_CONTEXT` before skip evaluation, inline execution,
 implementer/reviewer dispatch, or final review. There is no repair, fallback,
 or partial use; do not infer or fall back to a delimiter parser.
 
@@ -120,8 +98,9 @@ fenced code, followed by peer H2 `## Tasks` before any `### Task` heading, and
 one or more uniquely identified entries containing exactly `Entry ID`,
 `Affected surface or equivalent set`, `Owner/source`, `Mode`,
 `Implementation disposition`, and `Proof`; alternate headings, renamed,
-duplicate, or unknown projection metadata do not substitute. Each Entry ID uses
-the same `UPPER-ASCII-KEBAB` form as Task ID. Other values are nonblank: the
+duplicate, or unknown projection metadata do not substitute. Each Entry ID and
+Task ID is a nonempty string matching the UPPER-ASCII-KEBAB grammar
+`^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*$`. Other values are nonblank: the
 surface value is a JSON array containing one or more unique, nonempty strings,
 where one member is a singleton and two or more members are an equivalent set,
 array order is non-semantic, and uniqueness uses exact decoded-string equality;
