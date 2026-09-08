@@ -580,7 +580,7 @@ describe("devcanon-runtime source validation", () => {
       message: expect.stringContaining("adapter contract check failed"),
       hint: expect.stringContaining(
         process.platform === "win32"
-          ? "resolver output did not match the selected runtime"
+          ? "resolver output did not match the accepted runtime"
           : "non-Bash executable path",
       ),
     } satisfies Partial<UserError>);

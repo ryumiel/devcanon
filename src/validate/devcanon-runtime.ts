@@ -647,7 +647,7 @@ export async function assertNativeResolverContract(
     actual.stdout !== expected.stdout ||
     actual.stderr !== expected.stderr
   ) {
-    throw new Error("resolver output did not match the selected runtime");
+    throw new Error("resolver output did not match the accepted runtime");
   }
 }
 

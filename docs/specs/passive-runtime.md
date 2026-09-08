@@ -464,13 +464,12 @@ validation; pair-and-subtree handled-failure recovery; dry-run preview;
 read-only non-mutation; idempotent repeat execution; and preservation of
 `config/runtime-config.json` and unrelated library content.
 
-Native Windows implementation and machine-executed proof are deferred to the
-Windows follow-up rather than required from the documentation change that
-establishes this contract. That follow-up must use native Node, rather than
-Bash or a `.sh` adapter, to launch the copied runtime and public resolver; the
-resolver may execute a controlled Git-for-Windows Bash candidate as the
-behavior under proof. The durable cross-platform requirements above do not
-depend on the state of that follow-up.
+Native Windows acceptance must run the packaged-CLI and copied-runtime
+integration flow on an actual supported Windows host. Native Node launches the
+package-local CLI, copied runtime, and public resolver; the resolver may execute
+a controlled Git-for-Windows Bash candidate as the behavior under proof.
+[Platform](platform.md) owns the acceptance flow details, and
+[Testing](testing.md) identifies the existing executable test.
 
 ## Agent context
 

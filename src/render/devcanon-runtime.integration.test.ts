@@ -751,7 +751,7 @@ describe("devcanon-runtime rendering", () => {
       ),
     ).rejects.toThrow(
       process.platform === "win32"
-        ? /resolver output did not match the selected runtime/i
+        ? /resolver output did not match the accepted runtime/i
         : /staged resolver emitted a non-Bash executable path/i,
     );
     await expect(

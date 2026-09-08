@@ -131,7 +131,7 @@ execution remains the cross-platform proof surface.
 Native Windows runs the fixture, package-local CLI, copied-runtime, and disjoint
 selected-runtime phases from native Node. Initialization, validation, rendering,
 and synchronization do not require Git Bash: adapter validation checks that the
-Node resolver preserves the selected runtime's result, including its documented
+Node resolver preserves the accepted runtime's result, including its documented
 no-Bash refusal. Native Node launches the copied runtime and public resolver;
 only the controlled resolver-success case may probe Git-for-Windows Bash.
 The package integration test covers direct execution, bootstrap forwarding,
