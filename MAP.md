@@ -94,6 +94,8 @@ Quick navigation index for the DevCanon repository.
 - Where is the system architecture overview? -> [`docs/arch/overview.md`](docs/arch/overview.md)
 - Where are architecture decision records? -> [`docs/adr/`](docs/adr/)
 - Where is the ADR template? -> [`docs/adr/adr-template.md`](docs/adr/adr-template.md)
+- Why are batch coordination and explicit routing separate? ->
+  [`docs/adr/adr-0037-issue-batch-coordination-boundary.md`](docs/adr/adr-0037-issue-batch-coordination-boundary.md)
 - Where is deterministic skill script authority recorded? ->
   [`docs/adr/adr-0019-script-authority-for-deterministic-skill-mechanics.md`](docs/adr/adr-0019-script-authority-for-deterministic-skill-mechanics.md)
 - Where is the public helper usage-contract decision recorded? ->

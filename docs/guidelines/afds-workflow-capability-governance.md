@@ -366,6 +366,9 @@ route contracts. The companion explicitly invokes that router and does not
 copy its decision tables. Generic batch-management intent selects coordination;
 explicit user or owning-workflow invocation selects routing.
 
+[ADR-0037](../adr/adr-0037-issue-batch-coordination-boundary.md) records the
+durable ownership decision, consequences, and rejected alternatives.
+
 Provider context is issue batches with existing owner workflows, including
 GitHub and Linear. Agent gate and source/runtime proof are `not applicable`:
 the method travels as skill prose, using existing invocation metadata and host
