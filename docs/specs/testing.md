@@ -71,6 +71,15 @@ test, and subprocess failures propagate without a repair path. It does not
 assert package-manager internals beyond locating the executable in the
 configured isolated global directory.
 
+`src/cli/packaged-runtime.integration.test.ts` owns the packed-CLI and isolated
+copied-runtime acceptance flow. It runs on native Windows as well as POSIX;
+its `integration-posix` project name does not select the host platform. Run it
+directly on Windows with
+`pnpm exec vitest run --project integration-posix src/cli/packaged-runtime.integration.test.ts`.
+This test requires packing and installing a real tarball, so it uses the existing
+integration timeout. Its Windows runtime and bootstrap calls use native Node;
+only the resolver-success case needs a verified Git-for-Windows Bash candidate.
+
 ---
 
 ## Test Ownership and Proportionality

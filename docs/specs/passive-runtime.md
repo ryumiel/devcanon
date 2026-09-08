@@ -8,8 +8,7 @@ This specification is the sole behavior owner for the passive runtime's
 artifact custody, provider acceptance, composition lifecycle, trusted-bootstrap
 selection boundary, canonical build inputs, attribution ordering, and
 recomposition behavior. The provider-backed behavior in this specification is
-current implementation behavior except where a requirement explicitly records
-deferred native-Windows proof.
+current implementation behavior on supported platforms.
 
 [ADR-0024](../adr/adr-0024-shared-support-skill-runtime.md) records the
 architectural decisions and rationale. It does not duplicate this observable
@@ -162,6 +161,11 @@ when both adapters' bytes match. Native Windows ignores POSIX mode for this
 classification.
 Fresh `init` instead creates the version-matched pair under PR-LIFE-04 and has
 no existing pair to classify or migrate.
+
+Native Windows checks the Node resolver's output and exit status against the
+accepted runtime under a controlled environment without Git Bash. A matching
+no-usable-Bash refusal is valid delegation, so composition does not require a
+shell installation. This check does not execute the POSIX shell adapter.
 
 A missing adapter, mixed pair, modified legacy adapter, or unrecognized pair
 fails before adapter, catalog, or PR-ART-05 mutation. The diagnostic identifies
@@ -460,13 +464,12 @@ validation; pair-and-subtree handled-failure recovery; dry-run preview;
 read-only non-mutation; idempotent repeat execution; and preservation of
 `config/runtime-config.json` and unrelated library content.
 
-Native Windows implementation and machine-executed proof are deferred to the
-Windows follow-up rather than required from the documentation change that
-establishes this contract. That follow-up must use native Node, rather than
-Bash or a `.sh` adapter, to launch the copied runtime and public resolver; the
-resolver may execute a controlled Git-for-Windows Bash candidate as the
-behavior under proof. The durable cross-platform requirements above do not
-depend on the state of that follow-up.
+Native Windows acceptance must run the packaged-CLI and copied-runtime
+integration flow on an actual supported Windows host. Native Node launches the
+package-local CLI, copied runtime, and public resolver; the resolver may execute
+a controlled Git-for-Windows Bash candidate as the behavior under proof.
+[Platform](platform.md) owns the acceptance flow details, and
+[Testing](testing.md) identifies the existing executable test.
 
 ## Agent context
 

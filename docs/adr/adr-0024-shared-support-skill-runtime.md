@@ -144,9 +144,10 @@ Acceptance uses package-local execution and an isolated copied runtime so a
 source checkout, global CLI, package-manager access, ambient `node_modules`, or
 uncontrolled runtime environment cannot satisfy the proof accidentally. POSIX
 also proves its shell adapter delegates exactly to Node. Native Windows uses
-Node directly and is implemented and proven by the dedicated Windows
-follow-up; deferring that machine evidence does not change the accepted
-cross-platform architecture.
+Node directly, including package-local composition without Git Bash. Resolver
+validation accepts its documented no-Bash refusal when it matches the accepted
+runtime's result; shell availability is a resolver outcome rather than a
+prerequisite for installing the passive runtime.
 
 For identical canonical inputs and the same provider origin, independent
 builds must emit byte-identical bundle, manifest, and license artifacts.

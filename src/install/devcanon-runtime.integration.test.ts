@@ -1,4 +1,3 @@
-import { execFile } from "node:child_process";
 import {
   chmod,
   cp,
@@ -12,7 +11,6 @@ import {
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   canCreateSymlinks,
@@ -25,7 +23,10 @@ import {
 } from "../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../__test-helpers__/logger.js";
 import type { TestLoggerResult } from "../__test-helpers__/logger.js";
-import { parseNpmPackInventory } from "../__test-helpers__/npm-pack.js";
+import {
+  parseNpmPackInventory,
+  runPackageManager,
+} from "../__test-helpers__/npm-pack.js";
 import type { InstallMode, ResolvedConfig } from "../config/schema.js";
 import { pathExists } from "../utils/fs.js";
 import { sync as syncWithProvider } from "./sync.js";
@@ -33,7 +34,6 @@ import { uninstall } from "./uninstall.js";
 
 const symlinkAvailable = await canCreateSymlinks();
 const executableModeMutable = await canMutateExecutableMode();
-const execFileAsync = promisify(execFile);
 
 async function sync(
   config: ResolvedConfig,
@@ -83,10 +83,10 @@ describe("devcanon-runtime sync", () => {
   });
 
   it("publishes the support runtime skill with packaged installs", async () => {
-    await execFileAsync("pnpm", ["run", "prepack"], { cwd: process.cwd() });
+    await runPackageManager("pnpm", ["run", "prepack"], { cwd: process.cwd() });
     const packed = parseNpmPackInventory(
       (
-        await execFileAsync("npm", ["pack", "--json", "--ignore-scripts"], {
+        await runPackageManager("npm", ["pack", "--json", "--ignore-scripts"], {
           cwd: process.cwd(),
         })
       ).stdout,
@@ -159,7 +159,7 @@ describe("devcanon-runtime sync", () => {
       "runtime",
     ]);
     expect(
-      await readdir(path.join(installedRuntime, "scripts", "runtime")),
+      (await readdir(path.join(installedRuntime, "scripts", "runtime"))).sort(),
     ).toEqual([
       "THIRD_PARTY_LICENSES",
       "devcanon-runtime.mjs",
