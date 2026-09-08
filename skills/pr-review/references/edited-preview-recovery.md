@@ -41,7 +41,7 @@ worktree root, discover the public manifest-helper action and stop on failure:
 ```bash
 (
   cd "$WORKING_DIRECTORY" || exit 1
-  bash "$PR_REVIEW_MANIFEST_HELPER" --help >/dev/null
+  bash "$PR_REVIEW_MANIFEST_HELPER" --help
 ) || exit 1
 ```
 
