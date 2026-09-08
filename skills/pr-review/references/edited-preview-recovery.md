@@ -36,10 +36,18 @@ Author one complete valid-UTF-8 `play-review/findings/v2` replacement envelope
 in the caller. Recompute a changed finding's canonical `body` from its final
 severity, category, `why`, and `recommendation`, and preserve all other
 coherence rules, including `critic: null` for Nit findings. From the target
-worktree root, pass that single envelope to the public
-`review-manifests.sh replace-findings` command. Its stdout is the canonical
-rebound result path: bind it as `REVIEW_RESULT_FILE` and clear
-`RENDERED_PREVIEW_FILE`. A refusal stops Phase 5 continuation.
+worktree root, discover the public manifest-helper action and stop on failure:
+
+```bash
+(
+  cd "$WORKING_DIRECTORY" || exit 1
+  bash "$PR_REVIEW_MANIFEST_HELPER" --help >/dev/null
+) || exit 1
+```
+
+Then pass that single envelope to `review-manifests.sh replace-findings`. Its
+stdout is the canonical rebound result path: bind it as `REVIEW_RESULT_FILE`
+and clear `RENDERED_PREVIEW_FILE`. A refusal stops Phase 5 continuation.
 
 If the findings-publication guard is retained after publication dispatch or an
 ambiguous termination, stop and request explicit manual recovery outside
