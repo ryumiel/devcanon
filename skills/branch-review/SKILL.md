@@ -511,57 +511,35 @@ authority.
   ambiguous, subjective, documentation-policy, broad cleanup, and cross-file
   nits are judgment-required nits, not fixable nit units.
 
-Run a same-invariant grouping pass over the eligible blockers verified by the
-critic. Inspect the eligible blockers for a shared root invariant using only the
-existing finding text, evidence, anchors, classifications, and active diff
-context. This is controller planning only: it does not add or require fields in
-the `play-review/findings/v2` envelope, and individual finding anchors and
-classifications remain authoritative for classification, reporting, and
-stop-rule evaluation.
+The existing stop rule fires when a fix needs `Anchor: out-of-diff`; a unit
+contains a `play-review` hard-rule judgment-required `Blocking | Safety`
+Sub-check 1 or `Blocking | Contracts` Sub-check 2 finding; or the fix changes
+a function signature, control-flow structure, more than one module, or needs
+context beyond the flagged lines and permitted adjacent same-invariant
+active-diff surfaces. The candidate hard-stop check applies this rule after
+qualification and proportionality authorization and again to every resulting
+unit. A hit halts `--fix` immediately: do not process later findings or commit
+anything beyond fixes already applied. This preserves the caller's coherent
+handoff boundary.
 
-Run a separate fixable-nit grouping pass. Group fixable nits only when they are
-in the same file and same local scope, and every nit in the group independently
-has one obvious correct 1-3 line fix. If any nit in a candidate group requires
-judgment, exceeds the 1-3 line source-change bound, crosses files or scopes, or
-would trigger a stop rule, leave the entire candidate ungrouped and keep the
-judgment-required nit(s) for caller handoff.
+Only after at least one candidate has passed the gates above and no required
+hard stop has fired, read the bundled
+[`references/fix-disposition.md`](references/fix-disposition.md). Read it
+before grouping, unit construction, dependent disposition, or source mutation.
+If it is missing or unreadable, stop the dependent `--fix` action, report the
+withheld candidates for caller handoff, and do not rely on remembered or partial
+guidance. The reference supplies execution detail only; this workflow retains
+eligibility, grouping bounds, stops, reporting, remaining-set, and summary
+authority. After any commit, the prior review evidence cannot approve the new
+HEAD; a further review or follow-up mutation requires fresh evidence.
 
-When multiple blocking findings have the same shared root invariant, name that
-shared root invariant in the report, scan adjacent same-invariant surfaces in
-the active diff before editing, and form one cohesive bounded grouped blocker set.
-Grouping never expands auto-fix authorization: a grouped fix may proceed only
-when every included finding independently passes the existing stop-rule checks
-below. Edits may include adjacent same-invariant active-diff surfaces identified
-during the scan, but only when they are needed for the shared root invariant and
-remain bounded by the included finding classifications, active diff, and
-stop-rule constraints. The grouped edit set as a whole must also satisfy the
-same stop-rule constraints; if any included finding or the combined grouped edit
-would trigger a stop rule, halt `--fix` under the existing stop-rule contract
-instead of applying the grouped fix.
-
-Iterate over fix units. Each unit is one proportionality-qualified ungrouped
-blocking finding verified by the critic (i.e., not `Critic: INVALID` or
-`DOWNGRADE`), one same-invariant grouped blocker set formed above, one
-proportionality-qualified ungrouped fixable nit, or one same-file same-scope
-grouped fixable-nit set formed above. Do not also process grouped members as
-individual findings. For each unit:
-
-1. **If the candidate or unit hits the stop rule, halt `--fix` immediately and report.** Do not process further findings, do not commit anything for this run beyond fixes already applied. The candidate hard-stop check above applies this existing rule after qualification and proportionality authorization; re-evaluate it for each resulting unit. The stop rule fires when:
-   - `Anchor: out-of-diff` — the fix would require editing files outside the diff (e.g., Sub-check B cross-document drift, corpus-wide pattern propagation), or
-   - any finding in the unit is a `play-review` hard-rule judgment-required blocker:
-     `Blocking | Safety` from Code-quality Sub-check 1 (substitution audit) or
-     `Blocking | Contracts` from Code-quality Sub-check 2
-     (documented-behavior verification), or
-   - the fix would change a function's signature, alter control flow structure, touch more than one module, or need context beyond the unit's flagged lines and any adjacent same-invariant active-diff surfaces selected by the scan for that grouped unit.
-
-   Halting here is a contract with the caller: `issue-priming-workflow --auto` Phase 7 relies on `branch-review --fix` stopping before more auto-edits accumulate, so the user can take over a coherent branch state rather than a half-auto-fixed one.
-
-2. Otherwise: apply the fix, run local CI checks (`pnpm run check` for TypeScript repos; equivalent elsewhere), commit. When a grouped fix is applied and committed, every included finding counts as auto-fixed, is removed from the post-`--fix` remaining-set envelope, and must not be reprocessed individually. Fixable nits that are resolved by `--fix` are removed from the final findings envelope and do not become caller-owned mechanical-nit commits.
-
-Non-mutating candidates and judgment-required nits remain for caller handoff.
-Collect them for the report (including any with `Anchor: out-of-diff`).
-
-**Commit message format:** Before composing fix commit messages, glob for `**/commit-guideline*.md` and follow its format. If none is found, use Conventional Commits: `fix(<scope>): <what was fixed>`. Preserve that policy for both blocker and nit fix commits. For every fixed nit, include a commit-message body trailer line of the form `Reported by branch-review at <path>:<line>`; grouped nit commits must include one such line for each fixed nit.
+The reference applies the existing grouping limits: each member remains
+independently authorized; fixable-nit groups are one file and local scope with
+an obvious 1-3 line fix for every member; and grouped blocker edits stay within
+the included classifications, active diff, and same-invariant surfaces. A
+grouped member is never processed again individually. Non-mutating candidates
+and judgment-required nits remain for caller handoff, including
+`Anchor: out-of-diff` findings.
 
 After processing — whether the loop completes or halts on the stop rule — emit
 this exact standalone notice line, expanding `$REVIEW_HEAD_SHA` to its

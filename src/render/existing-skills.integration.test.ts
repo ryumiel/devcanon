@@ -507,6 +507,30 @@ describe("shipped skill rendering", () => {
     }
   });
 
+  it("keeps conditional branch-review fix disposition linked and packaged for both targets", async () => {
+    const config = await loadConfig(
+      path.join(process.cwd(), "devcanon.config.yaml"),
+    );
+    const { outputs, skills } = await renderAll(config, false, true);
+    const workflow = skills.find((skill) => skill.name === "branch-review");
+    const reference = "references/fix-disposition.md";
+
+    expect(workflow).toBeDefined();
+    expect(workflow?.subdirs).toContain("references");
+    expect(
+      await pathExists(path.join(workflow?.dirPath ?? "", reference)),
+    ).toBe(true);
+
+    for (const target of TARGETS) {
+      const { body } = parseFrontmatter(
+        getSkillOutput(outputs, "branch-review", target).content,
+      );
+      expect(body).toContain(
+        "[`references/fix-disposition.md`](references/fix-disposition.md)",
+      );
+    }
+  });
+
   it("renders every validated source skill once for each enabled target", async () => {
     const config = await loadConfig(
       path.join(process.cwd(), "devcanon.config.yaml"),
