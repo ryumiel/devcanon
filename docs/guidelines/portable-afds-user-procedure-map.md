@@ -313,6 +313,14 @@ regardless of persona.
 
 ## Persona Journey View
 
+For several already-sliced issues, ask to manage or resume the batch.
+[`issue-batch-coordination`](../../skills/issue-batch-coordination/SKILL.md)
+is the entrypoint and explicitly calls
+[`issue-batch-routing`](../../skills/issue-batch-routing/SKILL.md) for eligible
+routes. The [routing spec](../specs/afds-workflow-routing.md#route-007-batch-coordination-and-explicit-routing)
+owns their boundary. This composition preserves the individual issue owners
+and their approval gates; users do not need to invoke the router by name.
+
 Persona journeys use the canonical work-origin procedures above. They do not
 redefine owner rules.
 
