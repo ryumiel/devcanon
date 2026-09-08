@@ -531,7 +531,11 @@ withheld candidates for caller handoff, and do not rely on remembered or partial
 guidance. The reference supplies execution detail only; this workflow retains
 eligibility, grouping bounds, stops, reporting, remaining-set, and summary
 authority. After any commit, the prior review evidence cannot approve the new
-HEAD; a further review or follow-up mutation requires fresh evidence.
+HEAD. It still qualifies the remaining units independently qualified in the
+same current Phase 3 run against the immutable review head; each remains
+subject to the existing per-unit rechecks and hard stops. It never qualifies a
+later workflow invocation, whose review or follow-up mutation requires fresh
+evidence.
 
 The reference applies the existing grouping limits: each member remains
 independently authorized; fixable-nit groups are one file and local scope with

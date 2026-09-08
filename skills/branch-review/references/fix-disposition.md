@@ -22,10 +22,11 @@ individual anchors or classifications.
 
 For each resulting unit, reapply the main workflow's hard-stop rule before any
 edit. On a hit, halt immediately and leave later units unprocessed. Otherwise,
-apply the bounded fix, run the repository's local checks, and commit it. A
-committed grouped unit removes every included finding from the final remaining
-set and never processes a member again. A resolved fixable nit is likewise not
-a caller-owned mechanical-nit commit.
+apply the bounded fix, run `pnpm run check` for TypeScript repositories (or the
+repository-defined equivalent elsewhere), and commit it. A committed grouped
+unit removes every included finding from the final remaining set and never
+processes a member again. A resolved fixable nit is likewise not a caller-owned
+mechanical-nit commit.
 
 Before composing each commit, glob for `**/commit-guideline*.md` and follow the
 found format. If none exists, use `fix(<scope>): <what was fixed>`. Every fixed
