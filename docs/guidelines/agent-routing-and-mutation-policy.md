@@ -73,7 +73,8 @@ child role.
 | `doc-gardening`                    | synthesis / adversarial | source-mutable   | none               | Audit immutable; selected fixes mutable                                     |
 | `git-workspace-cleanup`            | mechanical / normal     | source-mutable   | none               | Destructive local Git only after approval                                   |
 | `github-issue-priming`             | inherited / normal      | source-mutable   | external-mutable   | Worktree setup plus required auto-workflow handoff; downstream owns effects |
-| `issue-batch-routing`              | synthesis / normal      | source-immutable | external-mutable   | Routing/messages/archival only; implementation and merge delegated          |
+| `issue-batch-coordination`         | synthesis / normal      | source-immutable | external-mutable   | Coordination and authorized host watchdog controls; routing delegated       |
+| `issue-batch-routing`              | synthesis / normal      | source-immutable | external-mutable   | Explicit routing/messages/archival only; implementation and merge delegated |
 | `issue-priming-workflow`           | synthesis / normal      | source-mutable   | external-mutable   | Auto flow may implement and create a gated PR; never merges                 |
 | `issue-slicing`                    | synthesis / normal      | source-immutable | none               | Draft only; live issue mutation excluded                                    |
 | `issue-worktree-setup`             | mechanical / normal     | source-mutable   | none               | Local worktree/ref mutation                                                 |

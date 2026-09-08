@@ -57,7 +57,7 @@ Quick navigation index for the DevCanon repository.
 - Where is the agent schema spec? -> [`docs/specs/agents.md`](docs/specs/agents.md)
 - Where is the exact six-role semantic catalog and role envelope defined? ->
   [`docs/specs/agents.md`](docs/specs/agents.md#semantic-role-catalog)
-- Where are the mutation vocabulary, 32-skill inventory, and D1-D18
+- Where are the mutation vocabulary, 33-skill inventory, and D1-D18
   direct-child routes defined? ->
   [`docs/guidelines/agent-routing-and-mutation-policy.md`](docs/guidelines/agent-routing-and-mutation-policy.md)
 - Where is the target mapping spec? -> [`docs/specs/target-mapping.md`](docs/specs/target-mapping.md)
@@ -299,7 +299,8 @@ Quick navigation index for the DevCanon repository.
 - Where is the issue-slicing skill? ->
   [`skills/issue-slicing/SKILL.md`](skills/issue-slicing/SKILL.md)
 - Where is the shared issue reporting skill? -> [`skills/report-devcanon-issue/SKILL.md`](skills/report-devcanon-issue/SKILL.md)
-- Where is provider-neutral issue batch routing? -> [`skills/issue-batch-routing/SKILL.md`](skills/issue-batch-routing/SKILL.md)
+- Where do I coordinate an issue batch? -> [`skills/issue-batch-coordination/SKILL.md`](skills/issue-batch-coordination/SKILL.md)
+- Where is explicitly invoked provider-neutral issue routing? -> [`skills/issue-batch-routing/SKILL.md`](skills/issue-batch-routing/SKILL.md)
 - Where is issue worktree setup policy? -> [`skills/issue-worktree-setup/SKILL.md`](skills/issue-worktree-setup/SKILL.md)
 - Where is the native issue worktree setup launcher? -> [`skills/issue-worktree-setup/scripts/setup-worktree.mjs`](skills/issue-worktree-setup/scripts/setup-worktree.mjs)
 - Where is the POSIX issue worktree setup adapter? -> [`skills/issue-worktree-setup/scripts/setup-worktree.sh`](skills/issue-worktree-setup/scripts/setup-worktree.sh)

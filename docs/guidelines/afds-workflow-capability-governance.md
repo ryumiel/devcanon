@@ -347,6 +347,32 @@ Revisit deferred capability candidates only when at least one condition is met:
 
 ## Provider-Neutral Examples
 
+### Accepted batch coordination boundary
+
+Decision: `create skill`. Work origin: reusable workflow policy, procedure, or
+role boundary. The accepted contract in
+[issue #686](https://github.com/ryumiel/devcanon/issues/686) establishes adequate
+evidence through a single authoritative accepted owner artifact, informed by
+repeated coordination needs across issues and repositories.
+
+The method owner is
+[`issue-batch-coordination`](../../skills/issue-batch-coordination/SKILL.md):
+batch scope, dependencies, combined readiness, owner handoffs, recovery, and
+policy refresh. Existing owner fit is `would become misleading`:
+[`issue-batch-routing`](../../skills/issue-batch-routing/SKILL.md) owns route
+eligibility, approval bindings, progress receipts, and archival; expanding it
+into the general batch entrypoint would mix coordination policy with those
+route contracts. The companion explicitly invokes that router and does not
+copy its decision tables. Generic batch-management intent selects coordination;
+explicit user or owning-workflow invocation selects routing.
+
+Provider context is issue batches with existing owner workflows, including
+GitHub and Linear. Agent gate and source/runtime proof are `not applicable`:
+the method travels as skill prose, using existing invocation metadata and host
+scheduling when authorized. This classification approves no new agent, direct
+child route, scheduler, receipt schema, provider mutation authority, or install
+behavior. Host invocation and scheduling limitations remain explicit.
+
 ### GitHub-backed reusable workflow gap
 
 A GitHub issue reports that multiple PR reviews across different repositories

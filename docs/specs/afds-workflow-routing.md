@@ -176,6 +176,40 @@ distinction: an inventory opt-out records `transition: none`, while existing
 fallbacks, reclassifications, and workflow retries remain task-local behavior
 unless the canonical owner declares a supported transition.
 
+### ROUTE-007: Batch Coordination and Explicit Routing
+
+Following the accepted
+[capability boundary](../guidelines/afds-workflow-capability-governance.md#accepted-batch-coordination-boundary),
+ordinary requests to manage or resume an issue batch select
+[`issue-batch-coordination`](../../skills/issue-batch-coordination/SKILL.md).
+It owns the portable coordination method and explicitly invokes
+[`issue-batch-routing`](../../skills/issue-batch-routing/SKILL.md), which retains
+route eligibility, approval bindings, progress receipts, and archival rules.
+Users need not name either skill for the normal flow. Direct explicit router
+use remains available; the router must not implicitly activate or call the
+companion back. Target invocation controls must preserve owning-workflow calls;
+unsupported enforcement is documented as guidance, not a hard guarantee.
+
+Coordination keeps actual dependencies separate from shared-file conflicts and
+combined behavior separate from publication readiness. Combined acceptance
+uses the intended current revisions and an existing appropriate validation
+owner; publication uses the router's current remote-state and approval gates.
+Neither green component tests nor an archived owner proves batch completion.
+Scope and repair decisions stay with existing proportionality and review owners.
+
+Entry, watchdog wake, resume, and handoff reload canonical applicable policy;
+material routing rechecks it before dispatch. Existing local state retains its
+revision or fingerprint. Refresh cannot expand authority, and missing policy
+or unresolved authority/scope changes stop affected actions with a concrete
+decision or evidence request. Owner reports remain the primary progress signal.
+
+An optional authorized watchdog uses supported host controls and the existing
+controller. Successor acknowledgement and reconciliation of any timer target
+and status precede successor dispatch. Unchanged reports are suppressed without
+claiming unsupported notification control; terminal completion stops or pauses
+the timer through its owner. No new scheduler, child route, approval schema, or
+provider mutation authority is introduced, and refresh does not guarantee compliance.
+
 ### AUTH-001: Separate Mutation Axes
 
 Routes record source and external authority independently using the exact
@@ -468,6 +502,11 @@ resolution recommendation.
 
 ## Acceptance Criteria
 
+- Natural-language batch management selects coordination; explicit router calls
+  remain available without circular invocation or bypassing approval gates.
+- Combined validation covers intended current revisions independently of
+  publication eligibility. Resume and watchdog decisions refresh policy and
+  reconcile controller ownership before affected dispatch under ROUTE-007.
 - A fresh human and a fresh agent can route each work origin in ROUTE-002 to the
   same owner, next action, evidence owner, durable-update trigger, or blocker.
 - Ordinary execution can proceed from an executable issue, review comment,
@@ -506,7 +545,7 @@ resolution recommendation.
 - `docs/specs/overview.md` lists this spec in the behavior spec index.
 - Existing PRD, roadmap, and guideline references no longer describe this spec
   as future-only once this file exists.
-- Focused contract checks prove the policy contains exactly 32 source skills
+- Focused contract checks prove the policy contains exactly 33 source skills
   and D1-D18 exactly once, and that every normative route matches its source
   anchor.
 - Guard tests exercise the valid baseline/handoff lifecycle and reject tracked

@@ -1,6 +1,6 @@
 ---
 name: issue-batch-routing
-description: Provider-neutral batch routing for GitHub and Linear issue work across owner threads, PR gates, approvals, merges, and archival. Use when monitoring or routing a mixed batch of issue-provider records through existing issue, review, CI, PR, and thread workflows.
+description: Routes provider-tagged issue work across owner tasks, PR gates, approvals, merges, and archival. Use only when the user explicitly invokes issue-batch-routing or an owning workflow explicitly hands off routing work. Ordinary batch-management requests belong to issue-batch-coordination.
 claude:
   model: "{{model:frontier}}"
 codex:
@@ -8,6 +8,8 @@ codex:
   metadata:
     short-description: Route mixed issue batches across owner threads and PR gates
 codex_sidecar:
+  policy:
+    allow_implicit_invocation: false
   interface:
     display_name: Issue Batch Routing
     short_description: Route issue batches without owning implementation side effects
@@ -24,10 +26,18 @@ fixes, must not author review responses, must not rerun CI outside the
 delegated workflow, must not merge PRs directly, must not mutate source-issue
 status directly, and must not bypass owning workflows.
 
-Use this skill when a parent or controller thread is responsible for keeping
-multiple GitHub and Linear issues moving across owner implementation threads,
-GitHub PRs, review/CI gates, merge routing, source-issue reporting, and
-owner-thread archival.
+## Invocation boundary
+
+Run only on explicit user invocation or an explicit owning-workflow handoff,
+including one from `issue-batch-coordination`. Ordinary batch-management intent
+selects the companion; do not activate this router implicitly or invoke the
+companion back. Direct bounded router use remains available. Invocation grants
+no approval or side-effect authority beyond the evidence required below.
+
+Codex disables implicit invocation through its sidecar policy. Claude retains
+workflow calls and direct user invocation: its manual-only setting would block
+owning-workflow calls, so this description and boundary provide invocation
+guidance there, not equivalent host enforcement.
 
 ## Inputs
 
