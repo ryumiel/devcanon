@@ -52,9 +52,10 @@ Hold an affected action with evidence references when required evidence is
 missing, unavailable, stale or conflicting; do not restamp stale facts, erase
 the last usable evidence, or clear a field whose outcome is unknown. Clear only
 facts positively known to be obsolete or inapplicable, preserve unrelated items
-and the router's existing fact contracts, and retain only pointers or evidence
-needed for the current decision or recovery. Do not retain superseded waits,
-diagnoses, snapshots, actions or monitor narrative merely as audit history.
+and the router's existing fact contracts. Prefer pointers to needed evidence;
+embed details only when necessary for the current decision or recovery.
+Do not retain superseded waits, diagnoses, snapshots, actions or monitor
+narrative merely as audit history.
 These are local recovery facts, not a new schema, event store, tracker
 substitute, or source of approval. Use a stable location accessible after owner
 checkout cleanup. Do not store the only copy inside an owner worktree scheduled
