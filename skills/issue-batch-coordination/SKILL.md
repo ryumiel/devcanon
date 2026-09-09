@@ -39,13 +39,27 @@ the missing decision when evidence cannot settle it. A request to coordinate
 does not independently authorize new tasks, owner messages, publication, or
 scheduling: honor the current host and user authorization for each effect.
 
-Keep coordination notes alongside the existing ledger: actual dependency edges,
-combined acceptance and its existing owner, validation revision evidence,
-controller location and any acknowledged successor, and the loaded policy's
-source revision or content fingerprint. These are local recovery facts, not a
-new schema, event store, tracker substitute, or source of approval. Use a
-stable location accessible after owner checkout cleanup. Do not store the only
-copy inside an owner worktree scheduled for removal.
+Keep one current view for each provider-native item alongside the existing
+ledger: actual dependency edges, combined acceptance and its existing owner,
+validation revision evidence, current gate, blocker and next action, controller
+location and any acknowledged successor, the loaded policy's source revision or
+content fingerprint, and router-required replay facts. On a newer report for
+the same item, reconcile its current facts and batch summary, then replace
+superseded current state and the prior monitor summary rather than append report
+history. A retained snapshot, digest and observation time must identify the
+same observation; approval provenance is not a refreshed source snapshot.
+Hold an affected action with evidence references when required evidence is
+missing, unavailable, stale or conflicting; do not restamp stale facts, erase
+the last usable evidence, or clear a field whose outcome is unknown. Clear only
+facts positively known to be obsolete or inapplicable, preserve unrelated items
+and the router's existing fact contracts. Prefer pointers to needed evidence;
+embed details only when necessary for the current decision or recovery.
+Do not retain superseded waits, diagnoses, snapshots, actions or monitor
+narrative merely as audit history.
+These are local recovery facts, not a new schema, event store, tracker
+substitute, or source of approval. Use a stable location accessible after owner
+checkout cleanup. Do not store the only copy inside an owner worktree scheduled
+for removal.
 
 ## Coordination cycle
 
@@ -67,12 +81,24 @@ copy inside an owner worktree scheduled for removal.
    do not create a second key or approval mechanism here. Advance eligible
    queued work within authorization without a generic “proceed” request. A
    blocked item need not stop independent eligible siblings.
-4. **Record and yield.** Integrate the router's outcome into the existing
-   ledger. Keep its full monitor result locally; give the user a concise delta
-   with meaningful progress, completion, failure, or the concrete decision
-   needed. Suppress repeated unchanged waits. Owner gate reports are the
-   primary continuation signal; use supported waits or the optional watchdog,
-   not repeated messages asking running owners to continue.
+4. **Record and yield.** Reconcile the router's outcome into the affected
+   current ledger item and its batch summary in the same transition. Before
+   treating facts as current or using them for an action, make the current gate,
+   blocker, next action, evidence, and any retained snapshot, digest and
+   observation time agree. Replace the prior monitor summary and clear only
+   positively obsolete or inapplicable fields; preserve unrelated items and
+   router-required authority and replay facts without copying its contracts.
+   Missing, unavailable, stale or conflicting required evidence holds the
+   affected action with its references rather than concealing the gap or
+   refreshing stale facts. For a terminal item, retain its disposition,
+   verified terminal evidence, unresolved obligations and required replay
+   facts; a closed source issue alone does not authorize archival. After an
+   already-authorized cleanup, replace location and availability claims with
+   the observed result; an unknown result remains unresolved. Give the user a
+   concise delta with meaningful progress, completion, failure, or the concrete
+   decision needed. Suppress repeated unchanged waits. Owner gate reports are
+   the primary continuation signal; use supported waits or the optional
+   watchdog, not repeated messages asking running owners to continue.
 
 When refreshed policy differs, assess its effect before using it. Editorial
 changes do not invalidate approvals by themselves. A changed authority or
