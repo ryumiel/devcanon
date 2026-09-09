@@ -277,13 +277,15 @@ workflow may still return its ordinary recoverable failure or `BLOCKED` state.
 ## Referenced Contracts
 
 - The [agent spec](../specs/agents.md) owns the exact role envelope, canonical
-  rendered example, and role-level render/runtime acceptance.
+  rendered example, ordinary render checks, and live-dispatch availability
+  boundaries.
 - The [AFDS workflow spec](../specs/afds-workflow-routing.md) owns observable
   route resolution, source-immutability guard ordering, valid handoff example,
   and failure routing.
 - [ADR-0027](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md)
-  owns the stable role decision, minimum guard rationale, bounded 10+6 runtime
-  gate, human deployment block, and explicit deferrals.
+  owns the stable role decision, minimum guard rationale, retirement of the
+  runtime acceptance/deployment gate, historical trial evidence, and explicit
+  exclusions.
 - Each route-owning source skill owns its task-local prompt, output, failure,
   and termination contract. The Direct-Child Route Inventory's final column is
   only its locator/summary.
