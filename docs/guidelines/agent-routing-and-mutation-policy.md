@@ -10,9 +10,10 @@ workflow spec references that routing owner and owns observable dispatch and
 guard behavior. Source skills retain task-local prompts, phase mechanics,
 route-local output, failure, and termination.
 
-This is a target contract, not a claim that every source-agent, skill, runtime,
-test, or generated-output migration has already landed. Deployment remains
-blocked until the ADR's complete acceptance gate passes.
+This contract governs the current semantic routes. ADR-0027 retires its
+separate runtime acceptance and deployment gate; ordinary repository checks
+verify the configured baseline. Live dispatch still requires the exact route
+declaration and retains the existing unavailable/rejected-pair behavior.
 
 ## Role Envelope Owner
 

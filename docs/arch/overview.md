@@ -148,8 +148,8 @@ model/effort while leaving the Claude envelope unchanged. The
 [agent spec](../specs/agents.md#semantic-role-catalog) is the sole exact catalog
 owner; source definitions are authoritative for implementation state, while
 generated outputs and fresh renders are convergence evidence, not authority.
-ADR-0027 remains Proposed because bounded runtime acceptance is incomplete, not
-because source or render convergence is incomplete.
+ADR-0027 accepts this architecture with ordinary repository checks; its dated
+runtime trials are historical evidence, not a deployment prerequisite.
 
 The architecture exposes six thin semantic source roles:
 `assessor`, `investigator`, `executor`, `implementer`, `reviewer`, and

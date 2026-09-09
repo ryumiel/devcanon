@@ -2,7 +2,14 @@
 
 ## Status
 
-Proposed
+Accepted
+
+The September 9, 2026 amendment retires the bounded runtime matrix and
+named-role trials as acceptance and deployment prerequisites. The semantic
+routing decision is accepted with ordinary repository configuration, render,
+and contract checks. This policy change does not assert that the historical
+blocked runtime trials passed or that every client/account supports the chosen
+models and roles.
 
 ## Context
 
@@ -135,54 +142,46 @@ routing policy, and the AFDS workflow spec. No composer, overlay schema, durable
 summary artifact, helper, agent role, cache, reuse mechanism, or generalized
 discovery API is introduced.
 
-### Bounded runtime acceptance
+### Baseline adoption and historical runtime evidence
 
-After local tests and both-target render parsing pass, the selected capability
-and effort pairs receive exactly one native no-tool attempt on each target.
+Adopt the model catalog in ADR-0026 and the target-specific role envelopes in
+[the agent spec](../specs/agents.md#semantic-role-catalog) using ordinary
+repository configuration, render, and contract checks. The previous bounded
+runtime matrix and named-role trials are retired as acceptance and deployment
+prerequisites. No replacement model benchmark or qualification campaign is
+required. Live dispatch still uses the owning route's exact model, supported
+effort representation, and existing rejection behavior; this amendment does
+not permit aliases, fallback, or inferred availability.
 
-This smoke matrix defines acceptance attempts, not role-to-pair assignments.
-Each named-role case resolves its exact tuple and envelope from the
-[agent spec](../specs/agents.md#semantic-role-catalog).
+The July 15, 2026 runtime record below is historical evidence only. Its model
+and effort labels describe that run, not required attempts or current dispatch
+instructions. In particular, Sol is the historical Codex frontier, and the
+recorded Claude Haiku `medium` label must not be sent by current dispatches.
 
-The required attempts are:
+| Historical capability / effort | Claude                      | Codex           |
+| ------------------------------ | --------------------------- | --------------- |
+| efficient / medium             | `claude-haiku-4-5-20251001` | `gpt-5.6-luna`  |
+| balanced / medium              | `claude-sonnet-5`           | `gpt-5.6-terra` |
+| balanced / high                | `claude-sonnet-5`           | `gpt-5.6-terra` |
+| frontier / high                | `claude-opus-4-8`           | `gpt-5.6-sol`   |
+| frontier / xhigh               | `claude-opus-4-8`           | `gpt-5.6-sol`   |
 
-| Capability / effort | Claude                      | Codex           |
-| ------------------- | --------------------------- | --------------- |
-| efficient / medium  | `claude-haiku-4-5-20251001` | `gpt-5.6-luna`  |
-| balanced / medium   | `claude-sonnet-5`           | `gpt-5.6-terra` |
-| balanced / high     | `claude-sonnet-5`           | `gpt-5.6-terra` |
-| frontier / high     | `claude-opus-4-8`           | `gpt-5.6-sol`   |
-| frontier / xhigh    | `claude-opus-4-8`           | `gpt-5.6-sol`   |
+That protocol called for ten no-tool pair attempts using exact full model and
+effort values without aliases, fallback, substitution, or retry. It compared
+the sole extracted final text with
+`DEVCANON_SMOKE_OK <full-model> <effort>`. The six Codex named-role cases
+permitted only `git rev-parse --verify HEAD` and one named direct-child handoff
+containing `DEVCANON_ROLE_SMOKE_OK <role> <head>`, checked and cleaned under the
+minimum source-immutability guard.
 
-The ten pair attempts use the exact full model and effort, no alias, fallback,
-substitution, or retry. A pair passes only when the native output contains no
-tool event and its sole extracted final text is exactly
-`DEVCANON_SMOKE_OK <full-model> <effort>`.
-
-Codex also receives one bounded named-role case for each of the six roles. The
-only permitted command is `git rev-parse --verify HEAD`. Each role writes one
-named direct-child handoff containing exactly
-`DEVCANON_ROLE_SMOKE_OK <role> <head>`. The controller applies the minimum
-guard, exact-compares the line into memory, cleans the two owned artifacts, and
-only then records success.
-
-The dated report is concise prose evidence with ten pair rows, six role rows,
-client versions, revision, and an aggregate result. It is not a parsed schema
-or durable evidence store and contains no raw logs, secrets, absolute paths,
-per-row timestamps or digests, resumable state, or retention protocol.
-
-This ADR remains Proposed while any of the sixteen runtime rows or the final
-repository gate is blocked. It may become Accepted only after all of them pass.
-A human operator, not render, sync, or install behavior, blocks deployment to
-affected targets until then.
-
-The bounded run on 2026-07-15 leaves this ADR **Proposed**. All five Claude
-pair rows passed. Three of five Codex pair rows passed; the two `gpt-5.6-sol`
-rows were blocked by final-text literal mismatches. All six Codex named-role
-rows were blocked because the installed client exposed no supported native
-named-role selection interface, so no role was substituted or emulated.
-Deployment to the Codex target remains operator-blocked pending a later bounded
-rerun under separately authorized acceptance work.
+The dated report recorded all five Claude pair rows as passed and three of
+five Codex pair rows as passed. The two Sol rows were blocked by final-text
+literal mismatches. All six Codex named-role rows were blocked because the
+installed client exposed no supported native named-role selection interface;
+no role was substituted or emulated. Those results left the ADR Proposed under
+the former gate. They remain unchanged historical observations and do not
+establish current Haiku effort support or Astra runtime verification. The
+September amendment retires that gate without reclassifying the results.
 
 ## Consequences
 
@@ -213,8 +212,8 @@ rerun under separately authorized acceptance work.
   policy, PR template, install/sync behavior, or external tracker lifecycle is
   introduced.
 
-The following remain explicit follow-up categories rather than part of this
-decision's implementation:
+The following remain outside this decision's implementation and are not
+prerequisites for baseline adoption:
 
 1. benchmark corpora, fixtures, oracle scoring, comparative thresholds, or
    large model-run matrices;
@@ -245,7 +244,8 @@ decision's implementation:
   another artifact or reuse layer would create new authority and freshness
   obligations.
 - **Build a broad evaluation framework before routing.** Rejected because the
-  selected pairs need a bounded availability check, not a benchmark platform.
+  baseline adoption uses ordinary repository checks and existing live-dispatch
+  rejection behavior; no separate model qualification campaign is required.
 
 ## Related
 

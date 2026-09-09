@@ -31,8 +31,8 @@ template instead.
 
 This is an abridged, non-authoritative `assessor` example. The authoritative
 current source is [`agents/assessor.yaml`](../../agents/assessor.yaml).
-ADR-0027 remains Proposed because bounded runtime acceptance is incomplete,
-not because this source file or source/render convergence is absent.
+ADR-0027 accepts the semantic routing decision without a separate runtime
+qualification prerequisite.
 
 ```yaml
 name: assessor
@@ -71,8 +71,7 @@ This section is the sole exact catalog for the current six semantic roles.
 Source definitions under `agents/` are authoritative for implementation state.
 Existing render-contract evidence verifies that the six configured roles render
 and parse for both targets; generated outputs and fresh renders are convergence
-evidence, not co-authority. ADR-0027 remains Proposed because bounded runtime
-acceptance is incomplete. Agent names describe reusable work identity, not
+evidence, not co-authority. Agent names describe reusable work identity, not
 provider models, effort levels, or workflow phases.
 
 | Agent           | Capability | Claude effort | Route effort | Source default     | External default | Primary use                                           |
@@ -172,14 +171,14 @@ external mutation, and suppress both rendered Codex `model` and
 model or effort for these six source roles, or broader mutation instructions
 fails the contract.
 
-Source and render convergence do not complete runtime acceptance. After local
-validation and both-target render parsing, runtime acceptance is bounded to one
-no-tool attempt for each selected capability/effort pair on each target plus one
-guarded Codex named-role handoff for each of the six roles. The exact pair
-matrix, output tokens, blocker rules, and human-only deployment gate are owned by
-[ADR-0027](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md).
-Local validation does not prove client, account, model, effort, or named-agent
-availability and must never substitute an alias or fallback.
+Baseline adoption requires ordinary repository configuration, render, and
+contract checks. [ADR-0027](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md)
+retires its runtime matrix and named-role trials as acceptance and deployment
+prerequisites and preserves their dated results as historical evidence. No
+model benchmark or separate runtime qualification campaign is required. Local
+checks do not prove client, account, model, effort, or named-agent availability;
+live dispatch retains its exact route tuple and existing rejection behavior
+without aliases or fallback.
 
 Static source and render checks are derived behavioral evidence, not runtime
 enforcement. A hard claim that workspace or file non-mutation is enforced
@@ -188,8 +187,8 @@ non-mutation claim requires enforced denial for every claimed mutation surface,
 including external-action capabilities. Broader-permission trials or
 observations must inspect relevant repository state and modeled external-action
 state, state their residual unobserved risk, and be labeled behavioral evidence
-rather than a security proof. This contract creates no new runtime harness;
-ADR-0027 owns the bounded runtime acceptance procedure.
+rather than a security proof. This contract creates no new runtime harness or
+model qualification prerequisite.
 
 ---
 
