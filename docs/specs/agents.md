@@ -31,8 +31,8 @@ template instead.
 
 This is an abridged, non-authoritative `assessor` example. The authoritative
 current source is [`agents/assessor.yaml`](../../agents/assessor.yaml).
-ADR-0027 remains Proposed because bounded runtime acceptance is incomplete,
-not because this source file or source/render convergence is absent.
+ADR-0027 accepts the semantic routing decision without a separate runtime
+qualification prerequisite.
 
 ```yaml
 name: assessor
@@ -71,15 +71,14 @@ This section is the sole exact catalog for the current six semantic roles.
 Source definitions under `agents/` are authoritative for implementation state.
 Existing render-contract evidence verifies that the six configured roles render
 and parse for both targets; generated outputs and fresh renders are convergence
-evidence, not co-authority. ADR-0027 remains Proposed because bounded runtime
-acceptance is incomplete. Agent names describe reusable work identity, not
+evidence, not co-authority. Agent names describe reusable work identity, not
 provider models, effort levels, or workflow phases.
 
 | Agent           | Capability | Claude effort | Route effort | Source default     | External default | Primary use                                           |
 | --------------- | ---------- | ------------- | ------------ | ------------------ | ---------------- | ----------------------------------------------------- |
 | `assessor`      | balanced   | medium        | medium       | `source-immutable` | `none`           | Bounded classification or evaluation                  |
 | `investigator`  | balanced   | high          | high         | `source-immutable` | `none`           | Repository, document, or external evidence collection |
-| `executor`      | efficient  | medium        | medium       | `source-mutable`   | `none`           | Exact validated no-policy operations                  |
+| `executor`      | efficient  | omitted       | medium       | `source-mutable`   | `none`           | Exact validated no-policy operations                  |
 | `implementer`   | balanced   | high          | high         | `source-mutable`   | `none`           | Judgment-bearing scoped implementation                |
 | `reviewer`      | frontier   | high          | high         | `source-immutable` | `none`           | Ordinary synthesis and adversarial review             |
 | `deep-reviewer` | frontier   | xhigh         | xhigh        | `source-immutable` | `none`           | Existing high-assurance review gates                  |
@@ -88,6 +87,12 @@ Capability and route effort are explicit for all six semantic roles and remain
 independent. The route effort is selected by a direct-child route; it is not a
 source `codex.model_reasoning_effort` default. Neither setting implies tools,
 sandbox, network, mutation, or escalation behavior.
+
+The executor uses Haiku 4.5 on Claude, which does not support named effort.
+Omit Claude executor effort in both source and dispatch; the recorded `medium`
+route effort still applies to Codex. This is a provider-specific omission, not
+a tier change or a translation to an extended-thinking budget. See the
+[Haiku model documentation](https://platform.claude.com/docs/en/models/haiku-4-5/overview).
 
 The shared [`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md)
 procedure owns future capability-escalation declarations and the
@@ -166,14 +171,14 @@ external mutation, and suppress both rendered Codex `model` and
 model or effort for these six source roles, or broader mutation instructions
 fails the contract.
 
-Source and render convergence do not complete runtime acceptance. After local
-validation and both-target render parsing, runtime acceptance is bounded to one
-no-tool attempt for each selected capability/effort pair on each target plus one
-guarded Codex named-role handoff for each of the six roles. The exact pair
-matrix, output tokens, blocker rules, and human-only deployment gate are owned by
-[ADR-0027](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md).
-Local validation does not prove client, account, model, effort, or named-agent
-availability and must never substitute an alias or fallback.
+Baseline adoption requires ordinary repository configuration, render, and
+contract checks. [ADR-0027](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md)
+retires its runtime matrix and named-role trials as acceptance and deployment
+prerequisites and preserves their dated results as historical evidence. No
+model benchmark or separate runtime qualification campaign is required. Local
+checks do not prove client, account, model, effort, or named-agent availability;
+live dispatch retains its exact route tuple and existing rejection behavior
+without aliases or fallback.
 
 Static source and render checks are derived behavioral evidence, not runtime
 enforcement. A hard claim that workspace or file non-mutation is enforced
@@ -182,8 +187,8 @@ non-mutation claim requires enforced denial for every claimed mutation surface,
 including external-action capabilities. Broader-permission trials or
 observations must inspect relevant repository state and modeled external-action
 state, state their residual unobserved risk, and be labeled behavioral evidence
-rather than a security proof. This contract creates no new runtime harness;
-ADR-0027 owns the bounded runtime acceptance procedure.
+rather than a security proof. This contract creates no new runtime harness or
+model qualification prerequisite.
 
 ---
 
@@ -286,9 +291,10 @@ Explicit `codex.model: null` is known agent-source schema, not passthrough or a
 warning. Claude `model` accepts only a literal string or absence; Claude null is
 rejected. The agent spec owns this target distinction.
 The six current semantic source roles retain their top-level capability and
-unchanged Claude envelope, set `codex.model: null`, and omit
+Claude envelope specified above, set `codex.model: null`, and omit
 `codex.model_reasoning_effort`; their Codex render therefore omits both fields.
-Their Claude render remains byte-identical. Literal target model fields must not
+The Claude executor omits effort; other Claude role envelopes remain unchanged.
+Literal target model fields must not
 contain `{{model:*}}`; validation and both render paths reject those former
 agent placeholders with guidance to use top-level capability or a literal model.
 

@@ -79,9 +79,9 @@ The current source layout contains the six agent definitions shown below:
 `investigator.yaml`, and `reviewer.yaml`. Source definitions under `agents/`
 are authoritative for current implementation state. Existing render-contract
 evidence confirms convergence for both Claude Code and Codex; generated outputs
-and fresh renders remain derived evidence, not authority. ADR-0027 remains
-Proposed because bounded runtime acceptance is incomplete, not because source
-or render convergence is incomplete.
+and fresh renders remain derived evidence, not authority. ADR-0027 accepts the
+semantic routing decision with ordinary repository checks; its historical
+runtime trials are not an acceptance or deployment prerequisite.
 
 Behavior specs use this current layout as shared context for source and
 generated paths:

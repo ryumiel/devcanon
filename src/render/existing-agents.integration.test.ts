@@ -20,7 +20,7 @@ interface AgentSourceFixture {
   capability: "efficient" | "balanced" | "frontier";
   claude: {
     model?: string;
-    effort: string;
+    effort?: string;
     tools: string[];
   };
   codex: {
@@ -47,11 +47,11 @@ async function renderAll(
   );
 }
 
-const PRE_CHANGE_CLAUDE_CONTENT_HASHES: Record<string, string> = {
+const EXPECTED_CLAUDE_CONTENT_HASHES: Record<string, string> = {
   assessor: "a83318166fa51ea78dacc3e7805516c1ff9c724790fb40eaf960cb8c9b22b645",
   investigator:
     "f572d191b875dbd0affd186077d3df72ec72d89098b7d19613df15f725f1122e",
-  executor: "6470a8034e2c0544af438d0713e64226f226977c819fd4d65f6684d39d22c936",
+  executor: "c70e04e1b7c40ebaf4b711aef0cc33ccdd22ad3db9fd3716180825176b4ae8a6",
   implementer:
     "37b5bfe3a30de6cb3a573793eaedd39bde75947cf752549ecd17199fbf3535a0",
   reviewer: "a594af737e339935aa0b3b51a678a1bb435d1756ccc81114398d99ca10cf2df0",
@@ -160,8 +160,13 @@ describe("shipped semantic agents", () => {
         description: source.description,
         tools: role.claudeTools.join(", "),
         model: config.capabilityProfiles[role.capability].claude,
-        effort: role.claudeEffort,
+        ...(role.claudeEffort === undefined
+          ? {}
+          : { effort: role.claudeEffort }),
       });
+      if (role.name === "executor") {
+        expect(frontmatter).not.toHaveProperty("effort");
+      }
       expect(body).toContain(source.instructions.trim());
 
       expect(codexToml).toEqual({
@@ -175,7 +180,7 @@ describe("shipped semantic agents", () => {
       expect(codexToml).not.toHaveProperty("model");
       expect(codexToml).not.toHaveProperty("model_reasoning_effort");
       expect(sha256(claudeOutput.content)).toBe(
-        PRE_CHANGE_CLAUDE_CONTENT_HASHES[role.name],
+        EXPECTED_CLAUDE_CONTENT_HASHES[role.name],
       );
       expect(claudeOutput.content).not.toContain("{{model:");
       expect(codexOutput.content).not.toContain("{{model:");

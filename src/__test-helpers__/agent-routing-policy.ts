@@ -119,7 +119,7 @@ export interface AgentRoutingPolicyOwner {
 export interface AgentSemanticRoleContract {
   readonly name: string;
   readonly capability: (typeof ROUTE_CAPABILITIES)[number];
-  readonly claudeEffort: (typeof ROUTE_EFFORTS)[number];
+  readonly claudeEffort: (typeof ROUTE_EFFORTS)[number] | undefined;
   readonly routeEffort: (typeof ROUTE_EFFORTS)[number];
   readonly sourceAuthority: SourceAuthority;
   readonly externalAuthority: "none";
@@ -173,11 +173,10 @@ export function parseAgentSemanticRoleOwner(
       ROUTE_CAPABILITIES,
       "semantic-role capability",
     ),
-    claudeEffort: closedValue(
-      row[2],
-      ROUTE_EFFORTS,
-      "semantic-role Claude effort",
-    ),
+    claudeEffort:
+      row[2] === "omitted"
+        ? undefined
+        : closedValue(row[2], ROUTE_EFFORTS, "semantic-role Claude effort"),
     routeEffort: closedValue(
       row[3],
       ROUTE_EFFORTS,

@@ -13,7 +13,7 @@ The [agent spec](../specs/agents.md#semantic-role-catalog) owns the exact role
 envelope. The
 [AFDS workflow spec](../specs/afds-workflow-routing.md) owns observable routing
 and guard behavior. [ADR-0027](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md)
-owns the decision rationale, bounded runtime gate, and deferrals.
+owns the decision rationale, historical runtime evidence, and exclusions.
 
 ## Guideline Index
 

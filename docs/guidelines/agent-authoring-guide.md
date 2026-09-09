@@ -39,10 +39,11 @@ those target-configuration benefits, prefer the skill alone.
 
 ADR-0027's post-migration catalog has exactly six semantic roles: `assessor`,
 `investigator`, `executor`, `implementer`, `reviewer`, and `deep-reviewer`.
-While ADR-0027 remains Proposed, this catalog is an authoring target: use the
-roles and procedures present in the current source implementation, and do not
-dispatch a target-only role or rely on the target-only runtime guard. After the
-ADR acceptance gate passes, use the six-role catalog as the existing catalog.
+Use this existing six-role catalog and the procedures present in the current
+source implementation. Do not infer that a role or runtime guard is available
+on a client merely from its documentation; follow the owning route's existing
+availability and rejection behavior. No separate runtime qualification gate is
+required before adopting the catalog.
 Its exact capability, effort, tool, sandbox, and mutation defaults live in the
 [agent spec](../specs/agents.md#semantic-role-catalog). The
 [Agent Routing and Mutation Policy](agent-routing-and-mutation-policy.md) owns

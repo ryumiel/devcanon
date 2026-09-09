@@ -14,7 +14,6 @@ skills: []
 capability: efficient
 
 claude:
-  effort: medium
   tools:
     - Read
     - Grep

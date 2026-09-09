@@ -1137,7 +1137,7 @@ describe("renderAll", () => {
   it.each([
     ["efficient", "claude-haiku-4-5-20251001", "gpt-5.6-luna"],
     ["balanced", "claude-sonnet-5", "gpt-5.6-terra"],
-    ["frontier", "claude-opus-4-8", "gpt-5.6-sol"],
+    ["frontier", "claude-opus-4-8", "gpt-6-astra"],
   ] as const)(
     "substitutes the canonical %s model capability per target",
     async (capability, claudeModel, codexModel) => {

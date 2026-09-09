@@ -10,9 +10,10 @@ workflow spec references that routing owner and owns observable dispatch and
 guard behavior. Source skills retain task-local prompts, phase mechanics,
 route-local output, failure, and termination.
 
-This is a target contract, not a claim that every source-agent, skill, runtime,
-test, or generated-output migration has already landed. Deployment remains
-blocked until the ADR's complete acceptance gate passes.
+This contract governs the current semantic routes. ADR-0027 retires its
+separate runtime acceptance and deployment gate; ordinary repository checks
+verify the configured baseline. Live dispatch still requires the exact route
+declaration and retains the existing unavailable/rejected-pair behavior.
 
 ## Role Envelope Owner
 
@@ -36,6 +37,9 @@ redefining their meanings or default routes.
 Direct-child rows use their exact recorded capability and effort pair. An
 unresolved route blocks rather than escalating by guesswork. Capability resolves
 only the full native model; route effort is explicit and independent.
+The executor retains `medium` for Codex. Claude executor dispatch omits named
+effort for Haiku, as specified by the agent role catalog; this omission does
+not change the recorded Codex route tuple.
 
 ### Mutation axes
 
@@ -234,7 +238,13 @@ planner-selected `selected_role_id`, `scope`, `termination`, `context_ref`, and
 role-envelope owner. For the exact selected role and target, it derives
 `capability`, route `effort`, `source_authority`,
 `external_authority`, ordered duplicate-free `claude_tools`, `codex_sandbox`,
-and `default_network`. A fresh Codex D4 model is the rendered full model from
+and `default_network`. Effort selection is target-specific: Codex uses the
+catalog's route effort and Claude uses its Claude effort. For a Claude
+`executor`, `effort` must be absent from both the declaration and native spawn
+arguments; validate this required absence against the role catalog. All Codex
+roles (including executor at `medium`) and the other five Claude roles still
+require their exact catalog effort. Do not replace omission with an ambient
+value or a thinking budget. A fresh Codex D4 model is the rendered full model from
 the selected route capability's Codex-bound binding; its effort is the
 independent selected route effort. The selected source must match the selected
 role's capability before that render-time binding is used; a capability-less or
@@ -245,10 +255,12 @@ configuration or use the sibling passive runtime to supply this binding.
 
 `agents/*.yaml` are governed declarations/instances and parity inputs, never
 peer semantic authorities. Cognitive demand and stance remain planner
-classification inputs only, not declaration fields or authority. Missing,
-unresolved, unknown, nearby, ambient, or mismatched controller-bound or
-owner-derived values block before spawn; no declaration field is optional or
-may be inferred from the child, parent, workflow, or runtime environment. Under
+classification inputs only, not declaration fields or authority. Missing
+required, unresolved, unknown, nearby, ambient, or mismatched controller-bound
+or owner-derived values block before spawn. The required Claude-executor effort
+omission above is the sole exception to field presence; supplying effort for
+that selection also blocks. No other declaration field is optional or may be
+inferred from the child, parent, workflow, or runtime environment. Under
 the B3 routing boundary, a source-immutable D4 selection is response-only.
 
 ### Ordinary child failure disposition
@@ -273,13 +285,15 @@ workflow may still return its ordinary recoverable failure or `BLOCKED` state.
 ## Referenced Contracts
 
 - The [agent spec](../specs/agents.md) owns the exact role envelope, canonical
-  rendered example, and role-level render/runtime acceptance.
+  rendered example, ordinary render checks, and live-dispatch availability
+  boundaries.
 - The [AFDS workflow spec](../specs/afds-workflow-routing.md) owns observable
   route resolution, source-immutability guard ordering, valid handoff example,
   and failure routing.
 - [ADR-0027](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md)
-  owns the stable role decision, minimum guard rationale, bounded 10+6 runtime
-  gate, human deployment block, and explicit deferrals.
+  owns the stable role decision, minimum guard rationale, retirement of the
+  runtime acceptance/deployment gate, historical trial evidence, and explicit
+  exclusions.
 - Each route-owning source skill owns its task-local prompt, output, failure,
   and termination contract. The Direct-Child Route Inventory's final column is
   only its locator/summary.

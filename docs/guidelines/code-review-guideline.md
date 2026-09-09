@@ -336,10 +336,9 @@ The exact D15, D16, and D17 routes are owned by the
 [Agent Routing and Mutation Policy](agent-routing-and-mutation-policy.md#direct-child-route-inventory),
 and source-immutability guard behavior is owned by
 [AFDS GUARD-001](../specs/afds-workflow-routing.md#guard-001-source-immutable-result-gate).
-While ADR-0027 remains Proposed, operators must use the reviewer routes and
-guard behavior present in the current source implementation rather than the
-post-migration target. Once its acceptance gate passes, the following
-review-consumer requirements become active:
+Use the reviewer routes and guard behavior present in the current source
+implementation. ADR-0027 retires the separate runtime qualification gate; the
+following review-consumer requirements apply:
 
 - When dispatching a standalone reviewer agent, the caller must provide
   explicit review scope as a `base..head` ref or unified diff; reviewers

@@ -56,10 +56,21 @@ The accepted catalog is:
 | ----------- | --------------------------- | --------------- |
 | `efficient` | `claude-haiku-4-5-20251001` | `gpt-5.6-luna`  |
 | `balanced`  | `claude-sonnet-5`           | `gpt-5.6-terra` |
-| `frontier`  | `claude-opus-4-8`           | `gpt-5.6-sol`   |
+| `frontier`  | `claude-opus-4-8`           | `gpt-6-astra`   |
 
 These rows are DevCanon policy mappings, not claims that the paired provider
 models are equivalent.
+
+The September 9, 2026 baseline amendment replaces Codex frontier Sol with
+[GPT-6 Astra](https://developers.openai.com/api/docs/models/gpt-6-astra) and
+retains the other mappings. Astra is adopted as the starting frontier baseline;
+this decision does not claim measured DevCanon performance gains or require a
+model benchmark qualification campaign. Role tiers and Codex route efforts
+remain unchanged. The agent spec records the provider-specific omission of
+unsupported Claude Haiku executor effort. No speculative route adjustments or
+automatic escalation/fallback policies are introduced. Earlier model evaluation
+records remain historical evidence; ordinary configuration and render checks
+verify that DevCanon applies the selected baseline correctly.
 
 Agents may select one profile with the top-level `capability` field. Codex model
 resolution follows this precedence for `codex.model`:
@@ -103,12 +114,17 @@ The Claude mapping is inferred from the official Anthropic and Claude Code
 documentation above. Exact Claude Code runtime availability and the
 compatibility of every mapped model with every explicit effort remain
 unverified because no live Claude session was available. That limitation does
-not block the local source-policy decision; operators must verify their own
-client and account before deployment. The Terra and Sol rows retain the dated
-local runtime-smoke evidence recorded in ADR-0025, while effort is now chosen
-separately. The Luna row is supported by the current official Codex model guide
+not block baseline adoption or impose a separate pre-deployment qualification
+step. Live dispatch handles client/account availability through the owning
+route's existing unavailable or rejected-pair behavior. Terra and the historical
+Sol frontier mapping retain the dated local runtime-smoke evidence recorded in ADR-0025,
+while effort is now chosen separately. Astra adoption is supported by the
+official model documentation linked above and local configuration/render
+checks; no live Astra runtime trial or model benchmark was performed for this
+amendment. The Luna row is supported by the current official Codex model guide
 and provider catalog linked above, but remains locally runtime-unverified.
-Operators must verify Luna in their own client and account before deployment.
+Luna follows the same live-dispatch availability handling; no separate runtime
+trial is required before adopting it.
 
 ## Consequences
 

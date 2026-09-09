@@ -144,12 +144,13 @@ this section is only the current module-boundary summary.
 The current architecture has six semantic source roles under `agents/` and
 both-target render convergence for that catalog. Their source `codex.model:
 null` and omitted source Codex effort intentionally suppress rendered Codex
-model/effort while leaving the Claude envelope unchanged. The
+model/effort. The Claude executor omits unsupported Haiku effort; the other
+five Claude role envelopes remain unchanged. The
 [agent spec](../specs/agents.md#semantic-role-catalog) is the sole exact catalog
 owner; source definitions are authoritative for implementation state, while
 generated outputs and fresh renders are convergence evidence, not authority.
-ADR-0027 remains Proposed because bounded runtime acceptance is incomplete, not
-because source or render convergence is incomplete.
+ADR-0027 accepts this architecture with ordinary repository checks; its dated
+runtime trials are historical evidence, not a deployment prerequisite.
 
 The architecture exposes six thin semantic source roles:
 `assessor`, `investigator`, `executor`, `implementer`, `reviewer`, and
