@@ -361,7 +361,7 @@ baseline cleanup succeeds, and its anchored head remains current, dispatch
 exactly one mutable fix child:
 
 - Route an exact mechanical fix to one source-mutable `executor`,
-  efficient/medium.
+  efficient/medium on Codex; omit named effort for the Claude Haiku executor.
 - Route a judgment-bearing fix to one source-mutable `implementer`,
   balanced/high.
 

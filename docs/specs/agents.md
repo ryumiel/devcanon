@@ -79,7 +79,7 @@ provider models, effort levels, or workflow phases.
 | --------------- | ---------- | ------------- | ------------ | ------------------ | ---------------- | ----------------------------------------------------- |
 | `assessor`      | balanced   | medium        | medium       | `source-immutable` | `none`           | Bounded classification or evaluation                  |
 | `investigator`  | balanced   | high          | high         | `source-immutable` | `none`           | Repository, document, or external evidence collection |
-| `executor`      | efficient  | medium        | medium       | `source-mutable`   | `none`           | Exact validated no-policy operations                  |
+| `executor`      | efficient  | omitted       | medium       | `source-mutable`   | `none`           | Exact validated no-policy operations                  |
 | `implementer`   | balanced   | high          | high         | `source-mutable`   | `none`           | Judgment-bearing scoped implementation                |
 | `reviewer`      | frontier   | high          | high         | `source-immutable` | `none`           | Ordinary synthesis and adversarial review             |
 | `deep-reviewer` | frontier   | xhigh         | xhigh        | `source-immutable` | `none`           | Existing high-assurance review gates                  |
@@ -88,6 +88,12 @@ Capability and route effort are explicit for all six semantic roles and remain
 independent. The route effort is selected by a direct-child route; it is not a
 source `codex.model_reasoning_effort` default. Neither setting implies tools,
 sandbox, network, mutation, or escalation behavior.
+
+The executor uses Haiku 4.5 on Claude, which does not support named effort.
+Omit Claude executor effort in both source and dispatch; the recorded `medium`
+route effort still applies to Codex. This is a provider-specific omission, not
+a tier change or a translation to an extended-thinking budget. See the
+[Haiku model documentation](https://platform.claude.com/docs/en/models/haiku-4-5/overview).
 
 The shared [`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md)
 procedure owns future capability-escalation declarations and the
@@ -286,9 +292,10 @@ Explicit `codex.model: null` is known agent-source schema, not passthrough or a
 warning. Claude `model` accepts only a literal string or absence; Claude null is
 rejected. The agent spec owns this target distinction.
 The six current semantic source roles retain their top-level capability and
-unchanged Claude envelope, set `codex.model: null`, and omit
+Claude envelope specified above, set `codex.model: null`, and omit
 `codex.model_reasoning_effort`; their Codex render therefore omits both fields.
-Their Claude render remains byte-identical. Literal target model fields must not
+The Claude executor omits effort; other Claude role envelopes remain unchanged.
+Literal target model fields must not
 contain `{{model:*}}`; validation and both render paths reject those former
 agent placeholders with guidance to use top-level capability or a literal model.
 

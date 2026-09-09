@@ -36,6 +36,9 @@ redefining their meanings or default routes.
 Direct-child rows use their exact recorded capability and effort pair. An
 unresolved route blocks rather than escalating by guesswork. Capability resolves
 only the full native model; route effort is explicit and independent.
+The executor retains `medium` for Codex. Claude executor dispatch omits named
+effort for Haiku, as specified by the agent role catalog; this omission does
+not change the recorded Codex route tuple.
 
 ### Mutation axes
 

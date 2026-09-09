@@ -21,7 +21,7 @@ const CAPABILITY_PROFILES = {
   },
   frontier: {
     claude: "claude-opus-4-8",
-    codex: "gpt-5.6-sol",
+    codex: "gpt-6-astra",
   },
 };
 
