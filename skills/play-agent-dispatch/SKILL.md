@@ -87,10 +87,15 @@ Resolve Codex `model` from the selected role's exact Codex-bound capability
 binding. Require the selected source capability to match the selected semantic
 role before resolution; a capability-less or mismatched source fails that
 parity check.
-Keep target-native effort independent: it must equal the selected role's
-matching Codex effort from the semantic-role catalog, never a
-capability-derived or ambient value. Validate `source_authority` separately
-against that same catalog; effort does not imply authority.
+Keep target-native effort independent: Codex uses the selected role's route
+effort, and Claude uses its Claude effort from the semantic-role catalog.
+For a Claude `executor`, omit `effort` from both the declaration and native
+spawn arguments, and validate that it is absent as required by that catalog.
+This is the only effort-omission exception; all Codex roles, including executor
+at `medium`, and all other Claude roles require their exact catalog effort.
+Never derive effort from capability, inherit an ambient value, or substitute a
+thinking budget for omission. Validate `source_authority` separately against
+that same catalog; effort does not imply authority.
 `agents/*.yaml` are governed declarations and parity inputs,
 never semantic authorities; their target-local literal fields are governed
 values under the agent spec, but D4's fresh-Codex selection still resolves its
@@ -106,8 +111,10 @@ binding owns this field, or select an alias, nearby, or ambient model.
 
 Classify each independent problem domain separately. The controller selects one
 of the policy-owned six-role set before spawn; a generic or inherited workflow
-does not supply a child route. No field is optional. Missing, unresolved,
-unknown, nearby, ambient, or mismatched fields block before spawn. Do not infer
+does not supply a child route. Apart from the required Claude-executor effort
+omission above, no field is optional. Missing required, unresolved, unknown,
+nearby, ambient, or mismatched fields block before spawn. A supplied effort for
+the Claude executor also blocks before spawn. Do not infer
 model, effort, tools, sandbox, network, authority, or any other declaration
 field from the child, parent, workflow, runtime, or controller authority. The
 route inventory is not a marker, annotation, or discovery grammar; the child

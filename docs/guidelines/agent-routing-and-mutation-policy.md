@@ -238,7 +238,13 @@ planner-selected `selected_role_id`, `scope`, `termination`, `context_ref`, and
 role-envelope owner. For the exact selected role and target, it derives
 `capability`, route `effort`, `source_authority`,
 `external_authority`, ordered duplicate-free `claude_tools`, `codex_sandbox`,
-and `default_network`. A fresh Codex D4 model is the rendered full model from
+and `default_network`. Effort selection is target-specific: Codex uses the
+catalog's route effort and Claude uses its Claude effort. For a Claude
+`executor`, `effort` must be absent from both the declaration and native spawn
+arguments; validate this required absence against the role catalog. All Codex
+roles (including executor at `medium`) and the other five Claude roles still
+require their exact catalog effort. Do not replace omission with an ambient
+value or a thinking budget. A fresh Codex D4 model is the rendered full model from
 the selected route capability's Codex-bound binding; its effort is the
 independent selected route effort. The selected source must match the selected
 role's capability before that render-time binding is used; a capability-less or
@@ -249,10 +255,12 @@ configuration or use the sibling passive runtime to supply this binding.
 
 `agents/*.yaml` are governed declarations/instances and parity inputs, never
 peer semantic authorities. Cognitive demand and stance remain planner
-classification inputs only, not declaration fields or authority. Missing,
-unresolved, unknown, nearby, ambient, or mismatched controller-bound or
-owner-derived values block before spawn; no declaration field is optional or
-may be inferred from the child, parent, workflow, or runtime environment. Under
+classification inputs only, not declaration fields or authority. Missing
+required, unresolved, unknown, nearby, ambient, or mismatched controller-bound
+or owner-derived values block before spawn. The required Claude-executor effort
+omission above is the sole exception to field presence; supplying effort for
+that selection also blocks. No other declaration field is optional or may be
+inferred from the child, parent, workflow, or runtime environment. Under
 the B3 routing boundary, a source-immutable D4 selection is response-only.
 
 ### Ordinary child failure disposition

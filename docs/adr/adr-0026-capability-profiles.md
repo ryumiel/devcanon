@@ -114,15 +114,17 @@ The Claude mapping is inferred from the official Anthropic and Claude Code
 documentation above. Exact Claude Code runtime availability and the
 compatibility of every mapped model with every explicit effort remain
 unverified because no live Claude session was available. That limitation does
-not block the local source-policy decision; operators must verify their own
-client and account before deployment. Terra and the historical Sol frontier
-mapping retain the dated local runtime-smoke evidence recorded in ADR-0025,
+not block baseline adoption or impose a separate pre-deployment qualification
+step. Live dispatch handles client/account availability through the owning
+route's existing unavailable or rejected-pair behavior. Terra and the historical
+Sol frontier mapping retain the dated local runtime-smoke evidence recorded in ADR-0025,
 while effort is now chosen separately. Astra adoption is supported by the
 official model documentation linked above and local configuration/render
 checks; no live Astra runtime trial or model benchmark was performed for this
 amendment. The Luna row is supported by the current official Codex model guide
 and provider catalog linked above, but remains locally runtime-unverified.
-Operators must verify Luna in their own client and account before deployment.
+Luna follows the same live-dispatch availability handling; no separate runtime
+trial is required before adopting it.
 
 ## Consequences
 
