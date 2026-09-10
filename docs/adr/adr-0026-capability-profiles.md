@@ -56,7 +56,7 @@ The accepted catalog is:
 | ----------- | --------------------------- | --------------- |
 | `efficient` | `claude-haiku-4-5-20251001` | `gpt-5.6-luna`  |
 | `balanced`  | `claude-sonnet-5`           | `gpt-5.6-terra` |
-| `frontier`  | `claude-opus-4-8`           | `gpt-6-astra`   |
+| `frontier`  | `claude-opus-5`             | `gpt-6-astra`   |
 
 These rows are DevCanon policy mappings, not claims that the paired provider
 models are equivalent.
@@ -71,6 +71,15 @@ unsupported Claude Haiku executor effort. No speculative route adjustments or
 automatic escalation/fallback policies are introduced. Earlier model evaluation
 records remain historical evidence; ordinary configuration and render checks
 verify that DevCanon applies the selected baseline correctly.
+
+The September 10, 2026 baseline amendment adopts
+[Claude Opus 5](https://platform.claude.com/docs/en/about-claude/models/overview)
+as the frontier Claude baseline and retains the other mappings. This decision
+does not claim measured DevCanon performance gains or require a model
+benchmark qualification campaign. Role tiers and both targets' route efforts
+remain unchanged. Opus 5 supports the same effort range as the model it
+replaces, so `frontier` role efforts carry over unchanged. No speculative
+route adjustments or automatic escalation/fallback policies are introduced.
 
 Agents may select one profile with the top-level `capability` field. Codex model
 resolution follows this precedence for `codex.model`:

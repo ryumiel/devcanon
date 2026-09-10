@@ -233,7 +233,7 @@ capabilityProfiles:
     claude: claude-sonnet-5
     codex: gpt-5.6-terra
   frontier:
-    claude: claude-opus-4-8
+    claude: claude-opus-5
     codex: gpt-6-astra
 
 toolNames:
@@ -306,12 +306,12 @@ the user-facing boundary without replacing that source authority.
   | ----------- | --------------------------- | --------------- |
   | `efficient` | `claude-haiku-4-5-20251001` | `gpt-5.6-luna`  |
   | `balanced`  | `claude-sonnet-5`           | `gpt-5.6-terra` |
-  | `frontier`  | `claude-opus-4-8`           | `gpt-6-astra`   |
+  | `frontier`  | `claude-opus-5`             | `gpt-6-astra`   |
 
 - The paired values are DevCanon policy mappings, not provider equivalences.
-  The September 2026 baseline adopts Astra for Codex frontier while retaining
-  the other mappings. It does not introduce a model benchmark qualification
-  gate or change skill-route tiers and efforts.
+  The September 2026 baseline adopts Astra for Codex frontier and Opus 5 for
+  Claude frontier while retaining the other mappings. It does not introduce a
+  model benchmark qualification gate or change skill-route tiers and efforts.
 - Capability selects a model only. Claude `effort` and Codex
   `model_reasoning_effort` remain explicit target-native fields and are never
   inherited from a profile. The agent contract separately defines literal,

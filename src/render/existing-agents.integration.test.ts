@@ -54,9 +54,9 @@ const EXPECTED_CLAUDE_CONTENT_HASHES: Record<string, string> = {
   executor: "c70e04e1b7c40ebaf4b711aef0cc33ccdd22ad3db9fd3716180825176b4ae8a6",
   implementer:
     "37b5bfe3a30de6cb3a573793eaedd39bde75947cf752549ecd17199fbf3535a0",
-  reviewer: "a594af737e339935aa0b3b51a678a1bb435d1756ccc81114398d99ca10cf2df0",
+  reviewer: "d9ffaa37fec8bae73e9a5fdd5f4a63b2c41f639c4fae77e507dd6ab36b82e835",
   "deep-reviewer":
-    "e79569fb4ed05427011167485978b5b2c97a014ad245b4ce4207e949bc4c1263",
+    "a51eb11f741a23f84fc6c5fd19753103565d45dab66be21739d708a902a7d8ae",
 } as const;
 
 type RenderOutput = Awaited<ReturnType<typeof renderAll>>["outputs"][number];
