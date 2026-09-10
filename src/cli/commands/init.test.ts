@@ -200,7 +200,7 @@ describe("initAction", () => {
         codex: "gpt-5.6-terra",
       },
       frontier: {
-        claude: "claude-opus-4-8",
+        claude: "claude-opus-5",
         codex: "gpt-6-astra",
       },
     });
