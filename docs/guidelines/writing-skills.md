@@ -304,7 +304,9 @@ token count of every `references/`, `examples/`, or `assets/` file that
 named phase, route, or runtime condition — before the skill can complete any
 part of its work. Moving detail out of `SKILL.md` into a bundled file does not
 lower the eager footprint by itself; only gating the read behind a condition
-does.
+does. The eager footprint counts only UTF-8 text files the skill loads into
+its prompt; binary assets (images, fixtures) are outside the measured
+footprint even when a skill reads them unconditionally.
 
 `play-planning`'s `SKILL.md` (lines 176-183) is a worked example of an eager
 read that a `### Eager` entry (below) would list: it resolves both
@@ -340,9 +342,9 @@ reference is "a terminal pre-dispatch blocker," and states that "[t]he main
 skill is the normative owner of this policy; the loaded reference is a
 subordinate research-selected operating procedure." Reuse this pattern rather
 than inventing new phrasing per skill. Sibling commits apply the same
-technique elsewhere: #669 (`play-skill-authoring`), #671 (`play-debug`), #682
-(`pr-review` edited-preview recovery), and #684 (`branch-review` fix
-mechanics).
+technique elsewhere: #669 (`play-skill-authoring`, gating its worked-example
+and best-practices reads), #682 (`pr-review` edited-preview recovery),
+and #684 (`branch-review` fix mechanics).
 
 **The reference-loading section shape**
 
@@ -353,14 +355,22 @@ phase or step heading:
 - `### Eager` lists every reference, example, or asset file the skill reads
   unconditionally, each with a one-line reason it must load before any phase
   can run.
-- `### Conditional` lists every reference file loaded only for a named phase
-  or route, each with its exact trigger condition and a pointer to where in
-  the skill body the four-part contract above is applied. A skill with no
-  conditional reads omits this subsection rather than leaving it empty.
+- `### Conditional` lists every reference, example, or asset file loaded only
+  for a named phase or route, each with its exact trigger condition and a
+  pointer to where in the skill body the four-part contract above is applied.
+  A skill with no conditional reads omits this subsection rather than leaving
+  it empty.
 
 A linked support file that a skill reads but does not list under either
 subsection counts as eager. This fail-closed counting rule keeps an unlisted
 read from understating the skill's real prompt cost.
+
+The `## Reference Loading` section is required when a skill is next
+restructured to add or change phase-conditional loading — the four
+restructure issues under epic #711 are the first adopters — and for any new
+skill that gates a read. An existing skill without the section is not itself
+a finding; until it adds one, every linked support file it reads counts as
+eager under the fail-closed rule above.
 
 **Measurement method**
 
@@ -368,10 +378,12 @@ Measure eager footprint with `measureSkillPrompt`
 (`src/utils/token-count.ts`) or the internal analysis path in
 `src/analysis/`, per
 [ADR-0036](../adr/adr-0036-internal-skill-context-analysis.md), applied to
-`SKILL.md` plus every file listed under `### Eager`. This reuses the existing
-measurement primitive as-is: ADR-0036 forbids adding a new public CLI
-command, frontmatter field, or configuration surface for it, and no tracked
-baseline file is introduced by this guideline.
+`SKILL.md`, every file listed under `### Eager`, and every linked support
+file the skill reads that is listed under neither subsection (fail-closed per
+the counting rule above). This reuses the existing measurement primitive
+as-is: ADR-0036 forbids adding a new public CLI command, frontmatter field,
+or configuration surface for it, and no tracked baseline file is introduced
+by this guideline.
 
 ### Future controller capability transitions
 
