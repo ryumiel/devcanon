@@ -299,14 +299,16 @@ needs to stay genuinely conditional rather than disguised-eager.
 **Eager footprint**
 
 A skill's eager footprint is its own `SKILL.md` token/line count plus the
-token count of every `references/`, `examples/`, or `assets/` file that
-`SKILL.md` instructs the model to read unconditionally — not gated behind a
-named phase, route, or runtime condition — before the skill can complete any
-part of its work. Moving detail out of `SKILL.md` into a bundled file does not
-lower the eager footprint by itself; only gating the read behind a condition
-does. The eager footprint counts only UTF-8 text files the skill loads into
-its prompt; binary assets (images, fixtures) are outside the measured
-footprint even when a skill reads them unconditionally.
+token count of every `references/`, `examples/`, `assets/`, or `scripts/`
+file that `SKILL.md` instructs the model to read unconditionally — not gated
+behind a named phase, route, or runtime condition — before the skill can
+complete any part of its work. Moving detail out of `SKILL.md` into a bundled
+file does not lower the eager footprint by itself; only gating the read
+behind a condition does. The eager footprint counts only UTF-8 text files
+the skill loads into its prompt; binary assets (images, fixtures) are outside
+the measured footprint even when a skill reads them unconditionally, and a
+script that is only executed rather than read into the prompt is not
+counted.
 
 `play-planning`'s `SKILL.md` (lines 176-183) is a worked example of an eager
 read that a `### Eager` entry (below) would list: it resolves both
@@ -327,11 +329,14 @@ conditional. A conditional read satisfies four parts:
 3. State the fail-closed behavior if the reference is unavailable at that
    point: name what the skill must not do (dispatch, create an artifact, fall
    through to the next phase) rather than improvising inline.
-4. Add an explicit ownership sentence: the main skill remains the normative
-   owner of the policy, and the loaded reference is a subordinate,
-   condition-scoped operating procedure, not a second normative owner. This
-   follows the ownership partition in
-   [ADR-0029](../adr/adr-0029-normative-contract-ownership-topology.md).
+4. Add an explicit ownership-and-precedence sentence at the loading site. By
+   default, the main skill remains the normative owner of the policy and the
+   loaded file is a subordinate, condition-scoped operating procedure; where
+   an existing reference already owns a non-overlapping normative
+   responsibility under
+   [ADR-0029](../adr/adr-0029-normative-contract-ownership-topology.md), the
+   loading site names that reference's ownership and precedence instead of
+   reassigning it. In no case may both documents claim the same rule.
 
 Commit `cc31a7a9fdfce28048bbbc8396a07c2aa998d1c8` (#681) is the concrete
 existing example already in this repository: it rewrote
@@ -341,10 +346,13 @@ in `references/phase-3-research-controller.md` loads only on the
 reference is "a terminal pre-dispatch blocker," and states that "[t]he main
 skill is the normative owner of this policy; the loaded reference is a
 subordinate research-selected operating procedure." Reuse this pattern rather
-than inventing new phrasing per skill. Sibling commits apply the same
-technique elsewhere: #669 (`play-skill-authoring`, gating its worked-example
-and best-practices reads), #682 (`pr-review` edited-preview recovery),
-and #684 (`branch-review` fix mechanics).
+than inventing new phrasing per skill. Two sibling commits apply the full
+four-part pattern elsewhere — #682 (`pr-review` edited-preview recovery)
+and #684 (`branch-review` fix mechanics) — while #669
+(`play-skill-authoring`) is an earlier partial example: it names triggers
+and states fail-closed handling, but groups them in one top-level
+`## Conditional Resources` section rather than placing them at point of use,
+and most entries omit an ownership sentence.
 
 **The reference-loading section shape**
 
@@ -352,14 +360,14 @@ A `SKILL.md` that participates in phase-conditional loading carries one `##
 Reference Loading` section, placed after its Overview and before its first
 phase or step heading:
 
-- `### Eager` lists every reference, example, or asset file the skill reads
-  unconditionally, each with a one-line reason it must load before any phase
-  can run.
-- `### Conditional` lists every reference, example, or asset file loaded only
-  for a named phase or route, each with its exact trigger condition and a
-  pointer to where in the skill body the four-part contract above is applied.
-  A skill with no conditional reads omits this subsection rather than leaving
-  it empty.
+- `### Eager` lists every reference, example, asset, or script file the
+  skill reads unconditionally into its prompt, each with a one-line reason
+  it must load before any phase can run.
+- `### Conditional` lists every reference, example, asset, or script file
+  read into the prompt only for a named phase or route, each with its exact
+  trigger condition and a pointer to where in the skill body the four-part
+  contract above is applied. A skill with no conditional reads omits this
+  subsection rather than leaving it empty.
 
 A linked support file that a skill reads but does not list under either
 subsection counts as eager. This fail-closed counting rule keeps an unlisted
@@ -380,10 +388,14 @@ Measure eager footprint with `measureSkillPrompt`
 [ADR-0036](../adr/adr-0036-internal-skill-context-analysis.md), applied to
 `SKILL.md`, every file listed under `### Eager`, and every linked support
 file the skill reads that is listed under neither subsection (fail-closed per
-the counting rule above). This reuses the existing measurement primitive
-as-is: ADR-0036 forbids adding a new public CLI command, frontmatter field,
-or configuration surface for it, and no tracked baseline file is introduced
-by this guideline.
+the counting rule above). The internal analysis path is bundle-local: it
+validates every support path against the skill's own declared
+subdirectories, so a loading-map entry that points into a sibling skill's
+bundle cannot be measured through it. Measure that entry directly with
+`measureSkillPrompt` and add it to the total. This reuses the existing
+measurement primitive as-is: ADR-0036 forbids adding a new public CLI
+command, frontmatter field, or configuration surface for it, and no tracked
+baseline file is introduced by this guideline.
 
 ### Future controller capability transitions
 
