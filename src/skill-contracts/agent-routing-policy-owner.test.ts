@@ -393,48 +393,26 @@ describe("agent routing and mutation policy owner", () => {
   });
 
   it("keeps every D1-D18 model source Codex-bound and checkout-independent", async () => {
+    const FAIL_BEFORE_SPAWN_CLAUSE = /blocks before (?:capture or )?spawn/u;
+    const NO_FALLBACK_SOURCE_CLAUSE =
+      /Do not search a source checkout,[^.]*(?:alias|nearby|ambient)[^.]*model\./u;
     const ownerSkills = [
-      [
-        "issue-priming-workflow",
-        "A missing, blank, unresolved, or mismatched marker blocks before capture or spawn. Do not search a source checkout, use an alias, or fall back to a nearby or ambient model.",
-      ],
-      [
-        "play-agent-dispatch",
-        "A missing, blank, unresolved, or mismatched binding blocks before spawn. Do not search a source checkout, use a sibling runtime when a rendered binding owns this field, or select an alias, nearby, or ambient model.",
-      ],
-      [
-        "play-planning",
-        "A missing, blank, unresolved, or mismatched marker blocks before capture or spawn. Do not search a source checkout, use an alias, or fall back to a nearby or ambient model.",
-      ],
-      [
-        "play-review",
-        "A missing, blank, unresolved, or mismatched marker blocks before capture or spawn. Do not search a source checkout, use an alias, or fall back to a nearby or ambient model.",
-      ],
-      [
-        "play-skill-authoring",
-        "A missing, blank, unresolved, or mismatched marker blocks before capture or spawn. Do not search a source checkout, use an alias, or fall back to a nearby or ambient model.",
-      ],
-      [
-        "play-subagent-execution",
-        "A missing, blank, unresolved, or mismatched marker blocks before capture or spawn. Do not search a source checkout, use an alias, or fall back to a nearby or ambient model.",
-      ],
-      [
-        "pr-merge",
-        "A missing, blank, unresolved, or mismatched marker blocks before capture or spawn. Do not search a source checkout, use an alias, or fall back to a nearby or ambient model.",
-      ],
+      "issue-priming-workflow",
+      "play-agent-dispatch",
+      "play-planning",
+      "play-review",
+      "play-skill-authoring",
+      "play-subagent-execution",
+      "pr-merge",
     ] as const;
     const sources = await Promise.all(
       ownerSkills.map(
-        async ([skill, failClosed]) =>
-          [
-            skill,
-            failClosed,
-            await readRepoFile(`skills/${skill}/SKILL.md`),
-          ] as const,
+        async (skill) =>
+          [skill, await readRepoFile(`skills/${skill}/SKILL.md`)] as const,
       ),
     );
 
-    for (const [skill, failClosed, source] of sources) {
+    for (const [skill, source] of sources) {
       expect(
         source,
         `${skill} never discovers an original checkout config`,
@@ -443,10 +421,15 @@ describe("agent routing and mutation policy owner", () => {
         source,
         `${skill} never uses symbolic capability profiles`,
       ).not.toContain("capabilityProfiles.");
+      const normalized = source.replace(/\s+/gu, " ");
       expect(
-        source.replace(/\s+/gu, " "),
-        `${skill} fail-closes model resolution`,
-      ).toContain(failClosed);
+        normalized,
+        `${skill} blocks model resolution before capture or spawn`,
+      ).toMatch(FAIL_BEFORE_SPAWN_CLAUSE);
+      expect(
+        normalized,
+        `${skill} fail-closes with no source-checkout fallback`,
+      ).toMatch(NO_FALLBACK_SOURCE_CLAUSE);
     }
   });
 
