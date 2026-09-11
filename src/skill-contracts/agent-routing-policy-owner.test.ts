@@ -393,9 +393,10 @@ describe("agent routing and mutation policy owner", () => {
   });
 
   it("keeps every D1-D18 model source Codex-bound and checkout-independent", async () => {
-    const FAIL_BEFORE_SPAWN_CLAUSE = /blocks before (?:capture or )?spawn/u;
+    const FAIL_BEFORE_SPAWN_CLAUSE =
+      /(?:missing|blank|unresolved|mismatched)[^.]*blocks before (?:capture or )?spawn/u;
     const NO_FALLBACK_SOURCE_CLAUSE =
-      /Do not search a source checkout,[^.]*(?:alias|nearby|ambient)[^.]*model\./u;
+      /Do not search a source checkout,[^.]*\balias\b[^.]*\bnearby\b[^.]*\bambient model\./u;
     const ownerSkills = [
       "issue-priming-workflow",
       "play-agent-dispatch",
