@@ -298,17 +298,20 @@ needs to stay genuinely conditional rather than disguised-eager.
 
 **Eager footprint**
 
-A skill's eager footprint is its own `SKILL.md` token/line count plus the
-token count of every `references/`, `examples/`, `assets/`, or `scripts/`
-file (including a sibling skill's `SKILL.md` or support file) that
-`SKILL.md` instructs the model to read unconditionally into its prompt — not
-gated behind a named phase, route, or runtime condition — before the skill
-can complete any part of its work. Moving detail out of `SKILL.md` into a
-bundled file does not lower the eager footprint by itself; only gating the
-read behind a condition does. The eager footprint counts only UTF-8 text
-files the skill loads into its prompt; binary assets (images, fixtures) are
-outside the measured footprint even when a skill reads them unconditionally,
-and a script that is only executed rather than read into the prompt is not
+A skill's eager footprint is a single estimated-token total, in the same
+`o200k_base` tokens `measureSkillPrompt` reports: its own `SKILL.md` plus
+every `references/`, `examples/`, `assets/`, or `scripts/` file (including a
+sibling skill's `SKILL.md` or support file) that `SKILL.md` instructs the
+model to read unconditionally into its prompt — not gated behind a named
+phase, route, or runtime condition — before the skill can complete any part
+of its work. `SKILL.md`'s own line count is reported separately, the way
+["Prompt-size advisory"](#prompt-size-advisory) already reports it, and is
+not part of this total. Moving detail out of `SKILL.md` into a bundled file
+does not lower the eager footprint by itself; only gating the read behind a
+condition does. The eager footprint counts only UTF-8 text files the skill
+loads into its prompt; binary assets (images, fixtures) are outside the
+measured footprint even when a skill reads them unconditionally, and a
+script that is only executed rather than read into the prompt is not
 counted.
 
 `play-planning`'s `SKILL.md` (lines 176-183) is a worked example of an eager
@@ -372,9 +375,10 @@ phase or step heading:
   above is applied. A skill with no conditional reads omits this subsection
   rather than leaving it empty.
 
-A linked support file that a skill reads but does not list under either
-subsection counts as eager. This fail-closed counting rule keeps an unlisted
-read from understating the skill's real prompt cost.
+A linked support file or a sibling skill's `SKILL.md` that a skill reads but
+does not list under either subsection counts as eager. This fail-closed
+counting rule keeps an unlisted read from understating the skill's real
+prompt cost.
 
 The `## Reference Loading` section is required when a skill is next
 restructured to add or change phase-conditional loading — the four
@@ -385,27 +389,27 @@ eager under the fail-closed rule above.
 
 **Measurement method**
 
-Measure eager footprint with `measureSkillPrompt`
-(`src/utils/token-count.ts`) or the internal analysis path in
-`src/analysis/`, per
-[ADR-0036](../adr/adr-0036-internal-skill-context-analysis.md), applied to
-`SKILL.md`, every file listed under `### Eager`, and every linked support
-file the skill reads that is listed under neither subsection (fail-closed per
-the counting rule above). A `### Conditional` entry whose loading site does
-not satisfy the four-part contract above also counts as eager for
-measurement, consistent with the fail-closed counting rule. The eager
-footprint is measured on raw `SKILL.md` source, matching the prompt-size
-advisory; when the internal analysis path is used, the footprint is the
-`raw-source` record plus the support-file records, not a target-rendered
-scenario total. The internal analysis path is bundle-local: it validates
-every support path against the skill's own declared subdirectories, so a
-loading-map entry that points into a sibling skill's bundle — such as that
-skill's `SKILL.md` or a support file — cannot be measured through it.
-Measure that entry directly with `measureSkillPrompt` and add it to the
-total. This reuses the existing measurement primitive as-is: ADR-0036
-forbids adding a new public CLI command, frontmatter field, or configuration
-surface for it, and no tracked baseline file is introduced by this
-guideline.
+Sum estimated tokens (`measureSkillPrompt`, `src/utils/token-count.ts`, or
+the internal analysis path in `src/analysis/` per
+[ADR-0036](../adr/adr-0036-internal-skill-context-analysis.md)) across: raw
+`SKILL.md` source, matching the prompt-size advisory rather than a
+target-rendered scenario total; every UTF-8 text file listed under
+`### Eager` (a listed binary asset has no token count and is not summed);
+every unlisted prompt-loaded file, fail-closed per the counting rule above;
+and any `### Conditional` entry whose loading site fails the four-part
+contract above. When the internal analysis path is used, this means the
+`raw-source` record plus the relevant support-file records, not a scenario's
+`rendered-skill` total — and because `runSkillContextAnalysis` keys support
+records by `target\0path`, run a single-target analysis or deduplicate
+support records by path before summing, so a file shared by a Claude and a
+Codex scenario is not counted twice. That path is also bundle-local: it
+validates every support path against the skill's own declared
+subdirectories, so a loading-map entry into a sibling skill's bundle — that
+skill's `SKILL.md` or a support file — cannot be measured through it; measure
+it directly with `measureSkillPrompt` and add it to the sum. This reuses the
+existing measurement primitive as-is: ADR-0036 forbids adding a new public
+CLI command, frontmatter field, or configuration surface for it, and no
+tracked baseline file is introduced by this guideline.
 
 ### Future controller capability transitions
 
