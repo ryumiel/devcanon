@@ -393,8 +393,11 @@ describe("agent routing and mutation policy owner", () => {
   });
 
   it("keeps every D1-D18 model source Codex-bound and checkout-independent", async () => {
-    const FAIL_BEFORE_SPAWN_CLAUSE =
-      /(?:missing|blank|unresolved|mismatched)[^.]*blocks before (?:capture or )?spawn/u;
+    const CAPTURE_OR_SPAWN_CLAUSE =
+      /(?:missing|blank|unresolved|mismatched)[^.]*blocks before capture or spawn/u;
+    const SPAWN_ONLY_CLAUSE =
+      /(?:missing|blank|unresolved|mismatched)[^.]*blocks before spawn/u;
+    const SPAWN_ONLY_OWNERS = new Set(["play-agent-dispatch"]);
     const NO_FALLBACK_SOURCE_CLAUSE =
       /Do not search a source checkout,[^.]*\balias\b[^.]*\bnearby\b[^.]*\bambient model\./u;
     const ownerSkills = [
@@ -423,10 +426,13 @@ describe("agent routing and mutation policy owner", () => {
         `${skill} never uses symbolic capability profiles`,
       ).not.toContain("capabilityProfiles.");
       const normalized = source.replace(/\s+/gu, " ");
+      const failBeforeSpawnClause = SPAWN_ONLY_OWNERS.has(skill)
+        ? SPAWN_ONLY_CLAUSE
+        : CAPTURE_OR_SPAWN_CLAUSE;
       expect(
         normalized,
         `${skill} blocks model resolution before capture or spawn`,
-      ).toMatch(FAIL_BEFORE_SPAWN_CLAUSE);
+      ).toMatch(failBeforeSpawnClause);
       expect(
         normalized,
         `${skill} fail-closes with no source-checkout fallback`,
