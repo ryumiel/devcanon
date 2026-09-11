@@ -120,7 +120,7 @@ describe("play-planning execution projection contract", () => {
     ).replace(/\s+/gu, " ");
 
     expect(planning).toMatch(
-      /D5 PASS[^.]*D6 PASS[^.]*join rehash[^.]*pre-handoff rehash[^.]*same saved bytes/u,
+      /projection inspection[^.]*D5 PASS[^.]*D6 PASS[^.]*join rehash[^.]*pre-handoff rehash[^.]*same saved bytes/u,
     );
     expect(planning).toContain(
       "`Plan written to <repo-relative-path>.` and `Reviewed digest: <sha256>` name that inspected path and its identical-byte digest",
