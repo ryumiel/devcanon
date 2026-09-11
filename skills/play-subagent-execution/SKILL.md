@@ -447,9 +447,9 @@ uses `implementer`, balanced/high; D13 uses `executor`, efficient/medium; and
 D14-D16 use `deep-reviewer`, frontier/xhigh. These pairs do not grant external
 mutation authority.
 
-For Claude D13 executor dispatch, omit named effort for Haiku. The `medium`
-effort above remains the Codex dispatch value; do not translate it to a Claude
-thinking budget.
+For Claude D13 executor dispatch, omit named effort for the efficient
+capability. The `medium` effort above remains the Codex dispatch value; do not
+translate it to a Claude thinking budget.
 
 ### D12-D16 fresh-Codex dispatch contract
 
