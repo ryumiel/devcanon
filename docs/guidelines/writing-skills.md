@@ -289,6 +289,90 @@ Prefer moving coherent supporting sections over deleting nuance. A smaller
 to use the skill, what contract it must preserve, and which supporting file or
 script to open when more detail is needed.
 
+### Eager footprint and phase-conditional loading
+
+["Prompt-size advisory"](#prompt-size-advisory) measures only `SKILL.md`
+itself. This subsection extends that measure to the supporting files a skill
+loads before any work happens, and defines the phrasing a conditional read
+needs to stay genuinely conditional rather than disguised-eager.
+
+**Eager footprint**
+
+A skill's eager footprint is its own `SKILL.md` token/line count plus the
+token count of every `references/`, `examples/`, or `assets/` file that
+`SKILL.md` instructs the model to read unconditionally — not gated behind a
+named phase, route, or runtime condition — before the skill can complete any
+part of its work. Moving detail out of `SKILL.md` into a bundled file does not
+lower the eager footprint by itself; only gating the read behind a condition
+does.
+
+`play-planning`'s `SKILL.md` (lines 176-183) is a worked example of an eager
+read that a `### Eager` entry (below) would list: it resolves both
+`references/planning-criteria.md` and
+`references/planning-readiness-audit.md` "[b]efore file mapping or task
+drafting," with no gating condition.
+
+**The phase-conditional loading pattern**
+
+A read instruction lowers eager footprint only when it is actually
+conditional. A conditional read satisfies four parts:
+
+1. Name the triggering condition before the load instruction, so the model
+   can evaluate whether the condition applies before it reaches the
+   instruction to load.
+2. Place the load instruction at the point of use — inside the phase, route,
+   or step that needs it — rather than up front in the overview or setup.
+3. State the fail-closed behavior if the reference is unavailable at that
+   point: name what the skill must not do (dispatch, create an artifact, fall
+   through to the next phase) rather than improvising inline.
+4. Add an explicit ownership sentence: the main skill remains the normative
+   owner of the policy, and the loaded reference is a subordinate,
+   condition-scoped operating procedure, not a second normative owner. This
+   follows the ownership partition in
+   [ADR-0029](../adr/adr-0029-normative-contract-ownership-topology.md).
+
+Commit `cc31a7a9fdfce28048bbbc8396a07c2aa998d1c8` (#681) is the concrete
+existing example already in this repository: it rewrote
+`skills/issue-priming-workflow/SKILL.md`'s Phase 3 so the detailed procedure
+in `references/phase-3-research-controller.md` loads only on the
+`RESEARCH_NEEDED` or `forced` route, states that a missing or unreadable
+reference is "a terminal pre-dispatch blocker," and states that "[t]he main
+skill is the normative owner of this policy; the loaded reference is a
+subordinate research-selected operating procedure." Reuse this pattern rather
+than inventing new phrasing per skill. Sibling commits apply the same
+technique elsewhere: #669 (`play-skill-authoring`), #671 (`play-debug`), #682
+(`pr-review` edited-preview recovery), and #684 (`branch-review` fix
+mechanics).
+
+**The reference-loading section shape**
+
+A `SKILL.md` that participates in phase-conditional loading carries one `##
+Reference Loading` section, placed after its Overview and before its first
+phase or step heading:
+
+- `### Eager` lists every reference, example, or asset file the skill reads
+  unconditionally, each with a one-line reason it must load before any phase
+  can run.
+- `### Conditional` lists every reference file loaded only for a named phase
+  or route, each with its exact trigger condition and a pointer to where in
+  the skill body the four-part contract above is applied. A skill with no
+  conditional reads omits this subsection rather than leaving it empty.
+
+A linked support file that a skill reads but does not list under either
+subsection counts as eager. This fail-closed counting rule keeps an unlisted
+read from understating the skill's real prompt cost.
+
+**Measurement method**
+
+Measure eager footprint with `measureSkillPrompt`
+(`src/utils/token-count.ts`) or the internal analysis path in
+`src/analysis/`, per
+[ADR-0036](../adr/adr-0036-internal-skill-context-analysis.md), applied to
+`SKILL.md` plus every file listed under `### Eager`. This reuses the existing
+measurement primitive as-is: ADR-0036 forbids adding a new public CLI
+command, frontmatter field, or configuration surface for it, and no tracked
+baseline file is introduced by this guideline.
+
 ### Future controller capability transitions
 
 When authoring a controller that could change a direct child's capability or
