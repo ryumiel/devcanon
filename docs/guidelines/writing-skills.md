@@ -347,9 +347,9 @@ policy at the loading site. `skills/branch-review/SKILL.md`'s "Phase 3: Dispose"
 the same pattern for its `references/fix-disposition.md` load. Reuse this
 pattern rather than inventing new phrasing per skill.
 
-The `## Reference Loading` section that declares a skill's eager and
-conditional inventories, and the rules for counting a file toward either,
-are specified in [`../specs/skills.md`](../specs/skills.md), not here.
+Declaring a skill's eager and conditional inventories, and the rules for
+counting a file toward either, is owned by the skill behavior spec,
+[`../specs/skills.md`](../specs/skills.md), not by this guideline.
 
 ### Future controller capability transitions
 
