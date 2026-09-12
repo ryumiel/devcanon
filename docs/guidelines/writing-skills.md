@@ -292,42 +292,32 @@ script to open when more detail is needed.
 ### Eager footprint and phase-conditional loading
 
 ["Prompt-size advisory"](#prompt-size-advisory) measures only `SKILL.md`
-itself. This subsection extends that measure to the supporting files a skill
-loads before any work happens, and defines the phrasing a conditional read
-needs to stay genuinely conditional rather than disguised-eager.
+itself. This subsection extends that concept to the supporting files a
+skill loads, and defines the phrasing a conditional read needs to stay
+genuinely conditional rather than disguised-eager.
 
 **Eager footprint**
 
-A skill's eager footprint is a single estimated-token total, in the same
-`o200k_base` tokens `measureSkillPrompt` reports: its own `SKILL.md` plus
-every `references/`, `examples/`, `assets/`, or `scripts/` file (including a
-sibling skill's `SKILL.md` or support file) that `SKILL.md` instructs the
-model to read unconditionally into its prompt — not gated behind a named
-phase, route, or runtime condition — before the skill can complete any part
-of its work. The footprint covers only files that ship in a skill bundle —
-its own or a sibling's — since a file the skill discovers in the target
-repository at run time (its documentation standard, for example) is not
-knowable at authoring time and does not belong in a loading map. `SKILL.md`'s
-own line count is reported separately, the way ["Prompt-size
-advisory"](#prompt-size-advisory) already reports it, and is not part of
-this total. Moving detail out of `SKILL.md` into a bundled file
-does not lower the eager footprint by itself; only gating the read behind a
-condition does. The eager footprint counts only UTF-8 text files the skill
-loads into its prompt; binary assets (images, fixtures) are outside the
-measured footprint even when a skill reads them unconditionally, and a
-script that is only executed rather than read into the prompt is not
-counted.
+A skill's eager footprint is every file — `SKILL.md` itself, plus its
+bundled `references/`, `examples/`, `assets/`, or `scripts/` files
+(including a sibling skill's `SKILL.md` or support file) — that the skill
+is guaranteed to read into its prompt at some point in any run, regardless
+of which phase, route, or condition applies. A read still counts as eager
+even when the instruction defers it to later in the run; only gating the
+read behind a condition that can go unmet makes it conditional. Moving
+detail out of `SKILL.md` into a bundled file does not lower the eager
+footprint by itself — the file still loads every run unless a genuine
+condition gates it.
 
-`play-planning`'s `SKILL.md` (lines 176-183) is a worked example of an eager
-read that a `### Eager` entry (below) would list: it resolves both
-`references/planning-criteria.md` and
-`references/planning-readiness-audit.md` "[b]efore file mapping or task
-drafting," with no gating condition.
+`play-planning`'s `SKILL.md`, under its "Scope Envelope and Canonical
+Criteria" heading, is a worked example of an eager read: it resolves both
+`references/planning-criteria.md` and `references/planning-readiness-audit.md`
+before file mapping or task drafting, with no gating condition.
 
 **The phase-conditional loading pattern**
 
 A read instruction lowers eager footprint only when it is actually
-conditional. A conditional read satisfies four parts:
+conditional. A conditional read satisfies these parts:
 
 1. Name the triggering condition before the load instruction, so the model
    can evaluate whether the condition applies before it reaches the
@@ -337,85 +327,29 @@ conditional. A conditional read satisfies four parts:
 3. State the fail-closed behavior if the reference is unavailable at that
    point: name what the skill must not do (dispatch, create an artifact, fall
    through to the next phase) rather than improvising inline.
-4. Add an explicit ownership-and-precedence sentence at the loading site. By
-   default, the main skill remains the normative owner of the policy and the
-   loaded file is a subordinate, condition-scoped operating procedure; where
-   an existing reference already owns a non-overlapping normative
-   responsibility under
+4. For a policy-bearing reference or procedure, add an explicit
+   ownership-and-precedence sentence at the loading site. By default, the
+   main skill remains the normative owner of the policy and the loaded file
+   is a subordinate, condition-scoped operating procedure; where an existing
+   reference already owns a non-overlapping normative responsibility under
    [ADR-0029](../adr/adr-0029-normative-contract-ownership-topology.md), the
    loading site names that reference's ownership and precedence instead of
-   reassigning it. In no case may both documents claim the same rule.
+   reassigning it. In no case may both documents claim the same rule. A
+   non-normative input — a worked example, fixture, or template — carries no
+   ownership claim to make, so parts 1-3 alone satisfy it.
 
-Commit `cc31a7a9fdfce28048bbbc8396a07c2aa998d1c8` (#681) is the concrete
-existing example already in this repository: it rewrote
-`skills/issue-priming-workflow/SKILL.md`'s Phase 3 so the detailed procedure
-in `references/phase-3-research-controller.md` loads only on the
-`RESEARCH_NEEDED` or `forced` route, states that a missing or unreadable
-reference is "a terminal pre-dispatch blocker," and states that "[t]he main
-skill is the normative owner of this policy; the loaded reference is a
-subordinate research-selected operating procedure." Reuse this pattern
-rather than inventing new phrasing per skill. Of the sibling restructures,
-only #684 (`branch-review` fix mechanics) applies the full four-part
-pattern, naming the reference subordinate at the loading site; #682
-(`pr-review` edited-preview recovery) asserts the main gate's authority but
-is near-complete rather than full since it never names the reference
-subordinate there; and #669 (`play-skill-authoring`) remains an earlier
-partial example, grouping triggers and fail-closed handling in one
-top-level `## Conditional Resources` section rather than point of use, and
-mostly omitting an ownership sentence.
+`skills/issue-priming-workflow/SKILL.md`'s "Phase 3: Research (Conditional)"
+heading is the concrete pattern to reuse: it loads
+`references/phase-3-research-controller.md` only on the `RESEARCH_NEEDED`
+or forced route, states that a missing or unreadable reference is a
+terminal pre-dispatch blocker, and states the main skill's ownership of the
+policy at the loading site. `skills/branch-review/SKILL.md`'s "Phase 3: Dispose" heading applies
+the same pattern for its `references/fix-disposition.md` load. Reuse this
+pattern rather than inventing new phrasing per skill.
 
-**The reference-loading section shape**
-
-A `SKILL.md` that participates in phase-conditional loading carries one `##
-Reference Loading` section, placed after its Overview and before its first
-phase or step heading:
-
-- `### Eager` lists every reference, example, asset, or script file —
-  including a sibling skill's `SKILL.md` or support file — the skill reads
-  unconditionally into its prompt, each with a one-line reason it must load
-  before any phase can run.
-- `### Conditional` lists every reference, example, asset, or script file —
-  including a sibling skill's `SKILL.md` or support file — read into the
-  prompt only for a named phase or route, each with its exact trigger
-  condition and a pointer to where in the skill body the four-part contract
-  above is applied. A skill with no conditional reads omits this subsection
-  rather than leaving it empty.
-
-A linked support file or a sibling skill's `SKILL.md` that a skill reads but
-does not list under either subsection counts as eager. This fail-closed
-counting rule keeps an unlisted read from understating the skill's real
-prompt cost.
-
-The `## Reference Loading` section is required when a skill is next
-restructured to add or change phase-conditional loading — the four
-restructure issues under epic #711 are the first adopters — and for any new
-skill that gates a read. An existing skill without the section is not itself
-a finding; until it adds one, every linked support file it reads counts as
-eager under the fail-closed rule above.
-
-**Measurement method**
-
-Sum estimated tokens (`measureSkillPrompt`, `src/utils/token-count.ts`, or
-the internal analysis path in `src/analysis/` per
-[ADR-0036](../adr/adr-0036-internal-skill-context-analysis.md)) across: raw
-`SKILL.md` source, matching the prompt-size advisory rather than a
-target-rendered scenario total; every UTF-8 text file listed under
-`### Eager` (a listed binary asset has no token count and is not summed);
-every unlisted prompt-loaded bundle file, fail-closed per the counting rule
-above; and any `### Conditional` entry whose loading site fails the four-part
-contract above. When the internal analysis path is used, this means the
-`raw-source` record plus the relevant support-file records, not a scenario's
-`rendered-skill` total — and because `runSkillContextAnalysis` keys support
-records by `target\0path`, run a single-target analysis or deduplicate
-support records by path before summing, so a file shared by a Claude and a
-Codex scenario is not counted twice. That path is also bundle-local: it
-validates every support path against the skill's own declared
-subdirectories, so a loading-map entry into a sibling skill's bundle — that
-skill's `SKILL.md` or a support file — cannot be measured through it; measure
-it directly with `measureSkillPrompt` and add it to the sum. This reuses the
-existing measurement primitive as-is: ADR-0036 forbids adding a new public
-CLI command, frontmatter field, or configuration surface for it, and no
-tracked baseline file is introduced by this guideline.
+The `## Reference Loading` section that declares a skill's eager and
+conditional inventories, and the rules for counting a file toward either,
+are specified in [`../specs/skills.md`](../specs/skills.md), not here.
 
 ### Future controller capability transitions
 
