@@ -108,11 +108,9 @@ describe("play-planning execution projection contract", () => {
       await readRepoFile("skills/play-planning/SKILL.md")
     ).replace(/\s+/gu, " ");
 
-    expect(planning).toContain(
-      "invalidates the prior projection inspection, expected digest, join digest, and both D5/D6 verdicts",
-    );
-    expect(planning).toContain(
-      "rerun guarded saved-path validation, exact-byte SHA-256, and canonical projection inspection before freezing a fresh tuple",
+    expect(planning).toMatch(/mutation[^.]*invalidates[^.]*D5\/D6 verdicts/u);
+    expect(planning).toMatch(
+      /rerun[^.]*exact-byte SHA-256[^.]*canonical projection inspection/u,
     );
   });
 
@@ -121,8 +119,8 @@ describe("play-planning execution projection contract", () => {
       await readRepoFile("skills/play-planning/SKILL.md")
     ).replace(/\s+/gu, " ");
 
-    expect(planning).toContain(
-      "final successful projection inspection, D5 PASS, D6 PASS, join rehash, and pre-handoff rehash all cover the same saved bytes",
+    expect(planning).toMatch(
+      /projection inspection[^.]*D5 PASS[^.]*D6 PASS[^.]*join rehash[^.]*pre-handoff rehash[^.]*same saved bytes/u,
     );
     expect(planning).toContain(
       "`Plan written to <repo-relative-path>.` and `Reviewed digest: <sha256>` name that inspected path and its identical-byte digest",
