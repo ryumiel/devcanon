@@ -71,29 +71,21 @@ before making any claim.
 | Agent completed       | VCS diff shows changes          | Agent reports "success"        |
 | Requirements met      | Line-by-line checklist          | Tests passing                  |
 
-## Red Flags - STOP
-
-- Using "should", "probably", "seems to"
-- Expressing satisfaction before verification ("Great!", "Perfect!", "Done!", etc.)
-- About to commit/push/PR without verification
-- Trusting agent success reports
-- Relying on partial verification
-- Thinking "just this once"
-- Tired and wanting work over
-- **ANY wording implying success without having run verification**
-
 ## Rationalization Prevention
 
-| Excuse                                  | Reality                |
-| --------------------------------------- | ---------------------- |
-| "Should work now"                       | RUN the verification   |
-| "I'm confident"                         | Confidence ≠ evidence  |
-| "Just this once"                        | No exceptions          |
-| "Linter passed"                         | Linter ≠ compiler      |
-| "Agent said success"                    | Verify independently   |
-| "I'm tired"                             | Exhaustion ≠ excuse    |
-| "Partial check is enough"               | Partial proves nothing |
-| "Different words so rule doesn't apply" | Spirit over letter     |
+| Excuse                                    | Reality                                                                         |
+| ----------------------------------------- | ------------------------------------------------------------------------------- |
+| "Should work now", "probably", "seems to" | RUN the verification                                                            |
+| "I'm confident"                           | Confidence ≠ evidence                                                           |
+| "Just this once"                          | No exceptions                                                                   |
+| "Linter passed"                           | Linter ≠ compiler                                                               |
+| "Agent said success"                      | Verify independently                                                            |
+| "I'm tired"                               | Exhaustion ≠ excuse                                                             |
+| "Partial check is enough"                 | Partial proves nothing                                                          |
+| "Different words so rule doesn't apply"   | Spirit over letter                                                              |
+| "Great!", "Perfect!", "Done!"             | Satisfaction before verification is still a claim                               |
+| "I'll verify after I commit/push/PR"      | Verify before the commit, push, or PR                                           |
+| "It is only wording"                      | ANY wording implying success without having run verification is a success claim |
 
 ## Key Patterns
 

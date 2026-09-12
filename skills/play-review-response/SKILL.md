@@ -55,23 +55,10 @@ have already authorized it.
 
 ## Handling Unclear Feedback
 
-```
-IF any item is unclear:
-  STOP - do not implement anything yet
-  ASK for clarification on unclear items
-
-WHY: Items may be related. Partial understanding = wrong implementation.
-```
-
-**Example:**
-
-```
-the user: "Fix 1-6"
-You understand 1,2,3,6. Unclear on 4,5.
-
-❌ WRONG: Implement 1,2,3,6 now, ask about 4,5 later
-✅ RIGHT: "I understand items 1,2,3,6. Need clarification on 4 and 5 before proceeding."
-```
+If any item is unclear, STOP and do not implement anything yet. Ask for
+clarification on the unclear items first, because items may be related and
+partial understanding produces a wrong implementation. Worked example:
+[`examples/feedback-intake.md`](examples/feedback-intake.md).
 
 ## Source-Specific Handling
 
@@ -92,16 +79,12 @@ BEFORE selecting a mode:
   3. Check: Reason for current implementation?
   4. Check: Works on all platforms/versions?
   5. Check: Does reviewer understand full context?
-
-IF suggestion seems wrong:
-  Push back with technical reasoning
-
-IF can't easily verify:
-  Say so: "I can't verify this without [X]. Should I [investigate/ask/proceed]?"
-
-IF conflicts with the user's prior decisions:
-  Stop and discuss with the user first
 ```
+
+Push back with technical reasoning when the suggestion seems wrong. Say so and
+ask for direction when you cannot easily verify it. Stop and discuss with the
+user first when it conflicts with the user's prior decisions. Worked example:
+[`examples/feedback-intake.md`](examples/feedback-intake.md).
 
 **Rule:** "External feedback - be skeptical, but check carefully"
 
@@ -468,18 +451,6 @@ After the executor returns, this skill resumes ownership of explanation-only
 replies, thread refetching, resolution eligibility, and final PR-thread
 closeout.
 
-Inline example:
-
-```text
-Reviewer: "This CLI feedback needs a local correction."
-Verification: current evidence supports the feedback and a focused check is
-available.
-Classification: in-scope product blocker (Writing Skills).
-Mode: Inline execution.
-Action: Apply the selected inline route, run the focused check, and commit as a
-follow-up if the PR was already pushed or reviewed.
-```
-
 Plan-plus-executor handoff example:
 
 ```text
@@ -498,42 +469,15 @@ bytes, then invoke `play-subagent-execution` with `Plan: <path>` and
 `Expected digest: <sha256>` only when the digest still matches.
 ```
 
-No-code feedback example:
-
-```text
-Reviewer: "This endpoint is missing validation."
-Verification: current feedback-source state and current code show the endpoint
-was deleted in this branch; the concern is stale.
-Mode: No-code response.
-Action: Prepare a concise evidence-backed disposition and keep any unclear or
-unresolved thread open under the GitHub reply/refetching rules.
-```
-
-GitHub closeout exclusion example:
-
-```text
-Reviewer: "After this in-scope correction lands, reply and resolve these
-threads."
-Verification: the selected correction needs a plan, but GitHub replies,
-refetching, resolution, posting, push, and closeout remain outside executor
-tasks.
-Classification: in-scope product blocker (Writing Skills).
-Mode: Planned execution plus parent-owned closeout.
-Action: Leave GitHub side effects in the review-response planning input as
-outside executor scope. After the executor returns, this skill re-fetches
-thread state, runs the Pre-Push Review Gate, replies, and resolves only
-eligible threads after approval.
-```
+Worked inline, no-code, and GitHub-closeout-exclusion scenarios:
+[`examples/execution-mode-scenarios.md`](examples/execution-mode-scenarios.md).
 
 ## YAGNI Check for "Professional" Features
 
-```
-IF reviewer suggests "implementing properly":
-  grep codebase for actual usage
-
-  IF unused: "This endpoint isn't called. Remove it (YAGNI)?"
-  IF used: Let the classification and selected execution mode determine any work
-```
+When a reviewer suggests "implementing properly", grep the codebase for actual
+usage first. If nothing calls it, propose removing it. If it is used, let the
+classification and selected execution mode determine any work. Worked example:
+[`examples/yagni-check.md`](examples/yagni-check.md).
 
 **Rule:** "You and reviewer both report to me. If we don't need this feature, don't add it."
 
@@ -726,19 +670,10 @@ Push back when:
 
 ## Acknowledging Correct Feedback
 
-When feedback IS correct:
-
-```
-✅ "Fixed. [Brief description of what changed]"
-✅ "Good catch - [specific issue]. Fixed in [location]."
-✅ [State the authorized outcome and show it in the code]
-
-❌ "You're absolutely right!"
-❌ "Great point!"
-❌ "Thanks for catching that!"
-❌ "Thanks for [anything]"
-❌ ANY gratitude expression
-```
+When feedback IS correct, state the fix and where it landed, or state the
+authorized outcome and show it in the code. ANY gratitude expression is
+forbidden. Approved and forbidden phrasings:
+[`examples/response-phrasing.md`](examples/response-phrasing.md).
 
 **Why no thanks:** Actions speak. State the authorized outcome. The code itself
 shows you heard the feedback.
@@ -747,16 +682,10 @@ shows you heard the feedback.
 
 ## Gracefully Correcting Your Pushback
 
-If you pushed back and were wrong:
-
-```
-✅ "You were right - I checked [X] and it does [Y]. The selected mode authorizes the next step."
-✅ "Verified this and you're correct. My initial understanding was wrong because [reason]. I will follow the selected mode."
-
-❌ Long apology
-❌ Defending why you pushed back
-❌ Over-explaining
-```
+If you pushed back and were wrong, say what you checked, what the code actually
+does, and that you will follow the selected mode. No long apology, no defending
+why you pushed back, no over-explaining. Sample phrasings:
+[`examples/response-phrasing.md`](examples/response-phrasing.md).
 
 State the correction factually and move on.
 
@@ -772,36 +701,8 @@ State the correction factually and move on.
 | Partial implementation       | Clarify all items first             |
 | Can't verify, proceed anyway | State limitation, ask for direction |
 
-## Real Examples
-
-**Performative Agreement (Bad):**
-
-```
-Reviewer: "Remove legacy code"
-❌ "You're absolutely right! Let me remove that..."
-```
-
-**Technical Verification (Good):**
-
-```
-Reviewer: "Remove legacy code"
-✅ "Checking... build target is 10.15+, this API needs 13+. Need legacy for backward compat. Current impl has wrong bundle ID - fix it or drop pre-13 support?"
-```
-
-**YAGNI (Good):**
-
-```
-Reviewer: "Implement proper metrics tracking with database, date filters, CSV export"
-✅ "Grepped codebase - nothing calls this endpoint. Remove it (YAGNI)? Or is there usage I'm missing?"
-```
-
-**Unclear Item (Good):**
-
-```
-the user: "Fix items 1-6"
-You understand 1,2,3,6. Unclear on 4,5.
-✅ "Understand 1,2,3,6. Need clarification on 4 and 5 before implementing."
-```
+Worked bad/good response pairs for these mistakes:
+[`examples/response-phrasing.md`](examples/response-phrasing.md).
 
 ## GitHub Thread Replies
 

@@ -363,26 +363,16 @@ This skill does **not**:
 
 ## Rationalization Table
 
-| Excuse                                                 | Reality                                                                                     |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| "The standard doesn't say it, but it's clearly bad."   | Out of scope. The standard is authoritative.                                                |
-| "I'll just draft a short ADR — it's a small one."      | All ADRs are out of scope. Even small ones need a human decision and rationale.             |
-| "This prose is confusing; I'll improve it while here." | Out of scope. Mechanical fixes only.                                                        |
-| "Other repos use this convention, so I'll apply it."   | Each repo's standard is authoritative for itself. Do not import.                            |
-| "There's no standard, but I know what's good."         | Stop in Phase 1. Without a standard, every finding is speculation.                          |
-| "This finding seems obvious; I'll skip the citation."  | Every finding cites a section of the target's standard. No citation = no finding.           |
-| "User said 'fix the README' — they want a full audit." | They asked for an edit. Do the edit. Do not run the audit unless they invoke it explicitly. |
-
-## Red Flags — STOP
-
-- You drafted any markdown file the user did not ask for.
-- A finding has no citation to a section of the target's standard.
-- You imported a filename rule, layout rule, or naming rule from another
-  repo or your training.
-- You rewrote prose that was not mechanically broken.
-- You started auditing without reading the target repo's
-  `documentation-standard.md` (or equivalent).
-- You proceeded through the phases when Phase 1 found no standard.
+| Excuse                                                 | Reality                                                                                                                                                  |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "The standard doesn't say it, but it's clearly bad."   | Out of scope. The standard is authoritative.                                                                                                             |
+| "I'll just draft a short ADR — it's a small one."      | All ADRs are out of scope. Even small ones need a human decision and rationale. Drafting any markdown file the user did not ask for is out of scope too. |
+| "This prose is confusing; I'll improve it while here." | Out of scope. Mechanical fixes only.                                                                                                                     |
+| "Other repos use this convention, so I'll apply it."   | Each repo's standard is authoritative for itself. Do not import a filename, layout, or naming rule from another repo or from training.                   |
+| "There's no standard, but I know what's good."         | Stop in Phase 1. Without a standard, every finding is speculation.                                                                                       |
+| "This finding seems obvious; I'll skip the citation."  | Every finding cites a section of the target's standard. No citation = no finding.                                                                        |
+| "User said 'fix the README' — they want a full audit." | They asked for an edit. Do the edit. Do not run the audit unless they invoke it explicitly.                                                              |
+| "I already know this repo's conventions."              | Read the target's `documentation-standard.md` (or equivalent) before auditing. An audit that skipped it has no basis.                                    |
 
 **All of these mean: stop and re-read this skill.**
 

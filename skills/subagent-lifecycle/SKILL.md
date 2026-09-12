@@ -60,7 +60,7 @@ source for repository state.
 
 ## Fresh Allocation And Configuration Continuity
 
-Route owners select and validate their exact semantic role, capability, full
+Route owners select and validate their semantic role, capability, full
 target model, independent effort, authority, output, termination, and
 self-contained task context. This lifecycle owner supplies the shared narrow
 allocation and continuity rules; it does not create a resolver, registry,
@@ -94,7 +94,7 @@ tuple. On Responses API inventory-only targets, record exactly
 operation or operational state. Cleanup failure is terminal under the owning
 route: do not create the replacement child.
 
-A native target rejection reports the exact requested `model` and
+A native target rejection reports the requested `model` and
 `reasoning_effort` and takes the owning route's existing unavailable or blocked
 terminal. It authorizes no fallback, alias, effort change, retry, escalation,
 or role substitution.
@@ -118,12 +118,12 @@ capabilities:
 | Agent surface                  | Target-honest mapping                                                                                                                                                                                      |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Local Codex                    | Classify from exposed runtime actions. Model-visible requests to steer, stop, or close tasks or threads do not prove identically named low-level actions; name a low-level action only when it is exposed. |
-| Responses API Multi-agent      | `inventory-only`: hosted inventory exists, but no hosted close action is documented. The exact documented hosted action set appears below.                                                                 |
+| Responses API Multi-agent      | `inventory-only`: hosted inventory exists, but no hosted close action is documented. The documented hosted action set appears below.                                                                       |
 | Claude Code                    | Classify only from capabilities observed in the current runtime; inherit no Local Codex, Responses API, or other provider assumption.                                                                      |
 | Unknown or future agent target | Classify only from capabilities observed in that runtime; inherit no known-provider assumption.                                                                                                            |
 
-For Responses API Multi-agent, the documented hosted action set is exactly
-`spawn_agent`, `send_message`, `followup_task`, `wait_agent`,
+For Responses API Multi-agent, the documented hosted action set is these six
+actions: `spawn_agent`, `send_message`, `followup_task`, `wait_agent`,
 `interrupt_agent`, and `list_agents`. `interrupt_agent` stops an active turn
 without deleting its context and is never closure. `followup_task` can reuse
 retained context, while `wait_agent` and `list_agents` expose waiting and
@@ -192,7 +192,7 @@ When a spawn fails because of a slot/session limit:
 4. Reconstruct active workflow state from the lifecycle ledger and the
    repository state anchors the owning workflow uses, such as `git status`,
    current branch, and relevant base/head SHAs.
-5. Retry the exact same already-validated tuple exactly once after automatic
+5. Retry the same already-validated tuple once after automatic
    cleanup completes or after the operator confirms manual cleanup. Slot
    recovery never authorizes a different role, model, effort, or other tuple
    value.
@@ -226,7 +226,7 @@ retry, fix-loop, and termination rules remain with their existing owners.
 
 ### Deterministic Five-Family Classifier
 
-Classify every settled result into exactly one closed family by this total,
+Classify every settled result into a single closed family by this total,
 deterministic precedence. The first matching condition wins; each matching
 ineligible condition stops capability escalation and uses the existing
 non-escalation result. The first matching ineligible condition prevents
@@ -239,7 +239,7 @@ eligibility.
 3. `ineligible-authority`: Widened scope or insufficient source, external, or
    mutation authority.
 4. `ineligible-integrity-or-route`: Guard or cleanup mutation, stale head or
-   evidence, unresolved route, or unsupported or undeclared exact transition, and
+   evidence, unresolved route, or unsupported or undeclared transition, and
    every remaining failure of the positive eligibility predicates, including
    absent, inconsistent, or unconsumable verified evidence and a remaining gap
    that is not capability-sensitive.
@@ -249,7 +249,7 @@ eligibility.
    approval, and target operation; sufficient unchanged authority; successful
    guard/lifecycle cleanup; consumable verified evidence; and a material
    capability-sensitive quality gap plausibly improved by the declared higher
-   exact pair.
+   pair.
 
 Only when none of the four ineligible predicates applies and every positive
 predicate is satisfied may the result be `eligible-quality-failure`.
@@ -259,10 +259,10 @@ fall into `ineligible-integrity-or-route` unless an earlier predicate applies.
 A cleanup failure enters `ineligible-integrity-or-route`.
 A generic result is not automatically eligible.
 
-### Declaration, Support, and Exactness
+### Declaration, Support, and Explicit Tuples
 
 Before a fresh attempt, the controller must retain a complete declaration that
-names the route and target; the same semantic role; exact current and requested
+names the route and target; the same semantic role; explicit current and requested
 next capability/effort tuples; the named target-supported mechanism that
 supports both tuples; verified classification; invariant envelope; remaining
 budget; and the existing terminal continuation if the attempt cannot start or
@@ -271,17 +271,17 @@ but it may never broaden eligibility.
 A remaining budget of `0` is valid controller narrowing and does not change the
 settled result's eligibility classification.
 
-The current tuple is explicit and exact. Ambient or omitted current effort, a
+The current tuple is explicit and complete. Ambient or omitted current effort, a
 maximal current pair, unavailable or unsupported override, incomplete
 declaration, alias/nearby/fallback pair, or role substitution terminates through
 the existing non-escalation result. The named mechanism must positively support
-the exact requested tuple; it may not silently replace an unsupported next pair
+the requested tuple; it may not silently replace an unsupported next pair
 with a nearby or ambient value.
 
 ### Budget and Invariants
 
 The budget permits at most one fresh attempt at a capability/effort pair and no
-chains. Remaining budget exactly `1` is required to spawn; remaining budget `0`
+chains. A remaining budget of `1` is required to spawn; remaining budget `0`
 uses the existing declared terminal/manual continuation without consuming an
 attempt. A budget greater than `1` fails closed.
 Slot recovery, same-pair context redispatch, review fix loops, and CI repair
@@ -296,7 +296,7 @@ change of role, tools, sandbox, approval, or authority, is an
 
 ### Fresh-Attempt Summary and Ordering
 
-The controller passes a concise summary containing task/scope; exact prior and
+The controller passes a concise summary containing task/scope; the prior and
 requested tuples; classified failure; attempted actions; concise verified
 evidence and repository anchors; unresolved success condition; invariant
 envelope; and remaining budget. It transfers no hidden reasoning, raw
@@ -311,9 +311,9 @@ Use this fixed order:
 4. Validate declaration/support/invariants/budget, including target support.
 5. If remaining budget is `0`, use the existing declared terminal/manual
    continuation; do not spawn.
-6. If remaining budget is exactly `1`, spawn exactly one fresh attempt.
+6. If remaining budget is `1`, spawn a single fresh attempt.
 
-The output is exactly one fresh attempt or the existing declared
+The output is a single fresh attempt or the existing declared
 terminal/manual route; this procedure creates no new artifact.
 
 ### Shape-only canonical valid example
@@ -321,16 +321,16 @@ terminal/manual route; this procedure creates no new artifact.
 This hypothetical example grants no ambient runtime support. For hypothetical
 named target `example-target-v1` and hypothetical route
 `example-quality-route`, a controller retains an eligible quality failure with
-same semantic role=`implementer`, exact current tuple=`balanced/high`, exact
-next tuple=`frontier/high`, already-verified support mechanism
-`example-target-v1 exact-tuple registry` supports both exact current and next
+same semantic role=`implementer`, current tuple=`balanced/high`, next
+tuple=`frontier/high`, already-verified support mechanism
+`example-target-v1 tuple registry` supports both the current and next
 tuples, budget=`1`, and terminal continuation=`existing terminal/manual route`.
 Its invariant envelope preserves task identity, scope, acceptance contract,
 curated context, tools, sandbox, approval, source and external authority,
 network, mutation paths, output schema, guard lifecycle, and termination owner.
 Its concise summary names classification=`eligible quality failure`; attempted
 actions=`ran the declared quality checks and inspected the retained evidence`;
-the exact prior/requested tuples; verified repository anchors; unresolved success
+the prior/requested tuples; verified repository anchors; unresolved success
 condition; the invariant envelope; remaining budget; and the terminal
 continuation. Only after the ordered validation does it start one fresh attempt.
 
@@ -340,14 +340,14 @@ an ambient, alias, or nearby pair.
 
 ### One-dimensional invalid families
 
-Each of these changes exactly one required dimension and terminates through the
+Each of these changes a single required dimension and terminates through the
 existing non-escalation result:
 
 | Invalid family                 | Single invalid dimension and stop/no-spawn disposition                                                                                                           |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Missing context                | Context is missing or ambiguous; classify `ineligible-context`; stop; do not spawn.                                                                              |
 | Omitted next effort            | The requested next tuple omits effort; classify `ineligible-integrity-or-route`; stop; do not spawn.                                                             |
-| Ambient or nearby substitution | The declared exact next pair is replaced by an ambient, alias, fallback, or nearby pair; classify `ineligible-integrity-or-route`; stop; do not spawn.           |
+| Ambient or nearby substitution | The declared next pair is replaced by an ambient, alias, fallback, or nearby pair; classify `ineligible-integrity-or-route`; stop; do not spawn.                 |
 | Invariant change               | Role, tools, sandbox, approval, authority, or another preserved invariant changes; classify `ineligible-integrity-or-route`; stop; do not spawn.                 |
 | Budget greater than `1`        | Remaining escalation budget is greater than one fresh attempt; classify `ineligible-integrity-or-route`; stop; do not spawn.                                     |
 | Raw evidence transfer          | The summary includes a raw prompt, transcript, log, stack trace, credential, or environment value; classify `ineligible-integrity-or-route`; stop; do not spawn. |
