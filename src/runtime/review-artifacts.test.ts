@@ -7,6 +7,7 @@ import {
   readFile,
   readdir,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
@@ -3352,6 +3353,41 @@ describe("provider scope capture scratch subcommands", () => {
     } finally {
       process.chdir(originalCwd);
       await cleanupTempDir(cwd);
+    }
+  });
+
+  it("refuses removal through a symlinked .ephemeral parent", async () => {
+    const { cwd } = await makeProviderMultiFileWorkspace();
+    const outside = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-scratch-outside-"),
+    );
+    const victim = path.join(outside, "provider-scope-capture.victim");
+    try {
+      await mkdir(victim, { recursive: true });
+      await writeFile(path.join(victim, "keep.txt"), "survives\n");
+      await rm(path.join(cwd, ".ephemeral"), { recursive: true, force: true });
+      await symlink(outside, path.join(cwd, ".ephemeral"));
+
+      await expect(
+        runPrReviewProviderScopeEvidenceCommand([
+          "remove-scratch",
+          "--scratch-dir",
+          ".ephemeral/provider-scope-capture.victim",
+        ]),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stderr: expect.stringContaining(
+          ".ephemeral must be a directory, not a symlink",
+        ),
+      });
+      await expect(readdir(victim)).resolves.toEqual(["keep.txt"]);
+      await expect(
+        readFile(path.join(victim, "keep.txt"), "utf8"),
+      ).resolves.toBe("survives\n");
+    } finally {
+      process.chdir(originalCwd);
+      await cleanupTempDir(cwd);
+      await cleanupTempDir(outside);
     }
   });
 });

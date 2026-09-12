@@ -380,6 +380,7 @@ async function removeProviderScopeScratch(
     fail("remove-scratch accepts only --scratch-dir");
   }
   await requireRepoRoot();
+  await assertEphemeralDirectory();
   validateProviderScopeScratchPath(scratch);
   const entry = await lstat(scratch).catch(() => null);
   if (entry !== null && (entry.isSymbolicLink() || !entry.isDirectory())) {
