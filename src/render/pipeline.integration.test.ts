@@ -1335,9 +1335,9 @@ describe("renderAll", () => {
         "# body",
         "",
       ].join("\n"),
-      ["references", "scripts"],
+      ["examples", "references", "scripts"],
     );
-    // Put a file inside references/ to verify mirroring.
+    // Put a file inside references/ and examples/ to verify mirroring.
     await writeFile(
       path.join(
         config.library.skillsDir,
@@ -1348,29 +1348,36 @@ describe("renderAll", () => {
       "hello\n",
       "utf-8",
     );
+    await writeFile(
+      path.join(
+        config.library.skillsDir,
+        "sub-skill",
+        "examples",
+        "walkthrough.md",
+      ),
+      "worked example\n",
+      "utf-8",
+    );
 
     await renderAll(config, true);
 
-    const claudeFile = path.join(
-      config.library.generatedDir,
-      "claude",
-      "skills",
-      "sub-skill",
-      "references",
-      "notes.md",
-    );
-    const codexFile = path.join(
-      config.library.generatedDir,
-      "codex",
-      "skills",
-      "sub-skill",
-      "references",
-      "notes.md",
-    );
-    expect(await pathExists(claudeFile)).toBe(true);
-    expect(await pathExists(codexFile)).toBe(true);
-    expect(await readFile(claudeFile, "utf-8")).toBe("hello\n");
-    expect(await readFile(codexFile, "utf-8")).toBe("hello\n");
+    for (const [subdir, file, contents] of [
+      ["references", "notes.md", "hello\n"],
+      ["examples", "walkthrough.md", "worked example\n"],
+    ] as const) {
+      for (const target of ["claude", "codex"] as const) {
+        const mirrored = path.join(
+          config.library.generatedDir,
+          target,
+          "skills",
+          "sub-skill",
+          subdir,
+          file,
+        );
+        expect(await pathExists(mirrored)).toBe(true);
+        expect(await readFile(mirrored, "utf-8")).toBe(contents);
+      }
+    }
   });
 
   it("omits unknown top-level skill directories from generated target dirs", async () => {

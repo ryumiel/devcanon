@@ -299,6 +299,51 @@ describe("sync", () => {
     expect(await pathExists(claudeSkillPath)).toBe(true);
   });
 
+  it("copy-installs a skill examples/ subdirectory to both targets", async () => {
+    const config = makeResolvedConfig(tempDir);
+    await mkdir(config.library.skillsDir, { recursive: true });
+    await mkdir(config.library.agentsDir, { recursive: true });
+    const skillDir = await createSkillFixture(
+      config.library.skillsDir,
+      "worked-skill",
+      "---\nname: worked-skill\ndescription: A skill with worked examples.\n---\n\n# worked-skill\n",
+      ["examples"],
+    );
+    await writeFile(
+      path.join(skillDir, "examples", "walkthrough.md"),
+      "worked example\n",
+      "utf-8",
+    );
+
+    const result = await sync(config, {
+      dryRun: false,
+      force: false,
+      strict: false,
+    });
+
+    expect(result.errors).toEqual([]);
+    const manifest = JSON.parse(await readTextFile(config.manifest.path));
+    for (const target of ["claude", "codex"] as const) {
+      const installedExample = path.join(
+        config.targets[target].skillsHome,
+        "worked-skill",
+        "examples",
+        "walkthrough.md",
+      );
+      expect((await lstat(installedExample)).isFile()).toBe(true);
+      expect((await lstat(installedExample)).isSymbolicLink()).toBe(false);
+      expect(await readTextFile(installedExample)).toBe("worked example\n");
+      expect(
+        manifest.records.find(
+          (record: { target: string; type: string; name: string }) =>
+            record.target === target &&
+            record.type === "skill" &&
+            record.name === "worked-skill",
+        ),
+      ).toMatchObject({ installMode: "copy" });
+    }
+  });
+
   it("installs Codex agents as copies while configured symlink mode remains in effect for Codex skills", async () => {
     const config = makeResolvedConfig(tempDir, {
       claude: { enabled: false },
