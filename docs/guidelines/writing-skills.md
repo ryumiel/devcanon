@@ -304,9 +304,13 @@ every `references/`, `examples/`, `assets/`, or `scripts/` file (including a
 sibling skill's `SKILL.md` or support file) that `SKILL.md` instructs the
 model to read unconditionally into its prompt — not gated behind a named
 phase, route, or runtime condition — before the skill can complete any part
-of its work. `SKILL.md`'s own line count is reported separately, the way
-["Prompt-size advisory"](#prompt-size-advisory) already reports it, and is
-not part of this total. Moving detail out of `SKILL.md` into a bundled file
+of its work. The footprint covers only files that ship in a skill bundle —
+its own or a sibling's — since a file the skill discovers in the target
+repository at run time (its documentation standard, for example) is not
+knowable at authoring time and does not belong in a loading map. `SKILL.md`'s
+own line count is reported separately, the way ["Prompt-size
+advisory"](#prompt-size-advisory) already reports it, and is not part of
+this total. Moving detail out of `SKILL.md` into a bundled file
 does not lower the eager footprint by itself; only gating the read behind a
 condition does. The eager footprint counts only UTF-8 text files the skill
 loads into its prompt; binary assets (images, fixtures) are outside the
@@ -349,14 +353,16 @@ in `references/phase-3-research-controller.md` loads only on the
 `RESEARCH_NEEDED` or `forced` route, states that a missing or unreadable
 reference is "a terminal pre-dispatch blocker," and states that "[t]he main
 skill is the normative owner of this policy; the loaded reference is a
-subordinate research-selected operating procedure." Reuse this pattern rather
-than inventing new phrasing per skill. Two sibling commits apply the full
-four-part pattern elsewhere — #682 (`pr-review` edited-preview recovery)
-and #684 (`branch-review` fix mechanics) — while #669
-(`play-skill-authoring`) is an earlier partial example: it names triggers
-and states fail-closed handling, but groups them in one top-level
-`## Conditional Resources` section rather than placing them at point of use,
-and most entries omit an ownership sentence.
+subordinate research-selected operating procedure." Reuse this pattern
+rather than inventing new phrasing per skill. Of the sibling restructures,
+only #684 (`branch-review` fix mechanics) applies the full four-part
+pattern, naming the reference subordinate at the loading site; #682
+(`pr-review` edited-preview recovery) asserts the main gate's authority but
+is near-complete rather than full since it never names the reference
+subordinate there; and #669 (`play-skill-authoring`) remains an earlier
+partial example, grouping triggers and fail-closed handling in one
+top-level `## Conditional Resources` section rather than point of use, and
+mostly omitting an ownership sentence.
 
 **The reference-loading section shape**
 
@@ -395,8 +401,8 @@ the internal analysis path in `src/analysis/` per
 `SKILL.md` source, matching the prompt-size advisory rather than a
 target-rendered scenario total; every UTF-8 text file listed under
 `### Eager` (a listed binary asset has no token count and is not summed);
-every unlisted prompt-loaded file, fail-closed per the counting rule above;
-and any `### Conditional` entry whose loading site fails the four-part
+every unlisted prompt-loaded bundle file, fail-closed per the counting rule
+above; and any `### Conditional` entry whose loading site fails the four-part
 contract above. When the internal analysis path is used, this means the
 `raw-source` record plus the relevant support-file records, not a scenario's
 `rendered-skill` total — and because `runSkillContextAnalysis` keys support
