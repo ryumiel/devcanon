@@ -289,6 +289,68 @@ Prefer moving coherent supporting sections over deleting nuance. A smaller
 to use the skill, what contract it must preserve, and which supporting file or
 script to open when more detail is needed.
 
+### Eager footprint and phase-conditional loading
+
+["Prompt-size advisory"](#prompt-size-advisory) measures only `SKILL.md`
+itself. This subsection extends that concept to the supporting files a
+skill loads, and defines the phrasing a conditional read needs to stay
+genuinely conditional rather than disguised-eager.
+
+**Eager footprint**
+
+A skill's eager footprint is every file — `SKILL.md` itself, plus its
+bundled `references/`, `examples/`, `assets/`, or `scripts/` files
+(including a sibling skill's `SKILL.md` or support file) — that the skill
+is guaranteed to read into its prompt at some point in any run, regardless
+of which phase, route, or condition applies. A read still counts as eager
+even when the instruction defers it to later in the run; only gating the
+read behind a condition that can go unmet makes it conditional. Moving
+detail out of `SKILL.md` into a bundled file does not lower the eager
+footprint by itself — the file still loads every run unless a genuine
+condition gates it.
+
+`play-planning`'s `SKILL.md`, under its "Scope Envelope and Canonical
+Criteria" heading, is a worked example of an eager read: it resolves both
+`references/planning-criteria.md` and `references/planning-readiness-audit.md`
+before file mapping or task drafting, with no gating condition.
+
+**The phase-conditional loading pattern**
+
+A read instruction lowers eager footprint only when it is actually
+conditional. A conditional read satisfies these parts:
+
+1. Name the triggering condition before the load instruction, so the model
+   can evaluate whether the condition applies before it reaches the
+   instruction to load.
+2. Place the load instruction at the point of use — inside the phase, route,
+   or step that needs it — rather than up front in the overview or setup.
+3. State the fail-closed behavior if the reference is unavailable at that
+   point: name what the skill must not do (dispatch, create an artifact, fall
+   through to the next phase) rather than improvising inline.
+4. For a policy-bearing reference or procedure, add an explicit
+   ownership-and-precedence sentence at the loading site. By default, the
+   main skill remains the normative owner of the policy and the loaded file
+   is a subordinate, condition-scoped operating procedure; where an existing
+   reference already owns a non-overlapping normative responsibility under
+   [ADR-0029](../adr/adr-0029-normative-contract-ownership-topology.md), the
+   loading site names that reference's ownership and precedence instead of
+   reassigning it. In no case may both documents claim the same rule. A
+   non-normative input — a worked example, fixture, or template — carries no
+   ownership claim to make, so parts 1-3 alone satisfy it.
+
+`skills/issue-priming-workflow/SKILL.md`'s "Phase 3: Research (Conditional)"
+heading is the concrete pattern to reuse: it loads
+`references/phase-3-research-controller.md` only on the `RESEARCH_NEEDED`
+or forced route, states that a missing or unreadable reference is a
+terminal pre-dispatch blocker, and states the main skill's ownership of the
+policy at the loading site. `skills/branch-review/SKILL.md`'s "Phase 3: Dispose" heading applies
+the same pattern for its `references/fix-disposition.md` load. Reuse this
+pattern rather than inventing new phrasing per skill.
+
+Declaring a skill's eager and conditional inventories, and the rules for
+counting a file toward either, is owned by the skill behavior spec,
+[`../specs/skills.md`](../specs/skills.md), not by this guideline.
+
 ### Future controller capability transitions
 
 When authoring a controller that could change a direct child's capability or
