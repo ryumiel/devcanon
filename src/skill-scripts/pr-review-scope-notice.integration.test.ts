@@ -7,6 +7,10 @@ import { afterEach, describe, expect, it } from "vitest";
 
 const execFileAsync = promisify(execFile);
 const sourceSkill = path.join(process.cwd(), "skills/pr-review/SKILL.md");
+const helperScript = path.join(
+  process.cwd(),
+  "skills/pr-review/scripts/prior-thread-artifacts.sh",
+);
 const createdRoots: string[] = [];
 
 afterEach(async () => {
@@ -17,19 +21,6 @@ afterEach(async () => {
   );
 });
 
-async function sourceScopeNoticeConsumer(): Promise<string> {
-  const skill = await readFile(sourceSkill, "utf8");
-  const sectionStart = skill.indexOf("### Scope notice");
-  const sectionEnd = skill.indexOf("Hand off to `play-review`", sectionStart);
-  const match = skill
-    .slice(sectionStart, sectionEnd)
-    .match(/(emit_pr_review_scope_notice\(\) \{[\s\S]*?\nNODE\n\})/u);
-  if (match === null) {
-    throw new Error("Phase 4 scope-notice consumer block is missing");
-  }
-  return match[1];
-}
-
 async function runScopeNotice(
   artifact: string | undefined,
 ): Promise<{ status: number; stdout: string; stderr: string }> {
@@ -37,15 +28,13 @@ async function runScopeNotice(
     path.join(os.tmpdir(), "devcanon-pr-scope-notice-"),
   );
   createdRoots.push(root);
-  const consumer = await sourceScopeNoticeConsumer();
   const script = path.join(root, "scope-notice.sh");
   await writeFile(
     script,
     [
       "#!/usr/bin/env bash",
       "set -euo pipefail",
-      consumer,
-      "emit_pr_review_scope_notice",
+      'bash "$PR_REVIEW_ARTIFACT_HELPER" render-scope-notice || exit 1',
       'printf "PLAY_REVIEW_CONTINUATION\\n"',
       "",
     ].join("\n"),
@@ -53,6 +42,7 @@ async function runScopeNotice(
 
   try {
     const env = { ...process.env };
+    env.PR_REVIEW_ARTIFACT_HELPER = helperScript;
     env.REVIEW_SCOPE_DECISION_FILE = undefined;
     if (artifact !== undefined) {
       env.REVIEW_SCOPE_DECISION_FILE = artifact;
@@ -166,7 +156,7 @@ describe("pr-review Phase 4 scope notice", () => {
       'echo "review worktree HEAD changed since handoff; refusing stale review" >&2',
     );
     const consumer = skill.indexOf(
-      "emit_pr_review_scope_notice || exit 1",
+      'bash "$PR_REVIEW_ARTIFACT_HELPER" render-scope-notice || exit 1',
       headValidation,
     );
     const playReview = skill.indexOf("Hand off to `play-review`", consumer);
@@ -175,5 +165,12 @@ describe("pr-review Phase 4 scope notice", () => {
     expect(headValidation).toBeGreaterThan(handoffValidation);
     expect(consumer).toBeGreaterThan(headValidation);
     expect(playReview).toBeGreaterThan(consumer);
+  });
+
+  it("keeps the scope-notice mechanics out of SKILL.md prose", async () => {
+    const skill = await readFile(sourceSkill, "utf8");
+
+    expect(skill).not.toContain("emit_pr_review_scope_notice");
+    expect(skill).not.toContain("scope.changed_files.length");
   });
 });

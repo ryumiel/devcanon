@@ -4,6 +4,7 @@ import {
   access,
   link,
   lstat,
+  mkdir,
   mkdtemp,
   readFile,
   readdir,
@@ -35,7 +36,9 @@ import { requireDirectEphemeralChild } from "./paths.js";
 
 type RuntimeCommandOutcome =
   | { exitCode: 0; stdout: string; stderr: string }
-  | { exitCode: 1; stdout: string; stderr: string };
+  | { exitCode: 1; stdout: string; stderr: string }
+  | { exitCode: 2; stdout: string; stderr: string }
+  | { exitCode: 3; stdout: string; stderr: string };
 
 type JsonObject = Record<string, unknown>;
 
@@ -165,6 +168,13 @@ const INITIAL_FULL_ALLOWED_EXTRA_REASONS = new Set([
 
 const PROVIDER_EVIDENCE_SCHEMA = "pr-review/provider-scope-evidence/v2";
 const PROVIDER_SCOPE_CAPTURE_SCHEMA = "pr-review/provider-scope-capture/v1";
+const PROVIDER_SCOPE_SCRATCH_LEAF = "provider-scope-capture.";
+const PROVIDER_SCOPE_SCRATCH_PREFIX = `.ephemeral/${PROVIDER_SCOPE_SCRATCH_LEAF}`;
+const PROVIDER_SCOPE_EVIDENCE_READABLE_FIELDS = new Set([
+  "provider_pr_diff_base_sha",
+  "full_pr_diff_range",
+]);
+const SCOPE_NOTICE_MODES = new Set(["initial", "follow-up"]);
 const DIGEST_PROVENANCE_SCHEMA = "pr-review/digest-provenance/v1";
 const CANONICAL_GIT_DIFF_DIALECT = "canonical-git-diff/v1";
 const GITHUB_PROVIDER_DIFF_DIALECT = "github-provider-diff/v1";
@@ -263,9 +273,27 @@ export async function runPrReviewProviderScopeEvidenceCommand(
     if (args[0] === "materialize-capture") {
       return await materializeProviderScopeCapture(args.slice(1));
     }
+    if (args[0] === "create-scratch") {
+      return await createProviderScopeScratch(args.slice(1));
+    }
+    if (args[0] === "remove-scratch") {
+      return await removeProviderScopeScratch(args.slice(1));
+    }
+    if (args[0] === "reconcile-fetch") {
+      return await reconcileProviderScopeFetch(args.slice(1));
+    }
+    if (args[0] === "classify-capture") {
+      return await classifyProviderScopeCapture(args.slice(1));
+    }
+    if (args[0] === "read-evidence-field") {
+      return await readProviderScopeEvidenceField(args.slice(1));
+    }
+    if (args[0] === "render-scope-notice") {
+      return await renderScopeNotice(args.slice(1));
+    }
     if (args[0] !== "write") {
       fail(
-        "usage: pr-review-provider-scope-evidence contract|materialize-capture|write --head-sha <sha> --capture-file <path>",
+        "usage: pr-review-provider-scope-evidence contract|materialize-capture|create-scratch|remove-scratch|reconcile-fetch|classify-capture|read-evidence-field|render-scope-notice|write --head-sha <sha> --capture-file <path>",
       );
     }
     const headSha = requiredProducerOption(args.slice(1), "--head-sha");
@@ -329,6 +357,207 @@ export async function runPrReviewProviderScopeEvidenceCommand(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { exitCode: 1, stdout: "", stderr: `${message}\n` };
+  }
+}
+
+async function createProviderScopeScratch(
+  args: readonly string[],
+): Promise<RuntimeCommandOutcome> {
+  if (args.length !== 0) {
+    fail("create-scratch does not accept arguments");
+  }
+  await requireRepoRoot();
+  await assertEphemeralDirectory();
+  await mkdir(".ephemeral", { recursive: true });
+  return ok(`${await mkdtemp(PROVIDER_SCOPE_SCRATCH_PREFIX)}\n`);
+}
+
+async function removeProviderScopeScratch(
+  args: readonly string[],
+): Promise<RuntimeCommandOutcome> {
+  const scratch = requiredProducerOption(args, "--scratch-dir");
+  if (args.length !== 2) {
+    fail("remove-scratch accepts only --scratch-dir");
+  }
+  await requireRepoRoot();
+  validateProviderScopeScratchPath(scratch);
+  const entry = await lstat(scratch).catch(() => null);
+  if (entry !== null && (entry.isSymbolicLink() || !entry.isDirectory())) {
+    fail(`provider capture scratch directory is invalid: ${scratch}`);
+  }
+  await rm(scratch, { recursive: true, force: true });
+  return ok("");
+}
+
+async function reconcileProviderScopeFetch(
+  args: readonly string[],
+): Promise<RuntimeCommandOutcome> {
+  const scratch = requiredProducerOption(args, "--scratch-dir");
+  if (args.length !== 2) {
+    fail("reconcile-fetch accepts only --scratch-dir");
+  }
+  await requireRepoRoot();
+  validateProviderScopeScratchPath(scratch);
+  const fetched = await readSingleJsonObject(
+    `${scratch}/pr.json`,
+    "provider capture PR JSON validation failed",
+  );
+  const recheck = await readSingleJsonObject(
+    `${scratch}/recheck.json`,
+    "provider capture recheck JSON validation failed",
+  );
+  const stable =
+    stringField(fetched, "baseRefOid") === stringField(recheck, "baseRefOid") &&
+    stringField(fetched, "headRefOid") === stringField(recheck, "headRefOid");
+  return stable ? ok("") : { exitCode: 1, stdout: "", stderr: "" };
+}
+
+async function classifyProviderScopeCapture(
+  args: readonly string[],
+): Promise<RuntimeCommandOutcome> {
+  const captureFile = requiredProducerOption(args, "--capture-file");
+  const baseOid = requiredProducerOption(args, "--base-oid");
+  const repository = requiredProducerOption(args, "--repository");
+  const prNumber = requiredProducerOption(args, "--pr-number");
+  const headSha = requiredProducerOption(args, "--head-sha");
+  if (args.length !== 10) {
+    fail("classify-capture accepts five options");
+  }
+  const expectedPrNumber = Number(prNumber);
+  if (!Number.isInteger(expectedPrNumber)) {
+    fail("--pr-number must be an integer");
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await readFile(captureFile, "utf8")) as unknown;
+  } catch {
+    return unclassifiableProviderScopeCapture();
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return unclassifiableProviderScopeCapture();
+  }
+  const capture = parsed as JsonObject;
+  const provider = capture.provider;
+  const capturedRepository = capture.repository;
+  const capturedPrNumber = capture.pr_number;
+  const capturedBaseRefOid = capture.baseRefOid;
+  const capturedHeadRefOid = capture.headRefOid;
+  if (
+    typeof provider !== "string" ||
+    typeof capturedRepository !== "string" ||
+    typeof capturedPrNumber !== "number" ||
+    !Number.isInteger(capturedPrNumber) ||
+    typeof capturedBaseRefOid !== "string" ||
+    typeof capturedHeadRefOid !== "string"
+  ) {
+    return unclassifiableProviderScopeCapture();
+  }
+  const binds =
+    provider === "github" &&
+    capturedRepository === repository &&
+    capturedPrNumber === expectedPrNumber &&
+    capturedBaseRefOid === baseOid &&
+    capturedHeadRefOid === headSha;
+  return binds ? ok("") : { exitCode: 2, stdout: "", stderr: "" };
+}
+
+function unclassifiableProviderScopeCapture(): RuntimeCommandOutcome {
+  return { exitCode: 3, stdout: "", stderr: "" };
+}
+
+async function readProviderScopeEvidenceField(
+  args: readonly string[],
+): Promise<RuntimeCommandOutcome> {
+  const evidenceFile = requiredProducerOption(args, "--evidence-file");
+  const field = requiredProducerOption(args, "--field");
+  if (args.length !== 4) {
+    fail("read-evidence-field accepts only --evidence-file and --field");
+  }
+  if (!PROVIDER_SCOPE_EVIDENCE_READABLE_FIELDS.has(field)) {
+    fail(`unsupported provider scope evidence field: ${field}`);
+  }
+  await requireRepoRoot();
+  validateDirectChildPath("provider scope evidence", evidenceFile);
+  validateSuffix(
+    "provider scope evidence",
+    evidenceFile,
+    "-provider-scope-evidence.json",
+  );
+  const evidence = await readSingleJsonObject(
+    evidenceFile,
+    "provider scope evidence JSON validation failed",
+  );
+  const value = evidence[field];
+  if (typeof value !== "string" || value.length === 0) {
+    fail(`provider scope evidence ${field} is missing or invalid`);
+  }
+  return ok(`${value}\n`);
+}
+
+async function renderScopeNotice(
+  args: readonly string[],
+): Promise<RuntimeCommandOutcome> {
+  const scopeDecisionFile = requiredProducerOption(
+    args,
+    "--scope-decision-file",
+  );
+  if (args.length !== 2) {
+    fail("render-scope-notice accepts only --scope-decision-file");
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await readFile(scopeDecisionFile, "utf8")) as unknown;
+  } catch {
+    fail("scope decision is unreadable or malformed");
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    fail("scope decision is unreadable or malformed");
+  }
+  const scope = parsed as JsonObject;
+  const mode = scope.mode;
+  const isFollowupNarrow = scope.is_followup_narrow;
+  const changedFiles = scope.changed_files;
+  if (
+    typeof mode !== "string" ||
+    !SCOPE_NOTICE_MODES.has(mode) ||
+    typeof isFollowupNarrow !== "boolean" ||
+    !Array.isArray(changedFiles) ||
+    !changedFiles.every((file) => typeof file === "string") ||
+    (mode === "initial" && isFollowupNarrow)
+  ) {
+    fail("scope decision schema validation failed");
+  }
+  const selection = isFollowupNarrow ? "narrow" : "full";
+  return ok(
+    `PR review scope: mode=${mode}, selection=${selection}, selected files=${changedFiles.length}. Review is continuing.\n`,
+  );
+}
+
+export function extractPreFindingsMarkdown(playReviewOutput: string): string {
+  const preFindings: string[] = [];
+  for (const line of playReviewOutput.split("\n")) {
+    if (/^## Findings[ \t]*$/u.test(line)) {
+      break;
+    }
+    preFindings.push(line);
+  }
+  const markdown = preFindings.join("\n").replace(/\n+$/u, "");
+  if (markdown.length === 0) {
+    return "";
+  }
+  const lead = preFindings.find((line) => /\S/u.test(line));
+  if (lead?.startsWith("## ")) {
+    fail(
+      "pre-findings markdown must start with narrative lead before headings",
+    );
+  }
+  return `${markdown}\n`;
+}
+
+function validateProviderScopeScratchPath(scratch: string): void {
+  validateDirectChildPath("provider capture scratch", scratch);
+  if (!path.posix.basename(scratch).startsWith(PROVIDER_SCOPE_SCRATCH_LEAF)) {
+    fail(`provider capture scratch path validation failed: ${scratch}`);
   }
 }
 

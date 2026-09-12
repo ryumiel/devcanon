@@ -11,6 +11,7 @@ import {
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { cleanupTempDir } from "../__test-helpers__/fixtures.js";
@@ -18,6 +19,7 @@ import { parseGitNumstatZ } from "./git-diff-parser.js";
 import {
   buildApprovedReviewPayload,
   diffHunkForLine,
+  extractPreFindingsMarkdown,
   gateResultForApprovalTerminalState,
   runPrReviewProviderScopeEvidenceCommand,
   runReviewArtifactsCommand,
@@ -3184,4 +3186,258 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
       await cleanupRiskSignalsWorkspace(cwd);
     }
   });
+});
+
+type CaptureSubcommandVectors = {
+  classify: {
+    expected: {
+      repository: string;
+      prNumber: number;
+      baseOid: string;
+      headSha: string;
+    };
+    ok: Record<string, unknown>;
+    stale: { name: string; capture: Record<string, unknown> }[];
+    malformed: { name: string; text: string }[];
+  };
+  preFindings: {
+    present: { name: string; output: string; expected: string }[];
+    absent: { name: string; output: string }[];
+    headingLead: { name: string; output: string }[];
+  };
+};
+
+const captureSubcommandFixturePath = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../__test-helpers__/fixtures/pr-review-capture-subcommands-v1.json",
+);
+
+const captureSubcommandVectors = JSON.parse(
+  await readFile(captureSubcommandFixturePath, "utf8"),
+) as CaptureSubcommandVectors;
+
+function classifyArgs(captureFile: string): string[] {
+  const { expected } = captureSubcommandVectors.classify;
+  return [
+    "classify-capture",
+    "--capture-file",
+    captureFile,
+    "--base-oid",
+    expected.baseOid,
+    "--repository",
+    expected.repository,
+    "--pr-number",
+    String(expected.prNumber),
+    "--head-sha",
+    expected.headSha,
+  ];
+}
+
+async function writeCaptureText(text: string): Promise<string> {
+  const root = await mkdtemp(path.join(os.tmpdir(), "devcanon-classify-"));
+  const file = path.join(root, "capture.json");
+  await writeFile(file, text);
+  return file;
+}
+
+describe("provider scope capture scratch subcommands", () => {
+  it("creates a fresh unique scratch directory under .ephemeral on each call", async () => {
+    const { cwd } = await makeProviderMultiFileWorkspace();
+    try {
+      const first = await runPrReviewProviderScopeEvidenceCommand([
+        "create-scratch",
+      ]);
+      const second = await runPrReviewProviderScopeEvidenceCommand([
+        "create-scratch",
+      ]);
+
+      expect(first.exitCode).toBe(0);
+      expect(second.exitCode).toBe(0);
+      const firstPath = first.stdout.trimEnd();
+      const secondPath = second.stdout.trimEnd();
+      expect(firstPath).toMatch(/^\.ephemeral\/provider-scope-capture\..+$/u);
+      expect(secondPath).toMatch(/^\.ephemeral\/provider-scope-capture\..+$/u);
+      expect(firstPath).not.toBe(secondPath);
+      await expect(readdir(path.join(cwd, firstPath))).resolves.toEqual([]);
+      await expect(readdir(path.join(cwd, secondPath))).resolves.toEqual([]);
+    } finally {
+      process.chdir(originalCwd);
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("removes an existing scratch directory and succeeds when it is already absent", async () => {
+    const { cwd } = await makeProviderMultiFileWorkspace();
+    try {
+      const created = await runPrReviewProviderScopeEvidenceCommand([
+        "create-scratch",
+      ]);
+      const scratch = created.stdout.trimEnd();
+      await writeFile(path.join(cwd, scratch, "pr.json"), "{}\n");
+
+      await expect(
+        runPrReviewProviderScopeEvidenceCommand([
+          "remove-scratch",
+          "--scratch-dir",
+          scratch,
+        ]),
+      ).resolves.toEqual({ exitCode: 0, stdout: "", stderr: "" });
+      await expect(
+        readdir(path.join(cwd, ".ephemeral")),
+      ).resolves.not.toContain(path.basename(scratch));
+      await expect(
+        runPrReviewProviderScopeEvidenceCommand([
+          "remove-scratch",
+          "--scratch-dir",
+          scratch,
+        ]),
+      ).resolves.toEqual({ exitCode: 0, stdout: "", stderr: "" });
+    } finally {
+      process.chdir(originalCwd);
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it.each([
+    { name: "absolute path", scratch: "/tmp/provider-scope-capture.escape" },
+    { name: "parent traversal", scratch: "../provider-scope-capture.escape" },
+    {
+      name: "ephemeral traversal",
+      scratch: ".ephemeral/../provider-scope-capture.escape",
+    },
+    {
+      name: "nested child",
+      scratch: ".ephemeral/nested/provider-scope-capture.escape",
+    },
+    { name: "non-scratch leaf", scratch: ".ephemeral/keep.txt" },
+    { name: "outside .ephemeral", scratch: "provider-scope-capture.escape" },
+  ])("refuses removing a $name", async ({ scratch }) => {
+    const { cwd } = await makeProviderMultiFileWorkspace();
+    try {
+      await expect(
+        runPrReviewProviderScopeEvidenceCommand([
+          "remove-scratch",
+          "--scratch-dir",
+          scratch,
+        ]),
+      ).resolves.toMatchObject({ exitCode: 1 });
+    } finally {
+      process.chdir(originalCwd);
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("refuses removing a scratch path that is not a directory", async () => {
+    const { cwd } = await makeProviderMultiFileWorkspace();
+    const decoy = ".ephemeral/provider-scope-capture.decoy";
+    try {
+      await mkdir(path.join(cwd, ".ephemeral"), { recursive: true });
+      await writeFile(path.join(cwd, decoy), "not a directory\n");
+
+      await expect(
+        runPrReviewProviderScopeEvidenceCommand([
+          "remove-scratch",
+          "--scratch-dir",
+          decoy,
+        ]),
+      ).resolves.toMatchObject({
+        exitCode: 1,
+        stderr: expect.stringContaining(
+          "provider capture scratch directory is invalid",
+        ),
+      });
+      await expect(readFile(path.join(cwd, decoy), "utf8")).resolves.toBe(
+        "not a directory\n",
+      );
+    } finally {
+      process.chdir(originalCwd);
+      await cleanupTempDir(cwd);
+    }
+  });
+});
+
+describe("provider scope capture classification", () => {
+  it("accepts a capture that binds this provider, repository, PR, base, and head", async () => {
+    const captureFile = await writeCaptureText(
+      `${JSON.stringify(captureSubcommandVectors.classify.ok)}\n`,
+    );
+    try {
+      await expect(
+        runPrReviewProviderScopeEvidenceCommand(classifyArgs(captureFile)),
+      ).resolves.toEqual({ exitCode: 0, stdout: "", stderr: "" });
+    } finally {
+      await cleanupTempDir(path.dirname(captureFile));
+    }
+  });
+
+  it.each(captureSubcommandVectors.classify.stale)(
+    "reports a stale $name binding with exit 2",
+    async ({ capture }) => {
+      const captureFile = await writeCaptureText(
+        `${JSON.stringify(capture)}\n`,
+      );
+      try {
+        await expect(
+          runPrReviewProviderScopeEvidenceCommand(classifyArgs(captureFile)),
+        ).resolves.toEqual({ exitCode: 2, stdout: "", stderr: "" });
+      } finally {
+        await cleanupTempDir(path.dirname(captureFile));
+      }
+    },
+  );
+
+  it.each(captureSubcommandVectors.classify.malformed)(
+    "reports $name as unclassifiable with exit 3",
+    async ({ text }) => {
+      const captureFile = await writeCaptureText(text);
+      try {
+        await expect(
+          runPrReviewProviderScopeEvidenceCommand(classifyArgs(captureFile)),
+        ).resolves.toEqual({ exitCode: 3, stdout: "", stderr: "" });
+      } finally {
+        await cleanupTempDir(path.dirname(captureFile));
+      }
+    },
+  );
+
+  it.each([
+    { name: "an absent capture", leaf: "absent.json" },
+    { name: "an unreadable directory", leaf: "" },
+  ])("reports $name as unclassifiable with exit 3", async ({ leaf }) => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "devcanon-classify-"));
+    try {
+      await expect(
+        runPrReviewProviderScopeEvidenceCommand(
+          classifyArgs(path.join(root, leaf)),
+        ),
+      ).resolves.toEqual({ exitCode: 3, stdout: "", stderr: "" });
+    } finally {
+      await cleanupTempDir(root);
+    }
+  });
+});
+
+describe("pre-findings markdown extraction", () => {
+  it.each(captureSubcommandVectors.preFindings.present)(
+    "preserves $name",
+    ({ output, expected }) => {
+      expect(extractPreFindingsMarkdown(output)).toBe(expected);
+    },
+  );
+
+  it.each(captureSubcommandVectors.preFindings.absent)(
+    "returns empty markdown for $name so the caller uses its fallback",
+    ({ output }) => {
+      expect(extractPreFindingsMarkdown(output)).toBe("");
+    },
+  );
+
+  it.each(captureSubcommandVectors.preFindings.headingLead)(
+    "rejects $name",
+    ({ output }) => {
+      expect(() => extractPreFindingsMarkdown(output)).toThrow(
+        "pre-findings markdown must start with narrative lead before headings",
+      );
+    },
+  );
 });
