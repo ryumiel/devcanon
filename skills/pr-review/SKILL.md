@@ -366,20 +366,21 @@ bind_scope_decision_artifact() {
   # or refetch it. Otherwise terminal Phase 1 fetches each raw evidence family.
   for capture_attempt in 1 2; do
   if [ ! -e "$PROVIDER_SCOPE_CAPTURE_FILE" ]; then
-    capture_tmp="$(mktemp -d .ephemeral/provider-scope-capture.XXXXXX)" || return 1
-    trap 'rm -rf "$capture_tmp"' RETURN
+    capture_tmp="$(bash "$PR_REVIEW_ARTIFACT_HELPER" create-provider-scope-scratch)" || return 1
+    trap 'bash "$PR_REVIEW_ARTIFACT_HELPER" remove-provider-scope-scratch "$capture_tmp"' RETURN
     gh api "repos/$PR_REPOSITORY/pulls/$PR_NUMBER" \
       --jq '{number,baseRefOid:.base.sha,headRefOid:.head.sha}' > "$capture_tmp/pr.json" || return 1
     PR_BASE_OID="$(jq -r '.baseRefOid' "$capture_tmp/pr.json")" || return 1
+    # Bare body: the materializer consumes filename, status, previous_filename, additions, deletions, and changes from every record (docs/guidelines/gh-api-hygiene.md § 3).
     gh api --paginate --slurp "repos/$PR_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$capture_tmp/files.json" || return 1
+    # Bare body: the exact provider diff bytes are themselves the captured evidence (docs/guidelines/gh-api-hygiene.md § 3).
     gh api -H 'Accept: application/vnd.github.diff' "repos/$PR_REPOSITORY/pulls/$PR_NUMBER" > "$capture_tmp/full.diff" || return 1
     gh api "repos/$PR_REPOSITORY/pulls/$PR_NUMBER" \
       --jq '{baseRefOid:.base.sha,headRefOid:.head.sha}' > "$capture_tmp/recheck.json" || return 1
     # A changed provider binding invalidates this private attempt only; discard
     # its scratch and restart terminal Phase 1 rather than publishing it.
-    if ! cmp -s <(jq -c '{baseRefOid,headRefOid}' "$capture_tmp/pr.json") \
-      <(jq -c '{baseRefOid,headRefOid}' "$capture_tmp/recheck.json"); then
-      rm -rf "$capture_tmp" || return 1
+    if ! bash "$PR_REVIEW_ARTIFACT_HELPER" reconcile-provider-scope-fetch "$capture_tmp"; then
+      bash "$PR_REVIEW_ARTIFACT_HELPER" remove-provider-scope-scratch "$capture_tmp" || return 1
       trap - RETURN
       [ "$capture_attempt" -lt 2 ] && continue
       return 1
@@ -391,24 +392,18 @@ bind_scope_decision_artifact() {
     PROVIDER_SCOPE_CAPTURE_FILES_FILE="$capture_tmp/files.json" \
     PROVIDER_SCOPE_CAPTURE_DIFF_FILE="$capture_tmp/full.diff" \
       bash "$PR_REVIEW_ARTIFACT_HELPER" materialize-provider-scope-capture || return 1
-    if ! rm -rf "$capture_tmp"; then
-      return 1
-    fi
+    bash "$PR_REVIEW_ARTIFACT_HELPER" remove-provider-scope-scratch "$capture_tmp" || return 1
     trap - RETURN
     break
   else
     [ -f "$PROVIDER_SCOPE_CAPTURE_FILE" ] && [ ! -L "$PROVIDER_SCOPE_CAPTURE_FILE" ] || return 1
-    # If its base/head deterministically no longer binds this HEAD/worktree,
-    # remove exactly this capture and restart Phase 1. Preserve it for all
-    # producer, runtime, or transient failures.
-    PR_BASE_OID="$PR_BASE_OID" PR_REPOSITORY="$PR_REPOSITORY" PR_NUMBER="$PR_NUMBER" HEAD_SHA="$HEAD_SHA" node -e '
-      const fs=require("node:fs");
-      try { const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
-        if(typeof x.provider!=="string"||typeof x.repository!=="string"||!Number.isInteger(x.pr_number)||typeof x.baseRefOid!=="string"||typeof x.headRefOid!=="string") process.exit(3);
-        process.exit(x.provider==="github"&&x.repository===process.env.PR_REPOSITORY&&x.pr_number===Number(process.env.PR_NUMBER)&&x.baseRefOid===process.env.PR_BASE_OID&&x.headRefOid===process.env.HEAD_SHA?0:2);
-      } catch { process.exit(3); }
-    ' "$PROVIDER_SCOPE_CAPTURE_FILE"
-    capture_state=$?
+    # Classifier exit 0 binds, 2 is stale, 3 is unreadable or malformed. Remove
+    # exactly this capture and restart Phase 1 only when it no longer binds this
+    # HEAD/worktree; preserve it for producer, runtime, or transient failures.
+    capture_state=0
+    PR_BASE_OID="$PR_BASE_OID" PR_REPOSITORY="$PR_REPOSITORY" PR_NUMBER="$PR_NUMBER" HEAD_SHA="$HEAD_SHA" \
+    PROVIDER_SCOPE_CAPTURE_FILE="$PROVIDER_SCOPE_CAPTURE_FILE" \
+      bash "$PR_REVIEW_ARTIFACT_HELPER" classify-provider-scope-capture || capture_state=$?
     if [ "$capture_state" -eq 0 ]; then
       break
     elif [ "$capture_state" -eq 2 ]; then
@@ -429,8 +424,8 @@ bind_scope_decision_artifact() {
     PROVIDER_SCOPE_CAPTURE_FILE="$PROVIDER_SCOPE_CAPTURE_FILE" \
       bash "$PR_REVIEW_ARTIFACT_HELPER" write-provider-scope-evidence || return 1
   ) || return 1
-  REVIEW_SCOPE_BASE_REF="$(node -e 'const fs=require("node:fs"); const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(x.provider_pr_diff_base_sha)' "$PROVIDER_SCOPE_EVIDENCE_FILE")" || return 1
-  FULL_PR_DIFF_RANGE="$(node -e 'const fs=require("node:fs"); const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(x.full_pr_diff_range)' "$PROVIDER_SCOPE_EVIDENCE_FILE")" || return 1
+  REVIEW_SCOPE_BASE_REF="$(PROVIDER_SCOPE_EVIDENCE_FILE="$PROVIDER_SCOPE_EVIDENCE_FILE" bash "$PR_REVIEW_ARTIFACT_HELPER" read-provider-scope-evidence-field --field provider_pr_diff_base_sha)" || return 1
+  FULL_PR_DIFF_RANGE="$(PROVIDER_SCOPE_EVIDENCE_FILE="$PROVIDER_SCOPE_EVIDENCE_FILE" bash "$PR_REVIEW_ARTIFACT_HELPER" read-provider-scope-evidence-field --field full_pr_diff_range)" || return 1
   # Now apply the existing initial/follow-up policy to FULL_PR_DIFF_RANGE.
   # Initial uses it in full; follow-up chooses last_reviewed_sha..HEAD only
   # when that policy permits narrow review, otherwise uses it in full.
@@ -571,36 +566,13 @@ After the handoff and worktree HEAD validations succeed, consume the exact
 already-bound `REVIEW_SCOPE_DECISION_FILE`. Fail before dispatch if it is
 unavailable or malformed; do not display changed-file text.
 
-```bash
-emit_pr_review_scope_notice() {
-  : "${REVIEW_SCOPE_DECISION_FILE:?Phase 3 scope decision path missing}"
-  node - "$REVIEW_SCOPE_DECISION_FILE" <<'NODE'
-const fs = require("node:fs");
-let scope;
-try {
-  scope = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
-} catch {
-  process.exit(1);
-}
-if (
-  scope === null ||
-  typeof scope !== "object" ||
-  Array.isArray(scope) ||
-  !["initial", "follow-up"].includes(scope.mode) ||
-  typeof scope.is_followup_narrow !== "boolean" ||
-  !Array.isArray(scope.changed_files) ||
-  !scope.changed_files.every((file) => typeof file === "string") ||
-  (scope.mode === "initial" && scope.is_followup_narrow)
-) {
-  process.exit(1);
-}
-const selection = scope.is_followup_narrow ? "narrow" : "full";
-process.stdout.write(
-  `PR review scope: mode=${scope.mode}, selection=${selection}, selected files=${scope.changed_files.length}. Review is continuing.\n`,
-);
-NODE
-}
+`render-scope-notice` validates the bound artifact's `mode`,
+`is_followup_narrow`, and `changed_files` and prints exactly
+`PR review scope: mode=..., selection=..., selected files=.... Review is continuing.`
+It exits nonzero on a missing, unreadable, or schema-invalid artifact, and it
+never echoes changed-file text.
 
+```bash
 (
   cd "$WORKING_DIRECTORY" || exit 1
   : "${REVIEW_HANDOFF_FILE:?Phase 3 handoff manifest path missing}"
@@ -611,7 +583,8 @@ NODE
     echo "review worktree HEAD changed since handoff; refusing stale review" >&2
     exit 1
   }
-  emit_pr_review_scope_notice || exit 1
+  REVIEW_SCOPE_DECISION_FILE="$REVIEW_SCOPE_DECISION_FILE" \
+    bash "$PR_REVIEW_ARTIFACT_HELPER" render-scope-notice || exit 1
 )
 ```
 
@@ -791,15 +764,14 @@ write_review_body_from_markdown() {
 }
 
 # Preserve markdown before the first `## Findings` heading in PLAY_REVIEW_OUTPUT.
-# The preserved block must start with the required narrative lead, then may include
-# optional presentation such as `## Root-Cause Synthesis`.
+# The helper refuses a preserved block whose first non-blank line is a heading, so
+# it must start with the required narrative lead, then may include optional
+# presentation such as `## Root-Cause Synthesis`.
 PRE_FINDINGS_MARKDOWN=$(
   printf '%s\n' "$PLAY_REVIEW_OUTPUT" |
-    awk '/^## Findings[[:space:]]*$/ { exit } { print }'
+    bash "$PR_REVIEW_MANIFEST_HELPER" extract-pre-findings-markdown
 ) || exit 1
 if [ -n "$PRE_FINDINGS_MARKDOWN" ]; then
-  FIRST_PREFINDINGS_LINE=$(printf '%s\n' "$PRE_FINDINGS_MARKDOWN" | sed -n '/[^[:space:]]/{p;q;}') || exit 1
-  case "$FIRST_PREFINDINGS_LINE" in "## "*) echo "pre-findings markdown must start with narrative lead before headings" >&2; exit 1 ;; esac
   REVIEW_BODY_MARKDOWN="$PRE_FINDINGS_MARKDOWN"
 else
   REVIEW_BODY_FALLBACK="<one or two short narrative sentences naming what the implementation got right before findings>"

@@ -29,10 +29,8 @@ const CANONICAL_GIT_DIFF_DIALECT = "canonical-git-diff/v1";
 const CAPTURE_CLEANUP_SEQUENCE = String.raw`
 capture_tmp="$1"
 finish_capture_materialization() {
-  trap 'rm -rf "$capture_tmp"' RETURN
-  if ! rm -rf "$capture_tmp"; then
-    return 1
-  fi
+  trap 'bash "$PR_REVIEW_ARTIFACT_HELPER" remove-provider-scope-scratch "$capture_tmp"' RETURN
+  bash "$PR_REVIEW_ARTIFACT_HELPER" remove-provider-scope-scratch "$capture_tmp" || return 1
   trap - RETURN
   : > "$PRODUCER_DISPATCH_MARKER"
 }
@@ -508,6 +506,13 @@ async function writeProviderFetchHarness(root: string) {
       '    [ "${MATERIALIZE_MODE:-real}" = "real" ] || exit 91',
       '    exec bash "$REAL_ARTIFACT_HELPER" "$@"',
       "    ;;",
+      "  create-provider-scope-scratch | remove-provider-scope-scratch | reconcile-provider-scope-fetch | read-provider-scope-evidence-field)",
+      '    exec bash "$REAL_ARTIFACT_HELPER" "$@"',
+      "    ;;",
+      "  classify-provider-scope-capture)",
+      '    [ -z "${CLASSIFIER_EXIT:-}" ] || exit "$CLASSIFIER_EXIT"',
+      '    exec bash "$REAL_ARTIFACT_HELPER" "$@"',
+      "    ;;",
       "  write-provider-scope-evidence)",
       '    evidence="${PROVIDER_SCOPE_CAPTURE_FILE%-capture.json}-evidence.json"',
       '    printf \'{"provider_pr_diff_base_sha":"%s","full_pr_diff_range":"%s..%s"}\\n\' "$PR_BASE_OID" "$PR_BASE_OID" "$HEAD_SHA" > "$evidence"',
@@ -557,11 +562,6 @@ async function runDocumentedProviderFetch(
   const bindingCount = path.join(root, "binding-count");
   const materializeCalls = path.join(root, "materialize-calls");
   await writeFile(bindingFile, `${bindings.join("\n")}\n`);
-  if (failClassifierRead) {
-    const node = path.join(bin, "node");
-    await writeFile(node, "#!/usr/bin/env bash\nexit 3\n");
-    await chmod(node, 0o755);
-  }
   return {
     result: execFileAsync("bash", [runner], {
       cwd,
@@ -578,6 +578,7 @@ async function runDocumentedProviderFetch(
         GH_BINDING_COUNT: bindingCount,
         MATERIALIZE_CALLS: materializeCalls,
         MATERIALIZE_MODE: materializer,
+        ...(failClassifierRead ? { CLASSIFIER_EXIT: "3" } : {}),
       },
       maxBuffer: 1024 * 1024,
     }),
@@ -761,6 +762,35 @@ describe("documented provider-scope capture materialization", () => {
     } finally {
       await cleanupTempDir(cwd);
     }
+  });
+});
+
+describe("documented capture-block delegation", () => {
+  it("delegates scratch, reconcile, classify, and field reads to the helper", async () => {
+    const documented = await documentedBindScopeDecisionArtifact();
+
+    for (const command of [
+      'bash "$PR_REVIEW_ARTIFACT_HELPER" create-provider-scope-scratch',
+      'bash "$PR_REVIEW_ARTIFACT_HELPER" remove-provider-scope-scratch "$capture_tmp"',
+      'bash "$PR_REVIEW_ARTIFACT_HELPER" reconcile-provider-scope-fetch "$capture_tmp"',
+      'bash "$PR_REVIEW_ARTIFACT_HELPER" classify-provider-scope-capture',
+      'bash "$PR_REVIEW_ARTIFACT_HELPER" read-provider-scope-evidence-field --field provider_pr_diff_base_sha',
+      'bash "$PR_REVIEW_ARTIFACT_HELPER" read-provider-scope-evidence-field --field full_pr_diff_range',
+    ]) {
+      expect(documented).toContain(command);
+    }
+
+    for (const inlined of ["mktemp -d", "cmp -s", "node -e", "rm -rf"]) {
+      expect(documented).not.toContain(inlined);
+    }
+
+    const traps = documented
+      .split("\n")
+      .filter((line) => line.trim().startsWith("trap '"));
+    expect(traps).toEqual([
+      `    trap 'bash "$PR_REVIEW_ARTIFACT_HELPER" remove-provider-scope-scratch "$capture_tmp"' RETURN`,
+    ]);
+    expect(documented.match(/^\s*gh api /gmu)).toHaveLength(4);
   });
 });
 
@@ -1463,9 +1493,9 @@ describe("documented provider-scope capture cleanup", () => {
       await mkdir(stubBin);
       await mkdir(captureTmp);
       await writeFile(path.join(captureTmp, "capture.json"), "complete");
-      const stubRm = path.join(stubBin, "rm");
+      const stubHelper = path.join(stubBin, "artifact-helper");
       await writeFile(
-        stubRm,
+        stubHelper,
         [
           "#!/usr/bin/env bash",
           "set -eu",
@@ -1473,11 +1503,11 @@ describe("documented provider-scope capture cleanup", () => {
           'count="$((count + 1))"; printf "%s\\n" "$count" > "$CLEANUP_COUNT"',
           'printf "%s\\n" "$*" >> "$CLEANUP_CALLS"',
           '[ "$count" -eq 1 ] && exit 1',
-          'exec /bin/rm "$@"',
+          'exec /bin/rm -rf "$2"',
           "",
         ].join("\n"),
       );
-      await chmod(stubRm, 0o755);
+      await chmod(stubHelper, 0o755);
 
       await expect(
         execFileAsync(
@@ -1486,7 +1516,7 @@ describe("documented provider-scope capture cleanup", () => {
           {
             env: {
               ...process.env,
-              PATH: `${stubBin}:${process.env.PATH}`,
+              PR_REVIEW_ARTIFACT_HELPER: stubHelper,
               CAPTURE_TMP: captureTmp,
               CLEANUP_COUNT: cleanupCount,
               CLEANUP_CALLS: cleanupCalls,
@@ -1497,7 +1527,7 @@ describe("documented provider-scope capture cleanup", () => {
       ).rejects.toMatchObject({ code: 1 });
       await expect(readFile(cleanupCount, "utf8")).resolves.toBe("2\n");
       await expect(readFile(cleanupCalls, "utf8")).resolves.toBe(
-        `-rf ${captureTmp}\n-rf ${captureTmp}\n`,
+        `remove-provider-scope-scratch ${captureTmp}\nremove-provider-scope-scratch ${captureTmp}\n`,
       );
       await expect(readFile(captureTmp, "utf8")).rejects.toMatchObject({
         code: "ENOENT",

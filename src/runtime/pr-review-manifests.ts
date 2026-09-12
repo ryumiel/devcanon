@@ -28,6 +28,7 @@ import {
   validatePrReviewResultCommandAuthorityForFindingsPublication,
   validatePrReviewResultCommandAuthorityForReviewBodyRecovery,
 } from "./pr-review-result-validation.js";
+import { extractPreFindingsMarkdown } from "./review-artifacts.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -114,9 +115,18 @@ export async function runPrReviewManifestsCommand(
         return ok(`${await replaceFindings()}\n`);
       case "render-phase5-audit-summary":
         return ok(`${await renderPhase5AuditSummary()}\n`);
+      case "extract-pre-findings-markdown":
+        requireNoCommandArgs(commandName, args);
+        return ok(
+          extractPreFindingsMarkdown(
+            await readMarkdownFromStdin(
+              "play-review output stdin must be valid UTF-8 Markdown",
+            ),
+          ),
+        );
       default:
         throw new PrReviewManifestError(
-          "usage: review-manifests.sh prepare-handoff-write|write-handoff|validate-handoff|prepare-result-write|write-result|validate-result|read-result-for-preview|write-review-body|recover-review-body-publication|replace-findings|render-phase5-audit-summary",
+          "usage: review-manifests.sh prepare-handoff-write|write-handoff|validate-handoff|prepare-result-write|write-result|validate-result|read-result-for-preview|write-review-body|recover-review-body-publication|replace-findings|render-phase5-audit-summary|extract-pre-findings-markdown",
         );
     }
   } catch (err) {
@@ -693,7 +703,9 @@ async function releaseFindingsPublicationGuard(
   await rm(path.join(process.cwd(), guardFile));
 }
 
-async function readMarkdownFromStdin(): Promise<string> {
+async function readMarkdownFromStdin(
+  failureMessage = "review body stdin must be valid UTF-8 Markdown",
+): Promise<string> {
   try {
     const chunks: Buffer[] = [];
     for await (const chunk of process.stdin) {
@@ -703,7 +715,7 @@ async function readMarkdownFromStdin(): Promise<string> {
       Buffer.concat(chunks),
     );
   } catch {
-    fail("review body stdin must be valid UTF-8 Markdown");
+    fail(failureMessage);
   }
 }
 

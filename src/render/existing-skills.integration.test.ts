@@ -447,7 +447,7 @@ describe("shipped skill rendering", () => {
     );
     const { outputs } = await renderAll(config, false, true);
     const scopeNotice =
-      "PR review scope: mode=${scope.mode}, selection=${selection}, selected files=${scope.changed_files.length}. Review is continuing.";
+      "PR review scope: mode=..., selection=..., selected files=.... Review is continuing.";
 
     for (const target of TARGETS) {
       const { body } = parseFrontmatter(
@@ -464,7 +464,7 @@ describe("shipped skill rendering", () => {
       );
       const notice = body.indexOf(scopeNotice, phase4);
       const noticeConsumer = body.indexOf(
-        "emit_pr_review_scope_notice || exit 1",
+        'bash "$PR_REVIEW_ARTIFACT_HELPER" render-scope-notice || exit 1',
         headValidation,
       );
       const playReview = body.indexOf(

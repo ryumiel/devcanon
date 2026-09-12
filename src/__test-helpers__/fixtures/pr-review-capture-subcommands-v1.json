@@ -1,0 +1,137 @@
+{
+  "classify": {
+    "expected": {
+      "repository": "owner/repo",
+      "prNumber": 390,
+      "baseOid": "1111111111111111111111111111111111111111",
+      "headSha": "2222222222222222222222222222222222222222"
+    },
+    "ok": {
+      "schema": "pr-review/provider-scope-capture/v1",
+      "provider": "github",
+      "repository": "owner/repo",
+      "pr_number": 390,
+      "baseRefOid": "1111111111111111111111111111111111111111",
+      "headRefOid": "2222222222222222222222222222222222222222"
+    },
+    "stale": [
+      {
+        "name": "provider",
+        "capture": {
+          "provider": "gitlab",
+          "repository": "owner/repo",
+          "pr_number": 390,
+          "baseRefOid": "1111111111111111111111111111111111111111",
+          "headRefOid": "2222222222222222222222222222222222222222"
+        }
+      },
+      {
+        "name": "repository",
+        "capture": {
+          "provider": "github",
+          "repository": "other/repo",
+          "pr_number": 390,
+          "baseRefOid": "1111111111111111111111111111111111111111",
+          "headRefOid": "2222222222222222222222222222222222222222"
+        }
+      },
+      {
+        "name": "pr_number",
+        "capture": {
+          "provider": "github",
+          "repository": "owner/repo",
+          "pr_number": 391,
+          "baseRefOid": "1111111111111111111111111111111111111111",
+          "headRefOid": "2222222222222222222222222222222222222222"
+        }
+      },
+      {
+        "name": "baseRefOid",
+        "capture": {
+          "provider": "github",
+          "repository": "owner/repo",
+          "pr_number": 390,
+          "baseRefOid": "3333333333333333333333333333333333333333",
+          "headRefOid": "2222222222222222222222222222222222222222"
+        }
+      },
+      {
+        "name": "headRefOid",
+        "capture": {
+          "provider": "github",
+          "repository": "owner/repo",
+          "pr_number": 390,
+          "baseRefOid": "1111111111111111111111111111111111111111",
+          "headRefOid": "4444444444444444444444444444444444444444"
+        }
+      }
+    ],
+    "malformed": [
+      {
+        "name": "missing provider",
+        "text": "{\"repository\":\"owner/repo\",\"pr_number\":390,\"baseRefOid\":\"1111111111111111111111111111111111111111\",\"headRefOid\":\"2222222222222222222222222222222222222222\"}"
+      },
+      {
+        "name": "missing repository",
+        "text": "{\"provider\":\"github\",\"pr_number\":390,\"baseRefOid\":\"1111111111111111111111111111111111111111\",\"headRefOid\":\"2222222222222222222222222222222222222222\"}"
+      },
+      {
+        "name": "fractional pr_number",
+        "text": "{\"provider\":\"github\",\"repository\":\"owner/repo\",\"pr_number\":390.5,\"baseRefOid\":\"1111111111111111111111111111111111111111\",\"headRefOid\":\"2222222222222222222222222222222222222222\"}"
+      },
+      {
+        "name": "string pr_number",
+        "text": "{\"provider\":\"github\",\"repository\":\"owner/repo\",\"pr_number\":\"390\",\"baseRefOid\":\"1111111111111111111111111111111111111111\",\"headRefOid\":\"2222222222222222222222222222222222222222\"}"
+      },
+      {
+        "name": "missing baseRefOid",
+        "text": "{\"provider\":\"github\",\"repository\":\"owner/repo\",\"pr_number\":390,\"headRefOid\":\"2222222222222222222222222222222222222222\"}"
+      },
+      {
+        "name": "missing headRefOid",
+        "text": "{\"provider\":\"github\",\"repository\":\"owner/repo\",\"pr_number\":390,\"baseRefOid\":\"1111111111111111111111111111111111111111\"}"
+      },
+      { "name": "array root", "text": "[]" },
+      { "name": "null root", "text": "null" },
+      { "name": "unparsable JSON", "text": "{ not JSON\n" },
+      { "name": "empty file", "text": "" }
+    ]
+  },
+  "preFindings": {
+    "present": [
+      {
+        "name": "narrative lead with optional presentation",
+        "output": "The capture block now delegates its mechanics.\n\n## Root-Cause Synthesis\n\nOne shared helper owns the scratch lifecycle.\n\n## Findings\n\n- something\n",
+        "expected": "The capture block now delegates its mechanics.\n\n## Root-Cause Synthesis\n\nOne shared helper owns the scratch lifecycle.\n"
+      },
+      {
+        "name": "trailing whitespace on the findings heading",
+        "output": "Narrative lead only.\n## Findings\t\n- something\n",
+        "expected": "Narrative lead only.\n"
+      },
+      {
+        "name": "no findings heading at all",
+        "output": "Narrative lead only.\n",
+        "expected": "Narrative lead only.\n"
+      }
+    ],
+    "absent": [
+      {
+        "name": "findings heading first",
+        "output": "## Findings\n\n- something\n"
+      },
+      { "name": "blank lines before findings", "output": "\n\n## Findings\n" },
+      { "name": "empty output", "output": "" }
+    ],
+    "headingLead": [
+      {
+        "name": "presentation heading before narrative",
+        "output": "## Root-Cause Synthesis\n\nDetails.\n\n## Findings\n\n- something\n"
+      },
+      {
+        "name": "blank line then heading",
+        "output": "\n## Summary\n\nDetails.\n\n## Findings\n"
+      }
+    ]
+  }
+}
