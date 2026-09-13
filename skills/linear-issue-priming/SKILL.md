@@ -16,7 +16,13 @@ codex_sidecar:
 
 # Linear Issue Priming
 
-For the public Node fallback, use the [setup-worktree usage](../issue-worktree-setup/references/setup-worktree-usage.md); this entrypoint retains Linear-specific continuation and native-first selection.
+For the public Node fallback and the shared worktree-provisioning and
+`.ephemeral/` write-guard mechanics, use the
+[setup-worktree usage](../issue-worktree-setup/references/setup-worktree-usage.md);
+this entrypoint retains the Linear-specific fetch, naming rules,
+comment-evidence selection, and handoff. If that reference is missing or
+unreadable, stop before provisioning a worktree or writing any `.ephemeral/`
+artifact.
 
 Fetch a Linear issue, provision or reuse the issue worktree, write the fetched
 issue description and any substantive comment evidence to `.ephemeral/`, and
@@ -56,121 +62,18 @@ Slug rules apply to the `<title-slug>` segment only: lowercase, kebab-case, alph
 
 ### Provision the worktree and persist the issue body
 
-Before invoking the fallback helper, apply `issue-worktree-setup`'s
-Step 0 native-first policy. If the host exposes native worktree control,
-use that surface first to create or adopt the derived worktree, capture
-its absolute path in `WORKTREE_PATH`, and continue from the validation
-step below.
-
-Do not run both the native flow and the fallback helper. If native
-worktree control is unavailable, invoke the fallback helper so the
-fetched issue description is written inside the correct checkout before
-handoff.
-
-Use platform-native environment variable and stdout capture around the native
-Node helper. POSIX shell example:
-
-```bash
-ISSUE_WORKTREE_SETUP_DIR="<issue-worktree-setup-skill-dir>"
-HELPER_SCRIPT="$ISSUE_WORKTREE_SETUP_DIR/scripts/setup-worktree.mjs"
-
-WORKTREE_SETUP_OUTPUT=$(
-  BRANCH_NAME="<branch-name>" \
-  WORKTREE_LEAF="<worktree-leaf>" \
-  node "$HELPER_SCRIPT"
-)
-```
-
-PowerShell example:
-
-```powershell
-$IssueWorktreeSetupDir = "<issue-worktree-setup-skill-dir>"
-$HelperScript = Join-Path $IssueWorktreeSetupDir "scripts/setup-worktree.mjs"
-
-$env:BRANCH_NAME = "<branch-name>"
-$env:WORKTREE_LEAF = "<worktree-leaf>"
-$WORKTREE_SETUP_OUTPUT = node $HelperScript
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-```
-
-If you invoked the fallback helper, parse `WORKTREE_SETUP_OUTPUT`
-exactly per the helper skill's output contract.
-
-- If `MODE=stop`, surface `MESSAGE` and stop before any `.ephemeral/`
-  write.
-- If `MODE=reuse` or `MODE=new`, continue from `WORKTREE_PATH`.
-- If the helper exits non-zero, stop immediately instead of attempting to
-  parse partial output.
-
-Once `WORKTREE_PATH` is available — either from native tooling or the
-fallback helper — validate it before any write. It must be nonempty,
-absolute according to the host platform, and name an existing searchable
-directory. POSIX shell example:
-
-```bash
-[ -n "$WORKTREE_PATH" ] || { echo "worktree path missing" >&2; exit 1; }
-case "$WORKTREE_PATH" in
-  /*) ;;
-  *) echo "worktree path must be absolute: $WORKTREE_PATH" >&2; exit 1 ;;
-esac
-[ -d "$WORKTREE_PATH" ] || { echo "worktree missing or unreadable: $WORKTREE_PATH" >&2; exit 1; }
-[ -x "$WORKTREE_PATH" ] || { echo "worktree not searchable: $WORKTREE_PATH" >&2; exit 1; }
-```
-
-PowerShell example:
-
-```powershell
-if ([string]::IsNullOrWhiteSpace($WORKTREE_PATH)) { throw "worktree path missing" }
-if (-not [System.IO.Path]::IsPathFullyQualified($WORKTREE_PATH)) { throw "worktree path must be absolute: $WORKTREE_PATH" }
-if (-not (Test-Path -LiteralPath $WORKTREE_PATH -PathType Container)) { throw "worktree missing or unreadable: $WORKTREE_PATH" }
-try { Get-ChildItem -LiteralPath $WORKTREE_PATH -Force -ErrorAction Stop | Out-Null } catch { throw "worktree not searchable: $WORKTREE_PATH" }
-```
+Provision or adopt the worktree and validate `WORKTREE_PATH` by following the
+setup-worktree usage's
+`## Consumer worktree provisioning and artifact write guards` section:
+native-first selection (including the Windows-hosted Codex/PowerShell
+caution), fallback helper invocation, `WORKTREE_SETUP_OUTPUT` parsing, and
+worktree path validation.
 
 Compute the issue-body artifact path inside `WORKTREE_PATH`:
 `.ephemeral/<YYYY-MM-DD>-<id>-issue-body.md` (today's date; slugged
-Linear identifier, e.g. `ENG-123` -> `eng-123`).
-
-Validate the repo-relative path before writing. POSIX shell example:
-
-```bash
-case "$ISSUE_BODY_PATH" in
-  .ephemeral/*/*) echo "nested issue body path rejected: $ISSUE_BODY_PATH" >&2; exit 1 ;;
-  .ephemeral/*-issue-body.md) ;;
-  *) echo "issue body path validation failed: $ISSUE_BODY_PATH" >&2; exit 1 ;;
-esac
-[ "${ISSUE_BODY_PATH#*..}" = "$ISSUE_BODY_PATH" ] || { echo "path traversal: $ISSUE_BODY_PATH" >&2; exit 1; }
-```
-
-PowerShell example:
-
-```powershell
-if ($ISSUE_BODY_PATH -notmatch '^\.ephemeral/[^/\\]+-issue-body\.md$') { throw "issue body path validation failed: $ISSUE_BODY_PATH" }
-if ($ISSUE_BODY_PATH.Contains("..")) { throw "path traversal: $ISSUE_BODY_PATH" }
-```
-
-Apply the write-target guard before the write. POSIX shell example:
-
-```bash
-[ -L "$WORKTREE_PATH/.ephemeral" ] && rm "$WORKTREE_PATH/.ephemeral"
-mkdir -p "$WORKTREE_PATH/.ephemeral"
-[ -L "$WORKTREE_PATH/$ISSUE_BODY_PATH" ] && rm "$WORKTREE_PATH/$ISSUE_BODY_PATH"
-[ ! -d "$WORKTREE_PATH/$ISSUE_BODY_PATH" ] || { echo "issue body path is a directory: $WORKTREE_PATH/$ISSUE_BODY_PATH" >&2; exit 1; }
-[ ! -e "$WORKTREE_PATH/$ISSUE_BODY_PATH" ] || [ -f "$WORKTREE_PATH/$ISSUE_BODY_PATH" ] || { echo "issue body path exists but is not a regular file: $WORKTREE_PATH/$ISSUE_BODY_PATH" >&2; exit 1; }
-```
-
-PowerShell example:
-
-```powershell
-$EphemeralDir = Join-Path $WORKTREE_PATH ".ephemeral"
-$EphemeralItem = Get-Item -LiteralPath $EphemeralDir -Force -ErrorAction SilentlyContinue
-if ($EphemeralItem -and (($EphemeralItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { Remove-Item -LiteralPath $EphemeralDir }
-New-Item -ItemType Directory -Force -Path $EphemeralDir | Out-Null
-$IssueBodyFullPath = Join-Path $WORKTREE_PATH ($ISSUE_BODY_PATH -replace '/', [System.IO.Path]::DirectorySeparatorChar)
-$IssueBodyItem = Get-Item -LiteralPath $IssueBodyFullPath -Force -ErrorAction SilentlyContinue
-if ($IssueBodyItem -and (($IssueBodyItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { Remove-Item -LiteralPath $IssueBodyFullPath; $IssueBodyItem = $null }
-if ($IssueBodyItem -and $IssueBodyItem.PSIsContainer) { throw "issue body path is a directory: $IssueBodyFullPath" }
-if ($IssueBodyItem -and -not ($IssueBodyItem -is [System.IO.FileInfo])) { throw "issue body path exists but is not a regular file: $IssueBodyFullPath" }
-```
+Linear identifier, e.g. `ENG-123` -> `eng-123`). Validate the repo-relative
+path and apply the write-target guard per the setup-worktree usage's
+issue-body guard example before writing.
 
 Write the fetched Linear issue description verbatim to
 `$WORKTREE_PATH/$ISSUE_BODY_PATH`.
@@ -207,47 +110,8 @@ quoting it. Each included comment entry must include author, timestamp, source
 URL or permalink, evidence reason, and the substantive concise summary or safe
 body.
 
-Validate the repo-relative path before writing. POSIX shell example:
-
-```bash
-case "$COMMENT_EVIDENCE_PATH" in
-  .ephemeral/*/*) echo "nested comment evidence path rejected: $COMMENT_EVIDENCE_PATH" >&2; exit 1 ;;
-  .ephemeral/*-comment-evidence.md) ;;
-  *) echo "comment evidence path validation failed: $COMMENT_EVIDENCE_PATH" >&2; exit 1 ;;
-esac
-[ "${COMMENT_EVIDENCE_PATH#*..}" = "$COMMENT_EVIDENCE_PATH" ] || { echo "path traversal: $COMMENT_EVIDENCE_PATH" >&2; exit 1; }
-```
-
-PowerShell example:
-
-```powershell
-if ($COMMENT_EVIDENCE_PATH -notmatch '^\.ephemeral/[^/\\]+-comment-evidence\.md$') { throw "comment evidence path validation failed: $COMMENT_EVIDENCE_PATH" }
-if ($COMMENT_EVIDENCE_PATH.Contains("..")) { throw "path traversal: $COMMENT_EVIDENCE_PATH" }
-```
-
-Apply the write-target guard before the write. POSIX shell example:
-
-```bash
-[ -L "$WORKTREE_PATH/.ephemeral" ] && rm "$WORKTREE_PATH/.ephemeral"
-mkdir -p "$WORKTREE_PATH/.ephemeral"
-[ -L "$WORKTREE_PATH/$COMMENT_EVIDENCE_PATH" ] && rm "$WORKTREE_PATH/$COMMENT_EVIDENCE_PATH"
-[ ! -d "$WORKTREE_PATH/$COMMENT_EVIDENCE_PATH" ] || { echo "comment evidence path is a directory: $WORKTREE_PATH/$COMMENT_EVIDENCE_PATH" >&2; exit 1; }
-[ ! -e "$WORKTREE_PATH/$COMMENT_EVIDENCE_PATH" ] || [ -f "$WORKTREE_PATH/$COMMENT_EVIDENCE_PATH" ] || { echo "comment evidence path exists but is not a regular file: $WORKTREE_PATH/$COMMENT_EVIDENCE_PATH" >&2; exit 1; }
-```
-
-PowerShell example:
-
-```powershell
-$EphemeralDir = Join-Path $WORKTREE_PATH ".ephemeral"
-$EphemeralItem = Get-Item -LiteralPath $EphemeralDir -Force -ErrorAction SilentlyContinue
-if ($EphemeralItem -and (($EphemeralItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { Remove-Item -LiteralPath $EphemeralDir }
-New-Item -ItemType Directory -Force -Path $EphemeralDir | Out-Null
-$CommentEvidenceFullPath = Join-Path $WORKTREE_PATH ($COMMENT_EVIDENCE_PATH -replace '/', [System.IO.Path]::DirectorySeparatorChar)
-$CommentEvidenceItem = Get-Item -LiteralPath $CommentEvidenceFullPath -Force -ErrorAction SilentlyContinue
-if ($CommentEvidenceItem -and (($CommentEvidenceItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { Remove-Item -LiteralPath $CommentEvidenceFullPath; $CommentEvidenceItem = $null }
-if ($CommentEvidenceItem -and $CommentEvidenceItem.PSIsContainer) { throw "comment evidence path is a directory: $CommentEvidenceFullPath" }
-if ($CommentEvidenceItem -and -not ($CommentEvidenceItem -is [System.IO.FileInfo])) { throw "comment evidence path exists but is not a regular file: $CommentEvidenceFullPath" }
-```
+Validate the repo-relative path and apply the write-target guard per the
+setup-worktree usage's comment-evidence guard example before writing.
 
 Unsafe comment evidence paths fail before write. A missing
 `COMMENT_EVIDENCE_PATH` is valid only when no substantive comment evidence
@@ -255,22 +119,15 @@ was produced.
 
 ## Hand off to `issue-priming-workflow`
 
-Invoke the `issue-priming-workflow` skill with the following normalized issue payload:
+Invoke the `issue-priming-workflow` skill with the normalized Issue Payload.
+The `## Inputs` section of
+[`issue-priming-workflow`](../issue-priming-workflow/SKILL.md) owns the payload
+field list and field semantics; do not restate them here. This entrypoint
+supplies the Linear-specific values:
 
-```
-## Issue Payload
-
-- **source**: linear
-- **identifier**: <IDENTIFIER>
-- **title**: <verbatim issue title, single line>
-- **issue-body-path**: .ephemeral/<YYYY-MM-DD>-<id>-issue-body.md
-- **comment-evidence-path**: .ephemeral/<YYYY-MM-DD>-<id>-comment-evidence.md (optional; include only when substantive comment evidence was written)
-- **worktree-path**: <absolute worktree path selected above>
-- **mode**: <interactive | auto>
-- **research**: <gated | forced>
-- **batch-source-issue-identifier**: linear:<IDENTIFIER> (only when supplied by `issue-batch-routing`)
-- **batch-issue-priming-route-key**: <complete controller-recorded route key> (only when supplied by `issue-batch-routing`)
-```
+- `source`: `linear`
+- `identifier`: `<IDENTIFIER>`
+- `batch-source-issue-identifier`: `linear:<IDENTIFIER>` (only when supplied by `issue-batch-routing`)
 
 The `mode` field is `auto` when `--auto` was passed and `interactive` otherwise. The `research` field is `forced` when `--research` was passed and `gated` otherwise.
 
