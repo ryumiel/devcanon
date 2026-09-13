@@ -73,11 +73,12 @@ Keep this order exact for every fresh child.
    `message` in that order. `fork_turns: "none"` is mandatory: no child
    inherits conversation history. Capture only the child's raw terminal
    response and status.
-7. Verify before semantic validation or consumption; after successful
-   verification, validate and retain the response in controller memory; clean
-   up the exact retained baseline; and integrate the retained response only
-   after successful cleanup, under the consuming skill's existing integration
-   policy. Every post-capture terminal branch attempts exact cleanup.
+7. For a source-immutable route, verify before semantic validation or
+   consumption, and clean up the exact retained baseline after successful
+   verification; every post-capture terminal branch attempts exact cleanup.
+   For every route, validate and retain the response in controller memory,
+   then integrate it only after any required cleanup succeeds, under the
+   consuming skill's existing integration, verification, and lifecycle policy.
 
 ## Native rejection
 

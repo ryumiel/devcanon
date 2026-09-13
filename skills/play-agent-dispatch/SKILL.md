@@ -116,7 +116,7 @@ for the Claude executor also blocks before spawn. Do not infer tools, sandbox,
 network, authority, or any other declaration field from the child, parent,
 workflow, runtime, or controller authority.
 
-Before each D4 capture, load the adjacent
+For Codex, before each D4 capture, load the adjacent
 [dispatch-ritual usage](references/dispatch-ritual-usage.md) and run its ritual
 with the validated declaration above as the route values. A missing, blank,
 unreadable, or unavailable ritual reference is a terminal pre-dispatch blocker:
