@@ -50,6 +50,10 @@ async function makeWorkspace(): Promise<string> {
     path.join(cwd, ".ephemeral/2026-05-25-topic-plan.md"),
     "# Plan\n",
   );
+  await writeFile(
+    path.join(cwd, ".ephemeral/2026-05-25-123-assumptions-comment.md"),
+    "# Assumptions\n",
+  );
   return cwd;
 }
 
@@ -71,6 +75,10 @@ describe("issue-priming phase-artifacts helper", () => {
         ["research", ".ephemeral/2026-05-25-123-research.md"],
         ["design", ".ephemeral/2026-05-25-topic-design.md"],
         ["plan", ".ephemeral/2026-05-25-topic-plan.md"],
+        [
+          "assumptions-comment",
+          ".ephemeral/2026-05-25-123-assumptions-comment.md",
+        ],
       ] as const) {
         await expect(runHelper(cwd, kind, artifactPath)).resolves.toMatchObject(
           { stdout: "" },
@@ -93,6 +101,17 @@ describe("issue-priming phase-artifacts helper", () => {
         runHelper(cwd, "design", ".ephemeral/nested/topic-design.md"),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("nested design path rejected"),
+      });
+      await expect(
+        runHelper(
+          cwd,
+          "assumptions-comment",
+          ".ephemeral/nested/123-assumptions-comment.md",
+        ),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "assumptions_comment_file must be a direct child of .ephemeral",
+        ),
       });
       await expect(
         runHelper(cwd, "plan", ".ephemeral/topic..bad-plan.md"),

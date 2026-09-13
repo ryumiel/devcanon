@@ -15,6 +15,10 @@ const ARTIFACT_KINDS = {
   research: { label: "research", suffix: "-research.md" },
   design: { label: "design", suffix: "-design.md" },
   plan: { label: "plan", suffix: "-plan.md" },
+  "assumptions-comment": {
+    label: "assumptions_comment_file",
+    suffix: "-assumptions-comment.md",
+  },
 } as const;
 
 const DATE_PATTERN = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/u;
