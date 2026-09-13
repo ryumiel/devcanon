@@ -3476,4 +3476,27 @@ describe("pre-findings markdown extraction", () => {
       );
     },
   );
+
+  it("recognizes a CRLF findings heading and keeps preceding carriage returns", () => {
+    const output = [
+      "Narrative lead.",
+      "",
+      "## Root-Cause Synthesis",
+      "",
+      "Details.",
+      "",
+      "## Findings",
+      "",
+      "- something",
+      "",
+    ].join("\r\n");
+
+    const markdown = extractPreFindingsMarkdown(output);
+
+    expect(markdown).toBe(
+      "Narrative lead.\r\n\r\n## Root-Cause Synthesis\r\n\r\nDetails.\r\n\r\n",
+    );
+    expect(markdown).not.toContain("## Findings");
+    expect(markdown).not.toContain("- something");
+  });
 });

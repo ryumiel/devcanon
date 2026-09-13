@@ -537,7 +537,7 @@ async function renderScopeNotice(
 export function extractPreFindingsMarkdown(playReviewOutput: string): string {
   const preFindings: string[] = [];
   for (const line of playReviewOutput.split("\n")) {
-    if (/^## Findings[ \t]*$/u.test(line)) {
+    if (/^## Findings[ \t\v\f\r]*$/u.test(line)) {
       break;
     }
     preFindings.push(line);
