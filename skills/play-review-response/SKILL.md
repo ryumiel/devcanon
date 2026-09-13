@@ -10,7 +10,7 @@ codex_sidecar:
 
 ## Invocation Policy
 
-Do not select this workflow from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language; the explicit-invocation rule itself is owned by this skill's frontmatter (`description` and `codex_sidecar` policy).
+Do not select this workflow from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language; the explicit-invocation rule itself is owned by this skill's frontmatter (`description` and `codex_sidecar` policy), and an explicit handoff from an owning workflow to `play-review-response` counts as explicit invocation.
 
 ## Overview
 
