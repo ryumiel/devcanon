@@ -222,6 +222,12 @@ unavailable or `BLOCKED` terminal. No fallback, alias, effort change, retry,
 escalation, or role substitution is permitted. Slot exhaustion is distinct; the
 lifecycle owner owns exact-pair recovery and rejection mechanics.
 
+The installed
+[`play-agent-dispatch` dispatch-ritual usage](../../skills/play-agent-dispatch/references/dispatch-ritual-usage.md)
+is the installed projection that documents this generic dispatch ritual for
+every route-owning skill; it consumes this contract and the lifecycle owner's
+allocation rule and does not become a second owner of either.
+
 ### D4 Declaration Obligation
 
 This policy is the sole D4 route owner: it owns the D4 route identity, exact

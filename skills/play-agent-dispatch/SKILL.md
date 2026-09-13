@@ -10,6 +10,8 @@ codex_sidecar:
 
 Source-immutability invocation and failure mechanics are owned by the adjacent [source-immutability usage](references/source-immutability-usage.md); this skill owns guard lifecycle decisions.
 
+The generic fresh-Codex dispatch ritual is owned by the adjacent [dispatch-ritual usage](references/dispatch-ritual-usage.md); this skill owns the D4 declaration, its route values, and focused-specialist integration.
+
 ## Invocation Policy
 
 This workflow is explicit-invocation-only. Do not select it from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language. Run it only when the user explicitly invokes `play-agent-dispatch` or when an owning workflow explicitly hands off to `play-agent-dispatch`.
@@ -83,10 +85,6 @@ semantic-role catalog and role-envelope owner. For that exact selected role and
 target, declare its
 `capability`, target-native `effort`, `source_authority`, `external_authority`,
 ordered duplicate-free `claude_tools`, `codex_sandbox`, and `default_network`.
-Resolve Codex `model` from the selected role's exact Codex-bound capability
-binding. Require the selected source capability to match the selected semantic
-role before resolution; a capability-less or mismatched source fails that
-parity check.
 Keep target-native effort independent: Codex uses the selected role's route
 effort, and Claude uses its Claude effort from the semantic-role catalog.
 For a Claude `executor`, omit `effort` from both the declaration and native
@@ -111,21 +109,24 @@ binding owns this field, or select an alias, nearby, or ambient model.
 
 Classify each independent problem domain separately. The controller selects one
 of the policy-owned six-role set before spawn; a generic or inherited workflow
-does not supply a child route. Apart from the required Claude-executor effort
-omission above, no field is optional. Missing required, unresolved, unknown,
-nearby, ambient, or mismatched fields block before spawn. A supplied effort for
-the Claude executor also blocks before spawn. Do not infer
-model, effort, tools, sandbox, network, authority, or any other declaration
-field from the child, parent, workflow, runtime, or controller authority. The
-route inventory is not a marker, annotation, or discovery grammar; the child
-prompt does not discover or select its own route.
+does not supply a child route, and the route inventory is not a marker,
+annotation, or discovery grammar. Apart from the required Claude-executor
+effort omission above, no declaration field is optional, and a supplied effort
+for the Claude executor also blocks before spawn. Do not infer tools, sandbox,
+network, authority, or any other declaration field from the child, parent,
+workflow, runtime, or controller authority.
 
-For Codex, freeze the validated declaration into one self-contained fresh
-prompt before lifecycle capture. It names the repository root, exact focused
-scope, authorized durable paths or response-only constraint, all guarded
-artifact/context paths, expected output, termination, and every dispatch
-constraint needed by the selected role. It must not rely on inherited turns or
-ask the child to fill any tuple field. Create exactly one fresh child only with:
+Before each D4 capture, load the adjacent
+[dispatch-ritual usage](references/dispatch-ritual-usage.md) and run its ritual
+with the validated declaration above as the route values. A missing, blank,
+unreadable, or unavailable ritual reference is a terminal pre-dispatch blocker:
+create no ledger row or baseline, do not spawn, and do not invent inline
+fallback detail. That reference owns the generic dispatch ritual: binding
+resolution, tuple validation, `task_name` allocation through
+`subagent-lifecycle`, the self-contained prompt, the ordered
+capture/verify/cleanup/integrate sequence, and the `fork_turns: "none"`
+mandate. This skill owns the D4 declaration, its route values, and the
+failed-domain disposition. Create exactly one fresh child only with:
 
 ```text
 Codex.spawn_agent({
@@ -138,22 +139,9 @@ Codex.spawn_agent({
 })
 ```
 
-Validate the semantic role, source capability parity, Codex-bound full model,
-independent matching-Codex-effort parity, source authority, external authority,
-scope, termination, context, approval, tools, sandbox, network, output, and
-prompt inputs before that one creation. Before capture, choose
-`<instance_ordinal>` as the next positive base-10 integer not already used by a
-retained D4 lifecycle-ledger row; the ledger retains completed and superseded
-rows, so do not reuse it. Resolve `task_name` as `d4_<instance_ordinal>` and
-require it to be nonblank, match `^[a-z0-9_]+$`, and be absent from all retained
-controller ledger task names. Keep target, role, and scope identity in the
-existing ledger dimensions, not in `task_name`. `fork_turns: "none"` is mandatory: no child
-inherits conversation history. Any missing, unresolved, or mismatched value
-blocks D4 before capture or spawn. If native Codex rejects the requested pair,
-report the exact `model=<RESOLVED_CODEX_MODEL>
-effort=<SELECTED_CODEX_EFFORT>` and follow the existing failed-domain
-disposition after required cleanup. Do not retry, alias, alter effort,
-escalate, or substitute a role.
+If native Codex rejects the requested pair, report the exact
+`model=<RESOLVED_CODEX_MODEL> effort=<SELECTED_CODEX_EFFORT>` and follow the
+existing failed-domain disposition after required cleanup.
 
 ### Source-Immutable Specialists
 

@@ -202,27 +202,29 @@ with zero handoffs. This bounded B3 diagnosis route has external authority
 `none`; do not substitute another role, capability, effort, mutation default,
 or ambient agent.
 
-Before every fresh D17 diagnosis or classified fix, validate the complete route
-tuple: route, semantic role, capability, nonblank full model resolved exactly
-from its Codex-bound rendered route binding, independent effort, source/external
-authority, runtime `task_name`, `fork_turns: "none"`,
-self-contained prompt/context, expected output, and termination. Missing or
-mismatched values block before capture or spawn. Apply the shared
-`subagent-lifecycle` rule; D17 supplies the exact route values.
+Before every fresh D17 diagnosis or classified fix capture, load the dispatch
+ritual in
+[`dispatch-ritual-usage.md`](../play-agent-dispatch/references/dispatch-ritual-usage.md)
+from the installed `play-agent-dispatch` bundle and run it with that branch's
+route values below. A missing, blank, unreadable, or unavailable ritual
+reference is a terminal pre-dispatch blocker: create no ledger row or baseline,
+do not spawn, and do not invent inline fallback detail. That reference owns the
+generic dispatch ritual; this skill owns its D17 route values, prompt inputs,
+and CI-repair disposition.
 
-The fully substituted prompt names the anchored PR head, bounded repository and
-authorized paths, collected CI evidence, response-only or mutable constraint,
-expected diagnosis/fix report, and the termination below. After validation and
-the existing lifecycle/capture gate, use the actual Codex fields:
+| Route              | `agent_type`   | Capability  | Model marker                                          | `reasoning_effort` | `source_authority` | Prompt                                   |
+| ------------------ | -------------- | ----------- | ----------------------------------------------------- | ------------------ | ------------------ | ---------------------------------------- |
+| D17 `diagnosis`    | `investigator` | `balanced`  | `D17_DIAGNOSIS_MODEL` = `{{model-codex:balanced}}`    | `high`             | `source-immutable` | `D17_DIAGNOSIS_SELF_CONTAINED_PROMPT`    |
+| D17 `exact-fix`    | `executor`     | `efficient` | `D17_EXACT_FIX_MODEL` = `{{model-codex:efficient}}`   | `medium`           | `source-mutable`   | `D17_EXACT_FIX_SELF_CONTAINED_PROMPT`    |
+| D17 `judgment-fix` | `implementer`  | `balanced`  | `D17_JUDGMENT_FIX_MODEL` = `{{model-codex:balanced}}` | `high`             | `source-mutable`   | `D17_JUDGMENT_FIX_SELF_CONTAINED_PROMPT` |
 
-Codex-bound route bindings: `D17_DIAGNOSIS_MODEL` =
-`{{model-codex:balanced}}`; `D17_EXACT_FIX_MODEL` =
-`{{model-codex:efficient}}`; and `D17_JUDGMENT_FIX_MODEL` =
-`{{model-codex:balanced}}`. Each is the exact full Codex model
-for Codex dispatch and retains the independent effort declared in its classified
-route. A missing, blank, unresolved, or mismatched marker blocks before
-capture or spawn. Do not search a source checkout, use an alias, or fall back
-to a nearby or ambient model.
+Every branch has `external_authority: none`. The fully substituted prompt names
+the anchored PR head, bounded repository and authorized paths, collected CI
+evidence, response-only or mutable constraint, expected diagnosis/fix report,
+and the termination below. A missing, blank, unresolved, or mismatched marker
+blocks before capture or spawn. Do not search a source checkout, use an alias,
+or fall back to a nearby or ambient model. After validation and the existing
+lifecycle/capture gate, use the actual Codex fields:
 
 ```text
 # Diagnosis: source-immutable, response-only; output is the evidence-only
