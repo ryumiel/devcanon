@@ -617,14 +617,14 @@ revalidates their route keys.
   side effect.
 - Treating GitHub issue numbers as the shared source model and losing Linear
   provider identity.
-- Rerunning CI directly when the failure should route to the CI-fix workflow.
+- Doing work that `## Provider And Workflow Boundaries` reserves for an owning
+  workflow instead of routing to it.
 - Treating source-issue reporting as generic issue mutation when no
   provider-specific owner workflow exists.
 - Waiting for human merge approval before routing current repair gates such as
   merge conflicts, unresolved review threads, or failing CI.
 - Routing the same unresolved review threads or failing check more than once
   because the route key omitted the digest or run/check identifier.
-- Merging directly instead of routing to `pr-merge`.
 - Archiving an owner thread before terminal PR/source state and pending-work
   checks pass.
 
@@ -632,7 +632,6 @@ revalidates their route keys.
 
 Stop and re-route when:
 
-- the batch router is about to edit implementation files;
 - approval evidence is broad, stale, or not bound to the route key;
 - the PR head SHA changed after approval;
 - unknown provider state is being translated into a GitHub or Linear status;

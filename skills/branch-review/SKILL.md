@@ -684,8 +684,6 @@ discriminator; the contract above is what guarantees consumers do not need one.
 
 ## Red Flags — You Are Violating This Skill
 
-- You called any `{{tool:github-cli}}` command — no PR exists
-- You posted a review to GitHub
 - You auto-fixed a finding tagged `Anchor: out-of-diff`
 - You auto-fixed a `Blocking | Safety` Sub-check 1 finding (substitution audit) — these are design work
 - You auto-fixed a `Blocking | Contracts` Sub-check 2 finding (documented-behavior verification) — these are design work
