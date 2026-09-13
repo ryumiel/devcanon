@@ -12,7 +12,7 @@ Source-immutability invocation and failure mechanics are owned by the adjacent [
 
 ## Invocation Policy
 
-This workflow is explicit-invocation-only. Do not select it from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language. Run it only when the user explicitly invokes `play-planning` or when an owning workflow explicitly hands off to `play-planning`.
+Do not select this workflow from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language; the explicit-invocation rule itself is owned by this skill's frontmatter (`description` and `codex_sidecar` policy).
 
 ## Overview
 
@@ -1014,9 +1014,7 @@ D5 uses only the prevalidated `D5_MODEL`, independent `high` effort, and
 history-free `D5_PLAN_REVIEW_PROMPT` defined for this paired wave; it never
 inherits D6 or controller conversation context.
 
-Before dispatching the plan-review agent, use `subagent-lifecycle` for the controller-local lifecycle ledger, target
-lifecycle capability classification, cleanup gate, target-honest cleanup outcomes,
-and slot-limit recovery. Capture the plan path or inline scope, design
+Use `subagent-lifecycle` before dispatching the D5 plan-review agent. Capture the plan path or inline scope, design
 scope, optional comment-evidence path, concise PASS/FAIL result, classified
 findings, and blockers before cleanup or supersession. Retain every specific
 gap with its response.
@@ -1140,9 +1138,7 @@ D6 uses only the prevalidated `D6_MODEL`, independent `high` effort, and
 history-free `D6_EXECUTABILITY_REVIEW_PROMPT` defined for this paired wave; it
 never inherits D5 or controller conversation context.
 
-Use `subagent-lifecycle` for the controller-local lifecycle ledger, target
-lifecycle capability classification, cleanup gate, target-honest cleanup outcomes,
-and slot-limit recovery before dispatch. Capture the plan and design
+Use `subagent-lifecycle` before dispatching the D6 executability-review agent. Capture the plan and design
 scope, optional comment-evidence path, concise PASS/FAIL result, classified
 findings, and blockers before cleanup or supersession.
 

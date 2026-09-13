@@ -14,7 +14,7 @@ Use the adjacent [inspect-plan-projection usage](references/inspect-plan-project
 
 ## Invocation Policy
 
-This workflow is explicit-invocation-only. Do not select it from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language. Run it only when the user explicitly invokes `play-subagent-execution` or when an owning workflow explicitly hands off to `play-subagent-execution`.
+Do not select this workflow from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language; the explicit-invocation rule itself is owned by this skill's frontmatter (`description` and `codex_sidecar` policy).
 
 Execute plan by dispatching fresh subagent per task. Multi-task plans use
 executor-owned risk-based per-task review routing; hard-risk or unclear tasks
@@ -768,9 +768,7 @@ the parent-owned path: return to the caller instead of invoking
 
 ## Subagent Lifecycle
 
-Use `subagent-lifecycle` for the generic controller lifecycle ledger, target
-capability classification, cleanup gate before spawns, target-honest cleanup
-outcomes, and slot-limit recovery. This skill owns execution-specific captured
+Use `subagent-lifecycle` before dispatching task implementer, executor, or deep-reviewer sessions. This skill owns execution-specific captured
 state and the rule that task implementers stay available while same-session
 review fix loops may still route work back to them.
 

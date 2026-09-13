@@ -10,7 +10,7 @@ codex_sidecar:
 
 ## Invocation Policy
 
-This workflow is explicit-invocation-only. Do not select it from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language. Run it only when the user explicitly invokes `play-review-response` or when an owning workflow explicitly hands off to `play-review-response`.
+Do not select this workflow from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language; the explicit-invocation rule itself is owned by this skill's frontmatter (`description` and `codex_sidecar` policy).
 
 ## Overview
 

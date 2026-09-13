@@ -231,7 +231,7 @@ Classify the active diff for a narrow tiny-diff exception before spawning topica
 
 ## Phase 3: Spawn agents
 
-Before spawning Phase 3 topical reviewer agents, use `subagent-lifecycle` for the controller-local lifecycle ledger, capability classification, pre-spawn cleanup gate, target-honest cleanup outcomes, and slot-limit recovery. Capture each reviewer session's role-specific state before closing or superseding it: review scope, active diff range, base/head SHA, report, concrete findings, and downstream envelope state. Critic verdicts are captured with the critic session in Phase 5.
+Use `subagent-lifecycle` before spawning Phase 3 topical reviewer agents. Capture each reviewer session's role-specific state before closing or superseding it: review scope, active diff range, base/head SHA, report, concrete findings, and downstream envelope state. Critic verdicts are captured with the critic session in Phase 5.
 
 The maximum topical reviewer count is three: `Code-quality`, `Architecture`,
 and `Spec`. The critic is a separate verification phase and does not count
@@ -488,10 +488,7 @@ outcome. Make the closed outcome available only to the invoking wrapper, which
 must preserve it without inferring it from a final Nit's `critic: null` value
 or rendered prose.
 
-Before spawning the critic agent, run the `subagent-lifecycle` cleanup gate for
-completed or superseded reviewer sessions, preserving target-honest cleanup
-outcomes, slot-limit recovery, and the controller-local lifecycle ledger. Then
-record the critic session in that ledger. Capture critic role-specific state
+Use `subagent-lifecycle` before spawning the critic agent. Capture critic role-specific state
 before closing or superseding it: review scope, merged findings input, critic
 report, verdicts, and carry-forward state.
 
