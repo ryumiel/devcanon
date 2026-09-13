@@ -214,28 +214,26 @@ checks `AGENTS.md` for relevant rules. The route has external authority `none`,
 no network access, and zero handoffs. Do not substitute an ambient role, model,
 or effort and do not escalate this bounded gate into a different route.
 
-Before D1 capture, assemble and validate its complete fresh-Codex tuple:
-`semantic_role: assessor`; `capability: balanced`; `model` resolved exactly
-from the Codex-bound rendered D1 binding; independent
-`reasoning_effort: medium`; `source_authority: source-immutable`;
-`external_authority: none`; zero handoffs; and the fully substituted gate
-prompt. Before capture, choose `<instance_ordinal>` as the next positive base-10
-integer not already used by a retained D1 lifecycle-ledger row; the ledger
-retains completed and superseded rows, so do not reuse it. Resolve `task_name`
-as `d1_<instance_ordinal>` and require it to be nonblank, match
-`^[a-z0-9_]+$`, and be absent from all retained controller ledger task names.
-The prompt must name the issue title, source, identifier, guarded
-issue-body path, guarded-or-`(none)` comment-evidence path, and Phase 1
-repository root named by the template. Require every value, require the role
-capability to be `balanced`, and require a nonblank resolved full model. Do not
-derive model or effort from conversation history, an ambient runtime, or an
-alias. Only after this validation, create exactly one fresh Codex child:
+Before D1 capture, load the dispatch ritual in
+[`dispatch-ritual-usage.md`](../play-agent-dispatch/references/dispatch-ritual-usage.md)
+from the installed `play-agent-dispatch` bundle and run it with the D1 route
+values below. A missing, blank, unreadable, or unavailable ritual reference is
+a terminal pre-dispatch blocker: create no ledger row or baseline, do not
+spawn, and do not invent inline fallback detail. That reference owns the
+generic dispatch ritual; this skill owns its D1 route values, prompt inputs,
+and gate disposition.
 
-Codex-bound route binding: `D1_MODEL` = `{{model-codex:balanced}}`. The binding
-is the exact full Codex model; the independent effort remains
-`medium`. A missing, blank, unresolved, or mismatched marker blocks before
-capture or spawn. Do not search a source checkout, use an alias, or fall back
-to a nearby or ambient model.
+| Route | `agent_type` | Capability | Model marker                            | `reasoning_effort` | `source_authority` | Prompt      |
+| ----- | ------------ | ---------- | --------------------------------------- | ------------------ | ------------------ | ----------- |
+| D1    | `assessor`   | `balanced` | `D1_MODEL` = `{{model-codex:balanced}}` | `medium`           | `source-immutable` | `D1_PROMPT` |
+
+The route has `external_authority: none` and zero handoffs. The prompt must name
+the issue title, source, identifier, guarded issue-body path,
+guarded-or-`(none)` comment-evidence path, and Phase 1 repository root named by
+the template. A missing, blank, unresolved, or mismatched marker blocks before
+capture or spawn. Do not search a source checkout, use an alias, or fall back to
+a nearby or ambient model. Only after the ritual's validation and capture,
+create exactly one fresh Codex child:
 
 ```text
 # D1_MODEL is the Codex-bound balanced model
@@ -249,11 +247,8 @@ Codex.spawn_agent({
 })
 ```
 
-`fork_turns: "none"` is required: the child receives no inherited turns. A
-missing or mismatched tuple blocks creation. If native Codex rejects the one
-requested pair, report `model=<D1_MODEL> effort=medium` and use the existing
-unavailable-gate fallback after the required cleanup. Do not retry, select an
-alias, change effort, escalate, or substitute a role.
+If native Codex rejects the D1 pair, use the existing unavailable-gate fallback
+after the required cleanup.
 
 Use the enclosing flow's already-resolved
 `$ISSUE_PRIMING_WORKFLOW_DIR/scripts/source-immutability.mjs` binding and apply
@@ -344,18 +339,29 @@ normative owner of this policy; the loaded reference is a subordinate
 research-selected operating procedure.
 
 The depth-0 root alone dispatches, validates reports, synthesizes, and
-persists. D2 and D3 are direct depth-1 response-only `investigator` leaves:
-`semantic_role: investigator`; `capability: balanced`; exact full
-Codex-bound `D2_MODEL` = `{{model-codex:balanced}}` or `D3_MODEL` =
-`{{model-codex:balanced}}`; independent `reasoning_effort: high`;
-`source_authority: source-immutable`; `external_authority: none`; and zero
-handoffs. D2 has no network access. D3's network binding is exactly
-`dispatch-named`, and its evidence qualifier is exactly `named-network`, only
-for its one root-curated question; neither route may mutate an external system.
-A missing, blank, unresolved, or mismatched model/tuple
-blocks before capture or spawn: no ambient inference, alias, fallback, effort
-change, retry, escalation, or role substitution. Each child has fresh history,
-does not spawn, write files, invoke helpers, persist reports, or emit notices.
+persists. D2 and D3 are direct depth-1 response-only `investigator` leaves with
+`external_authority: none` and zero handoffs. Before either capture, load the
+dispatch ritual in
+[`dispatch-ritual-usage.md`](../play-agent-dispatch/references/dispatch-ritual-usage.md)
+from the installed `play-agent-dispatch` bundle and run it once per route with
+the values below. A missing, blank, unreadable, or unavailable ritual reference
+is a terminal pre-dispatch blocker: create no ledger row or baseline, do not
+spawn, and do not invent inline fallback detail. That reference owns the
+generic dispatch ritual; this skill owns its D2/D3 route values, prompt inputs,
+and research disposition.
+
+| Route | `agent_type`   | Capability | Model marker                            | `reasoning_effort` | `source_authority` | Prompt      |
+| ----- | -------------- | ---------- | --------------------------------------- | ------------------ | ------------------ | ----------- |
+| D2    | `investigator` | `balanced` | `D2_MODEL` = `{{model-codex:balanced}}` | `high`             | `source-immutable` | `D2_PROMPT` |
+| D3    | `investigator` | `balanced` | `D3_MODEL` = `{{model-codex:balanced}}` | `high`             | `source-immutable` | `D3_PROMPT` |
+
+D2 has no network access. D3's network binding is exactly `dispatch-named`, and
+its evidence qualifier is exactly `named-network`, only for its one root-curated
+question; neither route may mutate an external system. A missing, blank,
+unresolved, or mismatched marker blocks before capture or spawn. Do not search a
+source checkout, use an alias, or fall back to a nearby or ambient model. Each
+child has fresh history and does not spawn, write files, invoke helpers, persist
+reports, or emit notices.
 
 ```text
 Codex.spawn_agent({

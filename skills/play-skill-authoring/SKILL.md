@@ -57,30 +57,27 @@ disposition and acceptance condition outside the spawned scenario input. Never
 include the expected answer, pass/fail criteria, or equivalent hints in that
 input.
 
-Before every D11 RED, GREEN, or REFACTOR capture, resolve and validate the
-complete fresh-Codex tuple: `semantic_role: assessor`; `capability: balanced`;
-full `model` resolved exactly from the Codex-bound rendered D11 binding;
-independent `reasoning_effort: medium`; `source_authority: source-immutable`;
-`external_authority: none`; and zero handoffs. Build a self-contained scenario
-prompt naming the repository root, the exact skill/artifact paths the scenario
-may read, scenario identifier, task and pressure conditions, allowed context,
-response-only output boundary, and the closed input contract—while retaining
-the expected disposition and acceptance condition only in the controller. Do
-not derive model, effort, or scenario context from inherited conversation or an
-ambient runtime. Require all tuple and prompt inputs, a balanced assessor role,
-and a nonblank resolved model before capture. Before capture, choose
-`<instance_ordinal>` as the next positive base-10 integer not already used by a
-retained D11 lifecycle-ledger row. The ledger retains completed and superseded
-rows, so do not reuse it. Resolve `task_name` as `d11_<instance_ordinal>` and
-require it to be nonblank, match `^[a-z0-9_]+$`, and be absent from all retained
-controller ledger task names. Keep phase, scenario, and retest identity in the
-existing ledger dimensions, not in `task_name`.
+Before every D11 RED, GREEN, or REFACTOR capture, load the dispatch ritual in
+[`dispatch-ritual-usage.md`](../play-agent-dispatch/references/dispatch-ritual-usage.md)
+from the installed `play-agent-dispatch` bundle and run it with the D11 route
+values below. A missing, blank, unreadable, or unavailable ritual reference is
+a terminal pre-dispatch blocker: create no ledger row or baseline, do not
+spawn, and do not invent inline fallback detail. That reference owns the
+generic dispatch ritual; this skill owns its D11 route values, scenario prompt
+inputs, and scenario disposition.
 
-Codex-bound route binding: `D11_MODEL` = `{{model-codex:balanced}}`. The binding
-is the exact full Codex model; the independent effort remains `medium`. A
-missing, blank, unresolved, or mismatched marker blocks before capture or
-spawn. Do not search a source checkout, use an alias, or fall back to a nearby
-or ambient model.
+| Route | `agent_type` | Capability | Model marker                             | `reasoning_effort` | `source_authority` | Prompt                |
+| ----- | ------------ | ---------- | ---------------------------------------- | ------------------ | ------------------ | --------------------- |
+| D11   | `assessor`   | `balanced` | `D11_MODEL` = `{{model-codex:balanced}}` | `medium`           | `source-immutable` | `D11_SCENARIO_PROMPT` |
+
+The route has `external_authority: none` and zero handoffs. Build a
+self-contained scenario prompt naming the repository root, the exact
+skill/artifact paths the scenario may read, scenario identifier, task and
+pressure conditions, allowed context, response-only output boundary, and the
+closed input contract—while retaining the expected disposition and acceptance
+condition only in the controller. A missing, blank, unresolved, or mismatched
+marker blocks before capture or spawn. Do not search a source checkout, use an
+alias, or fall back to a nearby or ambient model.
 
 After validation and the existing capture, create exactly one fresh evaluator:
 
@@ -96,12 +93,8 @@ Codex.spawn_agent({
 })
 ```
 
-`fork_turns: "none"` is mandatory: evaluator evidence cannot inherit parent
-history. A missing or mismatched tuple blocks creation. A native Codex rejection
-reports the exact `model=<D11_MODEL> effort=medium` and stops the applicable
-scenario as unavailable after required cleanup; it never enters the ordinary
-fresh-scenario/retest path. Do not retry, select an alias, change effort,
-escalate, or substitute a role.
+A native Codex rejection stops the applicable scenario as unavailable after
+required cleanup; it never enters the ordinary fresh-scenario/retest path.
 
 Resolve `SKILL_PRESSURE_GUARD` to this installed skill bundle's
 `scripts/source-immutability.sh` shim. For every RED baseline, GREEN

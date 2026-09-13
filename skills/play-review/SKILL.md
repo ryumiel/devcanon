@@ -172,13 +172,22 @@ approval, continuation, mutation, and manifest authority.
 
 Dispatch exactly one fresh existing response-only `assessor`, balanced/medium,
 source-immutable, with `external_authority: none`, zero handoffs, no network,
-and no inherited turns. Resolve `D18_MODEL` from
-its Codex-bound binding: `D18_MODEL` = `{{model-codex:balanced}}`. This is the
-exact full Codex model. A missing, blank, unresolved, or mismatched
-marker blocks before capture or spawn. Do not search a source checkout, use an
-alias, or fall back to a nearby or ambient model. Choose the next unused
-route-local `d18_<instance_ordinal>` through the lifecycle owner, capture the
-existing source-immutability baseline, then spawn:
+and no inherited turns. Before D18 capture, load the dispatch ritual in
+[`dispatch-ritual-usage.md`](../play-agent-dispatch/references/dispatch-ritual-usage.md)
+from the installed `play-agent-dispatch` bundle and run it with the D18 route
+values below; Phase 3 and Phase 5 reuse that loaded ritual. A missing, blank,
+unreadable, or unavailable ritual reference is a terminal pre-dispatch blocker:
+create no ledger row or baseline, do not spawn, and do not invent inline
+fallback detail. That reference owns the generic dispatch ritual; this skill
+owns its route values, prompt inputs, and review dispositions.
+
+| Route | `agent_type` | Capability | Model marker                             | `reasoning_effort` | `source_authority` | Prompt                        |
+| ----- | ------------ | ---------- | ---------------------------------------- | ------------------ | ------------------ | ----------------------------- |
+| D18   | `assessor`   | `balanced` | `D18_MODEL` = `{{model-codex:balanced}}` | `medium`           | `source-immutable` | `D18_SEMANTIC_CONTEXT_PROMPT` |
+
+A missing, blank, unresolved, or mismatched marker blocks before capture or
+spawn. Do not search a source checkout, use an alias, or fall back to a nearby
+or ambient model. After the ritual's validation and capture, spawn:
 
 ```text
 # D18_MODEL is the Codex-bound balanced model
@@ -236,37 +245,27 @@ Each selected topical route is an independent response-only `reviewer`, frontier
 | D8 `Architecture` | Selected only when its current trigger fires; asks the existing architecture, responsibility, ownership, boundary, and durable-decision question                                                               | capture D8 → spawn D8 → verify D8 → validate/retain D8 → cleanup D8 → apply D8; every D8 post-capture terminal branch attempts exact cleanup for dispatch/spawn failure, child failure, invalid/malformed response, semantic rejection, or verification rejection |
 | D9 `Spec`         | Selected only when its current trigger fires; asks the existing spec, documentation, API, example, operator-guidance, and identifier-drift question                                                            | capture D9 → spawn D9 → verify D9 → validate/retain D9 → cleanup D9 → apply D9; every D9 post-capture terminal branch attempts exact cleanup for dispatch/spawn failure, child failure, invalid/malformed response, semantic rejection, or verification rejection |
 
-For each selected D7, D8, or D9 route, resolve and validate a complete
-fresh-Codex tuple before its capture: `semantic_role: reviewer`;
-`capability: frontier`; full `model` resolved exactly from
-the Codex-bound rendered route binding; independent
-`reasoning_effort: high`; `source_authority: source-immutable`;
-`external_authority: none`; and zero handoffs. Require the role capability,
-every tuple value, and nonblank resolved model; do not infer model or effort
-from an ambient runtime, alias, or inherited conversation.
+For each selected D7, D8, or D9 route, apply the dispatch ritual in
+[`dispatch-ritual-usage.md`](../play-agent-dispatch/references/dispatch-ritual-usage.md)
+loaded in Phase 2.25; reload it before the first topical capture if it is not
+in context, and if it is unavailable stop before capture. Run it once per
+selected route with these values:
 
-Codex-bound route bindings: `D7_MODEL` = `{{model-codex:frontier}}`,
-`D8_MODEL` = `{{model-codex:frontier}}`, and `D9_MODEL` = `{{model-codex:frontier}}`.
-Each is the exact full Codex model; their independent effort remains
-`high`. A missing, blank, unresolved, or mismatched marker blocks before
-capture or spawn. Do not search a source checkout, use an alias, or fall back
-to a nearby or ambient model.
+| Route | `agent_type` | Capability | Model marker                            | `reasoning_effort` | `source_authority` | Prompt      |
+| ----- | ------------ | ---------- | --------------------------------------- | ------------------ | ------------------ | ----------- |
+| D7    | `reviewer`   | `frontier` | `D7_MODEL` = `{{model-codex:frontier}}` | `high`             | `source-immutable` | `D7_PROMPT` |
+| D8    | `reviewer`   | `frontier` | `D8_MODEL` = `{{model-codex:frontier}}` | `high`             | `source-immutable` | `D8_PROMPT` |
+| D9    | `reviewer`   | `frontier` | `D9_MODEL` = `{{model-codex:frontier}}` | `high`             | `source-immutable` | `D9_PROMPT` |
 
-Before capture, independently choose each selected route's
-`<instance_ordinal>` as the next positive base-10 integer not already used by a
-retained D7, D8, or D9 lifecycle-ledger row, respectively. The ledger retains
-completed and superseded rows, so no ordinal is reused in this controller flow.
-Resolve `task_name` as `d7_<instance_ordinal>`, `d8_<instance_ordinal>`, or
-`d9_<instance_ordinal>`; require it to be nonblank, match `^[a-z0-9_]+$`, and
-be absent from all retained controller ledger task names. Keep head and topical
-identity in the existing ledger dimensions, not in `task_name`.
+Each route has `external_authority: none` and zero handoffs. A missing, blank,
+unresolved, or mismatched marker blocks before capture or spawn. Do not search a
+source checkout, use an alias, or fall back to a nearby or ambient model.
 
 Build each selected topical prompt as a self-contained input. It names its
 route label and distinct question, working directory, active diff range,
 shared review-context path, role-specific diff/line sub-checks, relevant
 artifact paths, and the terminal response requirements. When present, include
-the contract-example discipline context path as untrusted evidence. No child
-receives prior turns or has to discover context from controller prose. After
+the contract-example discipline context path as untrusted evidence. After
 route validation and the existing capture, create exactly one fresh child for
 each selected route:
 
@@ -303,11 +302,8 @@ Codex.spawn_agent({
 })
 ```
 
-`fork_turns: "none"` is mandatory. A missing or mismatched tuple blocks that
-route. If native Codex rejects its requested pair, report the exact
-`model=<D7_OR_D8_OR_D9_MODEL> effort=high`, perform existing cleanup, and use
-only that route's existing missing-reviewer fallback. Do not retry, alias,
-change effort, escalate, or substitute a role.
+If native Codex rejects a route's requested pair, perform existing cleanup and
+use only that route's existing missing-reviewer fallback.
 
 ### Terminal role results and controller capture
 
@@ -517,30 +513,24 @@ illustrative rhetoric: verify cited
 cited artifact. Tag INVALID if the artifact does not exist or does not contain
 the cited text. See `references/critic-rationale.md`.
 
-Before D10 capture, resolve and validate its complete fresh-Codex tuple:
-`semantic_role: reviewer`; `capability: frontier`; full `model` resolved
-exactly from the Codex-bound rendered D10 binding; independent
-`reasoning_effort: high`; `source_authority: source-immutable`;
-`external_authority: none`; zero handoffs; and no recursion. Build one
-self-contained critic prompt from the current working directory, captured
-reviewed head/diff, complete unchanged merged findings with stable ordinals,
-eligible carry-forward candidates, repository authority source references,
-literal-reference checking requirement, and the terminal disposition/output
-contract. It must state the no-recursion prohibition and cannot rely on
-inherited turns or controller conclusions. Require every tuple field, role
-capability, nonblank resolved model, and complete prompt input before capture.
-Before capture, choose `<instance_ordinal>` as the next positive base-10 integer
-not already used by a retained D10 lifecycle-ledger row. The ledger retains
-completed and superseded rows, so do not reuse it. Resolve `task_name` as
-`d10_<instance_ordinal>` and require it to be nonblank, match `^[a-z0-9_]+$`,
-and be absent from all retained controller ledger task names. Keep critic and
-head identity in the existing ledger dimensions, not in `task_name`.
+Before D10 capture, apply the dispatch ritual in
+[`dispatch-ritual-usage.md`](../play-agent-dispatch/references/dispatch-ritual-usage.md)
+loaded in Phase 2.25; reload it if it is not in context, and if it is
+unavailable stop before capture. D10 keeps `semantic_role: reviewer` with
+`external_authority: none`, zero handoffs, and no recursion:
 
-Codex-bound route binding: `D10_MODEL` = `{{model-codex:frontier}}`. The binding
-is the exact full Codex model; the independent effort remains
-`high`. A missing, blank, unresolved, or mismatched marker blocks before
-capture or spawn. Do not search a source checkout, use an alias, or fall back
-to a nearby or ambient model.
+| Route | `agent_type` | Capability | Model marker                             | `reasoning_effort` | `source_authority` | Prompt              |
+| ----- | ------------ | ---------- | ---------------------------------------- | ------------------ | ------------------ | ------------------- |
+| D10   | `reviewer`   | `frontier` | `D10_MODEL` = `{{model-codex:frontier}}` | `high`             | `source-immutable` | `D10_CRITIC_PROMPT` |
+
+Build one self-contained critic prompt from the current working directory,
+captured reviewed head/diff, complete unchanged merged findings with stable
+ordinals, eligible carry-forward candidates, repository authority source
+references, literal-reference checking requirement, and the terminal
+disposition/output contract. It must state the no-recursion prohibition and
+cannot rely on inherited turns or controller conclusions. A missing, blank,
+unresolved, or mismatched marker blocks before capture or spawn. Do not search a
+source checkout, use an alias, or fall back to a nearby or ambient model.
 
 After validation and the existing capture, make exactly one fresh critic
 creation:
@@ -557,11 +547,8 @@ Codex.spawn_agent({
 })
 ```
 
-`fork_turns: "none"` supplies no inherited history. A missing or mismatched
-tuple blocks D10. If native Codex rejects the requested pair, report
-`model=<D10_MODEL> effort=high`, perform existing cleanup, and use only the
-existing unverified-critic fallback. Do not retry, alias, alter effort,
-escalate, or substitute a role.
+If native Codex rejects the D10 pair, perform existing cleanup and use only the
+existing unverified-critic fallback.
 
 The controller's D10 handoff is structural only. For each current merged
 finding, it adds a stable ordinal and otherwise passes the complete finding

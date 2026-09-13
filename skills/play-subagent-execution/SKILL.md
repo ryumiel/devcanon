@@ -441,33 +441,34 @@ translate it to a Claude thinking budget.
 
 ### D12-D16 fresh-Codex dispatch contract
 
-For every fresh D12-D16 child, resolve the full model exactly from its
-Codex-bound rendered route binding; capability selects the model, while effort
-remains independent. Before lifecycle capture,
-validate the complete route tuple: route, semantic role, capability, nonblank
-configured full model, independent effort, source and external authority,
-runtime `task_name`, `fork_turns: "none"`, self-contained prompt/context,
-expected output, and termination. Any missing or mismatched field blocks before
-creation. Apply the shared allocation, continuity, rejection, cleanup, and
-slot-recovery rule in `subagent-lifecycle`; this workflow supplies only the
-route-specific values below.
+Before every fresh D12-D16 capture, load the dispatch ritual in
+[`dispatch-ritual-usage.md`](../play-agent-dispatch/references/dispatch-ritual-usage.md)
+from the installed `play-agent-dispatch` bundle and run it with that route's
+values below. A missing, blank, unreadable, or unavailable ritual reference is
+a terminal pre-dispatch blocker: create no ledger row or baseline, do not
+spawn, and do not invent inline fallback detail. That reference owns the
+generic dispatch ritual; this workflow owns its route values, prompt and output
+contracts, and termination below.
 
-| Route | Semantic role / capability / effort    | Authority                       | Self-contained prompt and output                                              | Termination                                                      |
-| ----- | -------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| D12   | `implementer` / `balanced` / `high`    | source-mutable; external none   | Full task/context, authorized paths, snapshot request, report/status          | Existing scoped commit, report, snapshot, and status disposition |
-| D13   | `executor` / `efficient` / `medium`    | source-mutable; external none   | Exact guarded task/context, authorized paths, snapshot request, report/status | Existing five-guardrail stop/reclassify disposition              |
-| D14   | `deep-reviewer` / `frontier` / `xhigh` | source-immutable; external none | Independent D14 prompt, captured task head, response-only report              | Same-head D14 disposition/fix loop                               |
-| D15   | `deep-reviewer` / `frontier` / `xhigh` | source-immutable; external none | Independent D15 prompt, captured task head, response-only report              | Provisional/final same-head disposition/fix loop                 |
-| D16   | `deep-reviewer` / `frontier` / `xhigh` | source-immutable; external none | Fresh D16 whole-range prompt, base/head, response-only report                 | Exact ADR-0016 skip or final fix/fresh-review/terminal route     |
+| Route | `agent_type`    | Capability  | Model marker                              | `reasoning_effort` | `source_authority` | Prompt                      |
+| ----- | --------------- | ----------- | ----------------------------------------- | ------------------ | ------------------ | --------------------------- |
+| D12   | `implementer`   | `balanced`  | `D12_MODEL` = `{{model-codex:balanced}}`  | `high`             | `source-mutable`   | `D12_SELF_CONTAINED_PROMPT` |
+| D13   | `executor`      | `efficient` | `D13_MODEL` = `{{model-codex:efficient}}` | `medium`           | `source-mutable`   | `D13_SELF_CONTAINED_PROMPT` |
+| D14   | `deep-reviewer` | `frontier`  | `D14_MODEL` = `{{model-codex:frontier}}`  | `xhigh`            | `source-immutable` | `D14_SELF_CONTAINED_PROMPT` |
+| D15   | `deep-reviewer` | `frontier`  | `D15_MODEL` = `{{model-codex:frontier}}`  | `xhigh`            | `source-immutable` | `D15_SELF_CONTAINED_PROMPT` |
+| D16   | `deep-reviewer` | `frontier`  | `D16_MODEL` = `{{model-codex:frontier}}`  | `xhigh`            | `source-immutable` | `D16_SELF_CONTAINED_PROMPT` |
 
-Codex-bound route bindings: `D12_MODEL` = `{{model-codex:balanced}}`;
-`D13_MODEL` = `{{model-codex:efficient}}`; `D14_MODEL` =
-`{{model-codex:frontier}}`; `D15_MODEL` = `{{model-codex:frontier}}`; and
-`D16_MODEL` = `{{model-codex:frontier}}`.
-Each is the exact full Codex model and retains the independent effort
-declared in its route row. A missing, blank, unresolved, or mismatched marker
-blocks before capture or spawn. Do not search a source checkout, use an alias,
-or fall back to a nearby or ambient model.
+| Route | Self-contained prompt and output                                              | Termination                                                      |
+| ----- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| D12   | Full task/context, authorized paths, snapshot request, report/status          | Existing scoped commit, report, snapshot, and status disposition |
+| D13   | Exact guarded task/context, authorized paths, snapshot request, report/status | Existing five-guardrail stop/reclassify disposition              |
+| D14   | Independent D14 prompt, captured task head, response-only report              | Same-head D14 disposition/fix loop                               |
+| D15   | Independent D15 prompt, captured task head, response-only report              | Provisional/final same-head disposition/fix loop                 |
+| D16   | Fresh D16 whole-range prompt, base/head, response-only report                 | Exact ADR-0016 skip or final fix/fresh-review/terminal route     |
+
+Every route has `external_authority: none`. A missing, blank, unresolved, or
+mismatched marker blocks before capture or spawn. Do not search a source
+checkout, use an alias, or fall back to a nearby or ambient model.
 
 After validation and the existing route-local capture, create exactly one fresh
 child with the actual Codex fields:

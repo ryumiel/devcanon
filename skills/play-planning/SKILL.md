@@ -794,37 +794,30 @@ after inspection and before either capture. Freeze the D5/D6 tuple and pass the
 identical tuple to D5 and D6 without per-reviewer additions, while keeping their
 questions, remits, responses, and lifecycle state separate.
 
-Before either capture, resolve and validate the two complete fresh-Codex tuples.
-Both use `semantic_role: reviewer`, `capability: frontier`, the full model
-resolved exactly from the Codex-bound rendered route binding, independent
-`reasoning_effort: high`,
-`source_authority: source-immutable`, `external_authority: none`, and zero
-handoffs. Require the reviewer role capability to be `frontier`, every tuple
-field to be present, and the resolved model to be nonblank. Do not derive model
-or effort from the enclosing conversation, an ambient runtime, or an alias.
+Before either capture, load the dispatch ritual in
+[`dispatch-ritual-usage.md`](../play-agent-dispatch/references/dispatch-ritual-usage.md)
+from the installed `play-agent-dispatch` bundle and run it once per route with
+the values below, keeping the two sessions independent. A missing, blank,
+unreadable, or unavailable ritual reference is a terminal pre-dispatch blocker:
+create no ledger row or baseline, do not spawn, and do not invent inline
+fallback detail. That reference owns the generic dispatch ritual; this skill
+owns its D5/D6 route values, prompt inputs, and paired-wave disposition.
 
-Codex-bound route bindings: `D5_MODEL` = `{{model-codex:frontier}}` and
-`D6_MODEL` = `{{model-codex:frontier}}`. Each is the exact full Codex model for this
-target; their independent effort remains `high`. A missing, blank, unresolved,
-or mismatched marker blocks before capture or spawn. Do not search a source
-checkout, use an alias, or fall back to a nearby or ambient model.
+| Route | `agent_type` | Capability | Model marker                            | `reasoning_effort` | `source_authority` | Prompt                           |
+| ----- | ------------ | ---------- | --------------------------------------- | ------------------ | ------------------ | -------------------------------- |
+| D5    | `reviewer`   | `frontier` | `D5_MODEL` = `{{model-codex:frontier}}` | `high`             | `source-immutable` | `D5_PLAN_REVIEW_PROMPT`          |
+| D6    | `reviewer`   | `frontier` | `D6_MODEL` = `{{model-codex:frontier}}` | `high`             | `source-immutable` | `D6_EXECUTABILITY_REVIEW_PROMPT` |
 
-Before capture, independently choose each route's `<instance_ordinal>` as the
-next positive base-10 integer not already used by a retained D5 or D6
-lifecycle-ledger row, respectively. The ledger retains completed and superseded
-rows, so no ordinal is reused in this flow. Resolve D5 `task_name` as
-`d5_<instance_ordinal>` and D6 `task_name` as `d6_<instance_ordinal>`; require
-each to be nonblank, match `^[a-z0-9_]+$`, and be absent from all retained
-controller ledger task names. Keep wave and remit identity in the existing
-ledger dimensions, not in `task_name`.
+Both routes have `external_authority: none` and zero handoffs. A missing, blank,
+unresolved, or mismatched marker blocks before capture or spawn. Do not search a
+source checkout, use an alias, or fall back to a nearby or ambient model.
 
 Build two independent, self-contained prompts from the frozen digest-bound
 tuple. Each names the planning worktree root; exact plan path; selected
 path-or-inline design input; criteria and readiness paths; recorded readiness
 result; expected digest; review wave; prior verified gaps; and optional comment
 evidence when present. D5 additionally names its Plan Review remit and D6 its
-Executability Review remit. The prompts include no inherited turns and do not
-ask either child to discover a missing artifact or route.
+Executability Review remit.
 
 After both complete tuples validate and both captures succeed, make exactly one
 fresh creation for each independent session:
@@ -850,13 +843,9 @@ Codex.spawn_agent({
 })
 ```
 
-`fork_turns: "none"` is required for each distinct digest-bound session. A
-missing or mismatched tuple prevents its creation and keeps the paired wave
-non-passing under the existing lifecycle. If native Codex rejects either one
-requested pair, report its exact `model=<D5_OR_D6_MODEL> effort=high`, retain
-the existing sibling/cleanup/join behavior, and use the existing unavailable
-review outcome. Do not retry, select an alias, change effort, escalate, or
-substitute a role.
+If native Codex rejects either requested pair, retain the existing
+sibling/cleanup/join behavior and use the existing unavailable review outcome;
+the paired wave stays non-passing.
 
 Before each authorized revision, retain a controller-local
 semantic-task-to-Task-ID baseline from the current plan. After saving the

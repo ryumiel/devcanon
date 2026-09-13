@@ -515,4 +515,35 @@ describe("agent routing and mutation policy owner", () => {
       "diagnosis-to-fix classification is a fresh changed\ntuple.",
     );
   });
+
+  it("links every consuming route owner to the shared dispatch-ritual reference", async () => {
+    const REFERENCE_PATH =
+      "skills/play-agent-dispatch/references/dispatch-ritual-usage.md";
+    const OWNER_LINK = /\[[^\]]+\]\(references\/dispatch-ritual-usage\.md\)/u;
+    const CONSUMER_LINK =
+      /\[[^\]]+\]\(\.\.\/play-agent-dispatch\/references\/dispatch-ritual-usage\.md\)/u;
+    const consumingSkills = [
+      "issue-priming-workflow",
+      "play-planning",
+      "play-review",
+      "play-skill-authoring",
+      "play-subagent-execution",
+      "pr-merge",
+    ] as const;
+    const reference = await lstat(REFERENCE_PATH);
+    const sources = await Promise.all(
+      ["play-agent-dispatch", ...consumingSkills].map(
+        async (skill) =>
+          [skill, await readRepoFile(`skills/${skill}/SKILL.md`)] as const,
+      ),
+    );
+
+    expect(reference.isFile(), "dispatch ritual reference is a file").toBe(
+      true,
+    );
+    for (const [skill, source] of sources) {
+      const link = skill === "play-agent-dispatch" ? OWNER_LINK : CONSUMER_LINK;
+      expect(source, `${skill} links the shared dispatch ritual`).toMatch(link);
+    }
+  });
 });
