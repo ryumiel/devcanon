@@ -188,26 +188,97 @@ validate_provider_scope_capture_path() {
     fail "provider scope capture missing or not a regular file: $file"
 }
 
-write_provider_scope_evidence() {
-  local capture runtime contract expected_contract
-  require_repo_root
-  validate_head_sha
-  require_env PROVIDER_SCOPE_CAPTURE_FILE
-  capture="$PROVIDER_SCOPE_CAPTURE_FILE"
-  validate_provider_scope_capture_path "$capture"
+resolve_provider_scope_runtime() {
+  local runtime contract expected_contract
   runtime="$(resolve_runtime)"
   contract="$("$runtime" runtime pr-review-provider-scope-evidence contract | { cat; printf '\001'; })" ||
     fail "provider scope evidence runtime contract check failed"
   expected_contract=$'{"command_group":"pr-review-provider-scope-evidence","major_version":1}\n\001'
   [ "$contract" = "$expected_contract" ] ||
     fail "provider scope evidence runtime contract is incompatible"
+  printf '%s\n' "$runtime"
+}
+
+write_provider_scope_evidence() {
+  local capture runtime
+  require_repo_root
+  validate_head_sha
+  require_env PROVIDER_SCOPE_CAPTURE_FILE
+  capture="$PROVIDER_SCOPE_CAPTURE_FILE"
+  validate_provider_scope_capture_path "$capture"
+  runtime="$(resolve_provider_scope_runtime)"
   "$runtime" runtime pr-review-provider-scope-evidence write \
     --head-sha "$HEAD_SHA" \
     --capture-file "$capture"
 }
 
+create_provider_scope_scratch() {
+  local runtime
+  require_repo_root
+  runtime="$(resolve_provider_scope_runtime)"
+  "$runtime" runtime pr-review-provider-scope-evidence create-scratch
+}
+
+remove_provider_scope_scratch() {
+  local scratch="$1"
+  local runtime
+  require_repo_root
+  runtime="$(resolve_provider_scope_runtime)"
+  "$runtime" runtime pr-review-provider-scope-evidence remove-scratch \
+    --scratch-dir "$scratch"
+}
+
+reconcile_provider_scope_fetch() {
+  local scratch="$1"
+  local runtime
+  local status=0
+  require_repo_root
+  runtime="$(resolve_provider_scope_runtime)"
+  "$runtime" runtime pr-review-provider-scope-evidence reconcile-fetch \
+    --scratch-dir "$scratch" || status=$?
+  return "$status"
+}
+
+classify_provider_scope_capture() {
+  local runtime
+  local status=0
+  require_repo_root
+  validate_head_sha
+  require_env PROVIDER_SCOPE_CAPTURE_FILE
+  require_env PR_BASE_OID
+  require_env PR_REPOSITORY
+  require_env PR_NUMBER
+  runtime="$(resolve_provider_scope_runtime)"
+  "$runtime" runtime pr-review-provider-scope-evidence classify-capture \
+    --capture-file "$PROVIDER_SCOPE_CAPTURE_FILE" \
+    --base-oid "$PR_BASE_OID" \
+    --repository "$PR_REPOSITORY" \
+    --pr-number "$PR_NUMBER" \
+    --head-sha "$HEAD_SHA" || status=$?
+  return "$status"
+}
+
+read_provider_scope_evidence_field() {
+  local field="$1"
+  local runtime
+  require_repo_root
+  require_env PROVIDER_SCOPE_EVIDENCE_FILE
+  runtime="$(resolve_provider_scope_runtime)"
+  "$runtime" runtime pr-review-provider-scope-evidence read-evidence-field \
+    --evidence-file "$PROVIDER_SCOPE_EVIDENCE_FILE" \
+    --field "$field"
+}
+
+render_scope_notice() {
+  local runtime
+  require_env REVIEW_SCOPE_DECISION_FILE
+  runtime="$(resolve_provider_scope_runtime)"
+  "$runtime" runtime pr-review-provider-scope-evidence render-scope-notice \
+    --scope-decision-file "$REVIEW_SCOPE_DECISION_FILE"
+}
+
 materialize_provider_scope_capture() {
-  local runtime contract expected_contract
+  local runtime
   require_repo_root
   validate_head_sha
   require_env PROVIDER_SCOPE_CAPTURE_FILE
@@ -216,12 +287,7 @@ materialize_provider_scope_capture() {
   require_env PROVIDER_SCOPE_CAPTURE_FILES_FILE
   require_env PROVIDER_SCOPE_CAPTURE_DIFF_FILE
   require_env PR_REPOSITORY
-  runtime="$(resolve_runtime)"
-  contract="$("$runtime" runtime pr-review-provider-scope-evidence contract | { cat; printf '\001'; })" ||
-    fail "provider scope evidence runtime contract check failed"
-  expected_contract=$'{"command_group":"pr-review-provider-scope-evidence","major_version":1}\n\001'
-  [ "$contract" = "$expected_contract" ] ||
-    fail "provider scope evidence runtime contract is incompatible"
+  runtime="$(resolve_provider_scope_runtime)"
   "$runtime" runtime pr-review-provider-scope-evidence materialize-capture \
     --head-sha "$HEAD_SHA" --capture-file "$PROVIDER_SCOPE_CAPTURE_FILE" \
     --capture-tmp-file "$PROVIDER_SCOPE_CAPTURE_TMP_FILE" \
@@ -338,10 +404,35 @@ case "$command_name" in
   materialize-provider-scope-capture)
     materialize_provider_scope_capture
     ;;
+  create-provider-scope-scratch)
+    [ "$#" -eq 1 ] || fail "create-provider-scope-scratch accepts no arguments"
+    create_provider_scope_scratch
+    ;;
+  remove-provider-scope-scratch)
+    [ "$#" -eq 2 ] || fail "remove-provider-scope-scratch requires exactly one scratch directory path"
+    remove_provider_scope_scratch "$2"
+    ;;
+  reconcile-provider-scope-fetch)
+    [ "$#" -eq 2 ] || fail "reconcile-provider-scope-fetch requires exactly one scratch directory path"
+    reconcile_provider_scope_fetch "$2"
+    ;;
+  classify-provider-scope-capture)
+    [ "$#" -eq 1 ] || fail "classify-provider-scope-capture accepts no arguments"
+    classify_provider_scope_capture
+    ;;
+  read-provider-scope-evidence-field)
+    [ "$#" -eq 3 ] && [ "$2" = "--field" ] ||
+      fail "read-provider-scope-evidence-field requires --field <name>"
+    read_provider_scope_evidence_field "$3"
+    ;;
+  render-scope-notice)
+    [ "$#" -eq 1 ] || fail "render-scope-notice accepts no arguments"
+    render_scope_notice
+    ;;
   validate-scope-decision)
     validate_scope_decision
     ;;
   *)
-    fail "usage: prior-thread-artifacts.sh prepare-prior-threads-write|validate-prior-threads|prepare-scope-decision-write|prepare-provider-scope-evidence-write|materialize-provider-scope-capture|write-provider-scope-evidence|validate-scope-decision"
+    fail "usage: prior-thread-artifacts.sh prepare-prior-threads-write|validate-prior-threads|prepare-scope-decision-write|prepare-provider-scope-evidence-write|materialize-provider-scope-capture|create-provider-scope-scratch|remove-provider-scope-scratch <scratch-dir>|reconcile-provider-scope-fetch <scratch-dir>|classify-provider-scope-capture|read-provider-scope-evidence-field --field <name>|render-scope-notice|write-provider-scope-evidence|validate-scope-decision"
     ;;
 esac

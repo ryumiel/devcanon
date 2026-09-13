@@ -37,13 +37,14 @@ case "$command_name" in
     PR_REVIEW_MANIFEST_HELPER_SCRIPT="${BASH_SOURCE[0]}" \
       exec "$runtime" runtime pr-review-manifests "$@"
     ;;
-  prepare-handoff-write | write-handoff | validate-handoff | prepare-result-write | write-result | validate-result | read-result-for-preview | write-review-body | recover-review-body-publication | render-phase5-audit-summary)
+  prepare-handoff-write | write-handoff | validate-handoff | prepare-result-write | write-result | validate-result | read-result-for-preview | write-review-body | recover-review-body-publication | render-phase5-audit-summary | extract-pre-findings-markdown)
     runtime="$(resolve_runtime)"
     PR_REVIEW_MANIFEST_HELPER_SCRIPT="${BASH_SOURCE[0]}" \
       exec "$runtime" runtime pr-review-manifests "$@"
     ;;
   *)
-    fail "usage: review-manifests.sh prepare-handoff-write|write-handoff|validate-handoff|prepare-result-write|write-result|validate-result|read-result-for-preview|write-review-body|recover-review-body-publication|replace-findings|render-phase5-audit-summary
-replace-findings: run from the target worktree root with PR_NUMBER, HEAD_SHA, REPOSITORY, RESULT_FILE, and PLAY_REVIEW_HELPER; pass exactly one complete findings envelope on stdin and no extra arguments; stdout is the canonical rebound result path; concurrent ownership or any other refusal exits nonzero before continuation"
+    fail "usage: review-manifests.sh prepare-handoff-write|write-handoff|validate-handoff|prepare-result-write|write-result|validate-result|read-result-for-preview|write-review-body|recover-review-body-publication|replace-findings|render-phase5-audit-summary|extract-pre-findings-markdown
+replace-findings: run from the target worktree root with PR_NUMBER, HEAD_SHA, REPOSITORY, RESULT_FILE, and PLAY_REVIEW_HELPER; pass exactly one complete findings envelope on stdin and no extra arguments; stdout is the canonical rebound result path; concurrent ownership or any other refusal exits nonzero before continuation
+extract-pre-findings-markdown: pass the full play-review output on stdin and no extra arguments; stdout is the Markdown before the first \`## Findings\` heading, empty when there is none; a pre-findings block whose first non-blank line is a level-2 heading exits nonzero"
     ;;
 esac

@@ -32,7 +32,8 @@ export const RUNTIME_COMMAND_CONTRACT = {
 export type RuntimeCommandOutcome =
   | { exitCode: 0; stdout: string; stderr: string }
   | { exitCode: 1; stdout: string; stderr: string }
-  | { exitCode: 2; stdout: string; stderr: string };
+  | { exitCode: 2; stdout: string; stderr: string }
+  | { exitCode: 3; stdout: string; stderr: string };
 
 export async function runRuntimeCommand(
   args: readonly string[],
