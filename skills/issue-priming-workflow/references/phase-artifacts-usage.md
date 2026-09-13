@@ -10,7 +10,7 @@ Run `node "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/phase-artifacts.mjs" validate-rea
 
 ## Inputs
 
-The artifact kind and repo-relative path are required. Kind determines the required filename suffix: `issue-body` → `-issue-body.md`, `comment-evidence` → `-comment-evidence.md`, `research` → `-research.md`, `design` → `-design.md`, and `plan` → `-plan.md`. The path must name a direct child of `.ephemeral/` with the matching suffix. No optional inputs or stdin are accepted.
+The artifact kind and repo-relative path are required. Kind determines the required filename suffix: `issue-body` → `-issue-body.md`, `comment-evidence` → `-comment-evidence.md`, `research` → `-research.md`, `design` → `-design.md`, `plan` → `-plan.md`, and `assumptions-comment` → `-assumptions-comment.md`. The path must name a direct child of `.ephemeral/` with the matching suffix. No optional inputs or stdin are accepted.
 
 ## Working directory
 

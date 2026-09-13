@@ -341,18 +341,11 @@ external side effect; preserve the branch and worktree for follow-up.
    PR_NUMBER=$(gh pr view --json number --jq .number)
    ```
 
-2. Set `$ASSUMPTIONS_COMMENT_FILE` to the caller-supplied `assumptions_comment_file` path, then validate it:
+2. Set `$ASSUMPTIONS_COMMENT_FILE` to the caller-supplied `assumptions_comment_file` path, then validate it with the canonical `issue-priming-workflow` helper command `validate-read`. `ISSUE_PRIMING_WORKFLOW_DIR` must resolve to the installed `issue-priming-workflow` skill bundle, not the repository under review; invoke it from the target repository root. Treat any nonzero exit as a contract failure and stop before posting:
 
    ```bash
-   case "$ASSUMPTIONS_COMMENT_FILE" in
-     .ephemeral/*/*) echo "assumptions_comment_file must be a direct child of .ephemeral: $ASSUMPTIONS_COMMENT_FILE" >&2; exit 1 ;;
-     .ephemeral/*-assumptions-comment.md) ;;
-     *) echo "assumptions_comment_file path validation failed: $ASSUMPTIONS_COMMENT_FILE" >&2; exit 1 ;;
-   esac
-   [ "${ASSUMPTIONS_COMMENT_FILE#*..}" = "$ASSUMPTIONS_COMMENT_FILE" ] || { echo "path traversal: $ASSUMPTIONS_COMMENT_FILE" >&2; exit 1; }
-   [ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
-   [ -L "$ASSUMPTIONS_COMMENT_FILE" ] && { echo "assumptions_comment_file must not be a symlink: $ASSUMPTIONS_COMMENT_FILE" >&2; exit 1; }
-   [ -r "$ASSUMPTIONS_COMMENT_FILE" ] || { echo "assumptions_comment_file missing or unreadable: $ASSUMPTIONS_COMMENT_FILE" >&2; exit 1; }
+   ISSUE_PRIMING_WORKFLOW_DIR="<installed-issue-priming-workflow-skill-bundle>"
+   node "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/phase-artifacts.mjs" validate-read assumptions-comment "$ASSUMPTIONS_COMMENT_FILE"
    ```
 
 3. Post the comment:

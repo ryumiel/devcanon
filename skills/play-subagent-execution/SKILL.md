@@ -248,19 +248,14 @@ For example: `Plan: .ephemeral/2026-05-06-167-plan.md`.
 
 When the path line is present, the controller (the agent running this skill)
 requires the expected-digest line, validates it as lowercase 64-hex, and
-validates the path before reading:
+validates the path before reading. Resolve `ISSUE_PRIMING_WORKFLOW_DIR` to the
+installed `issue-priming-workflow` skill bundle, not the repository under work,
+invoke the helper from the repository root, and treat any nonzero exit as a
+contract failure that stops before reading:
 
 ```bash
-case "$PLAN_PATH" in
-  .ephemeral/*/*) echo "nested plan path rejected: $PLAN_PATH" >&2; exit 1 ;;
-  .ephemeral/*-plan.md) ;;
-  *) echo "plan path validation failed: $PLAN_PATH" >&2; exit 1 ;;
-esac
-[ "${PLAN_PATH#*..}" = "$PLAN_PATH" ] || { echo "path traversal: $PLAN_PATH" >&2; exit 1; }
-[ -L .ephemeral ] && { echo ".ephemeral must be a directory, not a symlink" >&2; exit 1; }
-[ ! -L "$PLAN_PATH" ] || { echo "plan must not be a symlink: $PLAN_PATH" >&2; exit 1; }
-[ -f "$PLAN_PATH" ] || { echo "plan missing or not a regular file: $PLAN_PATH" >&2; exit 1; }
-[ -r "$PLAN_PATH" ] || { echo "plan missing or unreadable: $PLAN_PATH" >&2; exit 1; }
+ISSUE_PRIMING_WORKFLOW_DIR="<installed-issue-priming-workflow-skill-bundle>"
+node "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/phase-artifacts.mjs" validate-read plan "$PLAN_PATH"
 ```
 
 Immediately after those guards and before reading, extracting, routing, or
@@ -272,13 +267,6 @@ digest, unavailable hasher, hashing failure, or mismatch stops before plan
 extraction and must return to the owning planning workflow; never replace the
 expected digest with the current file digest. Keep both values controller-local
 and do not create a digest artifact, helper, parser, or registry.
-
-This bash uses the generic phase-artifact read guard shape: narrow the suffix to
-the expected artifact, reject traversal, reject symlinked `.ephemeral` and
-symlinked leaf files, require a regular file, and verify readability before
-opening the file. `play-review` findings/nits envelopes use a stricter
-direct-child `.ephemeral/` guard because those paths are echoed through review
-output and reused by wrappers before read or overwrite.
 
 Only after the digest comparison passes does the controller invoke
 `inspect-plan-projection.sh --path <repo-relative-plan-path>` before reading or
