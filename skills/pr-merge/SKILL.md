@@ -188,10 +188,7 @@ investigator.
 
 ### 4b. Dispatch investigation agent
 
-Before dispatching the CI investigation agent, use `subagent-lifecycle` for
-the controller-local lifecycle ledger, target lifecycle capability
-classification, cleanup gate before spawns, target-honest cleanup outcomes,
-and slot-limit recovery. Capture the investigation session's role-specific
+Use `subagent-lifecycle` before dispatching the CI investigation agent. Capture the investigation session's role-specific
 state before closing or superseding it: CI run/check identifiers, failing
 workflow/job names, reproduced command evidence, in-scope/out-of-scope
 classification, fix-route recommendation, and any blocker that requires manual

@@ -178,10 +178,7 @@ missing or unreadable.
 
 ## Subagent Lifecycle
 
-Before dispatching the Phase 2 assessor, either Phase 3 investigator leaf, or any
-other direct subagent, use `subagent-lifecycle` for the controller-local
-lifecycle ledger, target lifecycle capability classification, cleanup gate
-before spawns, target-honest cleanup outcomes, and slot-limit recovery.
+Use `subagent-lifecycle` before dispatching the Phase 2 assessor, Phase 3 investigator leaves, or any other direct subagent.
 Capture role-specific state before closing or superseding sessions: gate
 result and reason for the assessor; assigned scope, report result, source
 references, and blocker state for each research leaf; and any blocker or

@@ -14,7 +14,7 @@ The generic fresh-Codex dispatch ritual is owned by the adjacent [dispatch-ritua
 
 ## Invocation Policy
 
-This workflow is explicit-invocation-only. Do not select it from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language. Run it only when the user explicitly invokes `play-agent-dispatch` or when an owning workflow explicitly hands off to `play-agent-dispatch`.
+Do not select this workflow from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language; the explicit-invocation rule itself is owned by this skill's frontmatter (`description` and `codex_sidecar` policy).
 
 ## Overview
 
@@ -213,9 +213,7 @@ Each agent gets:
 
 ### 3. Dispatch in Parallel
 
-Before parallel dispatch, use `subagent-lifecycle` for the controller-local
-lifecycle ledger, target lifecycle capability classification, cleanup gate
-before spawns, target-honest cleanup outcomes, and slot-limit recovery. Record
+Use `subagent-lifecycle` before parallel dispatch. Record
 one pending ledger row per planned agent with its problem domain, expected
 output, constraints, complete semantic route tuple, and any source-state anchor
 relevant to that domain. A pending row is not spawn authority: resolve every

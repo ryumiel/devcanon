@@ -14,11 +14,10 @@ the RED/GREEN/REFACTOR pressure-test policy below.
 
 ## Invocation Policy
 
-This workflow is explicit-invocation-only. Do not select it from ordinary
-discussion, review-shaped text, possible behavior-change wording, or
-implementation-adjacent language. Run it only when the user explicitly invokes
-`play-skill-authoring` or when an owning workflow explicitly hands off to
-`play-skill-authoring`.
+Do not select this workflow from ordinary discussion, review-shaped text,
+possible behavior-change wording, or implementation-adjacent language; the
+explicit-invocation rule itself is owned by this skill's frontmatter
+(`description` and `codex_sidecar` policy).
 
 ## Overview
 
@@ -36,10 +35,7 @@ editable source authority.
 **Core principle:** If no agent failed without the skill or prior revision,
 there is no demonstrated behavior gap for the skill to fix.
 
-When dispatching pressure-scenario subagents, use `subagent-lifecycle` for the
-controller-local lifecycle ledger, target lifecycle capability classification,
-cleanup gate before spawns, target-honest cleanup outcomes, and slot-limit
-recovery. Capture each pressure-scenario subagent's prompt, baseline/pass
+Use `subagent-lifecycle` before dispatching pressure-scenario subagents. Capture each pressure-scenario subagent's prompt, baseline/pass
 result, observed rationalizations, and pressure conditions before closing or
 superseding the session.
 

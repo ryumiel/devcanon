@@ -12,7 +12,7 @@ Use the adjacent [branch-review-approval-gate usage](references/branch-review-ap
 
 ## Invocation Policy
 
-This workflow is explicit-invocation-only. Do not select it from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language. Run it only when the user explicitly invokes `play-branch-finish` or when an owning workflow explicitly hands off to `play-branch-finish`.
+Do not select this workflow from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language; the explicit-invocation rule itself is owned by this skill's frontmatter (`description` and `codex_sidecar` policy).
 
 ## Overview
 
