@@ -20,6 +20,31 @@ Wrapper around `play-review` for the GitHub-PR case.
 **Nothing touches GitHub without explicit user approval.** No posting
 reviews, no resolving threads, no approving — until the user says go.
 
+## Reference Loading
+
+### Eager
+
+Every run reads these files; they count toward the eager footprint with `SKILL.md`.
+
+- [`references/review-leases-usage.md`](references/review-leases-usage.md) — Phase 2 discovery and session creation, then every lease write.
+- [`references/prior-thread-artifacts-usage.md`](references/prior-thread-artifacts-usage.md) — Phase 3 provider-scope, scope-decision, and prior-thread artifacts on every run.
+- [`references/review-manifests-usage.md`](references/review-manifests-usage.md) — Phase 3 through Phase 6 handoff and result manifests on every run.
+- [`references/approved-review-artifacts-usage.md`](references/approved-review-artifacts-usage.md) — named without a gate by the public helper mechanics above; its commands run only in Phase 6.
+- [`../play-review/references/review-artifacts-usage.md`](../play-review/references/review-artifacts-usage.md) — Phase 5 preview render on every run.
+- [`../play-review/references/follow-up-scope-policy.md`](../play-review/references/follow-up-scope-policy.md) — Phase 3 scope selection before every `play-review` invocation.
+- [`../play-review/SKILL.md`](../play-review/SKILL.md) — Phase 4 delegates the review pipeline on every run.
+
+This list covers the files this skill reads itself. Files that `play-review` reads during that delegation are transitively part of every run's footprint but are declared by `play-review`, not restated here.
+
+### Conditional
+
+Load these only at the loading site that names the trigger; that site states the fail-closed behavior and the owning document.
+
+- [`references/review-lease-lifecycle-contract.md`](references/review-lease-lifecycle-contract.md) — Phase 2 terminal `posted` or `aborted` candidate or LC-18 `reentry`; resume, retry, failure-atomicity, or Phase 7 cleanup-authority questions.
+- [`references/edited-preview-recovery.md`](references/edited-preview-recovery.md) — Phase 5 recognized body edit, `drop #N`, severity or category change, or an interruption between `write-review-body` and body-publication recovery.
+
+Scripts under `scripts/` and `play-review`'s `review-artifacts.sh` are executed, not read; their usage documents above are the prompt-side surface.
+
 ## Workflow
 
 ```dot
@@ -102,20 +127,15 @@ removes, or updates worktrees, leases, or artifacts.
 When discovery shows exactly one present, registered, clean, managed canonical
 `posted` or `aborted` candidate, read its old head without mutation using
 `git -C <canonical-worktree> rev-parse HEAD`, then compare it with the
-provider-verified `HEAD_SHA`. When they differ, present both heads and offer
-exactly two choices:
-**keep and stop**, or **advance and create**. Keep stops here: do not invoke
-`inspect-worktree`, `session-create`, cleanup, or Git mutation. Advance is an
-explicit operator choice. First invoke the existing `inspect-worktree` with
-the exact repository, PR, canonical worktree, and lease identity; any refusal
-stops. Only after a successful inspection, invoke the existing transaction
-with `ALLOW_TERMINAL_ADVANCE=yes` and the provider-bound creation inputs.
-Never call `cleanup-worktree` or run Git checkout in this skill. The helper
-alone advances the same detached canonical path and returns the ordinary
-`session-create` result; continue only from its `success` identity. A
-lease-owned direct-child artifact tracked at the old head is an ineligible
-advance: the helper returns `conflict: discovery-not-create` before archive
-creation or checkout and preserves the old head and evidence.
+provider-verified `HEAD_SHA`. When they differ, present both heads, offer
+exactly two choices, and wait for the explicit operator choice: **keep and
+stop** ends this run with no further helper, cleanup, or Git invocation;
+**advance and create** runs `session-create` with `ALLOW_TERMINAL_ADVANCE=yes`
+and the provider-bound creation inputs, continuing only from its `success`
+identity. [`references/review-lease-lifecycle-contract.md`](references/review-lease-lifecycle-contract.md)
+§ "Session creation boundary" owns the advance eligibility, mechanics,
+guarantees, and outcomes; consult it before offering the choice, and stop
+without invoking `session-create` if it is unavailable.
 
 For an eligible fresh `create` with no `reentry` candidate, invoke the
 runtime-owned transaction instead of separately adding a worktree and writing
@@ -220,25 +240,12 @@ This does not relax normal validation for other terminal re-entry attempts;
 consult the lifecycle reference for retry and failure-atomicity behavior.
 
 Fresh PR reviews with no existing worktree follow the same Phase 1 through
-Phase 6 flow as before, except the lease is created and updated at lifecycle
-boundaries:
-
-- `session-create` creates and verifies the initial `created` lease (LC-01).
-- Attach `HANDOFF_FILE` to that lease after the Phase 3 handoff validates.
-- Write `reviewed` after the initial Phase 4 result manifest validates.
-- Write `gated` after each successful Phase 5 preview render, using
-  `PRESENTED_AT` and `PRESENTATION_STATUS`.
-- Write `aborted` immediately after the user chooses `abort`, with
-  `FINISHED_AT` and `TERMINAL_REASON`, then proceed to lease-gated cleanup.
-- Write `posted` only after the GitHub review post succeeds, with
-  `APPROVED_REVIEW_FILE`, `VALIDATED_REVIEW_PAYLOAD_FILE`, `FINISHED_AT`, and
-  `GITHUB_POSTED_AT`. The runtime
-  reducer records `github_post_attempted=true` and
-  `github_post_result=succeeded` as derived metadata.
-- Write `failed` before any cleanup decision when validation, preview,
-  approval-freeze, stale-head, or GitHub posting fails. `failed` writes must
-  include `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, and
-  `FAILURE_RECOVERABILITY`.
+Phase 6 flow as before. This skill writes each lease state at the phase
+boundary its step below names; each write realizes one Transition Matrix row
+of
+[`references/review-lease-lifecycle-contract.md`](references/review-lease-lifecycle-contract.md)
+(LC-01 through LC-13 on the non-LC-18 path), and that reference owns the exact
+required-inputs list per row.
 
 Resume `created`, `reviewed`, `gated`, and `failed` leases from validated lease
 and manifest artifacts. Do not remove an existing review worktree during resume
@@ -934,16 +941,16 @@ the latest exact preview before Phase 6.
 
 **User actions:**
 
-| Action                               | Effect                                     |
-| ------------------------------------ | ------------------------------------------ |
-| `post`                               | Post review + resolve approved threads     |
-| `post as comment`                    | Comment only, no verdict                   |
-| `drop #N`                            | Remove finding                             |
-| `change #N severity to Blocking/Nit` | Reclassify severity                        |
-| `change #N category to Logic/...`    | Reclassify category                        |
-| `edit`                               | Revise draft text                          |
-| `skip threads`                       | Post but don't resolve                     |
-| `abort`                              | Record `aborted`, then lease-gated cleanup |
+| Action                               | Effect                                                                              |
+| ------------------------------------ | ----------------------------------------------------------------------------------- |
+| `post`                               | Post review + resolve approved threads                                              |
+| `post as comment`                    | Comment only, no verdict                                                            |
+| `drop #N`                            | Remove finding                                                                      |
+| `change #N severity to Blocking/Nit` | Reclassify severity                                                                 |
+| `change #N category to Logic/...`    | Reclassify category                                                                 |
+| `edit`                               | Revise draft text                                                                   |
+| `skip threads`                       | Post but don't resolve                                                              |
+| `abort`                              | Record `aborted` with `FINISHED_AT` and `TERMINAL_REASON`, then lease-gated cleanup |
 
 ## Phase 6: Post
 
