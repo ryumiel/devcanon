@@ -34,6 +34,8 @@ Every run reads these files; they count toward the eager footprint with `SKILL.m
 - [`../play-review/references/follow-up-scope-policy.md`](../play-review/references/follow-up-scope-policy.md) — Phase 3 scope selection before every `play-review` invocation.
 - [`../play-review/SKILL.md`](../play-review/SKILL.md) — Phase 4 delegates the review pipeline on every run.
 
+This list covers the files this skill reads itself. Files that `play-review` reads during that delegation are transitively part of every run's footprint but are declared by `play-review`, not restated here.
+
 ### Conditional
 
 Load these only at the loading site that names the trigger; that site states the fail-closed behavior and the owning document.
