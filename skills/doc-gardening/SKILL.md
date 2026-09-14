@@ -22,7 +22,7 @@ prose, or write ADRs.
 ## The Rule
 
 ```
-NEVER GUESS THE STANDARD. NEVER CREATE NEW DOCS THE STANDARD DOES NOT MANDATE.
+Never guess the standard. Never create new docs the standard does not mandate.
 ```
 
 If you cannot cite a section of the target repo's documentation standard for

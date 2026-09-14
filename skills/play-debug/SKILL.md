@@ -195,14 +195,14 @@ You MUST complete each phase before proceeding to the next.
    - Fixes require "massive refactoring" to implement
    - Each fix creates new symptoms elsewhere
 
-   **STOP and question fundamentals:**
+   **Stop and question fundamentals:**
    - Is this pattern fundamentally sound?
    - Are we "sticking with it through sheer inertia"?
    - Should we refactor architecture vs. continue fixing symptoms?
 
    **Discuss with the user before attempting more fixes**
 
-   This is NOT a failed hypothesis - this is a wrong architecture.
+   This is not a failed hypothesis - this is a wrong architecture.
 
 ## Red Flags - STOP and Follow Process
 
@@ -220,7 +220,7 @@ If you catch yourself thinking:
 - **"One more fix attempt" (when already tried 2+)**
 - **Each fix reveals new problem in different place**
 
-**ALL of these mean: STOP. Return to Phase 1.**
+**All of these mean: stop. Return to Phase 1.**
 
 **If 3+ fixes failed:** Question the architecture (see Phase 4.5)
 

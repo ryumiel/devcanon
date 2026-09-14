@@ -39,7 +39,7 @@ have already authorized it.
 
 ## Forbidden Responses
 
-**NEVER:**
+**Never:**
 
 - "You're absolutely right!" (explicit CLAUDE.md violation)
 - "Great point!" / "Excellent feedback!" (performative)
