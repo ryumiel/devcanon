@@ -378,27 +378,31 @@ Resolve `PLAY_REVIEW_DIR` to the loaded or installed `play-review` skill bundle,
 resolve `SOURCE_IMMUTABILITY_HELPER` to
 `$PLAY_REVIEW_DIR/scripts/source-immutability.sh`, and run it from
 `working_directory`. Run `bash "$SOURCE_IMMUTABILITY_HELPER" --help` once before
-the first guarded topical review. Give each selected topical reviewer its own
-retained baseline and apply GUARD-001 independently with no `--handoff`:
+the first guarded topical review. The GUARD-001 order, stated once here and
+applied independently per guarded route with no `--handoff`, is:
 
-1. **capture before spawn** and retain `TOPICAL_BASELINE` for only that selected
-   D7, D8, or D9 route; capture failure prevents that route's spawn and treats
-   only that topical reviewer as missing without inventing a baseline path;
-2. spawn that already-selected topical reviewer and capture only its raw
-   terminal response and status;
+1. **capture before spawn** and retain that route's own baseline
+   (`TOPICAL_BASELINE` for only that selected D7, D8, or D9 route;
+   `CRITIC_BASELINE` for D10); capture failure prevents that route's spawn and
+   treats only that topical reviewer as missing, or makes the critic
+   unavailable, without inventing a baseline path;
+2. spawn that already-selected reviewer or the D10 critic and capture only its
+   raw terminal response and status;
 3. **verify before semantic validation or consumption** against that route's
    retained baseline;
-4. **validate and retain the topical response in controller memory** only after
-   successful verification. On a malformed or semantically rejected response,
-   record a controller-observed validation/orchestration failure—not a
-   child-returned `FAILED`—before exact cleanup; after safe cleanup, this record
-   satisfies the Phase 5 terminal-fanout gate;
+4. **validate and retain the response in controller memory** only after
+   successful verification. For a topical route, on a malformed or semantically
+   rejected response, record a controller-observed validation/orchestration
+   failure—not a child-returned `FAILED`—before exact cleanup; after safe
+   cleanup, this record satisfies the Phase 5 terminal-fanout gate;
 5. **cleanup the exact retained baseline**; and
-6. **apply the retained topical result only after cleanup** by making it eligible
-   for the existing findings aggregation.
+6. **apply the retained result only after cleanup**: a topical result becomes
+   eligible for the existing findings aggregation; critic verdicts apply to the
+   topical findings and carry-forward state.
 
-The no-handoff command shape, repeated with a distinct retained value for every
-selected topical route, is:
+Give each selected topical reviewer its own retained `TOPICAL_BASELINE` under
+that order. The no-handoff command shape, repeated with a distinct retained
+value for every selected topical route, is:
 
 ```bash
 TOPICAL_BASELINE="$(bash "$SOURCE_IMMUTABILITY_HELPER" capture)"
@@ -610,36 +614,20 @@ an unresolved carry-forward candidate, D10 still returns
 
 The D10 prompt must say: “Immediately after the required checks, return exactly
 one terminal disposition. Do not wait for peers, a nudge, or an invitation.” It
-must name the same four role-result dispositions:
-`COMPLETE_WITH_FINDINGS` with completed checks, final report, verdict findings,
-and count; `COMPLETE_NO_FINDINGS` with completed checks, final report, and count
-of zero; `NEEDS_CONTEXT` with the exact missing input and completed partial
-checks; or `FAILED` with failure class and safe partial results when available.
-The shared list does not make `COMPLETE_NO_FINDINGS` semantically valid for a
-spawned D10: its nonempty input vector requires `COMPLETE_WITH_FINDINGS` for a
-completed critic result, and the controller rejects a returned
-`COMPLETE_NO_FINDINGS` as a semantic rejection before using the unverified-critic
-fallback.
-Silence, waiting, timeout, interruption, and nudging are nonterminal recovery
-observations, never `COMPLETE_NO_FINDINGS`.
+must name the same four role-result dispositions, their required evidence, and
+the nonterminal-observation rule as owned in
+`### Terminal role results and controller capture`, with D10's findings being
+its verdicts. The shared list does not make `COMPLETE_NO_FINDINGS` semantically
+valid for a spawned D10: its nonempty input vector requires
+`COMPLETE_WITH_FINDINGS` for a completed critic result, and the controller
+rejects a returned `COMPLETE_NO_FINDINGS` as a semantic rejection before using
+the unverified-critic fallback.
 
-Apply GUARD-001 to D10 independently from every topical route, using the same
-resolved `$PLAY_REVIEW_DIR/scripts/source-immutability.sh` shim from
-`working_directory` and with no `--handoff`:
-
-1. **capture before spawn** and retain `CRITIC_BASELINE`; capture failure
-   prevents the D10 spawn and makes the critic unavailable without inventing a
-   baseline path;
-2. spawn the D10 critic and capture only its raw terminal response and status;
-3. **verify before semantic validation or consumption** against the retained
-   critic baseline;
-4. **validate and retain the critic verdict response in controller memory**
-   only after successful verification;
-5. **cleanup the exact retained baseline**; and
-6. **apply the retained critic verdicts only after cleanup** to the topical
-   findings and carry-forward state.
-
-The D10 no-handoff command shape is:
+Apply GUARD-001 to D10 independently from every topical route under the
+six-step order stated once in Phase 3, using the same resolved
+`$PLAY_REVIEW_DIR/scripts/source-immutability.sh` shim from `working_directory`,
+with `CRITIC_BASELINE` as the retained baseline and no `--handoff`. The D10
+no-handoff command shape is:
 
 ```bash
 CRITIC_BASELINE="$(bash "$SOURCE_IMMUTABILITY_HELPER" capture)"
