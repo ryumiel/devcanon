@@ -18,12 +18,12 @@ Claiming work is complete without verification is dishonesty, not efficiency.
 
 **Core principle:** Evidence before claims, always.
 
-**Violating the letter of this rule is violating the spirit of this rule.**
+The rule applies to its spirit as well as its letter: a paraphrased or implied claim is still a claim.
 
 ## The Rule
 
 ```
-NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE
+No completion claims without fresh verification evidence.
 ```
 
 If you haven't run the verification command in this message, you cannot claim it passes.
@@ -31,17 +31,17 @@ If you haven't run the verification command in this message, you cannot claim it
 ## The Gate Function
 
 ```
-BEFORE claiming any status or expressing satisfaction:
+Before claiming any status or expressing satisfaction:
 
-1. IDENTIFY: What command proves this claim?
-2. RUN: Execute the FULL command (fresh, complete)
-3. READ: Full output, check exit code, count failures
-4. VERIFY: Does output confirm the claim?
-   - If NO: State actual status with evidence
-   - If YES: State claim WITH evidence
-5. ONLY THEN: Make the claim
+1. Identify: what command proves this claim?
+2. Run: execute the full command (fresh, complete)
+3. Read: full output, check exit code, count failures
+4. Verify: does the output confirm the claim?
+   - If no: state the actual status with evidence
+   - If yes: state the claim with evidence
+5. Only then: make the claim
 
-Skip any step = lying, not verifying
+A claim made with any step skipped is unverified.
 ```
 
 ## Reporting Verification Evidence
@@ -156,6 +156,6 @@ From 24 failure memories:
 
 **No shortcuts for verification.**
 
-Run the command. Read the output. THEN claim the result.
+Run the command. Read the output. Then claim the result.
 
-This is non-negotiable.
+This rule has no exceptions.
