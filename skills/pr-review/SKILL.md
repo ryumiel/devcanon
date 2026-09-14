@@ -31,14 +31,14 @@ Every run reads these files; they count toward the eager footprint with `SKILL.m
 - [`references/review-manifests-usage.md`](references/review-manifests-usage.md) — Phase 3 through Phase 6 handoff and result manifests on every run.
 - [`references/approved-review-artifacts-usage.md`](references/approved-review-artifacts-usage.md) — named without a gate by the public helper mechanics above; its commands run only in Phase 6.
 - [`../play-review/references/review-artifacts-usage.md`](../play-review/references/review-artifacts-usage.md) — Phase 5 preview render on every run.
-- `skills/play-review/references/follow-up-scope-policy.md` — Phase 3 scope selection before every `play-review` invocation.
-- `skills/play-review/SKILL.md` — Phase 4 delegates the review pipeline on every run.
+- [`../play-review/references/follow-up-scope-policy.md`](../play-review/references/follow-up-scope-policy.md) — Phase 3 scope selection before every `play-review` invocation.
+- [`../play-review/SKILL.md`](../play-review/SKILL.md) — Phase 4 delegates the review pipeline on every run.
 
 ### Conditional
 
 Load these only at the loading site that names the trigger; that site states the fail-closed behavior and the owning document.
 
-- [`references/review-lease-lifecycle-contract.md`](references/review-lease-lifecycle-contract.md) — Phase 2 terminal `posted` or `aborted` candidate or LC-18 `reentry`; a lease write whose step does not name its required inputs (the `abort` action); resume, retry, failure-atomicity, or Phase 7 cleanup-authority questions.
+- [`references/review-lease-lifecycle-contract.md`](references/review-lease-lifecycle-contract.md) — Phase 2 terminal `posted` or `aborted` candidate or LC-18 `reentry`; resume, retry, failure-atomicity, or Phase 7 cleanup-authority questions.
 - [`references/edited-preview-recovery.md`](references/edited-preview-recovery.md) — Phase 5 recognized body edit, `drop #N`, severity or category change, or an interruption between `write-review-body` and body-publication recovery.
 
 Scripts under `scripts/` and `play-review`'s `review-artifacts.sh` are executed, not read; their usage documents above are the prompt-side surface.
@@ -939,16 +939,16 @@ the latest exact preview before Phase 6.
 
 **User actions:**
 
-| Action                               | Effect                                     |
-| ------------------------------------ | ------------------------------------------ |
-| `post`                               | Post review + resolve approved threads     |
-| `post as comment`                    | Comment only, no verdict                   |
-| `drop #N`                            | Remove finding                             |
-| `change #N severity to Blocking/Nit` | Reclassify severity                        |
-| `change #N category to Logic/...`    | Reclassify category                        |
-| `edit`                               | Revise draft text                          |
-| `skip threads`                       | Post but don't resolve                     |
-| `abort`                              | Record `aborted`, then lease-gated cleanup |
+| Action                               | Effect                                                                              |
+| ------------------------------------ | ----------------------------------------------------------------------------------- |
+| `post`                               | Post review + resolve approved threads                                              |
+| `post as comment`                    | Comment only, no verdict                                                            |
+| `drop #N`                            | Remove finding                                                                      |
+| `change #N severity to Blocking/Nit` | Reclassify severity                                                                 |
+| `change #N category to Logic/...`    | Reclassify category                                                                 |
+| `edit`                               | Revise draft text                                                                   |
+| `skip threads`                       | Post but don't resolve                                                              |
+| `abort`                              | Record `aborted` with `FINISHED_AT` and `TERMINAL_REASON`, then lease-gated cleanup |
 
 ## Phase 6: Post
 
