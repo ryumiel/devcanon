@@ -75,22 +75,6 @@ interactive execution choice. Inline or display plan content only for a
 specific interactive user review gate or when the user asks to inspect or
 change the plan.
 
-## Reference Loading
-
-### Eager
-
-Every run reads these files; they count toward the eager footprint with `SKILL.md`.
-
-- [`references/planning-criteria.md`](references/planning-criteria.md) — resolved from the bundle before file mapping or task drafting on every run; owns scope, tier classification, task contracts, proof, and all three review surfaces.
-- [`references/planning-readiness-audit.md`](references/planning-readiness-audit.md) — resolved from the bundle before file mapping or task drafting on every run; owns the pre-drafting readiness audit.
-- [`references/source-immutability-usage.md`](references/source-immutability-usage.md) — named without a gate as the owner of the GUARD-001 helper's invocation and failure mechanics; the helper runs before every D5/D6 capture.
-- [`../play-agent-dispatch/references/dispatch-ritual-usage.md`](../play-agent-dispatch/references/dispatch-ritual-usage.md) — loaded before either D5/D6 capture in every paired review wave.
-- [`../play-subagent-execution/references/inspect-plan-projection-usage.md`](../play-subagent-execution/references/inspect-plan-projection-usage.md) — the closed `planning-projection/v1` contract the planning preflight accepts before every paired review wave.
-
-This list covers the files this skill reads itself. Files that `subagent-lifecycle` loads when this skill uses it are transitively part of every run's footprint but are declared by that skill, not restated here.
-
-Scripts under `scripts/` and `play-subagent-execution`'s `inspect-plan-projection.sh` are executed, not read; their usage documents above are the prompt-side surface.
-
 ## Inputs
 
 This skill accepts a design document in either of two shapes inside its
