@@ -17,44 +17,6 @@ Use the adjacent [phase-artifacts usage](references/phase-artifacts-usage.md), [
 
 Continue an issue-priming workflow handed off by `linear-issue-priming` or `github-issue-priming`. The source entrypoint has already fetched the issue, provisioned or reused the issue worktree, and written the issue body to `.ephemeral/`. This workflow gates complexity, optionally researches, brainstorms, and (in `--auto` mode) plans, implements, reviews, and creates a PR.
 
-## Reference Loading
-
-### Eager
-
-Every run reads these files; they count toward the eager footprint with `SKILL.md`.
-
-- [`references/phase-artifacts-usage.md`](references/phase-artifacts-usage.md) — Phase 1 issue-body and comment-evidence read guards, then every later phase-artifact read.
-- [`references/source-immutability-usage.md`](references/source-immutability-usage.md) — GUARD-001 capture, verify, and cleanup around the Phase 2 D1 or Phase 3 D2/D3 leaves; every run dispatches at least one.
-- [`references/write-research-brief-usage.md`](references/write-research-brief-usage.md) — named without a gate by the public helper mechanics above; its command runs only on a Phase 3 final-brief route.
-- [`references/write-auto-handoff-usage.md`](references/write-auto-handoff-usage.md) — named without a gate by the public helper mechanics above; its command runs only in Phase 6 `--auto`.
-- [`references/write-assumptions-comment-usage.md`](references/write-assumptions-comment-usage.md) — named without a gate by the public helper mechanics above; its command runs only in Phase 8 `--auto` when resolved assumptions need reviewer visibility.
-- [`references/helper-invocation-contracts.md`](references/helper-invocation-contracts.md) — named without a gate by `## Helper Invocation Contracts` for helper interfaces, stdout contracts, and diagnostics.
-- [`references/workflow-diagram.md`](references/workflow-diagram.md) — named without a gate by `## Workflow` and `## Phase Flow Reference`; a non-normative phase-flow map.
-- [`../play-agent-dispatch/references/dispatch-ritual-usage.md`](../play-agent-dispatch/references/dispatch-ritual-usage.md) — Phase 2 D1 dispatch on the gated route or Phase 3 D2/D3 dispatch on the forced route; every run reaches one of the two loading sites.
-- [`references/common-mistakes.md`](references/common-mistakes.md) — named without a gate by `## Common Mistakes`.
-- [`references/red-flags.md`](references/red-flags.md) — named without a gate by `## Red Flags — You Are Violating This Skill`.
-- [`references/scope.md`](references/scope.md) — named without a gate by `## What This Skill Does NOT Do`.
-
-This list covers the files this skill reads itself. Files that `subagent-lifecycle`, `play-brainstorm`, `play-planning`, `play-subagent-execution`, `branch-review`, and `play-branch-finish` read during their delegations are transitively part of the footprint of the runs that reach them but are declared by those skills, not restated here.
-
-### Conditional
-
-Load these only at the loading site that names the trigger; that site states the fail-closed behavior and the owning document.
-
-- [`references/gate-agent-prompt.md`](references/gate-agent-prompt.md) — Phase 2 D1 assessor prompt when `payload.research = gated`; the forced route skips the gate.
-- [`references/phase-3-research-controller.md`](references/phase-3-research-controller.md) — Phase 3 entry on `RESEARCH_NEEDED` or `payload.research = forced`, before prompt preparation or D2/D3 dispatch.
-- [`references/investigator-prompt.md`](references/investigator-prompt.md) — Phase 3 D2/D3 leaf prompt on the same research route.
-- [`references/auto-mode-discipline.md`](references/auto-mode-discipline.md) — Phase 4 `--auto` brainstorming; rationale for the ambiguous-decision stop.
-- [`references/phase-6-auto-handoff.md`](references/phase-6-auto-handoff.md) — Phase 6 `--auto`, before `write-auto-handoff` and executor dispatch.
-- [`../play-subagent-execution/references/review-routing-policy.md`](../play-subagent-execution/references/review-routing-policy.md) — Phase 6 `--auto` executor handoff; the executor-owned route authority named for that delegation.
-- [`../play-subagent-execution/references/skip-dispatch-policy.md`](../play-subagent-execution/references/skip-dispatch-policy.md) — Phase 6 `--auto` executor handoff; the executor's inline single-task path.
-- [`references/phase-7-review-handling.md`](references/phase-7-review-handling.md) — Phase 7 `--auto`, before classifying findings or preparing Phase 8 nits.
-- [`references/nit-classification.md`](references/nit-classification.md) — Phase 7 `--auto` nit taxonomy, loaded through `references/phase-7-review-handling.md`.
-- [`../play-subagent-execution/references/snapshot-consumption.md`](../play-subagent-execution/references/snapshot-consumption.md) — Phase 7 `--auto` rerun path after a branch-review-owned fix commit.
-- [`references/phase-8-pr-handoff.md`](references/phase-8-pr-handoff.md) — Phase 8 `--auto`, before invoking `play-branch-finish` Option 2.
-
-Scripts under `scripts/` are executed, not read; their usage documents above are the prompt-side surface.
-
 ## Inputs
 
 This skill is invoked with a normalized issue payload from one of the source entrypoints. The payload looks like:
@@ -947,12 +909,19 @@ checkpoint owns only readiness ordering, invalidation, and continuation.
 
 ### Phase 7: Branch Review
 
+At Phase 7 entry, before preparing review context, invoking Branch Review, or
+handling a Phase 7 result or fix continuation, load the installed
+[`references/phase-7-review-handling.md`](references/phase-7-review-handling.md).
+If it is missing, blank, unreadable, or unavailable, stop `--auto` before any
+dependent operation. That reference owns review-evidence validation and
+retention, blocker and nit classification, Branch-Review-owned fix commits,
+paired rerun inputs, and the judgment-nits helper handoff.
+
 Invoke the installed Branch Review skill in `--fix` mode to review the
 implementation before creating a PR. The first Phase 7 invocation keeps the
 existing full-diff route. Include a Phase 6 `Risk signals written to <path>`
 input only when its reviewed head and full range still match the frozen
-candidate; otherwise regenerate it through the existing producer for that
-candidate or intentionally omit the stale path. For current default-base
+candidate; otherwise intentionally omit the stale path. For current default-base
 artifacts, include `--risk-signals <path>` in that skill briefing. For current
 detached issue-base risk signals whose reviewed range is
 `<full-base-sha>...HEAD`, include that same input and `<full-base-sha>` base so
@@ -961,46 +930,30 @@ Branch Review validates the same full base SHA range. When those risk signals ca
 Phase 7 still treats it as non-authoritative handoff data; branch-review
 validates it, escalates scrutiny when present, and passes only sanitized
 semantic notes into downstream reviewer context.
+
 If the run creates any branch-review-owned fix commit, treat the earlier frozen
 candidate and all downstream evidence as stale. Regenerate risk signals for the
 new `HEAD`, return through Candidate Closure and Source Freeze, rerun applicable
 acceptance and full validation for the new frozen candidate, then use the paired
-post-fix Branch Review skill route defined below with the same base-side rule.
-Intentionally omit stale risk signals rather than forwarding them.
-Continue until a run reports zero blocking findings auto-fixed and the
-remaining findings file contains no unresolved
-`severity: "Blocking"` entries except findings whose `critic` verdict is
-`INVALID` or `DOWNGRADE`, and captures that final run's approval-summary notice
-path.
+post-fix Branch Review route that the loaded reference defines. Preserve the
+same selected base; invoke it through `--last-reviewed`/`--prior-findings` with
+only the prior run's validated immutable review head and post-fix findings as
+non-authorizing context; and regenerate current risk signals or omit stale
+ones. Candidate Closure is the required re-entry point; do not consume snapshot
+anchors after the commit.
+
 This runs the full multi-agent review on `git diff <base>...HEAD` where
 `<base>` is branch-review's selected base: normally the repository's default
 branch, or the supplied full base SHA for detached issue-base risk signals that
 use that same base side. With `--fix`, `branch-review` attempts eligible
 `Blocking` auto-fixes and eligible fixable-nit units, and commits
-branch-review-owned fixes. If any remaining true `Blocking` finding is
-unresolved (`critic` is neither `INVALID` nor `DOWNGRADE`), **stop `--auto` and
-report to the user**.
-
-Before classifying findings or preparing Phase 8 nits, load
-[`references/phase-7-review-handling.md`](references/phase-7-review-handling.md).
-That reference owns review-head parsing, `play-review/findings/v2` validation,
-approval-summary notice-path capture, blocker checks, nit classification
-details, branch-review-owned fix commit rules, remaining-nit selection, and the
-`prepare-judgment-nits` helper handoff; if it is unavailable, stop `--auto`
-before classification.
-
-After a branch-review-owned fix commit, the paired post-fix route invokes the
-installed Branch Review skill on the new `HEAD` through
-`--last-reviewed`/`--prior-findings`, supplying the prior run's validated review
-head and post-fix findings envelope as non-authorizing context and, when using
-`--risk-signals`, only risk signals regenerated for that `HEAD`; the reference
-owns the re-entry order and evidence rules. Before Phase 8, capture the final
-run's exact `Approval summary written to <path>.` notice path; a missing final
-notice is a hard stop. Every branch-review-owned fix commit also makes earlier
-implementer snapshots stale; use
-`skills/play-subagent-execution/references/snapshot-consumption.md` §
-Edit-Staleness Rule as the rerun-path reminder that edits must use freshly read
-files, not snapshot anchors.
+branch-review-owned fixes. Apply the loaded reference's evidence validation and
+stop rules to every result, including its remaining-nit handoff. Before Phase 8,
+capture the final run's exact `Approval summary written to <path>.` notice
+path; a missing final notice is a hard stop. Every branch-review-owned fix
+commit makes earlier implementer snapshots stale; per
+[`snapshot-consumption.md`](../play-subagent-execution/references/snapshot-consumption.md),
+read files from disk for the rerun rather than using snapshot content.
 
 ### Phase 8: Create PR
 
@@ -1017,8 +970,8 @@ If the final approval-summary path is absent or empty, stop before invoking
 Before invoking the handoff, load
 [`references/phase-8-pr-handoff.md`](references/phase-8-pr-handoff.md). That
 reference owns detailed PR body, assumptions, explicit review-gate inputs,
-assignee, and nits explanation; the eager contract below owns the hard stops
-and arguments. If it is unavailable, stop before invoking `play-branch-finish`.
+assignee, and nits explanation; this workflow owns the hard stops and
+arguments. If it is unavailable, stop before invoking `play-branch-finish`.
 
 Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and create PR**
 with the handoff arguments that reference defines: `assignee=@me`,
