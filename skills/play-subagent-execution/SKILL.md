@@ -73,8 +73,16 @@ surface that source inspection cannot confirm, fail closed: report
 BLOCKED/NEEDS_CONTEXT with the exact contract gap instead of silently treating
 the missing contract as satisfied.
 
-Before any implementer dispatch or inline execution, run a structural
-projection gate before fallback or route selection. For a reviewed `Plan: <path>`
+Before the structural projection gate, resolve the installed
+[task contract criteria](../play-planning/references/planning-criteria.md#task-contract-criteria)
+from the loaded `play-planning` skill bundle, not from the target repository or
+current working directory, and read that criteria section in full. Retain the
+validated path for task-contract validation. A missing, blank, unreadable, or
+unavailable criteria reference returns `BLOCKED/NEEDS_CONTEXT` before skip
+evaluation, inline execution, implementer or reviewer dispatch, or final
+review.
+
+Then run the structural projection gate before fallback or route selection. For a reviewed `Plan: <path>`
 handoff, after the existing path guards and reviewed-digest comparison, invoke
 `inspect-plan-projection.sh --path <repo-relative-plan-path>` with that exact
 guarded path. Treat every zero-status result as untrusted. Before interpreting
@@ -166,41 +174,26 @@ Do not infer trigger applicability inside `play-subagent-execution`;
 `play-planning` owns the trigger taxonomy and tier classification. Do not
 reclassify a declared tier. For every current task in a reviewed plan, the gate
 requires exactly one declared `**Contract tier:** FULL`, `LIGHTWEIGHT`, or
-`NO-TRIGGER` and validates only its declared tier structure from the assembled
-context. Selected projection entries supply the common relationship-level
-owner/source, affected participation, implementation membership, and proof
-allocation without restatement in the task. For `FULL`, an applicable directly
-cited boundary row supplies independently necessary producer or consumer
-direction absent from the selected projection tuple; when no distinct boundary
-row applies, the structurally complete task-local checklist supplies that
-direction. The checklist consumes any applicable row without restatement and
-supplies the remaining execution facts. `LIGHTWEIGHT` requires its remaining
-task-local purpose, inputs and outputs, producer or
-consumer direction when independently necessary and absent from both the
-selected projection tuple and an applicable directly cited boundary row,
-material write or side-effect owner, failure and cleanup behavior, and explicit
-reason all five behavioral eligibility dimensions are true. Selected projection
-entries are the only common participant and relationship representation. For
-reviewed plans, D5 owns whether they cover every actual participant and
-independently necessary execution
-relationship, including guarded-inline D13 when it is an actual participant or
-direct consumer;
-`NO-TRIGGER` requires a task-specific reason. The executor must not promote,
-demote, infer, or otherwise reclassify the tier from task prose, diff size,
-path spelling, or runtime risk routing. Present Contract Example
-Discipline obligations are part of the task contract; the executor only
-verifies obligations already included in extracted plan/task execution context;
-do not infer trigger applicability and do not decide whether Contract Example
-Discipline should have been required. In the case when extracted plan/task
-execution context includes Contract Example Discipline or an equivalent clearly
-labeled section/obligation, apply the shared consumer rule in
+`NO-TRIGGER` and validates only that declared tier's structure from the
+assembled context. The loaded task contract criteria own the per-tier field
+definitions and what the selected projection entries already carry; the
+executor checks the selected entries, resolved IDs, curated records, and
+task-local fields structurally against them and does not restate them. The
+executor must not promote, demote, infer, or otherwise
+reclassify the tier from task prose, diff size, path spelling, or runtime risk
+routing. D5 owns semantic coverage for reviewed plans, including whether the
+selected entries cover every actual participant and independently necessary
+execution relationship; the controller must not treat prompt-mediated
+consumers as the only consumers or omit guarded-inline D13 as an actual
+participant or direct consumer merely because no child prompt is dispatched.
+Present Contract Example Discipline obligations are part of the task contract;
+the executor only verifies obligations already included in extracted plan/task
+execution context; do not infer trigger applicability and do not decide whether
+Contract Example Discipline should have been required. In the case when
+extracted plan/task execution context includes Contract Example Discipline or
+an equivalent clearly labeled section/obligation, apply the shared consumer
+rule in
 [`references/contract-example-discipline-consumer-rule.md`](references/contract-example-discipline-consumer-rule.md).
-Validate the `LIGHTWEIGHT` structure from the assembled context without
-reclassifying the declared tier. The executor checks the selected entries,
-resolved IDs, curated records, and task-local fields structurally; D5 owns semantic coverage
-for reviewed plans. The controller must not treat
-prompt-mediated consumers as the only consumers or omit guarded-inline D13
-merely because no child prompt is dispatched.
 Both `LIGHTWEIGHT` and `NO-TRIGGER` are trusted only when this controller can
 identify the upstream two-gate `play-planning` return for the plan being
 executed, meaning both Plan Review and Implementer Executability Review passed
@@ -210,19 +203,12 @@ use a structurally complete `FULL` contract. That direct `FULL` route is
 caller-authorized and receives structural validation only; the executor does
 not claim, infer, or synthesize D5-equivalent semantic completeness for it. A
 caller that requires planning-review assurance must use the reviewed
-`play-planning` route. For `FULL`, the assembled
-context—not the task-local checklist alone—must explicitly name trigger
-criteria, relationship owner/source, task-local mutation authority, affected
-consumers/generated outputs, must-preserve and required behavior,
-spec/procedure work, risk surfaces, proof allocation, and task-local
-verification expectations, with no blank field or unexplained `N/A`. The
-checklist must not restate the selected projection tuple. If this
-structural gate or the extracted plan/task execution context is missing,
-malformed, unsupported, internally inconsistent, or unverifiable, stop before
-implementation and report BLOCKED/NEEDS_CONTEXT for plan repair; do not dispatch
-an implementer, dispatch a reviewer, run the final whole-implementation review,
-evaluate skip-dispatch as eligible, or execute inline against the invalid task
-contract.
+`play-planning` route. If this structural gate or the extracted plan/task
+execution context is missing, malformed, unsupported, internally inconsistent,
+or unverifiable, stop before implementation and report BLOCKED/NEEDS_CONTEXT
+for plan repair; do not dispatch an implementer, dispatch a reviewer, run the
+final whole-implementation review, evaluate skip-dispatch as eligible, or
+execute inline against the invalid task contract.
 
 This structural task-contract gate is separate from DONE-report snapshot
 classification. Snapshot request/skip classification is owned by
@@ -633,9 +619,10 @@ route. Use the
 completion, exact D16 skip eligibility, final-review timing, and returned
 terminal disposition. This index does not restate those transitions.
 
-For direct/manual runs, continue to the
-[Direct/manual terminal handoff](#directmanual-terminal-handoff); that section
-owns branch-level review status resolution and pre-finish reporting.
+For direct/manual runs, load the
+[Direct/manual terminal handoff](references/direct-manual-terminal-handoff.md)
+after the built-in final whole-implementation review passes. It supplies
+branch-level review status resolution and pre-finish reporting.
 
 ### Terminal risk signals
 
@@ -653,6 +640,20 @@ contract before preparing the artifact:
 bash "$PLAY_SUBAGENT_EXECUTION_DIR/scripts/write-risk-signals.sh" --help
 ```
 
+Read the [write-risk-signals usage](references/write-risk-signals-usage.md) in
+full before supplying its inputs. A missing, blank, unreadable, or unavailable
+usage document is a terminal blocker: do not invoke the helper, create a
+risk-signals artifact, or emit the success notice; report the blocker. Use the
+same full branch range and changed files that the next branch review will
+validate. For a detached issue-base review, use the full base SHA as the
+range's left side and reviewed base. Include Contract Example Discipline context
+only when present extracted-context obligations must reach the next branch
+review after a verified `issue-priming-workflow --auto` single-task skip; copy
+only those obligations and the shared consumer rule. If present obligations
+cannot be represented by the writer's bounded context, report BLOCKED without
+invoking the helper or emitting the success notice. The usage document owns the
+writer's interface; this workflow owns when it runs and how its output is used.
+
 Use `scripts/write-risk-signals.sh` to write the artifact. The success notice
 line is exactly:
 
@@ -660,70 +661,18 @@ line is exactly:
 Risk signals written to <path>.
 ```
 
-Set these required inputs before invoking the helper:
-`RISK_SIGNALS_REVIEWED_BASE_REF`, `RISK_SIGNALS_REVIEWED_BASE_SHA`,
-`RISK_SIGNALS_REVIEWED_HEAD_SHA`, `RISK_SIGNALS_REVIEWED_RANGE`,
-`RISK_SIGNALS_CHANGED_FILES_JSON`, `RISK_SIGNALS_VALUES_JSON`,
-`RISK_SIGNALS_CANONICAL_DOCS_MAY_BE_AFFECTED`, and
-`RISK_SIGNALS_END_USER_DIAGNOSTICS_MAY_BE_AFFECTED`.
-`RISK_SIGNALS_REVIEWED_RANGE` and `RISK_SIGNALS_CHANGED_FILES_JSON` must
-describe the same full branch range that the next branch-review invocation will
-validate, such as `$BASE...HEAD`; `RISK_SIGNALS_REVIEWED_BASE_REF` must match
-that range's base side. For detached issue-base reviews, use the full base SHA
-as both `RISK_SIGNALS_REVIEWED_BASE_REF` and the left side of
-`RISK_SIGNALS_REVIEWED_RANGE`. The values JSON must contain exactly these six
-signal categories: `user_facing_behavior`,
-`documentation_examples`, `diagnostics`, `contract`, `generated_output`, and
-`governance_path`. Each value is `none`, `present`, or `unknown`;
-ambiguous/unclear classifications must be encoded as `unknown`, not omitted.
-
-Optionally set
-`RISK_SIGNALS_CONTRACT_EXAMPLE_DISCIPLINE_CONTEXT_JSON` only when the extracted
-context contains present Contract Example Discipline obligations or an
-equivalent clearly labeled section/obligation and the next branch review must
-preserve that source-owned contract context after an `issue-priming-workflow
---auto` single-task run skips this skill's final whole-implementation reviewer.
-When set, the helper writes the validated object as the risk-signals artifact's
-`contract_example_discipline` field. The JSON must contain exactly:
-
-```json
-{
-  "present": true,
-  "source": "extracted-plan-task-execution-context",
-  "obligations": "<non-empty string, max 4000 chars, no NUL>",
-  "consumer_rule": "<non-empty string, max 4000 chars, no NUL>",
-  "proof_obligations": {
-    "valid_examples_pass": true,
-    "invalid_families_fail": true
-  }
-}
-```
-
-`proof_obligations` values must be exactly `true` and reflect only obligations
-explicitly present in the extracted context. Copy `obligations` only from
-present Contract Example Discipline, an equivalent clearly labeled
-section/obligation, task-local example, or proof-obligation lines, and copy
-`consumer_rule` from the shared rule content inlined under `Contract Example
-Discipline Consumer Rule`; do not include the whole plan. If present
-obligations cannot be represented in that bounded object because the data is
-empty, too large, contains NUL, or lacks an explicit proof-obligation signal,
-report BLOCKED and do not invoke the helper or emit the success notice.
-
 Notice is emitted only after the helper write and runtime validation succeed.
 If the helper fails when terminal handoff was promised or expected, report a
 blocker and do not emit the notice.
 
 When the helper emits `Risk signals written to <path>.`, pass that emitted path
-to the next branch review invocation. Default-base artifacts use the normal
-no-positional-base form: `branch-review --risk-signals <path>` or, in an
-auto-fix loop, `branch-review --fix --risk-signals <path>`. Detached issue-base
-artifacts whose reviewed range is `<full-base-sha>...HEAD` must pass that same
-full base SHA as branch-review's positional base:
-`branch-review --risk-signals <path> <full-base-sha>` or, in an auto-fix loop,
-`branch-review --fix --risk-signals <path> <full-base-sha>`. If any later
-source mutation, including a branch-review-owned fix commit, changes `HEAD`,
-regenerate risk signals for the new `HEAD` before the next branch review, or
-omit the stale risk-signals path intentionally.
+as `branch-review --risk-signals <path>`. In an active auto-fix loop, preserve
+the existing `branch-review --fix --risk-signals <path>` invocation; this does
+not grant auto-fix authority. For a detached issue-base review, pass the full
+base SHA as the positional base in the same form. If any later source mutation,
+including a branch-review-owned fix commit, changes `HEAD`, regenerate risk
+signals for the new `HEAD` before the next branch review, or omit the stale
+risk-signals path intentionally.
 
 Direct/manual terminal handoff otherwise remains unchanged. This skill did not
 run branch-level review; run `branch-review` before `play-branch-finish` when
@@ -733,32 +682,27 @@ the active workflow requires branch-level review.
 
 When this is a direct or manual invocation and there is no verified owning
 caller final whole-diff gate, the final whole-implementation review is this
-skill's built-in terminal review gate. If that final whole-implementation
-review passes, report implementation status and final review status before any
-branch-review or finish handoff. Before invoking `play-branch-finish`, also
-report these observable claims: built-in final whole-implementation review
-passed; this skill did not run branch-level review; run `branch-review` before
-`play-branch-finish` when the active workflow requires branch-level review
-before PR creation; proceeding to `play-branch-finish` is acceptable only when
-that workflow does not require branch-level review. When the active workflow
-requires branch-level review before PR creation, hand off to `branch-review`
-before any `play-branch-finish` handoff. Use `branch-review --fix` as the
-branch-level gate before finish only when the owning workflow already grants
-auto-fix authority or the operator explicitly confirms that branch-review may
-auto-commit fixes; otherwise hand off to branch-review without auto-fix
-authority and wait for review approval evidence. Do not invoke
-`play-branch-finish` until `branch-review` returns review approval evidence or
-the active workflow explicitly waives branch-level review. If that workflow does
-not require branch-level review, then invoke `play-branch-finish`.
+skill's built-in terminal review gate. Once that review passes, and before
+reporting status or handing off to `branch-review` or `play-branch-finish`,
+load
+[`references/direct-manual-terminal-handoff.md`](references/direct-manual-terminal-handoff.md)
+for the pre-finish reporting and branch-level review status resolution
+procedure. A missing, blank, unreadable, or unavailable reference is a terminal
+blocker: do not invoke `branch-review` or `play-branch-finish`, do not report
+the run as complete, and do not improvise the handoff inline; report the
+blocker. `play-subagent-execution` is the normative owner of terminal-handoff
+policy; the loaded reference is a subordinate, direct/manual-scoped operating
+procedure.
 
 Completion-boundary contract: implementation summaries, verification summaries,
 and review pass reports are status reports only; they are not terminal workflow
 states. After the final whole-implementation review passes, the next action is
-to resolve the branch-level review status above and then either hand off for
-required branch review, wait until that review status is resolved, or invoke
-`play-branch-finish` when branch review is not required. Treating a summary as
-completion and stopping there is invalid: summary-only completion is a workflow
-violation.
+to resolve branch-level review status through the loaded direct/manual
+procedure, then either hand off for required branch review, wait until that
+review status is resolved, or invoke `play-branch-finish` when branch review is
+not required.
+Treating a summary as completion and stopping there is invalid:
+summary-only completion is a workflow violation.
 
 Do not present or restate branch finish choices in this skill.
 `play-branch-finish` presents its authoritative finish options and owns their
