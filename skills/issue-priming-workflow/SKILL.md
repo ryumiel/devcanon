@@ -783,8 +783,9 @@ Before invoking `play-subagent-execution`, invoke
 script from the installed `issue-priming-workflow` skill bundle, pass
 `PLAN_PATH`, and capture stdout as the repo-relative auto-handoff artifact path.
 Treat a nonzero helper exit as a contract failure and stop before invoking the
-executor. See [`references/phase-6-auto-handoff.md`](references/phase-6-auto-handoff.md)
-for the helper interface, artifact schema, artifact path shape, and rationale.
+executor. Load [`references/phase-6-auto-handoff.md`](references/phase-6-auto-handoff.md)
+for the helper interface, artifact schema, artifact path shape, and rationale;
+if it is unavailable, stop before invoking the executor.
 
 ```bash
 ISSUE_PRIMING_WORKFLOW_DIR="<installed-issue-priming-workflow-skill-bundle>"
@@ -796,11 +797,10 @@ AUTO_HANDOFF_FILE=$(
 )
 ```
 
-Before the Phase 6 handoff, run the `subagent-lifecycle` cleanup gate for
-completed or superseded gate and research sessions. Capture their
-role-specific state first, then close them when the target is
-`automatic-close-supported`, or record the target-honest
-`close-unavailable` outcome before invoking `play-subagent-execution`.
+Before executor dispatch, run the `subagent-lifecycle` cleanup gate for
+completed or superseded gate and research sessions as
+[`references/phase-6-auto-handoff.md`](references/phase-6-auto-handoff.md)
+§ "Lifecycle Before Handoff" defines it.
 
 Immediately before invoking `play-subagent-execution`, compute SHA-256 over the
 exact saved plan bytes with the same portable `shasum -a 256` / `sha256sum`
@@ -857,19 +857,13 @@ Auto handoff: <repo-relative-path>
 Verified auto-route attestation: <controller-validated exact-route attestation>
 ```
 
-All `play-subagent-execution` rules apply (fresh subagent per task,
+All `play-subagent-execution` rules apply unmodified (fresh subagent per task,
 executor-owned risk-based per-task review routing for multi-task plans;
-single-task plans skip per-task review). The parent-owned contract above
-activates its narrow single-task final-review carve-out because this workflow
-guarantees the mandatory Phase 7 `branch-review --fix` loop. The same Phase 7
-loop is also the final whole-diff no-Blocking guarantee for reduced per-task
-routes. If any Phase 7 run creates a branch-review-owned fix commit, invalidate
-downstream evidence and return through Candidate Closure and Source Freeze
-before the paired Phase 7 rerun on the new `HEAD`. Only a run that reports zero blocking findings
-auto-fixed and leaves no unresolved remaining `Blocking` findings except
-findings whose `critic` verdict is `INVALID` or `DOWNGRADE`, captures a final
-approval-summary notice path, and carries fresh final approval-summary evidence
-after branch-review-owned fix commits, satisfies the final-review guarantee.
+single-task plans skip per-task review), except that the parent-owned contract
+above activates the narrow single-task final-review carve-out and relies on the
+Phase 7 final-review guarantee, both defined in
+[`references/phase-6-auto-handoff.md`](references/phase-6-auto-handoff.md)
+§§ "Single-Task Final-Review Carve-Out" and "Phase 7 Final-Review Guarantee".
 
 `play-subagent-execution` may execute trivial single-task plans inline (skip-dispatch path; see its [skip-dispatch policy](../play-subagent-execution/references/skip-dispatch-policy.md)). Phase 6 itself remains "invoke `play-subagent-execution`" — the inline optimization is internal to that skill. Four runtime guardrails (single-task, `**Mode:** mechanical`, structural task-contract gate satisfied, no TDD expectations or legacy TDD step-pair markers) plus one upstream precondition (the two-gate `play-planning` return from Phase 5) gate the path; the runtime guardrails are checked by the skill's controller after plan extraction. A missing or invalid required contract checklist stops before implementation rather than falling back to mechanical dispatch.
 
@@ -915,12 +909,19 @@ checkpoint owns only readiness ordering, invalidation, and continuation.
 
 ### Phase 7: Branch Review
 
+At Phase 7 entry, before preparing review context, invoking Branch Review, or
+handling a Phase 7 result or fix continuation, load the installed
+[`references/phase-7-review-handling.md`](references/phase-7-review-handling.md).
+If it is missing, blank, unreadable, or unavailable, stop `--auto` before any
+dependent operation. That reference owns review-evidence validation and
+retention, blocker and nit classification, Branch-Review-owned fix commits,
+paired rerun inputs, and the judgment-nits helper handoff.
+
 Invoke the installed Branch Review skill in `--fix` mode to review the
 implementation before creating a PR. The first Phase 7 invocation keeps the
 existing full-diff route. Include a Phase 6 `Risk signals written to <path>`
 input only when its reviewed head and full range still match the frozen
-candidate; otherwise regenerate it through the existing producer for that
-candidate or intentionally omit the stale path. For current default-base
+candidate; otherwise intentionally omit the stale path. For current default-base
 artifacts, include `--risk-signals <path>` in that skill briefing. For current
 detached issue-base risk signals whose reviewed range is
 `<full-base-sha>...HEAD`, include that same input and `<full-base-sha>` base so
@@ -929,71 +930,30 @@ Branch Review validates the same full base SHA range. When those risk signals ca
 Phase 7 still treats it as non-authoritative handoff data; branch-review
 validates it, escalates scrutiny when present, and passes only sanitized
 semantic notes into downstream reviewer context.
+
 If the run creates any branch-review-owned fix commit, treat the earlier frozen
 candidate and all downstream evidence as stale. Regenerate risk signals for the
 new `HEAD`, return through Candidate Closure and Source Freeze, rerun applicable
 acceptance and full validation for the new frozen candidate, then use the paired
-post-fix Branch Review skill route defined below with the same base-side rule.
-Intentionally omit stale risk signals rather than forwarding them.
-Continue until a run reports zero blocking findings auto-fixed and the
-remaining findings file contains no unresolved
-`severity: "Blocking"` entries except findings whose `critic` verdict is
-`INVALID` or `DOWNGRADE`, and captures that final run's approval-summary notice
-path.
+post-fix Branch Review route that the loaded reference defines. Preserve the
+same selected base; invoke it through `--last-reviewed`/`--prior-findings` with
+only the prior run's validated immutable review head and post-fix findings as
+non-authorizing context; and regenerate current risk signals or omit stale
+ones. Candidate Closure is the required re-entry point; do not consume snapshot
+anchors after the commit.
+
 This runs the full multi-agent review on `git diff <base>...HEAD` where
 `<base>` is branch-review's selected base: normally the repository's default
 branch, or the supplied full base SHA for detached issue-base risk signals that
 use that same base side. With `--fix`, `branch-review` attempts eligible
 `Blocking` auto-fixes and eligible fixable-nit units, and commits
-branch-review-owned fixes. If any remaining true `Blocking` finding is
-unresolved (`critic` is neither `INVALID` nor `DOWNGRADE`), **stop `--auto` and
-report to the user**.
-
-Before classifying findings or preparing Phase 8 nits, load
-[`references/phase-7-review-handling.md`](references/phase-7-review-handling.md).
-That reference owns review-head parsing, `play-review/findings/v2` validation,
-approval-summary notice-path capture, blocker checks, nit classification
-details, branch-review-owned fix commit rules, remaining-nit selection, and the
-`prepare-judgment-nits` helper handoff.
-
-For the eager contract: ignore `critic: "INVALID"` for continuation and never
-pass it to Phase 8; treat `critic: "DOWNGRADE"` as non-blocking,
-judgment-required feedback; branch-review owns fixable feedback through
-`branch-review --fix`; a fixable nit withheld by the proportionality gate
-remains non-mutating and is selected for caller handoff as judgment-required.
-Pass that set and downgraded findings that remain after the final branch-review
-run to Phase 8 via the helper-produced `-nits-pending.json` path. If the
-judgment-required set is empty, omit `nits_file`.
-
-The plain Branch Review route is first-run-only. After any branch-review-owned
-fix commit, Candidate Closure and Source Freeze is the required re-entry point
-before Phase 7 invokes the installed Branch Review skill on the new `HEAD`
-through its paired `--last-reviewed`/`--prior-findings` route, passing only
-risk signals regenerated for that `HEAD` when using `--risk-signals`. Before
-that rerun, capture the prior run's validated review head and post-fix findings
-envelope as non-authorizing context. Require its existing semantic scope
-selection to retain full base...HEAD review while it forwards the validated
-prior findings to `play-review`. Phase 7 owns those inputs and orchestration,
-while Branch Review remains the comparison, fix, and commit owner. For the run
-that will allow Phase 8 to start, capture that final run's exact
-`Approval summary written to <path>.` notice path alongside the review head and
-findings path evidence. A missing approval-summary notice from the final run is
-a hard stop before Phase 8. Do not carry an approval-summary path from an
-earlier review run across a branch-review-owned fix rerun. Phase 7 only
-captures and carries the notice path; it does not parse approval summary
-fields, duplicate branch-review schema or validation policy, or perform PR
-creation readiness validation. Phase 8 may start only after the final Phase 7
-run reports zero blocking findings auto-fixed, has no unresolved true Blocking
-findings except `INVALID` or `DOWNGRADE`, has a captured final
-approval-summary path, and carries fresh final approval evidence after any
-branch-review-owned fix commits.
-Although Phase 7 does not edit fixable feedback itself, every
-branch-review-owned fix commit makes earlier implementer snapshots stale; use
-`skills/play-subagent-execution/references/snapshot-consumption.md` §
-Edit-Staleness Rule as the rerun-path reminder that edits must use freshly read
-files, not snapshot anchors.
-**This classification flow is `--auto` only**; manual operators decide
-nit-handling case by case.
+branch-review-owned fixes. Apply the loaded reference's evidence validation and
+stop rules to every result, including its remaining-nit handoff. Before Phase 8,
+capture the final run's exact `Approval summary written to <path>.` notice
+path; a missing final notice is a hard stop. Every branch-review-owned fix
+commit makes earlier implementer snapshots stale; per
+[`snapshot-consumption.md`](../play-subagent-execution/references/snapshot-consumption.md),
+read files from disk for the rerun rather than using snapshot content.
 
 ### Phase 8: Create PR
 
@@ -1010,34 +970,23 @@ If the final approval-summary path is absent or empty, stop before invoking
 Before invoking the handoff, load
 [`references/phase-8-pr-handoff.md`](references/phase-8-pr-handoff.md). That
 reference owns detailed PR body, assumptions, explicit review-gate inputs,
-assignee, and nits explanation; the eager contract below owns the hard stops
-and arguments.
+assignee, and nits explanation; this workflow owns the hard stops and
+arguments. If it is unavailable, stop before invoking `play-branch-finish`.
 
-Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and create PR**.
-Do NOT merge - the PR is the user's review gate. PR creation preserves the
-branch and worktree for review, CI, and follow-up fixes until `pr-merge`
-performs post-merge cleanup or the operator explicitly discards the work.
+Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and create PR**
+with the handoff arguments that reference defines: `assignee=@me`,
+`branch_review_required=true`, the final Phase 7 approval-summary path as
+`approval_summary_file`, the same `BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN` when
+Phase 7 branch-review ran with one, and `assumptions_comment_file` or
+`nits_file` only when the corresponding artifact exists. Do NOT merge - the PR
+is the user's review gate. PR creation preserves the branch and worktree for
+review, CI, and follow-up fixes until `pr-merge` performs post-merge cleanup or
+the operator explicitly discards the work.
 
-Pass `assignee=@me` to `play-branch-finish` Option 2. Pass
-`branch_review_required=true` to `play-branch-finish` Option 2. Pass the final
-Phase 7 approval-summary path to `play-branch-finish` Option 2 as
-`approval_summary_file`. If Phase 7 branch-review ran with
-`BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`, pass that same configured path
-pattern through to `play-branch-finish` Option 2 as
-`BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN`. Phase 8 does not validate
-approval-summary JSON or duplicate `play-branch-finish` or
-`play-validate-review-artifacts` gate semantics; it only passes explicit inputs
-and hard-stops on a missing or empty final approval-summary path.
-
-Rely on `play-branch-finish` Option 2 to invoke `pr-authoring` in `compose`
-mode; `pr-authoring` owns project-specific PR guidance, title/body validation,
-and default fallback title/body structure.
-
-Pass reviewer-relevant resolved auto-mode assumptions only through
-`assumptions_comment_file`. When resolved assumptions need reviewer visibility,
-load the helper invocation reference, invoke the assumptions-comment helper,
-and treat nonzero exit as a contract failure before writing or passing the
-path:
+When resolved auto-mode assumptions need reviewer visibility, prepare the
+`assumptions_comment_file` destination with the assumptions-comment helper from
+the issue worktree root and treat a nonzero exit as a contract failure before
+writing or passing the path:
 
 ```bash
 ASSUMPTIONS_COMMENT_FILE=$(
@@ -1045,20 +994,6 @@ ASSUMPTIONS_COMMENT_FILE=$(
     node "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/write-assumptions-comment.mjs"
 )
 ```
-
-Write only resolved, reviewer-relevant assumptions to the helper-returned path,
-then pass that path to `play-branch-finish` as `assumptions_comment_file`. If
-there are no auto-mode assumptions to surface, omit `assumptions_comment_file`
-entirely; absence means "no assumptions comment." Ambiguous decisions still
-stop `--auto` and ask the user - do not downgrade unresolved ambiguity into an
-assumptions comment.
-
-Pass judgment-required Phase 7 feedback only through `nits_file`. If Phase 7
-produced no judgment-required nits, omit `nits_file` entirely; absence means no
-post-creation nit comments. `approval_summary_file` is separate from
-`nits_file` and `assumptions_comment_file`. Do not use `nits_file` or
-`assumptions_comment_file` as approval-summary evidence. Phase 8 does not
-classify findings or prepare the nits envelope.
 
 ## Phase Flow Reference
 
