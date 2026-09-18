@@ -184,28 +184,19 @@ records the outcome without an invented assumptions table. Invalid skips,
 incomplete assumptions, conflicting stable IDs, or missing authority are
 `NOT_READY`, never permission to draft.
 
-Planning may make approved scope executable, but it must not create new product,
-infrastructure, governance, or verification obligations. Write a
-`## Scope Envelope` containing in-scope outcomes, authoritative requirements,
-explicit non-goals, authorized durable surfaces, deferred concerns, and
-blockers. Then write a `## Scope Delta` mapping every proposed addition to
-authority, necessity, and one disposition: `CURRENT`, `BLOCKER`,
-`FOLLOW-UP`, or `OPTIONAL`. Every task must map to an authoritative
-requirement and be necessary for an in-scope outcome.
+Write `## Scope Envelope` and then `## Scope Delta` before file mapping or
+task drafting. Every Scope Delta row carries exactly one disposition:
+`CURRENT`, `BLOCKER`, `FOLLOW-UP`, or `OPTIONAL`.
+[`references/planning-criteria.md`](references/planning-criteria.md)
+§ "Scope Envelope" owns the envelope field list, the expansion triggers, and
+the worked Scope Delta table; its governing invariant owns the
+no-new-obligations rule and the task-to-requirement mapping.
 
-The canonical reference owns the expansion triggers. New reusable systems,
-durable contract or artifact families, evidence-lifecycle policy, generalized
-evaluation harnesses, mutation authority, cross-provider evaluation, and
-unrelated governance work require explicit authority. Otherwise keep them in
-Deferred Follow-ups.
-
-If the approved scope contains independent subsystems, return to design
-decomposition. If required product, policy, ownership, lifecycle, mutation, or
-verification authority is missing, this invalidates readiness and returns
-`NOT_READY`: emit or reuse stable missing-decision records with the named owner
-surface and stop before drafting. Do not route missing pre-planning authority
-through a plan `BLOCKER`. Normal implementation choices discoverable from
-named sources remain implementer work.
+If required product, policy, ownership, lifecycle, mutation, or verification
+authority is missing, this invalidates readiness and returns `NOT_READY`: emit
+or reuse stable missing-decision records with the named owner surface and stop
+before drafting. Do not route missing pre-planning authority through a plan
+`BLOCKER`.
 
 For contract-heavy work, boundary changes, generated or side-channel artifacts,
 hard requirements, and contract examples, apply the canonical reference and
@@ -464,15 +455,10 @@ remains a display and ordering label only.
 
 Every authored current task must then declare exactly one canonical
 `**Contract tier:** FULL`, `**Contract tier:** LIGHTWEIGHT`, or
-`**Contract tier:** NO-TRIGGER` value. Classify the task using the bundled
-canonical criteria before choosing its contract detail; planning owns this
-classification. `FULL` tasks carry the complete contract checklist,
-`LIGHTWEIGHT` tasks carry every compact-contract field and the explicit reason
-all five behavioral eligibility dimensions are true, and `NO-TRIGGER` tasks carry a task-specific
-reason no contract trigger applies. Ambiguity defaults to `FULL`. A compact
-diff, private implementation name, artifact type, language, repository layout,
-path, persistence, or filesystem effect does not by itself authorize or reject
-`LIGHTWEIGHT`; apply the five behavioral dimensions from the canonical criteria.
+`**Contract tier:** NO-TRIGGER` value. Classify the task against the bundled
+canonical criteria (§ "Proportional contract planning") before choosing its
+contract detail; planning owns this classification, and the criteria own the
+tier definitions, eligibility dimensions, and ambiguity default.
 
 Projection disposition and task-valued proof are the sole plan-local membership
 facts. D5 validates their semantic truth and completeness. The executor
@@ -554,60 +540,8 @@ may reject or override it. The detailed taxonomy (positive and negative
 examples) lives in the [mechanical task taxonomy](../play-subagent-execution/references/skip-dispatch-policy.md#mechanical-task-taxonomy)
 reference — consult it before setting the hint.
 
-Example mechanical-task header (the enclosing projection assigns
-`EP-RENAME-EXAMPLE-TOKEN` to this task):
-
-```markdown
-### Task N: Rename Example Token
-
-**Task ID:** RENAME-EXAMPLE-TOKEN
-
-**Boundary rows:** []
-
-**Supporting-owner supplements:** []
-
-**Contract tier:** NO-TRIGGER
-
-**Mode:** mechanical
-
-**Risk hint:** low
-**Review hint:** none-final-only
-**Review rationale:** Exact single-file identifier replacement with no hard-risk trigger; final whole-diff review remains required.
-
-**Files:**
-
-- Modify: `examples/demo-note.md`
-
-**Purpose:** Rename an example token without changing example behavior.
-
-**Goal:** Every occurrence of the old token in the named file uses the new token.
-
-**Non-goals:** Do not change surrounding prose, example behavior, or additional files.
-
-**Scope mapping:** CURRENT Scope Delta row for the approved exact rename.
-
-**Source-of-truth references:** The approved issue requirement for this exact rename.
-
-**Authority surfaces:** `examples/demo-note.md`
-
-**NO-TRIGGER reason:** This exact token replacement is a single-file
-mechanical example that changes no behavior, authority, generated output,
-failure route, review rule, documentation navigation, or compatibility surface.
-
-**Acceptance criteria:** `OldExampleToken` is absent from the file and `NewExampleToken` appears in the same locations.
-
-**Risks:** Accidental replacement outside the approved file or context.
-
-**Dependencies:** None.
-
-**Verification expectations:** Confirm the approved before/after token replacement in the named file.
-
-**Proof sufficiency:** Focused inspection of the named file proves the exact
-replacement; no generalized harness or broader matrix is required.
-
-**Replace:** `OldExampleToken`
-**With:** `NewExampleToken`
-```
+A complete worked mechanical-task header lives in
+[`examples/mechanical-task-example.md`](examples/mechanical-task-example.md).
 
 Omit `**Mode:** mechanical` for any task with judgment (TDD step pairs, multi-file coordinated changes, new modules or public interfaces). Default plans without that field continue to dispatch with the full implementer template — the field is purely additive.
 
@@ -647,24 +581,6 @@ Every task spec must contain the actual contract an engineer needs. These are
   text that does not explain the task-specific facts; for FULL, checklist
   fields marked `N/A` without a task-specific reason
 
-## Remember
-
-- Exact affected file paths when known; otherwise bounded authoritative
-  discovery criteria for individual paths inside already named in-scope
-  consumers or boundaries
-- Discovery names the mapping authority and an explicit inclusion criterion;
-  it never determines the in-scope consumers or boundary participants and is
-  never a vague placeholder
-- Complete task contracts, not implementation sketches
-- The selected tier-specific shape: a complete FULL checklist, a closed
-  LIGHTWEIGHT compact contract, or a task-specific NO-TRIGGER reason without a
-  checklist label or `N/A` entry
-- Source-of-truth references over copied logic
-- Scope Envelope and Scope Delta before file or task planning
-- CURRENT task mappings to authoritative requirements and necessity
-- Authority surfaces and dependencies made explicit
-- Minimum-sufficient verification expectations without command recipes
-
 ## Self-Review
 
 After writing the plan, reload and read both validated bundle-owned references:
@@ -697,34 +613,15 @@ Review in this order:
 5. Classify every finding as `CURRENT`, `BLOCKER`, `FOLLOW-UP`, or
    `OPTIONAL` before changing the plan.
 
-For `FULL`, also confirm that every ownership relationship is exhaustively
-covered by one projection entry plus any independently necessary direction in
-exactly one tier-specific task or directly cited boundary record, or by entries
-that add distinct execution facts,
-every supporting-owner supplement references the applicable Entry IDs, and no
-task asks an implementer to choose an owner, supporting partition, consumption
-mode, precedence, or proof owner. Do not require an equivalent inverse
-producer, consumer, or reference entry. When a family-local
-authority governs ownership topology, confirm its additional complete or
-necessary topology detail. For `LIGHTWEIGHT`, confirm the compact record does
-not leave any actual known participant, independently necessary relationship or
-producer/consumer direction, compact field, or triggered obligation for the
-implementer to choose.
-
-Then self-review each of those four families against the selected contract tier:
-contract-heavy tables, boundary traceability records, task checklists, and
-operation maps. For `FULL`, require the complete applicable shape for all four
-families. A family-local authority is a separately named material authority,
-concrete approved task-local need, or independently applicable material
-authority or trigger that explicitly governs one family. For an otherwise
-valid `LIGHTWEIGHT` record, a family-local authority selects additional complete
-or necessary detail only for the family it explicitly governs; it never
-promotes unrelated families. Verify every actual known participant and every
-independently necessary execution relationship, every closed compact field, and
-an explicit statement that all five eligibility dimensions are true. Do not require an equivalent inverse
-edge solely to duplicate the projection's curated context. Ambiguity defaults to
-`FULL`; known omissions, false eligibility dimensions, and independently
-applicable material authority remain blocking.
+Then apply the tier-specific exhaustiveness checks that
+[`references/planning-criteria.md`](references/planning-criteria.md) owns
+under § "Proportional contract planning" and § "Task contract criteria",
+with the topology and supplement rules under § "Contract and traceability
+criteria": `FULL` completeness across the projection, supplements, and all
+four contract families; `LIGHTWEIGHT` compact-record completeness with its
+all-five-dimensions-true statement; and family-local authority detail. Those
+sections own the eligibility dimensions, the inverse-entry rule, and the
+ambiguity default.
 
 Only verified CURRENT findings may be fixed inline. A BLOCKER stops and returns
 to its owning decision surface. FOLLOW-UP and OPTIONAL findings remain in
