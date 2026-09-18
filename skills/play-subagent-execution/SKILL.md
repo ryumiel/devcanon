@@ -12,44 +12,6 @@ codex_sidecar:
 
 Use the adjacent [inspect-plan-projection usage](references/inspect-plan-projection-usage.md), [source-immutability usage](references/source-immutability-usage.md), [write-risk-signals usage](references/write-risk-signals-usage.md), [write-snapshot-manifest usage](references/write-snapshot-manifest-usage.md), and [validate-snapshot-manifest usage](references/validate-snapshot-manifest-usage.md). This skill retains D14-D16 lifecycle, blocking, and terminal-handoff policy.
 
-## Reference Loading
-
-### Eager
-
-Every run reads these files; they count toward the eager footprint with `SKILL.md`.
-
-- [`references/inspect-plan-projection-usage.md`](references/inspect-plan-projection-usage.md) — named without a gate by the public helper mechanics above; read in full before any `Plan: <path>` projection result is selected.
-- [`references/source-immutability-usage.md`](references/source-immutability-usage.md) — named without a gate by the public helper mechanics above; its commands run only inside the lifecycle/status policy's D14-D16 guards.
-- [`references/write-risk-signals-usage.md`](references/write-risk-signals-usage.md) — named without a gate by the public helper mechanics above; its commands run only in the terminal risk-signals action.
-- [`references/write-snapshot-manifest-usage.md`](references/write-snapshot-manifest-usage.md) — named without a gate by the public helper mechanics above; the writer runs inside D12/D13 children.
-- [`references/validate-snapshot-manifest-usage.md`](references/validate-snapshot-manifest-usage.md) — named without a gate by the public helper mechanics above; validation runs only against a requested snapshot.
-- [`references/review-routing-policy.md`](references/review-routing-policy.md) — initial effective-route selection on every plan, multi-task or single-task.
-- [`references/lifecycle-status-policy.md`](references/lifecycle-status-policy.md) — task completion, D16 timing or exact skip, and terminal disposition on every run, plus every returned worker or reviewer status.
-
-This list covers the files the controller reads itself. Files that dispatched D12-D16 children read under their prompt templates, such as `references/snapshot-manifest-recipe.md`, and files that `subagent-lifecycle` reads during its procedure are part of a run's footprint but are declared by those owners, not restated here.
-
-### Conditional
-
-Load these only at the loading site that names the trigger.
-
-- [`references/contract-example-discipline-consumer-rule.md`](references/contract-example-discipline-consumer-rule.md) — extracted plan/task execution context contains Contract Example Discipline or an equivalent clearly labeled section/obligation.
-- [`references/process-diagrams.md`](references/process-diagrams.md) — full selection or process diagrams needed.
-- [`../play-agent-dispatch/references/dispatch-ritual-usage.md`](../play-agent-dispatch/references/dispatch-ritual-usage.md) — before every fresh D12-D16 child capture; a guarded-inline run under the exact ADR-0016 D16 skip captures none.
-- [`../subagent-lifecycle/SKILL.md`](../subagent-lifecycle/SKILL.md) — before the first D12-D16 child dispatch of the run.
-- [`references/skip-dispatch-policy.md`](references/skip-dispatch-policy.md) — single-task plan marked `**Mode:** mechanical`: guardrail evaluation, fallback, taxonomy, or examples.
-- [`references/executor-prompt.md`](references/executor-prompt.md) — D13 dispatch after all five guardrails pass and the controller does not take the inline path.
-- [`references/implementer-prompt.md`](references/implementer-prompt.md) — D12 dispatch, including D13-to-D12 reclassification; a same-session D12 fixup sends incremental context instead, and the guarded-inline and D13 paths do not read it.
-- [`references/snapshot-consumption.md`](references/snapshot-consumption.md) — snapshot request/skip classification and prompt fields before any D12/D13 child dispatch, then manifest validation or consumption after a requested snapshot.
-- [`references/spec-reviewer-prompt.md`](references/spec-reviewer-prompt.md) — D14 dispatch when a multi-task effective route includes spec review.
-- [`references/code-quality-reviewer-prompt.md`](references/code-quality-reviewer-prompt.md) — D15 dispatch on `spec-and-quality`, and D16 final whole-implementation dispatch on every route except the exact ADR-0016 single-task auto carve-out.
-- [`references/terminal-risk-signals.md`](references/terminal-risk-signals.md) — terminal handoff state exists.
-- [`references/direct-manual-terminal-handoff.md`](references/direct-manual-terminal-handoff.md) — direct or manual invocation with no verified owning caller final whole-diff gate.
-- [`references/example-workflow.md`](references/example-workflow.md) — end-to-end illustrative trace needed.
-- [`references/advantages.md`](references/advantages.md) — rationale, quality gates, cost, or comparison context needed.
-- [`references/red-flags.md`](references/red-flags.md) — full red-flags list needed beyond the inline Red Flags summary.
-
-Scripts under `scripts/` are executed, not read; their usage documents above are the prompt-side surface.
-
 ## Invocation Policy
 
 Do not select this workflow from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language; the explicit-invocation rule itself is owned by this skill's frontmatter (`description` and `codex_sidecar` policy).
@@ -111,8 +73,16 @@ surface that source inspection cannot confirm, fail closed: report
 BLOCKED/NEEDS_CONTEXT with the exact contract gap instead of silently treating
 the missing contract as satisfied.
 
-Before any implementer dispatch or inline execution, run a structural
-projection gate before fallback or route selection. For a reviewed `Plan: <path>`
+Before the structural projection gate, resolve the installed
+[task contract criteria](../play-planning/references/planning-criteria.md#task-contract-criteria)
+from the loaded `play-planning` skill bundle, not from the target repository or
+current working directory, and read that criteria section in full. Retain the
+validated path for task-contract validation. A missing, blank, unreadable, or
+unavailable criteria reference returns `BLOCKED/NEEDS_CONTEXT` before skip
+evaluation, inline execution, implementer or reviewer dispatch, or final
+review.
+
+Then run the structural projection gate before fallback or route selection. For a reviewed `Plan: <path>`
 handoff, after the existing path guards and reviewed-digest comparison, invoke
 `inspect-plan-projection.sh --path <repo-relative-plan-path>` with that exact
 guarded path. Treat every zero-status result as untrusted. Before interpreting
@@ -205,12 +175,11 @@ Do not infer trigger applicability inside `play-subagent-execution`;
 reclassify a declared tier. For every current task in a reviewed plan, the gate
 requires exactly one declared `**Contract tier:** FULL`, `LIGHTWEIGHT`, or
 `NO-TRIGGER` and validates only that declared tier's structure from the
-assembled context. The
-[task contract criteria](../play-planning/references/planning-criteria.md#task-contract-criteria)
-own the per-tier field definitions and what the selected projection entries
-already carry; the executor checks the selected entries, resolved IDs, curated
-records, and task-local fields structurally against those criteria and does
-not restate them. The executor must not promote, demote, infer, or otherwise
+assembled context. The loaded task contract criteria own the per-tier field
+definitions and what the selected projection entries already carry; the
+executor checks the selected entries, resolved IDs, curated records, and
+task-local fields structurally against them and does not restate them. The
+executor must not promote, demote, infer, or otherwise
 reclassify the tier from task prose, diff size, path spelling, or runtime risk
 routing. D5 owns semantic coverage for reviewed plans, including whether the
 selected entries cover every actual participant and independently necessary
@@ -650,9 +619,10 @@ route. Use the
 completion, exact D16 skip eligibility, final-review timing, and returned
 terminal disposition. This index does not restate those transitions.
 
-For direct/manual runs, continue to the
-[Direct/manual terminal handoff](#directmanual-terminal-handoff); that section
-owns branch-level review status resolution and pre-finish reporting.
+For direct/manual runs, load the
+[Direct/manual terminal handoff](references/direct-manual-terminal-handoff.md)
+after the built-in final whole-implementation review passes. It supplies
+branch-level review status resolution and pre-finish reporting.
 
 ### Terminal risk signals
 
@@ -670,17 +640,19 @@ contract before preparing the artifact:
 bash "$PLAY_SUBAGENT_EXECUTION_DIR/scripts/write-risk-signals.sh" --help
 ```
 
-Then, before setting any helper input, load
-[`references/terminal-risk-signals.md`](references/terminal-risk-signals.md)
-for the required inputs, the six signal categories, and the optional
-`contract_example_discipline` context object. A missing, blank, unreadable, or
-unavailable reference is a terminal blocker: do not invoke the helper, create a
-risk-signals artifact, or emit the success notice, and do not improvise the
-inputs inline; report the blocker. `play-subagent-execution` is the normative
-owner of terminal-signal policy; the loaded reference is a subordinate,
-terminal-handoff-scoped operating procedure, and the
-[write-risk-signals usage](references/write-risk-signals-usage.md) keeps the
-helper's invocation mechanics.
+Read the [write-risk-signals usage](references/write-risk-signals-usage.md) in
+full before supplying its inputs. A missing, blank, unreadable, or unavailable
+usage document is a terminal blocker: do not invoke the helper, create a
+risk-signals artifact, or emit the success notice; report the blocker. Use the
+same full branch range and changed files that the next branch review will
+validate. For a detached issue-base review, use the full base SHA as the
+range's left side and reviewed base. Include Contract Example Discipline context
+only when present extracted-context obligations must reach the next branch
+review after a verified `issue-priming-workflow --auto` single-task skip; copy
+only those obligations and the shared consumer rule. If present obligations
+cannot be represented by the writer's bounded context, report BLOCKED without
+invoking the helper or emitting the success notice. The usage document owns the
+writer's interface; this workflow owns when it runs and how its output is used.
 
 Use `scripts/write-risk-signals.sh` to write the artifact. The success notice
 line is exactly:
@@ -694,11 +666,13 @@ If the helper fails when terminal handoff was promised or expected, report a
 blocker and do not emit the notice.
 
 When the helper emits `Risk signals written to <path>.`, pass that emitted path
-to the next branch review invocation in the form the loaded reference
-specifies for the artifact's base. If any later source mutation, including a
-branch-review-owned fix commit, changes `HEAD`, regenerate risk signals for the
-new `HEAD` before the next branch review, or omit the stale risk-signals path
-intentionally.
+as `branch-review --risk-signals <path>`. In an active auto-fix loop, preserve
+the existing `branch-review --fix --risk-signals <path>` invocation; this does
+not grant auto-fix authority. For a detached issue-base review, pass the full
+base SHA as the positional base in the same form. If any later source mutation,
+including a branch-review-owned fix commit, changes `HEAD`, regenerate risk
+signals for the new `HEAD` before the next branch review, or omit the stale
+risk-signals path intentionally.
 
 Direct/manual terminal handoff otherwise remains unchanged. This skill did not
 run branch-level review; run `branch-review` before `play-branch-finish` when
@@ -723,9 +697,10 @@ procedure.
 Completion-boundary contract: implementation summaries, verification summaries,
 and review pass reports are status reports only; they are not terminal workflow
 states. After the final whole-implementation review passes, the next action is
-to resolve the branch-level review status as this section directs and then
-either hand off for required branch review, wait until that review status is
-resolved, or invoke `play-branch-finish` when branch review is not required.
+to resolve branch-level review status through the loaded direct/manual
+procedure, then either hand off for required branch review, wait until that
+review status is resolved, or invoke `play-branch-finish` when branch review is
+not required.
 Treating a summary as completion and stopping there is invalid:
 summary-only completion is a workflow violation.
 
