@@ -166,10 +166,11 @@ role-specific state has already been captured.
    applicable reviewer/fix-loop final disposition. This keep-open decision runs
    before automatic closure.
 3. When the target is `automatic-close-supported`, attempt to close only an
-   authorized, eligible completed session whose continuation window ended or a
-   session with a captured supersession decision, after the required state is
-   recorded. Mark `closed=yes` only after observing a successful close result
-   for that stable session identity and exposed usable close operation.
+   authorized, eligible completed session whose continuation window ended or an
+   authorized, eligible session with a captured supersession decision. In both
+   cases, required state must be recorded and no authorized continuation window
+   may remain pending. Mark `closed=yes` only after observing a successful close
+   result for that stable session identity and exposed usable close operation.
 4. When the target is `inventory-only` or `cleanup-unavailable`, first capture
    the same role-specific state, then record the `close-unavailable` reason
    before spawning instead of claiming closure.
@@ -189,13 +190,14 @@ exhaustion, not implementation failure, reviewer failure, or CI failure.
 When a spawn fails because of a slot/session limit:
 
 1. Record the failure category and whether child creation is `confirmed`,
-   `rejected`, or `unknown` in the lifecycle ledger. Report bounded active and
-   completed inventory when it is exposed, along with its visibility limit; if
-   inventory is unavailable, say so. Apply the retry-failure escalation
-   allowlist and redaction rule below to that report. Zero observed active
-   children, ledger or internal record counts, and a later successful creation
-   do not establish free capacity, the runtime's capacity calculation, or the
-   cause of this failure.
+   `rejected`, or `unknown` in the lifecycle ledger. Report bounded inventory
+   for every exposed nonclosed operational state (`active`, `waiting`,
+   `interrupted`, and `completed`), along with visibility limits and excluded
+   or unknown states; if inventory is unavailable, say so. Apply the
+   retry-failure escalation allowlist and redaction rule below to that report.
+   Zero observed active children, ledger or internal record counts, and a later
+   successful creation do not establish free capacity, the runtime's capacity
+   calculation, or the cause of this failure.
 2. Separate confirmed facts, possible causes, and unresolved uncertainty. Do
    not promote a count, a housekeeping result, or a later outcome into a causal
    explanation without direct evidence.
@@ -214,8 +216,15 @@ When a spawn fails because of a slot/session limit:
 5. Reconstruct active workflow state from the lifecycle ledger and the
    repository state anchors the owning workflow uses, such as `git status`,
    current branch, and relevant base/head SHAs.
-6. Retry the same exact already-validated tuple once after a confirmed authorized
-   automatic-cleanup result or after the operator confirms manual cleanup. Slot
+6. Retry the same exact already-validated tuple once only when direct evidence
+   confirms the failed creation was `rejected`, and only after a confirmed
+   authorized automatic-cleanup result or after the operator confirms manual
+   cleanup. Cleanup success, manual-cleanup confirmation, inventory counts, and
+   archival or other housekeeping results do not establish rejected creation.
+   For `confirmed` creation, preserve the known child identity and required
+   state, then return to the owning workflow without another creation under
+   slot recovery. For `unknown` creation, report uncertainty and use the owning
+   workflow's existing blocked or manual-resolution path without retry. Slot
    recovery never authorizes a different role, model, effort, or other tuple
    value. It does not authorize capacity probes, spawns beyond that allowance,
    runtime or configuration changes, host restarts, or another task as a
