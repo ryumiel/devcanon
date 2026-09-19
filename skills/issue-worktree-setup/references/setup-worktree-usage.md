@@ -51,6 +51,13 @@ assigned issue work or a clean unassigned managed checkout. Preserve existing
 issue branch and user changes. An unrelated, mismatched, or ambiguous supplied
 checkout stops here; do not repurpose it or fall back from that refusal.
 
+Compare the supplied directory and Git-reported root as canonical host-native
+directory identities, not raw path strings: normalize equivalent separators and
+trailing separators, and resolve links according to the host's native identity
+rules before comparing. This read-only identity check is also the checkout-root
+validation consumed by provider entrypoints and `issue-priming-workflow`;
+consumers must not reproduce a weaker path spelling check.
+
 If the host exposes native worktree control and no supplied checkout blocks,
 use that surface to create or adopt the derived worktree, capture its absolute
 path in `WORKTREE_PATH`, and continue from the worktree path validation below.
@@ -123,7 +130,10 @@ case "$WORKTREE_PATH" in
 esac
 [ -d "$WORKTREE_PATH" ] || { echo "worktree missing or unreadable: $WORKTREE_PATH" >&2; exit 1; }
 [ -x "$WORKTREE_PATH" ] || { echo "worktree not searchable: $WORKTREE_PATH" >&2; exit 1; }
-[ "$(git -C "$WORKTREE_PATH" rev-parse --show-toplevel)" = "$WORKTREE_PATH" ] || { echo "worktree path is not the Git root: $WORKTREE_PATH" >&2; exit 1; }
+GIT_ROOT="$(git -C "$WORKTREE_PATH" rev-parse --show-toplevel)" || { echo "worktree is not a Git checkout: $WORKTREE_PATH" >&2; exit 1; }
+WORKTREE_IDENTITY="$(cd "$WORKTREE_PATH" && pwd -P)"
+GIT_ROOT_IDENTITY="$(cd "$GIT_ROOT" && pwd -P)"
+[ "$WORKTREE_IDENTITY" = "$GIT_ROOT_IDENTITY" ] || { echo "worktree path is not the Git root: $WORKTREE_PATH" >&2; exit 1; }
 ```
 
 PowerShell example:
@@ -134,7 +144,9 @@ if (-not [System.IO.Path]::IsPathFullyQualified($WORKTREE_PATH)) { throw "worktr
 if (-not (Test-Path -LiteralPath $WORKTREE_PATH -PathType Container)) { throw "worktree missing or unreadable: $WORKTREE_PATH" }
 try { Get-ChildItem -LiteralPath $WORKTREE_PATH -Force -ErrorAction Stop | Out-Null } catch { throw "worktree not searchable: $WORKTREE_PATH" }
 $GitRoot = (git -C $WORKTREE_PATH rev-parse --show-toplevel).Trim()
-if ($LASTEXITCODE -ne 0 -or $GitRoot -ne $WORKTREE_PATH) { throw "worktree path is not the Git root: $WORKTREE_PATH" }
+if ($LASTEXITCODE -ne 0) { throw "worktree is not a Git checkout: $WORKTREE_PATH" }
+# Compare $WORKTREE_PATH and $GitRoot through the host's canonical directory
+# identity operation as the native-first selection contract requires.
 ```
 
 ### Artifact write guards

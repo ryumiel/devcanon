@@ -198,6 +198,9 @@ and authority permit it, and confirm the mapping from host evidence. A pending
 host result remains pending across refresh and cannot become an owner mapping or
 justify a duplicate dispatch. Missing authority or host support stops before
 creation; task creation never grants publication or merge authority.
+Inspect/monitor-only work may reconcile and report but cannot create an owner;
+start-work uses its applicable authority under actual host restrictions while
+preserving compatible existing authority without generic reapproval.
 
 The confirmed provider owner adopts a validated task checkout before evidence
 writes and research. Suitable issue work and user changes continue intact; a

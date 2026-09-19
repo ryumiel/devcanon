@@ -66,19 +66,19 @@ Slug rules apply to the `<title-slug>` segment only: lowercase, kebab-case, alph
 
 When this entrypoint comes from `issue-batch-routing`, it runs in the
 router-created or router-located top-level owner task. Confirm that owner-root
-context before provider priming or fetch persistence; a nested controller child or an unconfirmed
-provisional owner identifier is a blocker. Give the host-provided task checkout
-to `issue-worktree-setup` for adoption before considering new provisioning.
+context before provider priming or fetch persistence; a nested controller child
+or an unconfirmed provisional owner identifier is a blocker. Give the
+host-provided task checkout to `issue-worktree-setup` for adoption before
+considering new provisioning. The
+[setup-worktree usage](../issue-worktree-setup/references/setup-worktree-usage.md#native-first-selection)
+is the sole owner of checkout identity, refusal, and fallback decisions.
 
 Provision or adopt the worktree and validate `WORKTREE_PATH` by following the
 setup-worktree usage's
 `## Consumer worktree provisioning and artifact write guards` section:
 checkout-adoption validation, native-first selection (including the
 Windows-hosted Codex/PowerShell caution), fallback helper invocation,
-`WORKTREE_SETUP_OUTPUT` parsing, and worktree path validation. A mismatched,
-unrelated, or ambiguous supplied checkout blocks before an artifact write or
-branch repurposing. A validated native adoption preserves existing issue work
-and never falls through to fallback or a nested worktree.
+`WORKTREE_SETUP_OUTPUT` parsing, and worktree path validation.
 
 Compute the issue-body artifact path inside `WORKTREE_PATH`:
 `.ephemeral/<YYYY-MM-DD>-<id>-issue-body.md` (today's date; GitHub issue

@@ -61,6 +61,22 @@ that boundary for one concrete decision or manual action; it must not be
 reconstructed from an owner report, a provisional host identifier, or a child
 task.
 
+## Owner dispatch boundary
+
+A separate top-level owner task is an independently managed depth-0 root for
+the shared provider and priming workflow, with its own checkout, reports, and
+continuation. It is not a label for a nested controller child.
+
+Keep inspect/monitor-only work separate from start-work. Inspect/monitor-only
+may refresh, discover, reconcile pending creation, or report; it must not create
+an owner task or begin provider priming. Start-work requires explicit work
+intent and applicable effect authority, subject to the current host's actual
+task capability and restrictions. Preserve compatible existing authority and
+confirmed owner continuity without requesting a generic reapproval. When only a
+required decision is missing, ask for that decision; a host denial remains a
+separate manual outcome and no skill prose overrides it. Start-work authority
+does not grant publication, merge, or another downstream effect.
+
 When the host provides thread-management or automation tools, use those tools to
 start, inspect, message, and archive owner threads. When those tools are absent,
 report the needed manual routing action and keep the ledger in the
@@ -200,7 +216,8 @@ For each open batch item:
 3. If `owner_thread_id` is missing, first reconcile any pending owner creation
    through supported host result or compatible-owner discovery. A pending result
    waits or reports when it cannot yet be confirmed; changed source state does
-   not authorize a second dispatch. For an active issue with no pending result,
+   not authorize a second dispatch. Inspect/monitor-only intent ends after that
+   reconciliation or report. For an active start-work issue with no pending result,
    first prove the provider-native argument and compute the complete
    issue-priming route key. If the recorded key already matches, wait, inspect,
    or report before owner dispatch. Only then use this owner-dispatch sequence:
@@ -406,15 +423,15 @@ The following seven bounded fixture families are the self-check surface for the
 owner route. Each yields one eligible action or an explicit wait/manual outcome;
 they do not authorize live task creation during fixture evaluation.
 
-| Family                                                                                                                     | Required outcome                                                                                                                                                                                                |
-| -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Active GitHub or Linear item has a complete tuple, applicable creation authority, host capability, and no compatible owner | Record the complete route key, dispatch exactly one separate top-level owner task carrying the provider priming prompt, retain pending host output, then record the owner mapping only after host confirmation. |
-| Existing compatible confirmed owner, branch, and checkout match the complete key                                           | Reuse the owner and continuity evidence; do not create or re-prime another task.                                                                                                                                |
-| Active item is missing creation authority                                                                                  | Ask for that one authority decision before any host creation or provider priming.                                                                                                                               |
-| Active item has authority but no supported host task capability                                                            | Report the manual owner-dispatch action; do not substitute a controller child.                                                                                                                                  |
-| Host returns only a provisional creation identifier, including after a refreshed or changed source digest                  | Keep the creation pending, reconcile through supported result or discovery, and do not create a duplicate or record the provisional value as `owner_thread_id`.                                                 |
-| Provider receives an unrelated, mismatched, or ambiguous host checkout                                                     | Block before issue-body or comment-evidence writes, branch repurposing, or fallback provisioning.                                                                                                               |
-| Provider receives a validated root-task checkout, including one with existing issue branch or user changes                 | Adopt that checkout, preserve its work, validate it before artifact guards, and do not run fallback or create a nested worktree after native adoption.                                                          |
+| Family                                                                                                                                                             | Required outcome                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Direct router invocation has active start-work intent, a complete tuple, applicable creation authority, host capability, and no compatible owner                   | Record the complete route key, dispatch exactly one separate depth-0 owner task carrying the provider priming prompt, retain pending host output, then record the mapping only after host confirmation.   |
+| Coordination handoff has the same accepted scope, authority, and active start-work facts                                                                           | Forward them unchanged to the router and obtain the same owner-dispatch procedure and outcome as direct invocation; coordination creates no second procedure.                                             |
+| Direct or coordinated item is inspect/monitor-only                                                                                                                 | Refresh, discover, reconcile, or report only; do not create an owner task or begin provider priming.                                                                                                      |
+| Existing compatible confirmed owner, branch, checkout, and authority match the complete key                                                                        | Reuse the same depth-0 owner and continuity evidence without a generic reapproval or re-priming.                                                                                                          |
+| Active start-work item is missing creation authority                                                                                                               | Ask for that one authority decision before any host creation or provider priming.                                                                                                                         |
+| Host-resolution variants each change one fact from valid start-work: capability is unavailable, or the host returns only a provisional creation identifier         | Respectively report the manual owner-dispatch action without a controller child, or retain and reconcile pending creation across a refresh without duplicate creation or a provisional `owner_thread_id`. |
+| Checkout-adoption variants each hold all other facts fixed: a validated root-task checkout with existing issue work, or an unrelated/mismatched/ambiguous checkout | Respectively adopt and preserve the work before artifact guards without fallback or nested worktree, or block before writes, branch repurposing, or fallback provisioning.                                |
 
 Use these concrete fixture outcomes to self-check monitor decisions:
 

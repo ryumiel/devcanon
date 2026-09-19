@@ -80,6 +80,13 @@ equality comparison. Missing, incomplete, or changed paired context is a
 handoff blocker; wait or report rather than emitting an owner-handoff or
 receipt.
 
+For a batch-routed handoff, Phase 1 must confirm that the entrypoint is running
+in the router-confirmed separate depth-0 owner root before research. A missing,
+provisional, nested, or mismatched owner-root precondition blocks before
+artifact consumption or a research dispatch; it does not create or move a
+checkout. `issue-worktree-setup` owns checkout root and repository identity
+validation.
+
 The phases below use `--auto` and `--research` as shorthand for the operator's CLI flags at the entrypoint. The entrypoint reflects them into the payload as `payload.mode = auto` (vs. `interactive`) and `payload.research = forced` (vs. `gated`); the workflow itself only ever sees the payload.
 
 ## Path-First Context Hygiene
@@ -143,12 +150,12 @@ Keep phase-local command snippets where the workflow executes them. For detailed
 ## Phase 1: Adopt the Handoff Artifacts
 
 The entrypoint has already adopted, provisioned, or reused the issue worktree
-and written the issue body inside it before invoking this workflow. Phase 1
-accepts only that ready checkout: it verifies that the supplied directory is a
-Git worktree root before adopting artifacts and fails loudly if the issue-body
-path is malformed or missing, or if a present comment-evidence path is
-malformed, missing, or unreadable. It does not create a worktree, switch a
-branch, reset user changes, or retry provisioning.
+and written the issue body inside it before invoking this workflow.
+`issue-worktree-setup` has already validated its root and repository identity.
+Phase 1 accepts only that ready checkout, verifies artifact readability, and
+fails loudly if the issue-body path is malformed or missing, or if a present
+comment-evidence path is malformed, missing, or unreadable. It does not create
+a worktree, switch a branch, reset user changes, or retry provisioning.
 
 ```bash
 WORKTREE_PATH="<payload.worktree-path>"
@@ -159,7 +166,6 @@ case "$WORKTREE_PATH" in
 esac
 [ -d "$WORKTREE_PATH" ] || { echo "worktree missing or unreadable: $WORKTREE_PATH" >&2; exit 1; }
 [ -x "$WORKTREE_PATH" ] || { echo "worktree not searchable: $WORKTREE_PATH" >&2; exit 1; }
-[ "$(git -C "$WORKTREE_PATH" rev-parse --show-toplevel)" = "$WORKTREE_PATH" ] || { echo "worktree path is not the Git root: $WORKTREE_PATH" >&2; exit 1; }
 cd "$WORKTREE_PATH" || { echo "failed to enter worktree: $WORKTREE_PATH" >&2; exit 1; }
 
 ISSUE_BODY_PATH="<payload.issue-body-path>"
