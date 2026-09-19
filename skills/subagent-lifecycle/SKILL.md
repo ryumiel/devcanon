@@ -143,6 +143,14 @@ session: a stable identity, an exposed usable close operation, and a successful
 close result. Capability-class support alone is insufficient. If any fact is
 missing, automatic closure is unavailable for that session.
 
+For a creation-limit failure, inspect exposed lifecycle controls and relevant
+host task-management controls before asking for generic manual cleanup. Record
+each available operation separately from the capability class and from the
+owning workflow's authority to use it. For example, app archival can be an
+available housekeeping operation while low-level close remains unavailable;
+archival is neither `closed=yes` nor evidence that runtime capacity changed.
+Availability of any operation grants no permission to use it.
+
 ## Cleanup Gate Before Spawns
 
 Before every new subagent spawn, inspect the lifecycle ledger for completed
@@ -157,11 +165,11 @@ role-specific state has already been captured.
    identity and that continuation window is pending, such as D12 awaiting the
    applicable reviewer/fix-loop final disposition. This keep-open decision runs
    before automatic closure.
-3. When the target is `automatic-close-supported`, attempt to close only a
-   completed session whose continuation window ended or a session with a
-   captured supersession decision, after the required state is recorded. Mark
-   `closed=yes` only after observing a successful close result for that stable
-   session identity and exposed usable close operation.
+3. When the target is `automatic-close-supported`, attempt to close only an
+   authorized, eligible completed session whose continuation window ended or a
+   session with a captured supersession decision, after the required state is
+   recorded. Mark `closed=yes` only after observing a successful close result
+   for that stable session identity and exposed usable close operation.
 4. When the target is `inventory-only` or `cleanup-unavailable`, first capture
    the same role-specific state, then record the `close-unavailable` reason
    before spawning instead of claiming closure.
@@ -180,26 +188,44 @@ exhaustion, not implementation failure, reviewer failure, or CI failure.
 
 When a spawn fails because of a slot/session limit:
 
-1. Classify the failure as orchestration resource exhaustion in the lifecycle
-   ledger.
-2. Run the cleanup gate for all completed or superseded sessions.
-3. If automatic cleanup is unavailable, surface explicit operator/UI cleanup
-   guidance. Include only sanitized open-agent inventory when the target exposes
-   it; otherwise state that inventory is unavailable. Use the same field
-   allowlist and redaction rule described for retry-failure escalation below.
-   Wait for operator confirmation that manual cleanup is complete before
-   continuing.
-4. Reconstruct active workflow state from the lifecycle ledger and the
+1. Record the failure category and whether child creation is `confirmed`,
+   `rejected`, or `unknown` in the lifecycle ledger. Report bounded active and
+   completed inventory when it is exposed, along with its visibility limit; if
+   inventory is unavailable, say so. Apply the retry-failure escalation
+   allowlist and redaction rule below to that report. Zero observed active
+   children, ledger or internal record counts, and a later successful creation
+   do not establish free capacity, the runtime's capacity calculation, or the
+   cause of this failure.
+2. Separate confirmed facts, possible causes, and unresolved uncertainty. Do
+   not promote a count, a housekeeping result, or a later outcome into a causal
+   explanation without direct evidence.
+3. Inspect exposed lifecycle controls and relevant host task-management
+   controls separately. Before any cleanup, preserve captured role results and
+   pending continuation windows through the cleanup gate, and verify the
+   owning workflow's authorization and the gate's eligibility. A host
+   housekeeping result is a reported action result only; it does not make the
+   session closed or prove a capacity effect.
+4. Run the cleanup gate for all completed or superseded sessions. If automatic
+   cleanup is unavailable, report the discovered host operation and its
+   authority status; when none is supported, say so before giving explicit
+   manual-cleanup guidance. An authorized agent housekeeping action uses the
+   manual-confirmation path: report its result and wait for operator
+   confirmation that manual cleanup is complete before continuing.
+5. Reconstruct active workflow state from the lifecycle ledger and the
    repository state anchors the owning workflow uses, such as `git status`,
    current branch, and relevant base/head SHAs.
-5. Retry the same already-validated tuple once after automatic
-   cleanup completes or after the operator confirms manual cleanup. Slot
+6. Retry the same exact already-validated tuple once after a confirmed authorized
+   automatic-cleanup result or after the operator confirms manual cleanup. Slot
    recovery never authorizes a different role, model, effort, or other tuple
-   value.
-6. If the retry still fails, stop and escalate to the user with a sanitized
-   summary of the reconstructed state and remaining open-agent inventory, or
-   with a clear statement that inventory is unavailable. Include only session
-   ids, status, role, scope, and needed repository anchors by default. Never
+   value. It does not authorize capacity probes, spawns beyond that allowance,
+   runtime or configuration changes, host restarts, or another task as a
+   workaround.
+7. If the retry still fails, stop. Report the attempted actions and their
+   confirmed results, remaining allowance=`0`, missing evidence or capability,
+   and a concrete supported next step. If none is known, say so and request
+   manual or runtime-support escalation. Include only sanitized inventory when
+   available, or state that it is unavailable. Include only session ids,
+   status, role, scope, and needed repository anchors by default. Never
    disclose secrets, credentials, tokens, PII, or environment values. For
    shared PR, issue, tracker, or review comments, apply the `Agent-Local
 Evidence Reuse Boundary` in `docs/specs/afds-workflow-routing.md`. Use
