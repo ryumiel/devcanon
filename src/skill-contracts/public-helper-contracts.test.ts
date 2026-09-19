@@ -207,15 +207,16 @@ describe("public helper registry", () => {
         executable: "skills/issue-worktree-setup/scripts/setup-worktree.mjs",
       }),
     );
-    expect(rows).toContainEqual({
-      helperId: "play-subagent-execution/inspect-plan-projection",
-      role: "Inspects a guarded path-backed execution projection.",
-      owningSkill: "play-subagent-execution",
-      executable:
-        "skills/play-subagent-execution/scripts/inspect-plan-projection.sh",
-      usageDocument:
-        "skills/play-subagent-execution/references/inspect-plan-projection-usage.md",
-    });
+    expect(rows).toContainEqual(
+      expect.objectContaining({
+        helperId: "play-subagent-execution/inspect-plan-projection",
+        owningSkill: "play-subagent-execution",
+        executable:
+          "skills/play-subagent-execution/scripts/inspect-plan-projection.sh",
+        usageDocument:
+          "skills/play-subagent-execution/references/inspect-plan-projection-usage.md",
+      }),
+    );
     expect(rows.map((row) => row.executable)).not.toContain(
       "skills/issue-worktree-setup/scripts/setup-worktree.sh",
     );

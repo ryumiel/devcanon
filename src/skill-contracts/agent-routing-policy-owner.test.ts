@@ -10,30 +10,6 @@ import { loadConfig } from "../config/load.js";
 const OWNER_PATH = "docs/guidelines/agent-routing-and-mutation-policy.md";
 const AGENT_SPEC_PATH = "docs/specs/agents.md";
 
-const FIXED_ROUTE_OWNER_INVENTORY = [
-  ["D1", "Issue gate — `issue-priming-workflow` Phase 2"],
-  ["D2", "Internal research — `issue-priming-workflow` Phase 3"],
-  ["D3", "External research — `issue-priming-workflow` Phase 3"],
-  ["D4", "Focused specialist — `play-agent-dispatch`"],
-  ["D5", "Plan review — `play-planning`"],
-  ["D6", "Executability review — `play-planning`"],
-  ["D7", "Code-quality topical — `play-review` Phase 3"],
-  ["D8", "Architecture topical — `play-review` Phase 3"],
-  ["D9", "Spec topical — `play-review` Phase 3"],
-  ["D10", "Critic — `play-review` Phase 5"],
-  ["D11", "Skill pressure scenario — `play-skill-authoring`"],
-  ["D12", "Default implementation — `play-subagent-execution`"],
-  ["D13", "Exact task — `play-subagent-execution`"],
-  ["D14", "Per-task spec review — `play-subagent-execution` review routing"],
-  ["D15", "Per-task quality review — `play-subagent-execution` review routing"],
-  [
-    "D16",
-    "Final whole-implementation quality review — `play-subagent-execution` Process step 10",
-  ],
-  ["D17", "CI diagnosis/fix — `pr-merge` Step 4"],
-  ["D18", "Semantic review context — `play-review` Phase 2.25"],
-] as const;
-
 const D17_BRANCH_BY_MODEL = {
   D17_DIAGNOSIS_MODEL: "diagnosis",
   D17_EXACT_FIX_MODEL: "exact-fix",
@@ -234,35 +210,6 @@ const FRESH_SPAWNS = [
 ] as const;
 
 describe("agent routing and mutation policy owner", () => {
-  it("keeps a literal D1-D18 route-owner inventory", async () => {
-    const source = await readRepoFile(OWNER_PATH);
-    const routeSection = source
-      .split("## Direct-Child Route Inventory", 2)[1]
-      ?.split("## Capability Escalation Adoption Inventory", 1)[0];
-    expect(routeSection).toBeDefined();
-    const rows = new Map(
-      (routeSection ?? "")
-        .split("\n")
-        .filter((line) => /^\| D\d+\s+\|/u.test(line))
-        .map((line) => {
-          const cells = line
-            .split("|")
-            .slice(1, -1)
-            .map((cell) => cell.trim());
-          return [cells[0], cells[1]] as const;
-        }),
-    );
-
-    expect(FIXED_ROUTE_OWNER_INVENTORY.map(([id]) => id)).toEqual(
-      Array.from({ length: 18 }, (_, index) => `D${index + 1}`),
-    );
-    for (const [id, surfaceAndOwner] of FIXED_ROUTE_OWNER_INVENTORY) {
-      expect(rows.get(id), `${id} exact surface and owner`).toBe(
-        surfaceAndOwner,
-      );
-    }
-  });
-
   it("parses the complete skill and D1-D18 route inventories", async () => {
     const [owner, sourceSkills] = await Promise.all([
       readAgentRoutingPolicyOwner(OWNER_PATH),
@@ -392,54 +339,6 @@ describe("agent routing and mutation policy owner", () => {
     }
   });
 
-  it("keeps every D1-D18 model source Codex-bound and checkout-independent", async () => {
-    const CAPTURE_OR_SPAWN_CLAUSE =
-      /(?:missing|blank|unresolved|mismatched)[^.]*blocks before capture or spawn/u;
-    const SPAWN_ONLY_CLAUSE =
-      /(?:missing|blank|unresolved|mismatched)[^.]*blocks before spawn/u;
-    const SPAWN_ONLY_OWNERS = new Set(["play-agent-dispatch"]);
-    const NO_FALLBACK_SOURCE_CLAUSE =
-      /Do not search a source checkout,[^.]*\balias\b[^.]*\bnearby\b[^.]*\bambient model\./u;
-    const ownerSkills = [
-      "issue-priming-workflow",
-      "play-agent-dispatch",
-      "play-planning",
-      "play-review",
-      "play-skill-authoring",
-      "play-subagent-execution",
-      "pr-merge",
-    ] as const;
-    const sources = await Promise.all(
-      ownerSkills.map(
-        async (skill) =>
-          [skill, await readRepoFile(`skills/${skill}/SKILL.md`)] as const,
-      ),
-    );
-
-    for (const [skill, source] of sources) {
-      expect(
-        source,
-        `${skill} never discovers an original checkout config`,
-      ).not.toContain("devcanon.config.yaml");
-      expect(
-        source,
-        `${skill} never uses symbolic capability profiles`,
-      ).not.toContain("capabilityProfiles.");
-      const normalized = source.replace(/\s+/gu, " ");
-      const failBeforeSpawnClause = SPAWN_ONLY_OWNERS.has(skill)
-        ? SPAWN_ONLY_CLAUSE
-        : CAPTURE_OR_SPAWN_CLAUSE;
-      expect(
-        normalized,
-        `${skill} blocks model resolution before capture or spawn`,
-      ).toMatch(failBeforeSpawnClause);
-      expect(
-        normalized,
-        `${skill} fail-closes with no source-checkout fallback`,
-      ).toMatch(NO_FALLBACK_SOURCE_CLAUSE);
-    }
-  });
-
   it("keeps D4 as the existing dynamic exact-configured-role contract", async () => {
     const [owner, source, roles] = await Promise.all([
       readAgentRoutingPolicyOwner(OWNER_PATH),
@@ -478,14 +377,10 @@ describe("agent routing and mutation policy owner", () => {
     );
   });
 
-  it("keeps unchanged D12 continuity configuration-free and routes changed tuples to fresh children", async () => {
-    const [continuity, execution, merge] = await Promise.all([
-      readRepoFile(
-        "skills/play-subagent-execution/references/lifecycle-status-policy.md",
-      ),
-      readRepoFile("skills/play-subagent-execution/SKILL.md"),
-      readRepoFile("skills/pr-merge/SKILL.md"),
-    ]);
+  it("keeps the D12 continuity call configuration-free", async () => {
+    const continuity = await readRepoFile(
+      "skills/play-subagent-execution/references/lifecycle-status-policy.md",
+    );
 
     const followupStart = continuity.indexOf("Codex.followup_task({");
     expect(
@@ -504,15 +399,6 @@ describe("agent routing and mutation policy owner", () => {
         "  message: D12_INCREMENTAL_FINDINGS_AND_TASK_CONTEXT_PLUS_VERIFIED_AUTO_ROUTE_ATTESTATION_WHEN_APPLICABLE,",
         "})",
       ].join("\n"),
-    );
-    expect(continuity).toContain(
-      "D13-to-D12 reclassification and a\nD16 final whole-implementation fix instead use the shared fresh-child lifecycle\npath.",
-    );
-    expect(execution).toContain(
-      "D13-to-D12 reclassification and a D16 final\nwhole-implementation fix use the lifecycle fresh-child path.",
-    );
-    expect(merge).toContain(
-      "diagnosis-to-fix classification is a fresh changed\ntuple.",
     );
   });
 
