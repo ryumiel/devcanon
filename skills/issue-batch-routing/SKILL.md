@@ -51,6 +51,16 @@ number model:
   pass.
 - Optional parent approval evidence, scoped as described below.
 
+For a missing owner, the router needs one complete dispatch tuple before it can
+create or reuse owner work: provider, canonical issue identifier, current
+active-eligibility and source-state digest, proven provider-native entrypoint
+argument, complete existing issue-priming route key, work intent, and the
+applicable effect authority. A known confirmed owner, branch, PR, or checkout
+is optional supporting evidence. Missing or unknown required evidence stops
+that boundary for one concrete decision or manual action; it must not be
+reconstructed from an owner report, a provisional host identifier, or a child
+task.
+
 When the host provides thread-management or automation tools, use those tools to
 start, inspect, message, and archive owner threads. When those tools are absent,
 report the needed manual routing action and keep the ledger in the
@@ -100,6 +110,14 @@ deduplication must use the full route-key fields.
 `last_routed_approval_gate_key` records only actual approval routes sent after
 matching approval evidence is present. Report-only waiting state uses
 `last_reported_approval_waiting_key` instead.
+
+Pending host creation is controller-local recovery evidence, not an
+`owner_thread_id`, route-key replacement, schema field, or durable notice. A
+pending result retains its complete requested route key and any provisional host
+identifier only for supported confirmation or discovery. A source refresh,
+including one with a changed digest, must reconcile that pending creation before
+considering another dispatch and must not erase it or treat the provisional
+identifier as a confirmed owner mapping.
 
 ## Controller-Held Approved-Route Facts
 
@@ -179,9 +197,25 @@ For each open batch item:
 1. Refresh source-issue state through the provider surface when available.
 2. Classify source-issue state before deciding whether missing-owner issue
    priming is valid.
-3. If `owner_thread_id` is missing, route only active source issues to the
-   matching source-specific issue-priming entrypoint: GitHub items route to
-   `github-issue-priming`, Linear items route to `linear-issue-priming`.
+3. If `owner_thread_id` is missing, first reconcile any pending owner creation
+   through supported host result or compatible-owner discovery. A pending result
+   waits or reports when it cannot yet be confirmed; changed source state does
+   not authorize a second dispatch. For an active issue with no pending result,
+   first prove the provider-native argument and compute the complete
+   issue-priming route key. If the recorded key already matches, wait, inspect,
+   or report before owner dispatch. Only then use this owner-dispatch sequence:
+   validate the complete dispatch tuple and current effect authority; discover a
+   compatible existing **top-level owner task** using that key; and, only when
+   no compatible owner exists and the host supports task creation, create one
+   separate top-level owner task with the source-specific priming prompt as its
+   initial work. A nested controller child is never an owner substitute. Reuse
+   a confirmed compatible owner and its branch or checkout continuity without
+   re-priming it. Retain a host pending result for confirmation or discovery,
+   and record an `owner_thread_id` only from supported host evidence that
+   confirms the mapping; report host denial separately from missing user
+   authority. After confirmation, let that top-level owner run the matching
+   provider entrypoint and preserve paired batch context unchanged. GitHub items
+   use `github-issue-priming`; Linear items use `linear-issue-priming`.
    Convert provider-prefixed `source_issue_identifier` values into
    provider-native entrypoint arguments before invoking source-specific issue
    priming. GitHub conversion must preserve repository identity as a full issue
@@ -194,19 +228,19 @@ For each open batch item:
    provider-native entrypoint argument, and missing-owner state. If
    `last_routed_issue_priming_route_key` already matches that complete key and
    `owner_thread_id` is still missing, wait, inspect, or report instead of
-   routing another source-specific priming entrypoint. Missing route-key
+   routing another source-specific priming entrypoint or owner task. Missing route-key
    evidence fails closed to waiting or manual action. Record
-   `last_routed_issue_priming_route_key` before or at handoff, and supply that
+   `last_routed_issue_priming_route_key` before or at owner dispatch, and supply that
    recorded complete key plus the canonical provider-prefixed
    `source_issue_identifier` as non-authorizing controller handoff context to
-   the source-specific issue-priming route. The source entrypoint must forward
+   the source-specific issue-priming prompt. The source entrypoint must forward
    both received values unchanged into the shared issue-priming workflow; it
    must not derive, replace, or shorten the canonical source issue identifier.
    The shared issue-priming workflow may only forward that received route key
    unchanged into its initial owner-handoff report for equality comparison and
    must use the received canonical identifier for batch reports. Missing or
-   changed handoff context must wait or report. Record the created or located
-   owner-thread mapping before continuing the item. Only active source issues
+   changed handoff context must wait or report. Record the host-confirmed
+   created or located owner-thread mapping before continuing the item. Only active source issues
    with missing owner threads route to source-specific issue priming. Terminal,
    duplicate, abandoned, blocked, or unknown no-owner states wait or report
    instead of creating owner work.
@@ -300,8 +334,10 @@ as still current.
 Persist the complete route key after routing; partial fields such as only the
 unresolved-thread-set digest or only the check identifier are diagnostic hints,
 not replay authority.
-`issue-priming` route keys suppress duplicate source-specific priming while
-`owner_thread_id` remains missing for the same complete key. Missing
+`issue-priming` route keys suppress duplicate owner dispatch and source-specific
+priming while `owner_thread_id` remains missing for the same complete key.
+Pending creation must be reconciled before a changed key is treated as a new
+dispatch opportunity. Missing
 source-state digest or provider-native entrypoint argument makes the
 issue-priming key incomplete and must fail closed to waiting or manual action.
 `source-issue-reporting` is distinct from `source-issue-state` and must not
@@ -363,6 +399,22 @@ Provider-specific issue status updates are delegated to the matching
 source-specific workflow or explicitly authorized provider workflow.
 
 ## Routing Fixtures
+
+### Owner dispatch and checkout adoption
+
+The following seven bounded fixture families are the self-check surface for the
+owner route. Each yields one eligible action or an explicit wait/manual outcome;
+they do not authorize live task creation during fixture evaluation.
+
+| Family                                                                                                                     | Required outcome                                                                                                                                                                                                |
+| -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Active GitHub or Linear item has a complete tuple, applicable creation authority, host capability, and no compatible owner | Record the complete route key, dispatch exactly one separate top-level owner task carrying the provider priming prompt, retain pending host output, then record the owner mapping only after host confirmation. |
+| Existing compatible confirmed owner, branch, and checkout match the complete key                                           | Reuse the owner and continuity evidence; do not create or re-prime another task.                                                                                                                                |
+| Active item is missing creation authority                                                                                  | Ask for that one authority decision before any host creation or provider priming.                                                                                                                               |
+| Active item has authority but no supported host task capability                                                            | Report the manual owner-dispatch action; do not substitute a controller child.                                                                                                                                  |
+| Host returns only a provisional creation identifier, including after a refreshed or changed source digest                  | Keep the creation pending, reconcile through supported result or discovery, and do not create a duplicate or record the provisional value as `owner_thread_id`.                                                 |
+| Provider receives an unrelated, mismatched, or ambiguous host checkout                                                     | Block before issue-body or comment-evidence writes, branch repurposing, or fallback provisioning.                                                                                                               |
+| Provider receives a validated root-task checkout, including one with existing issue branch or user changes                 | Adopt that checkout, preserve its work, validate it before artifact guards, and do not run fallback or create a nested worktree after native adoption.                                                          |
 
 Use these concrete fixture outcomes to self-check monitor decisions:
 

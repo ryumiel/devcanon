@@ -190,6 +190,21 @@ use remains available; the router must not implicitly activate or call the
 companion back. Target invocation controls must preserve owning-workflow calls;
 unsupported enforcement is documented as guidance, not a hard guarantee.
 
+For an active item without a confirmed owner, both direct routing and
+coordination converge on the router's one owner-dispatch sequence: validate the
+complete route and effect-authority facts, discover a compatible top-level
+owner, create exactly one top-level owner task only when current host capability
+and authority permit it, and confirm the mapping from host evidence. A pending
+host result remains pending across refresh and cannot become an owner mapping or
+justify a duplicate dispatch. Missing authority or host support stops before
+creation; task creation never grants publication or merge authority.
+
+The confirmed provider owner adopts a validated task checkout before evidence
+writes and research. Suitable issue work and user changes continue intact; a
+clean unassigned managed checkout follows existing branching policy. An
+unrelated, mismatched, or ambiguous checkout blocks before repurposing or
+writes, and a native adoption does not fall through to fallback provisioning.
+
 Coordination keeps actual dependencies separate from shared-file conflicts and
 combined behavior separate from publication readiness. Combined acceptance
 uses the intended current revisions and an existing appropriate validation

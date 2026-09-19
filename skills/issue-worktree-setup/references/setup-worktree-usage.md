@@ -42,10 +42,20 @@ policy, and the verbatim write itself.
 ### Native-first selection
 
 Before invoking the fallback helper, apply the owning skill's native-first
-policy under its `## Prefer Native Worktree Tooling` heading. If the host
-exposes native worktree control, use that surface to create or adopt the
-derived worktree, capture its absolute path in `WORKTREE_PATH`, and continue
-from the worktree path validation below.
+policy under its `## Prefer Native Worktree Tooling` heading. First inspect a
+host-provided top-level task checkout for adoption. Before any artifact guard
+or write, require a nonempty absolute searchable directory, `git rev-parse
+--show-toplevel` evidence that it is the worktree root, the repository identity
+expected by the source entrypoint, and branch/worktree evidence that it is
+assigned issue work or a clean unassigned managed checkout. Preserve existing
+issue branch and user changes. An unrelated, mismatched, or ambiguous supplied
+checkout stops here; do not repurpose it or fall back from that refusal.
+
+If the host exposes native worktree control and no supplied checkout blocks,
+use that surface to create or adopt the derived worktree, capture its absolute
+path in `WORKTREE_PATH`, and continue from the worktree path validation below.
+Once native adoption succeeds, do not run fallback or create a second nested
+worktree.
 
 Do not run both the native flow and the fallback helper. If native
 worktree control is unavailable, invoke the fallback helper so the
@@ -101,8 +111,9 @@ exactly per the `## Outputs` contract above.
 
 Once `WORKTREE_PATH` is available — either from native tooling or the
 fallback helper — validate it before any write. It must be nonempty,
-absolute according to the host platform, and name an existing searchable
-directory. POSIX shell example:
+absolute according to the host platform, name an existing searchable directory,
+and be the Git worktree root already validated for the expected repository
+identity. POSIX shell example:
 
 ```bash
 [ -n "$WORKTREE_PATH" ] || { echo "worktree path missing" >&2; exit 1; }
@@ -112,6 +123,7 @@ case "$WORKTREE_PATH" in
 esac
 [ -d "$WORKTREE_PATH" ] || { echo "worktree missing or unreadable: $WORKTREE_PATH" >&2; exit 1; }
 [ -x "$WORKTREE_PATH" ] || { echo "worktree not searchable: $WORKTREE_PATH" >&2; exit 1; }
+[ "$(git -C "$WORKTREE_PATH" rev-parse --show-toplevel)" = "$WORKTREE_PATH" ] || { echo "worktree path is not the Git root: $WORKTREE_PATH" >&2; exit 1; }
 ```
 
 PowerShell example:
@@ -121,6 +133,8 @@ if ([string]::IsNullOrWhiteSpace($WORKTREE_PATH)) { throw "worktree path missing
 if (-not [System.IO.Path]::IsPathFullyQualified($WORKTREE_PATH)) { throw "worktree path must be absolute: $WORKTREE_PATH" }
 if (-not (Test-Path -LiteralPath $WORKTREE_PATH -PathType Container)) { throw "worktree missing or unreadable: $WORKTREE_PATH" }
 try { Get-ChildItem -LiteralPath $WORKTREE_PATH -Force -ErrorAction Stop | Out-Null } catch { throw "worktree not searchable: $WORKTREE_PATH" }
+$GitRoot = (git -C $WORKTREE_PATH rev-parse --show-toplevel).Trim()
+if ($LASTEXITCODE -ne 0 -or $GitRoot -ne $WORKTREE_PATH) { throw "worktree path is not the Git root: $WORKTREE_PATH" }
 ```
 
 ### Artifact write guards
