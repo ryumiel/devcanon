@@ -728,9 +728,14 @@ describe("pr-review process lifecycle", () => {
     ).toThrow("final receipt exceeded");
     const receiptRoot = await generatedRoot();
     const receiptSource = [
-      `process.stdout.write(Buffer.alloc(${PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxOutputLimitBytes + 1}));`,
-      `process.stderr.write(Buffer.alloc(${PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxOutputLimitBytes + 1}));`,
-      "setTimeout(() => process.exit(0), 30);",
+      "let completedWrites = 0;",
+      "const acknowledge = (error) => {",
+      "  if (error) { process.exitCode = 1; return; }",
+      "  completedWrites += 1;",
+      "  if (completedWrites === 2) process.exit(0);",
+      "};",
+      `process.stdout.write(Buffer.alloc(${PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxOutputLimitBytes + 1}), acknowledge);`,
+      `process.stderr.write(Buffer.alloc(${PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxOutputLimitBytes + 1}), acknowledge);`,
     ].join("\n");
     const receiptLifecycle = await lifecycle(receiptRoot, receiptSource, {
       deadlineMs: 1_000,
@@ -739,8 +744,19 @@ describe("pr-review process lifecycle", () => {
 
     const receipt = await receiptLifecycle.finish();
 
-    expect(receipt.output.stdout.overflowed).toBe(true);
-    expect(receipt.output.stderr.overflowed).toBe(true);
+    expect(receipt.output.stdout).toMatchObject({
+      bytes: PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxOutputLimitBytes + 1,
+      overflowed: true,
+    });
+    expect(receipt.output.stderr).toMatchObject({
+      bytes: PR_REVIEW_PROCESS_LIFECYCLE_LIMITS.maxOutputLimitBytes + 1,
+      overflowed: true,
+    });
+    expect(receipt.rootProcess).toMatchObject({
+      exitCode: 0,
+      exitObserved: true,
+      closeObserved: true,
+    });
     expect(
       Buffer.byteLength(JSON.stringify(receipt), "utf8"),
     ).toBeLessThanOrEqual(

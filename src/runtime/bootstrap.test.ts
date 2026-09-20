@@ -699,12 +699,12 @@ describe("trusted runtime bootstrap", () => {
           runtimeBundle,
           [
             'import { writeFileSync } from "node:fs";',
-            'writeFileSync(process.env.DEVCANON_TEST_READY, "ready");',
             'process.on("SIGTERM", () => {',
             '  writeFileSync(process.env.DEVCANON_TEST_FORWARDED, "forwarded");',
             '  process.removeAllListeners("SIGTERM");',
             '  process.kill(process.pid, "SIGTERM");',
             "});",
+            'writeFileSync(process.env.DEVCANON_TEST_READY, "ready");',
             "setInterval(() => {}, 1000);",
             "",
           ].join("\n"),
