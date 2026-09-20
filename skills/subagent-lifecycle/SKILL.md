@@ -106,11 +106,11 @@ current target runtime actually exposes. Do this once before the first
 subagent dispatch and update the conclusion if later observations prove it
 wrong.
 
-| Capability class            | Observed runtime capability                                  | Cleanup claim                                                                                  |
-| --------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
-| `automatic-close-supported` | Stable identity and an exposed, usable close operation       | A close may be attempted; `closed=yes` still requires an observed successful close result      |
-| `inventory-only`            | Session identity or inventory, but no usable close operation | Record inventory and `close-unavailable: inventory-only; no close operation`                   |
-| `cleanup-unavailable`       | Neither reliable inventory nor a usable close operation      | Record `close-unavailable: no inventory or close operation` and give operator/UI cleanup steps |
+| Capability class            | Observed runtime capability                                  | Cleanup claim                                                                                                                             |
+| --------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `automatic-close-supported` | Stable identity and an exposed, usable close operation       | A close may be attempted; `closed=yes` still requires an observed successful close result                                                 |
+| `inventory-only`            | Session identity or inventory, but no usable close operation | Record inventory and `close-unavailable: inventory-only; no close operation`                                                              |
+| `cleanup-unavailable`       | Neither reliable inventory nor a usable close operation      | Record `close-unavailable: no inventory or close operation`; return any precise supported-control or authority gap to the owning workflow |
 
 Map the current agent surface without inheriting another provider's
 capabilities:
@@ -150,6 +150,12 @@ owning workflow's authority to use it. For example, app archival can be an
 available housekeeping operation while low-level close remains unavailable;
 archival is neither `closed=yes` nor evidence that runtime capacity changed.
 Availability of any operation grants no permission to use it.
+
+Lifecycle grants no external authority. An external-none controller/executor
+may capture state, return needed action to an external-mutable outer owner, but
+cannot mutate it. An external-mutable owner needs explicit authority for exact
+supported operation on a verified eligible child. Parent/tool
+availability grants neither authority nor permission transfer.
 
 ## Cleanup Gate Before Spawns
 
@@ -202,28 +208,25 @@ When a spawn fails because of a slot/session limit:
    not promote a count, a housekeeping result, or a later outcome into a causal
    explanation without direct evidence.
 3. Inspect exposed lifecycle controls and relevant host task-management
-   controls separately. Before any cleanup, preserve captured role results and
-   pending continuation windows through the cleanup gate, and verify the
-   owning workflow's authorization and the gate's eligibility. A host
-   housekeeping result is a reported action result only; it does not make the
-   session closed or prove a capacity effect.
+   controls separately. Before cleanup, preserve results and pending windows
+   through the gate; verify owner authorization and eligibility. Apply the
+   authority boundary above; housekeeping does not make the session closed or
+   prove capacity.
 4. Run the cleanup gate for all completed or superseded sessions. A retry
-   prerequisite is either an observed successful authorized close of an eligible
-   session or a successful supported controller archival action that applies to
-   a verified eligible child identity and has authority to act. An attempted or
-   failed close or archival action leaves that prerequisite unsatisfied. A
-   successful controller archival action is housekeeping only: it is neither
-   closure nor evidence of a capacity effect. After a successful controller
-   close or archival action, wait a brief, bounded interval before retrying; do
-   not require operator confirmation for that controller action. When an action
-   fails, use another existing supported authorized cleanup path if one is
-   available without widening authority. Otherwise, report the precise
-   capability or failure limit and return to the owning workflow's blocked or
-   manual-resolution path before any retry. A genuinely human-only supported
-   cleanup action may request the specific human action and its confirmation
-   only when that action is actually needed; after confirmed success, apply the
-   same bounded-wait requirement. Do not invent user-close or manual-cleanup
-   guidance.
+   prerequisite requires gate confirmation of captured state, eligibility, and
+   no pending authorized continuation window. It is either successful
+   authorized close of that session, actual successful supported archival by an
+   authorized external-mutable owning controller for that verified eligible
+   child, or confirmed success of a genuinely human-only supported authorized
+   action. An attempted or failed action leaves it unsatisfied. Successful
+   archival is housekeeping, neither closure nor capacity evidence. After
+   successful close, archival, or confirmed human-only action, wait a brief,
+   bounded interval before retrying. Human confirmation applies only to the
+   real human-only action; do not require it for controller action. When an
+   action fails, use another existing supported authorized path without
+   widening authority, or report the precise capability or authority gap and
+   return to the owning workflow's blocked or manual-resolution path. Do not
+   invent user-close or manual-cleanup guidance.
 5. Reconstruct active workflow state from the lifecycle ledger and the
    repository state anchors the owning workflow uses, such as `git status`,
    current branch, and relevant base/head SHAs.
