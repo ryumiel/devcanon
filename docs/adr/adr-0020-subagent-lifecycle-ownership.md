@@ -49,7 +49,11 @@ their spawn points. The shared procedure owns:
   Claude Code, and unknown targets;
 - target-honest conditional cleanup outcomes;
 - cleanup gates before spawns;
-- slot-limit recovery and one retry after cleanup or manual confirmation;
+- slot-limit recovery: after direct rejected creation only, one retry of the
+  exact already-validated tuple follows an actual successful authorized close,
+  authorized controller archival for a verified eligible child, or confirmed
+  genuinely human-only supported authorized cleanup action, and a bounded
+  wait;
 - the closed eligible-quality-failure capability-escalation procedure: result
   classification, positive retained verified evidence, exact declaration and
   target support, one fresh-attempt budget, invariant envelope, concise summary,
@@ -70,6 +74,13 @@ session facts: stable identity, an exposed usable close operation, and a
 successful close result. Capability class, waiting, interruption, completion,
 inventory, or reuse cannot stand in for that evidence. Role-specific state is
 captured before cleanup or supersession.
+
+The lifecycle policy grants no external mutation authority. An external-none
+executor captures state and returns the needed host action to an existing
+external-mutable outer owner. An external-mutable owning controller may act
+only with separately explicit authorization for the exact supported operation
+on a verified eligible child; parent existence and tool availability do not
+transfer permission.
 
 Supersession is a workflow/controller decision recorded with the captured role
 result after required role-specific state is captured. It does not replace the
@@ -126,8 +137,11 @@ implementers continue to read the worktree from disk.
 - Target capability claims remain target-honest: controllers can record
   automatic closure only after observing stable identity, an exposed usable
   close operation, and its successful result.
-- Slot-limit failures are handled as orchestration resource exhaustion, with
-  state reconstruction and one retry after cleanup or manual confirmation.
+- Slot-limit failures are handled as orchestration resource exhaustion. Direct
+  rejection is required before the single exact-tuple retry, which follows a
+  successful supported authorized cleanup alternative and bounded wait;
+  confirmed children are reconciled and rejected or unknown retry results use
+  the existing terminal/manual path with allowance exhausted.
 - Workflow-local exceptions remain explicit, so shared cleanup policy does not
   close sessions that a workflow still needs for same-session follow-up.
 - The shared policy remains a compact controller procedure, not an

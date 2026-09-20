@@ -384,10 +384,14 @@ Compact ledger observation: session identity=`impl-1`; role/scope=`implementer`/
 Using `subagent-lifecycle` slot-limit recovery:
 Target capability for this separate run: cleanup-unavailable: target exposes neither inventory nor close operation
 Controller classifies a slot-limit spawn failure as orchestration resource exhaustion, not task failure.
-Controller runs the cleanup gate, records `close-unavailable: no inventory or close operation` for completed/superseded sessions, states that open-agent inventory is unavailable, gives explicit operator/UI cleanup guidance, waits for operator confirmation that manual cleanup is complete, reconstructs active task state from the lifecycle ledger and git, then retries the spawn exactly once.
+The external-none executor records direct runtime evidence that the failed creation was `rejected`; open-agent inventory is unavailable. This evidence does not establish free capacity, the runtime's capacity calculation, or the failure's cause. The executor captures the eligible completed child's state and confirms its authorized continuation window has ended, while preserving any other pending continuation windows through the cleanup gate. It records `close-unavailable: no inventory or close operation` and returns the needed archival action to the existing external-mutable `issue-priming-workflow` outer owner; it never archives the child. That owner has separately explicit authorization for the exact supported host archival operation and verifies that it applies to the eligible child identity before performing it. It returns the actual archival success to the executor; neither the outer owner's existence nor control availability transfers authority to the executor. Archival is not a close operation or evidence that capacity changed, and the returned controller action needs no operator confirmation. Only after that actual success does the executor wait a brief, bounded interval, reconstruct active task state from the lifecycle ledger and git, and use its one existing allowance to retry the same exact validated tuple. If the host control, its applicability to the verified child, or authority had not been established, the executor would report that exact gap and defer to the owning workflow's blocked or manual-resolution path rather than inventing operator/UI guidance.
 Retry succeeds.
 The retry uses the same previously validated role/model/effort pair; slot
-recovery does not permit a different configuration.
+recovery does not permit a different configuration. The later success does not
+establish what freed capacity or caused the original failure. If creation had
+instead been `confirmed` or `unknown`, this example would defer to
+`subagent-lifecycle`'s existing owner handling and would not dispatch this
+recovery retry.
 
 [Repeated blocker-family branch in the cleanup-unavailable run]
 Initial blocker-family record:
