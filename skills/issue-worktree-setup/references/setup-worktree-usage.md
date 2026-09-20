@@ -147,11 +147,10 @@ if ([string]::IsNullOrWhiteSpace($WORKTREE_PATH)) { throw "worktree path missing
 if (-not [System.IO.Path]::IsPathFullyQualified($WORKTREE_PATH)) { throw "worktree path must be absolute: $WORKTREE_PATH" }
 if (-not (Test-Path -LiteralPath $WORKTREE_PATH -PathType Container)) { throw "worktree missing or unreadable: $WORKTREE_PATH" }
 try { Get-ChildItem -LiteralPath $WORKTREE_PATH -Force -ErrorAction Stop | Out-Null } catch { throw "worktree not searchable: $WORKTREE_PATH" }
-$GitRoot = (git -C $WORKTREE_PATH rev-parse --show-toplevel).Trim()
+$null = git -C $WORKTREE_PATH rev-parse --show-toplevel
 if ($LASTEXITCODE -ne 0) { throw "worktree is not a Git checkout: $WORKTREE_PATH" }
-$WorktreeIdentity = (Resolve-Path -LiteralPath $WORKTREE_PATH -ErrorAction Stop).ProviderPath.TrimEnd('\', '/')
-$GitRootIdentity = (Resolve-Path -LiteralPath $GitRoot -ErrorAction Stop).ProviderPath.TrimEnd('\', '/')
-if (-not [string]::Equals($WorktreeIdentity, $GitRootIdentity, [System.StringComparison]::OrdinalIgnoreCase)) {
+$GitPrefix = ([string](git -C $WORKTREE_PATH rev-parse --show-prefix)).Trim()
+if ($LASTEXITCODE -ne 0 -or $GitPrefix.Length -ne 0) {
   throw "worktree path is not the Git root: $WORKTREE_PATH"
 }
 ```
