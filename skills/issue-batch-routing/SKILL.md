@@ -243,17 +243,10 @@ For each open batch item:
    controller binds that confirmation to the expected repository, canonical
    provider-prefixed source issue identifier, and exact route key, and includes
    the actual owner ID plus host identity when task IDs are host-scoped. A host
-   confirmation establishes that mapping but does not authorize work. Immediately
-   before sending a controller continuation that can release the waiting owner to
-   provider priming, revalidate the refreshed active eligibility, start-work
-   intent, applicable effect authority, and exact route compatibility from the
-   controller-held facts. Only when all remain current and compatible, let that
-   top-level owner run the matching provider entrypoint with the existing handoff
-   facts unchanged. Otherwise retain the confirmed mapping and pending recovery,
-   then wait or report without releasing priming, duplicating creation, or
-   re-priming the owner. An initial creation prompt may arrive before
-   confirmation, but it must wait without artifact writes or research until a
-   controller continuation delivers the binding. GitHub items use
+   confirmation establishes that mapping but does not authorize work. An initial
+   creation prompt may arrive before confirmation, but it must wait without
+   artifact writes or research until a controller continuation delivers the
+   binding. GitHub items use
    `github-issue-priming`; Linear items use `linear-issue-priming`.
    Convert provider-prefixed `source_issue_identifier` values into
    provider-native entrypoint arguments before invoking source-specific issue
@@ -285,15 +278,27 @@ For each open batch item:
    with missing owner threads route to source-specific issue priming. Terminal,
    duplicate, abandoned, blocked, or unknown no-owner states wait or report
    instead of creating owner work.
-4. Refresh owner-thread state and integrate any owner-thread gate report or
+4. After missing-owner reconciliation, independently of whether
+   `owner_thread_id` is now present, use the retained pending-creation recovery
+   facts to identify a confirmed owner still waiting for its initial binding
+   continuation. Immediately before sending that continuation, revalidate the
+   refreshed active eligibility, start-work intent, applicable effect authority,
+   and exact route compatibility from the controller-held facts. Only when all
+   remain current and compatible, release that waiting top-level owner once to
+   the matching provider entrypoint with the existing handoff facts unchanged.
+   Otherwise retain the confirmed mapping and pending recovery, then wait or
+   report without releasing priming, duplicating creation, or re-priming the
+   owner. When the recovery facts show that the initial continuation was already
+   sent, continue the existing owner lifecycle without another initial release.
+5. Refresh owner-thread state and integrate any owner-thread gate report or
    validated initial owner-handoff report.
-5. Refresh current source and PR state. Apply the canonical
+6. Refresh current source and PR state. Apply the canonical
    `issue-priming-workflow` genuine-gate classification while preserving the
    router's PR, source-issue, publication, and terminal precedence before any
    non-gate receipt continuation: when current evidence identifies a canonical
    genuine gate, use its gate path and do not consume a receipt. Stale gate
    evidence remains a gate and cannot be bypassed by a receipt.
-6. At initial approval, validated initial owner handoff, and on a resumed route,
+7. At initial approval, validated initial owner handoff, and on a resumed route,
    use the router's existing controller-held approved-route facts to derive and
    record `current_approved_owner_route_identity`, including the refreshed
    source-issue state snapshot digest. Keep the refreshed current head SHA as a
@@ -311,7 +316,7 @@ For each open batch item:
    controller's continuation dispatch acknowledges that route's initial
    required positive sequence and refreshed source-issue state snapshot digest
    to the same owner.
-7. Before remaining gate classification, validate every unfinished non-gate
+8. Before remaining gate classification, validate every unfinished non-gate
    progress receipt fact against the current item: the same approved route
    (`current_approved_owner_route_identity`), reviewed-plan provenance
    (`current_reviewed_plan_handoff_provenance`), refreshed source-issue state
@@ -337,13 +342,13 @@ For each open batch item:
    changes must not evict their earlier replay state. Missing identity, route
    provenance, or unfinished non-gate evidence fails closed to waiting or
    manual action. A genuine gate does not qualify as progress.
-8. For an item without receipt continuation, classify any remaining gate using
+9. For an item without receipt continuation, classify any remaining gate using
    PR gate precedence, source-issue state, and any owner-thread report.
-9. Compare the gate's duplicate-route key with the ledger.
-10. Route only when the route key is new or the current state invalidates the
+10. Compare the gate's duplicate-route key with the ledger.
+11. Route only when the route key is new or the current state invalidates the
     prior route.
-11. Record the route, approval, waiting reason, or terminal state in the ledger.
-12. Report the monitor pass.
+12. Record the route, approval, waiting reason, or terminal state in the ledger.
+13. Report the monitor pass.
 
 If a required live-state surface is unavailable, report the item as waiting
 with the missing surface and the next safe manual command or workflow.
@@ -443,7 +448,7 @@ source-specific workflow or explicitly authorized provider workflow.
 
 ### Owner dispatch and checkout adoption
 
-The following seven bounded fixture families are the self-check surface for the
+The following eleven bounded fixture families are the self-check surface for the
 owner route. Each yields one eligible action or an explicit wait/manual outcome;
 they do not authorize live task creation during fixture evaluation.
 
