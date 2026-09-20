@@ -65,11 +65,16 @@ Slug rules apply to the `<title-slug>` segment only: lowercase, kebab-case, alph
 ### Adopt or provision the owner checkout and persist the issue body
 
 When this entrypoint comes from `issue-batch-routing`, it runs in the
-router-created or router-located top-level owner task. Confirm that owner-root
-context before provider priming or fetch persistence; a nested controller child
-or an unconfirmed provisional owner identifier is a blocker. Give the
-host-provided task checkout to `issue-worktree-setup` for adoption before
-considering new provisioning. The
+router-created or router-located top-level owner task. Before any artifact
+write, confirm the controller's binding: the canonical batch issue and route,
+the independently proven expected repository, the confirmed owner ID, and host
+identity when that host scopes task IDs. Compare the current supported host task
+identity to that confirmation; a missing, provisional, nested, changed, or
+mismatched binding is a blocker. Do not infer expected repository identity from
+the task checkout. Give an explicit router/host adoption candidate, when one was
+supplied, plus the expected repository to `issue-worktree-setup`; ordinary
+direct invocation supplies no candidate and follows its existing provisioning
+path. The
 [setup-worktree usage](../issue-worktree-setup/references/setup-worktree-usage.md#native-first-selection)
 is the sole owner of checkout identity, refusal, and fallback decisions.
 
@@ -138,16 +143,19 @@ supplies the GitHub-specific values:
 - `source`: `github`
 - `identifier`: `#<N>`
 - `batch-source-issue-identifier`: `github:<owner>/<repo>#<N>` (only when supplied by `issue-batch-routing`)
+- `batch-expected-repository`: <controller-proven repository identity> (paired batch context only)
+- `batch-confirmed-owner-id`: <host-confirmed owner task ID> (paired batch context only)
+- `batch-confirmed-host-identity`: <host identity when task IDs are host-scoped> (paired batch context only)
 
 The `mode` field is `auto` when `--auto` was passed and `interactive` otherwise. The `research` field is `forced` when `--research` was passed and `gated` otherwise.
 
-When `issue-batch-routing` supplies the paired batch fields, forward both
-unchanged to `issue-priming-workflow`. `identifier: #<N>` remains the
-provider-native entrypoint value; it must not replace the canonical
+When `issue-batch-routing` supplies the paired batch fields, forward every
+binding fact unchanged to `issue-priming-workflow`. `identifier: #<N>` remains
+the provider-native entrypoint value; it must not replace the canonical
 `batch-source-issue-identifier`. The entrypoint may neither derive nor modify
-the route key or canonical identifier. Missing, incomplete, or mismatched
-paired batch context is a handoff blocker: wait or report instead of invoking
-the shared workflow.
+the route key, canonical identifier, expected repository, or confirmed owner
+binding. Missing, incomplete, provisional, or mismatched paired batch context
+is a handoff blocker: wait or report instead of invoking the shared workflow.
 
 The workflow handles every subsequent phase (gate, research,
 brainstorming, planning, implementation, branch review, PR creation). Do

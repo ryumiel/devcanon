@@ -34,21 +34,24 @@ This skill is invoked with a normalized issue payload from one of the source ent
 - **research**: gated | forced
 - **batch-source-issue-identifier**: <canonical provider-prefixed identifier> (paired batch context only)
 - **batch-issue-priming-route-key**: <complete controller-recorded route key> (paired batch context only)
+- **batch-expected-repository**: <controller-proven repository identity> (paired batch context only)
+- **batch-confirmed-owner-id**: <host-confirmed owner task ID> (paired batch context only)
+- **batch-confirmed-host-identity**: <host identity when task IDs are host-scoped> (paired batch context only)
 ```
 
 Field semantics:
 
-| Field                   | Used by                                        |
-| ----------------------- | ---------------------------------------------- |
-| `source`                | Phase 8 PR description "Closes" line wording   |
-| `identifier`            | Agent prompts, brainstorm args, PR description |
-| `title`                 | Agent prompts, brainstorm args                 |
-| `issue-body-path`       | Assessor, investigator, brainstorm args        |
-| `comment-evidence-path` | Assessor/investigator and downstream context   |
-| `worktree-path`         | Phase 1 worktree adoption and all later phases |
-| `mode`                  | Phase 4 stop-vs-continue, Phases 5–8 gating    |
-| `research`              | Phase 2 gate-skip                              |
-| paired `batch-*` fields | Batch-only reports and initial owner handoff   |
+| Field                   | Used by                                                |
+| ----------------------- | ------------------------------------------------------ |
+| `source`                | Phase 8 PR description "Closes" line wording           |
+| `identifier`            | Agent prompts, brainstorm args, PR description         |
+| `title`                 | Agent prompts, brainstorm args                         |
+| `issue-body-path`       | Assessor, investigator, brainstorm args                |
+| `comment-evidence-path` | Assessor/investigator and downstream context           |
+| `worktree-path`         | Phase 1 worktree adoption and all later phases         |
+| `mode`                  | Phase 4 stop-vs-continue, Phases 5–8 gating            |
+| `research`              | Phase 2 gate-skip                                      |
+| paired `batch-*` fields | Batch-only binding, reports, and initial owner handoff |
 
 `payload.issue-body-path` carries either Linear `.description` text or
 GitHub `.body` text as a repo-relative `.ephemeral/` file path. Treat the
@@ -70,22 +73,25 @@ helper. The entrypoint handles checkout identity and branch/worktree derivation
 before invoking this workflow, so the workflow receives a ready checkout
 instead of recreating, resetting, or repurposing one.
 
-The paired `payload.batch-source-issue-identifier` and
-`payload.batch-issue-priming-route-key` are non-authorizing controller handoff
+The paired `payload.batch-*` fields are non-authorizing controller handoff
 context. They are absent for direct entrypoint invocation. For a batch-routed
-handoff, require both values and preserve them unchanged: the canonical batch
+handoff, require and preserve the canonical batch identifier, route key,
+independently proven expected repository, and confirmed owner ID; require the
+confirmed host identity when the host scopes task IDs. The canonical batch
 identifier, not the provider-native `payload.identifier`, is the source issue
 identifier in batch reports, and the route key may only be echoed for router
-equality comparison. Missing, incomplete, or changed paired context is a
-handoff blocker; wait or report rather than emitting an owner-handoff or
-receipt.
+equality comparison. The expected repository comes from controller source/project
+context, never from the selected checkout. Missing, incomplete, provisional,
+changed, or mismatched paired context is a handoff blocker; wait or report
+rather than emitting an owner-handoff or receipt.
 
-For a batch-routed handoff, Phase 1 must confirm that the entrypoint is running
-in the router-confirmed separate depth-0 owner root before research. A missing,
-provisional, nested, or mismatched owner-root precondition blocks before
-artifact consumption or a research dispatch; it does not create or move a
-checkout. `issue-worktree-setup` owns checkout root and repository identity
-validation.
+For a batch-routed handoff, Phase 1 must use the host's supported current-task
+identity operation to compare the current depth-0 owner with
+`payload.batch-confirmed-owner-id` and, when applicable,
+`payload.batch-confirmed-host-identity`, before artifact consumption or
+research. A missing, provisional, nested, changed, or mismatched confirmation
+blocks; it does not create or move a checkout. `issue-worktree-setup` owns
+checkout root and expected-repository validation.
 
 The phases below use `--auto` and `--research` as shorthand for the operator's CLI flags at the entrypoint. The entrypoint reflects them into the payload as `payload.mode = auto` (vs. `interactive`) and `payload.research = forced` (vs. `gated`); the workflow itself only ever sees the payload.
 
@@ -151,13 +157,20 @@ Keep phase-local command snippets where the workflow executes them. For detailed
 
 The entrypoint has already adopted, provisioned, or reused the issue worktree
 and written the issue body inside it before invoking this workflow.
-`issue-worktree-setup` has already validated its root and repository identity.
-Phase 1 accepts only that ready checkout, verifies artifact readability, and
-fails loudly if the issue-body path is malformed or missing, or if a present
-comment-evidence path is malformed, missing, or unreadable. It does not create
-a worktree, switch a branch, reset user changes, or retry provisioning.
+`issue-worktree-setup` has already validated its root and expected repository
+identity. For a batch payload, first use the host's supported identity operation
+to compare the current task's depth, owner ID, and host identity when scoped to
+the controller-confirmed binding. Phase 1 then accepts only that ready checkout,
+verifies artifact readability, and fails loudly if the issue-body path is
+malformed or missing, or if a present comment-evidence path is malformed,
+missing, or unreadable. It does not create a worktree, switch a branch, reset
+user changes, or retry provisioning.
 
 ```bash
+# For a batch payload, before this artifact read, stop unless the supported
+# current-task identity equals batch-confirmed-owner-id, is depth 0, and equals
+# batch-confirmed-host-identity when task IDs are host-scoped. Do not invent an
+# identity from the checkout or infer a queued owner as confirmed.
 WORKTREE_PATH="<payload.worktree-path>"
 [ -n "$WORKTREE_PATH" ] || { echo "worktree path missing" >&2; exit 1; }
 case "$WORKTREE_PATH" in

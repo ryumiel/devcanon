@@ -42,14 +42,18 @@ policy, and the verbatim write itself.
 ### Native-first selection
 
 Before invoking the fallback helper, apply the owning skill's native-first
-policy under its `## Prefer Native Worktree Tooling` heading. First inspect a
-host-provided top-level task checkout for adoption. Before any artifact guard
-or write, require a nonempty absolute searchable directory, `git rev-parse
+policy under its `## Prefer Native Worktree Tooling` heading. Inspect a checkout
+for adoption only when the router/host explicitly supplied it as an adoption
+candidate. Ambient cwd is not a candidate. Before any artifact guard or write,
+require a nonempty absolute searchable candidate directory, `git rev-parse
 --show-toplevel` evidence that it is the worktree root, the repository identity
-expected by the source entrypoint, and branch/worktree evidence that it is
-assigned issue work or a clean unassigned managed checkout. Preserve existing
-issue branch and user changes. An unrelated, mismatched, or ambiguous supplied
-checkout stops here; do not repurpose it or fall back from that refusal.
+expected by the source entrypoint's controller binding, and branch/worktree
+evidence that it is assigned issue work or a clean unassigned managed checkout.
+Do not derive expected repository identity from the candidate checkout. Preserve
+existing issue branch and user changes. An unrelated, mismatched, or ambiguous
+explicit candidate stops here; do not repurpose it or fall back from that
+refusal. With no explicit candidate, ordinary direct invocation, including from
+a primary checkout, continues to native-first/fallback provisioning.
 
 Compare the supplied directory and Git-reported root as canonical host-native
 directory identities, not raw path strings: normalize equivalent separators and
@@ -58,7 +62,7 @@ rules before comparing. This read-only identity check is also the checkout-root
 validation consumed by provider entrypoints and `issue-priming-workflow`;
 consumers must not reproduce a weaker path spelling check.
 
-If the host exposes native worktree control and no supplied checkout blocks,
+If the host exposes native worktree control and no explicit candidate blocks,
 use that surface to create or adopt the derived worktree, capture its absolute
 path in `WORKTREE_PATH`, and continue from the worktree path validation below.
 Once native adoption succeeds, do not run fallback or create a second nested
@@ -145,8 +149,11 @@ if (-not (Test-Path -LiteralPath $WORKTREE_PATH -PathType Container)) { throw "w
 try { Get-ChildItem -LiteralPath $WORKTREE_PATH -Force -ErrorAction Stop | Out-Null } catch { throw "worktree not searchable: $WORKTREE_PATH" }
 $GitRoot = (git -C $WORKTREE_PATH rev-parse --show-toplevel).Trim()
 if ($LASTEXITCODE -ne 0) { throw "worktree is not a Git checkout: $WORKTREE_PATH" }
-# Compare $WORKTREE_PATH and $GitRoot through the host's canonical directory
-# identity operation as the native-first selection contract requires.
+$WorktreeIdentity = (Resolve-Path -LiteralPath $WORKTREE_PATH -ErrorAction Stop).ProviderPath.TrimEnd('\', '/')
+$GitRootIdentity = (Resolve-Path -LiteralPath $GitRoot -ErrorAction Stop).ProviderPath.TrimEnd('\', '/')
+if (-not [string]::Equals($WorktreeIdentity, $GitRootIdentity, [System.StringComparison]::OrdinalIgnoreCase)) {
+  throw "worktree path is not the Git root: $WORKTREE_PATH"
+}
 ```
 
 ### Artifact write guards

@@ -218,21 +218,36 @@ For each open batch item:
    waits or reports when it cannot yet be confirmed; changed source state does
    not authorize a second dispatch. Inspect/monitor-only intent ends after that
    reconciliation or report. For an active start-work issue with no pending result,
-   first prove the provider-native argument and compute the complete
-   issue-priming route key. If the recorded key already matches, wait, inspect,
-   or report before owner dispatch. Only then use this owner-dispatch sequence:
-   validate the complete dispatch tuple and current effect authority; discover a
-   compatible existing **top-level owner task** using that key; and, only when
-   no compatible owner exists and the host supports task creation, create one
-   separate top-level owner task with the source-specific priming prompt as its
-   initial work. A nested controller child is never an owner substitute. Reuse
-   a confirmed compatible owner and its branch or checkout continuity without
-   re-priming it. Retain a host pending result for confirmation or discovery,
-   and record an `owner_thread_id` only from supported host evidence that
-   confirms the mapping; report host denial separately from missing user
-   authority. After confirmation, let that top-level owner run the matching
-   provider entrypoint and preserve paired batch context unchanged. GitHub items
-   use `github-issue-priming`; Linear items use `linear-issue-priming`.
+   first prove the provider-native argument and the expected repository from
+   controller-held source/project context, independently of any candidate
+   checkout, then compute the complete issue-priming route key. Missing expected
+   repository context is one missing decision: wait or report before dispatch.
+   If the recorded key already matches, wait, inspect, or report before owner
+   dispatch. Only then use this owner-dispatch sequence: validate the complete
+   dispatch tuple and current effect authority; discover a compatible existing
+   **top-level owner task** using that key; and, only when no compatible owner
+   exists and the host supports task creation, retain an in-flight attempt before
+   creating one separate top-level owner task with the source-specific priming
+   prompt as its initial work. A nested controller child is never an owner
+   substitute. Reuse a confirmed compatible owner and its branch or checkout
+   continuity without re-priming it. Record
+   `last_routed_issue_priming_route_key` only for compatible confirmed reuse or
+   host acceptance with a pending or confirmed creation result. A definitive
+   host denial that proves no creation occurred clears only that attempt's
+   in-flight suppression and leaves no routed key, so a later authorized
+   same-key retry is eligible. An unknown result remains pending for
+   reconciliation before any retry, including after a source-digest refresh;
+   never clear it or record it as an accepted denial. Record an
+   `owner_thread_id` only from supported host evidence that confirms the
+   mapping; report host denial separately from missing user authority. The
+   controller binds that confirmation to the expected repository, canonical
+   provider-prefixed source issue identifier, and exact route key, and includes
+   the actual owner ID plus host identity when task IDs are host-scoped. After
+   confirmation, let that top-level owner run the matching provider entrypoint
+   with those existing handoff facts unchanged. An initial creation prompt may
+   arrive before confirmation, but it must wait without artifact writes or
+   research until a controller continuation delivers the binding. GitHub items use
+   `github-issue-priming`; Linear items use `linear-issue-priming`.
    Convert provider-prefixed `source_issue_identifier` values into
    provider-native entrypoint arguments before invoking source-specific issue
    priming. GitHub conversion must preserve repository identity as a full issue
@@ -245,18 +260,20 @@ For each open batch item:
    provider-native entrypoint argument, and missing-owner state. If
    `last_routed_issue_priming_route_key` already matches that complete key and
    `owner_thread_id` is still missing, wait, inspect, or report instead of
-   routing another source-specific priming entrypoint or owner task. Missing route-key
-   evidence fails closed to waiting or manual action. Record
-   `last_routed_issue_priming_route_key` before or at owner dispatch, and supply that
-   recorded complete key plus the canonical provider-prefixed
-   `source_issue_identifier` as non-authorizing controller handoff context to
-   the source-specific issue-priming prompt. The source entrypoint must forward
-   both received values unchanged into the shared issue-priming workflow; it
-   must not derive, replace, or shorten the canonical source issue identifier.
-   The shared issue-priming workflow may only forward that received route key
-   unchanged into its initial owner-handoff report for equality comparison and
-   must use the received canonical identifier for batch reports. Missing or
-   changed handoff context must wait or report. Record the host-confirmed
+   routing another source-specific priming entrypoint or owner task. Missing
+   route-key evidence fails closed to waiting or manual action. Supply the
+   recorded complete key, canonical provider-prefixed
+   `source_issue_identifier`, independently proven expected repository, and
+   host-confirmed owner binding as non-authorizing controller handoff context to
+   the source-specific issue-priming prompt. The source entrypoint must preserve
+   every received value unchanged into the shared issue-priming workflow; it
+   must not derive expected repository identity from the candidate checkout or
+   derive, replace, or shorten the canonical source issue identifier. The shared
+   issue-priming workflow may only forward that received route key unchanged
+   into its initial owner-handoff report for equality comparison and must use
+   the received canonical identifier for batch reports. Missing, provisional,
+   changed, or mismatched binding context must wait or report before artifact
+   writes or research. Record the host-confirmed
    created or located owner-thread mapping before continuing the item. Only active source issues
    with missing owner threads route to source-specific issue priming. Terminal,
    duplicate, abandoned, blocked, or unknown no-owner states wait or report
@@ -423,15 +440,15 @@ The following seven bounded fixture families are the self-check surface for the
 owner route. Each yields one eligible action or an explicit wait/manual outcome;
 they do not authorize live task creation during fixture evaluation.
 
-| Family                                                                                                                                                             | Required outcome                                                                                                                                                                                          |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Direct router invocation has active start-work intent, a complete tuple, applicable creation authority, host capability, and no compatible owner                   | Record the complete route key, dispatch exactly one separate depth-0 owner task carrying the provider priming prompt, retain pending host output, then record the mapping only after host confirmation.   |
-| Coordination handoff has the same accepted scope, authority, and active start-work facts                                                                           | Forward them unchanged to the router and obtain the same owner-dispatch procedure and outcome as direct invocation; coordination creates no second procedure.                                             |
-| Direct or coordinated item is inspect/monitor-only                                                                                                                 | Refresh, discover, reconcile, or report only; do not create an owner task or begin provider priming.                                                                                                      |
-| Existing compatible confirmed owner, branch, checkout, and authority match the complete key                                                                        | Reuse the same depth-0 owner and continuity evidence without a generic reapproval or re-priming.                                                                                                          |
-| Active start-work item is missing creation authority                                                                                                               | Ask for that one authority decision before any host creation or provider priming.                                                                                                                         |
-| Host-resolution variants each change one fact from valid start-work: capability is unavailable, or the host returns only a provisional creation identifier         | Respectively report the manual owner-dispatch action without a controller child, or retain and reconcile pending creation across a refresh without duplicate creation or a provisional `owner_thread_id`. |
-| Checkout-adoption variants each hold all other facts fixed: a validated root-task checkout with existing issue work, or an unrelated/mismatched/ambiguous checkout | Respectively adopt and preserve the work before artifact guards without fallback or nested worktree, or block before writes, branch repurposing, or fallback provisioning.                                |
+| Family                                                                                                                                                                                                                               | Required outcome                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Direct router invocation has active start-work intent, a complete tuple including independently proven expected repository, applicable creation authority, host capability, and no compatible owner                                  | Retain an in-flight attempt, dispatch exactly one separate depth-0 owner task carrying the provider priming prompt, retain pending host output, record the route key only after accepted pending/confirmed output, and record the mapping only after host confirmation bound to repository, issue, route, owner, and host identity when scoped. |
+| Coordination handoff has the same accepted scope, authority, and active start-work facts                                                                                                                                             | Forward them unchanged to the router and obtain the same owner-dispatch procedure and outcome as direct invocation; coordination creates no second procedure.                                                                                                                                                                                   |
+| Direct or coordinated item is inspect/monitor-only                                                                                                                                                                                   | Refresh, discover, reconcile, or report only; do not create an owner task or begin provider priming.                                                                                                                                                                                                                                            |
+| Existing compatible confirmed owner, branch, checkout, and authority match the complete key                                                                                                                                          | Reuse the same depth-0 owner and continuity evidence without a generic reapproval or re-priming.                                                                                                                                                                                                                                                |
+| Active start-work item is missing creation authority                                                                                                                                                                                 | Ask for that one authority decision before any host creation or provider priming.                                                                                                                                                                                                                                                               |
+| Host-resolution variants each change one fact from valid start-work: capability is unavailable, definitive denial with no creation, only a provisional creation identifier, or an unknown result                                     | Respectively report the manual owner-dispatch action without a controller child; release only the denied attempt so a later authorized equal-key retry can run; retain and reconcile pending creation without a provisional `owner_thread_id`; or retain unknown recovery state and reconcile before any retry.                                 |
+| Checkout-adoption variants each hold all other facts fixed: direct primary invocation without an explicit candidate, a validated root-task checkout with existing issue work, or an explicit unrelated/mismatched/ambiguous checkout | Respectively provision through the current native-first/fallback path; adopt and preserve the work before artifact guards without fallback or nested worktree; or block before writes, branch repurposing, or fallback provisioning.                                                                                                            |
 
 Use these concrete fixture outcomes to self-check monitor decisions:
 
@@ -442,10 +459,13 @@ Use these concrete fixture outcomes to self-check monitor decisions:
 | Active GitHub source issue with missing `owner_thread_id`                                                                                                                                                                                                         | Route to `github-issue-priming`, then record the owner-thread mapping before monitoring PR gates.                                                                                                                                 |
 | Active GitHub source issue `github:owner/repo#123` with missing `owner_thread_id`                                                                                                                                                                                 | Convert to the full issue URL before routing to `github-issue-priming`; use a bare issue number only when current repository context is explicitly proven, and do not pass the prefixed ledger key or `owner/repo#123` shorthand. |
 | Active GitHub source issue `github:owner/repo#511` at source-state digest `S1` has missing `owner_thread_id`, provider-native entrypoint argument `https://github.com/owner/repo/issues/511`, and matching `last_routed_issue_priming_route_key` already recorded | Wait, inspect, or report instead of routing another `github-issue-priming` call while `owner_thread_id` remains missing.                                                                                                          |
+| Host definitively denies a same-key creation and later receives applicable creation authority without any issue change                                                                                                                                            | Release the denied attempt without a `last_routed_issue_priming_route_key`, then allow exactly one later owner-dispatch attempt.                                                                                                  |
+| Host result for a same-key creation is unknown                                                                                                                                                                                                                    | Retain recovery state and reconcile before another owner-dispatch attempt; do not clear it or record a denial.                                                                                                                    |
 | Missing source-state digest or provider-native entrypoint argument for an issue-priming route key                                                                                                                                                                 | Report waiting or manual action; do not route source-specific issue priming with an incomplete replay key.                                                                                                                        |
 | Missing `owner_thread_id` for a Linear item                                                                                                                                                                                                                       | If active, route to `linear-issue-priming`, then record the owner-thread mapping before monitoring PR gates.                                                                                                                      |
 | Active Linear source issue with missing `owner_thread_id`                                                                                                                                                                                                         | Route to `linear-issue-priming`, then record the owner-thread mapping before monitoring PR gates.                                                                                                                                 |
 | Active Linear source issue `linear:ENG-123` with missing `owner_thread_id`                                                                                                                                                                                        | Convert to `ENG-123` or a Linear issue URL before routing to `linear-issue-priming`; do not pass the prefixed ledger key.                                                                                                         |
+| GitHub or Linear item lacks independently proven expected repository, or its confirmed owner binding has a changed repository, issue, route, owner, or scoped host identity                                                                                       | Wait or report before owner artifact writes or research; no consumer derives expected repository from its checkout.                                                                                                               |
 | Closed/completed source issue with missing `owner_thread_id`                                                                                                                                                                                                      | Report waiting or terminal disposition; do not create an owner thread.                                                                                                                                                            |
 | Source issue state is unknown to the generic workflow                                                                                                                                                                                                             | Report waiting; do not mutate source issue status and do not coerce provider terminology.                                                                                                                                         |
 | PR has active blocking bot signal                                                                                                                                                                                                                                 | Wait for bot review; do not merge.                                                                                                                                                                                                |

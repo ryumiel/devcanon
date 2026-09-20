@@ -191,20 +191,32 @@ companion back. Target invocation controls must preserve owning-workflow calls;
 unsupported enforcement is documented as guidance, not a hard guarantee.
 
 For an active item without a confirmed owner, both direct routing and
-coordination converge on the router's one owner-dispatch sequence: validate the
-complete route and effect-authority facts, discover a compatible top-level
-owner, create exactly one top-level owner task only when current host capability
-and authority permit it, and confirm the mapping from host evidence. A pending
-host result remains pending across refresh and cannot become an owner mapping or
-justify a duplicate dispatch. Missing authority or host support stops before
+coordination converge on the router's one owner-dispatch sequence: independently
+prove the expected repository from source/project context, validate the complete
+route and effect-authority facts, discover a compatible top-level owner, and
+create exactly one top-level owner task only when current host capability and
+authority permit it. Retain an in-flight attempt before host creation. Record a
+routed key only for accepted pending/confirmed creation or compatible confirmed
+reuse; a definitive no-creation denial releases only that in-flight suppression
+and leaves the equal-key retry eligible when authority later permits it. An
+unknown host outcome remains pending and is reconciled before another attempt,
+even after a source-state refresh. Confirm the mapping from host evidence bound
+to expected repository, canonical issue, route, actual owner ID, and host
+identity when task IDs are scoped. Missing authority or host support stops before
 creation; task creation never grants publication or merge authority.
 Inspect/monitor-only work may reconcile and report but cannot create an owner;
 start-work uses its applicable authority under actual host restrictions while
 preserving compatible existing authority without generic reapproval.
 
-The confirmed provider owner adopts a validated task checkout before evidence
-writes and research. Suitable issue work and user changes continue intact; a
-clean unassigned managed checkout follows existing branching policy. An
+The confirmed provider owner preserves that binding through both provider
+entrypoints and the shared consumer. Before artifact writes or research, the
+entrypoint and shared Phase 1 independently compare the current supported task
+identity with the confirmed owner and host identity when scoped; the setup owner
+compares expected repository with its validated Git root. A task checkout is
+adopted only when explicitly supplied as a router/host candidate. Suitable issue
+work and user changes continue intact; a clean unassigned managed checkout
+follows existing branching policy. Direct invocation from a primary checkout
+without an explicit candidate provisions through that path. An explicit
 unrelated, mismatched, or ambiguous checkout blocks before repurposing or
 writes, and a native adoption does not fall through to fallback provisioning.
 
