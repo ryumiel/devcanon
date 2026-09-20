@@ -384,10 +384,14 @@ Compact ledger observation: session identity=`impl-1`; role/scope=`implementer`/
 Using `subagent-lifecycle` slot-limit recovery:
 Target capability for this separate run: cleanup-unavailable: target exposes neither inventory nor close operation
 Controller classifies a slot-limit spawn failure as orchestration resource exhaustion, not task failure.
-Controller runs the cleanup gate, records `close-unavailable: no inventory or close operation` for completed/superseded sessions, states that open-agent inventory is unavailable, gives explicit operator/UI cleanup guidance, waits for operator confirmation that manual cleanup is complete, reconstructs active task state from the lifecycle ledger and git, then retries the spawn exactly once.
+Controller records direct runtime evidence that the failed creation was `rejected`; open-agent inventory is unavailable. This evidence does not establish free capacity, the runtime's capacity calculation, or the failure's cause. Controller runs the cleanup gate, preserves captured role results and pending continuation windows, records `close-unavailable: no inventory or close operation` for completed/superseded sessions, gives explicit operator/UI cleanup guidance, waits for operator confirmation that manual cleanup is complete, and reconstructs active task state from the lifecycle ledger and git. Because the recorded creation outcome is `rejected` and manual cleanup is confirmed, the controller uses its one existing allowance to retry the same exact validated tuple.
 Retry succeeds.
 The retry uses the same previously validated role/model/effort pair; slot
-recovery does not permit a different configuration.
+recovery does not permit a different configuration. The later success does not
+establish what freed capacity or caused the original failure. If creation had
+instead been `confirmed` or `unknown`, this example would defer to
+`subagent-lifecycle`'s existing owner handling and would not dispatch this
+recovery retry.
 
 [Repeated blocker-family branch in the cleanup-unavailable run]
 Initial blocker-family record:
