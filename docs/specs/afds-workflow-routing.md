@@ -202,8 +202,14 @@ and leaves the equal-key retry eligible when authority later permits it. An
 unknown host outcome remains pending and is reconciled before another attempt,
 even after a source-state refresh. Confirm the mapping from host evidence bound
 to expected repository, canonical issue, route, actual owner ID, and host
-identity when task IDs are scoped. Missing authority or host support stops before
-creation; task creation never grants publication or merge authority.
+identity when task IDs are scoped. Confirmation establishes mapping only. Before
+a continuation releases a waiting owner to priming, revalidate current active
+eligibility, start-work intent, applicable effect authority, and exact route
+compatibility from controller-held facts. Failed or unknown release facts retain
+mapping and recovery, then wait or report without priming, duplicate creation,
+or re-priming; restored compatible facts continue through the existing gate.
+Missing authority or host support stops before creation; task creation never
+grants publication or merge authority.
 Inspect/monitor-only work may reconcile and report but cannot create an owner;
 start-work uses its applicable authority under actual host restrictions while
 preserving compatible existing authority without generic reapproval.
@@ -211,10 +217,19 @@ preserving compatible existing authority without generic reapproval.
 The confirmed provider owner preserves that binding through both provider
 entrypoints and the shared consumer. Before artifact writes or research, the
 entrypoint and shared Phase 1 independently compare the current supported task
-identity with the confirmed owner and host identity when scoped; the setup owner
-compares expected repository with its validated Git root. A task checkout is
-adopted only when explicitly supplied as a router/host candidate. Suitable issue
-work and user changes continue intact; a clean unassigned managed checkout
+identity with the confirmed owner and host identity when scoped. For every
+batch-selected checkout, the setup owner validates an explicit adoption
+candidate's root and repository against the controller-proven expected
+repository before adoption. Without an explicit candidate, it independently
+validates the invocation repository against that binding before native or
+fallback provisioning effects. It then validates the selected result against
+the same binding before evidence writes. Those checks use supported Git/provider
+evidence and canonical repository identity, so equivalent aliases remain valid
+without treating raw URL or path spelling as identity. Missing, ambiguous, or
+mismatched required repository identity stops the setup path without automatic
+switching, reset, deletion, alternate provisioning, or writes. A task checkout
+is adopted only when explicitly supplied as a router/host candidate. Suitable
+issue work and user changes continue intact; a clean unassigned managed checkout
 follows existing branching policy. Direct invocation from a primary checkout
 without an explicit candidate provisions through that path. An explicit
 unrelated, mismatched, or ambiguous checkout blocks before repurposing or

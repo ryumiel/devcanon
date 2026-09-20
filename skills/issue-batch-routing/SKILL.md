@@ -242,11 +242,18 @@ For each open batch item:
    mapping; report host denial separately from missing user authority. The
    controller binds that confirmation to the expected repository, canonical
    provider-prefixed source issue identifier, and exact route key, and includes
-   the actual owner ID plus host identity when task IDs are host-scoped. After
-   confirmation, let that top-level owner run the matching provider entrypoint
-   with those existing handoff facts unchanged. An initial creation prompt may
-   arrive before confirmation, but it must wait without artifact writes or
-   research until a controller continuation delivers the binding. GitHub items use
+   the actual owner ID plus host identity when task IDs are host-scoped. A host
+   confirmation establishes that mapping but does not authorize work. Immediately
+   before sending a controller continuation that can release the waiting owner to
+   provider priming, revalidate the refreshed active eligibility, start-work
+   intent, applicable effect authority, and exact route compatibility from the
+   controller-held facts. Only when all remain current and compatible, let that
+   top-level owner run the matching provider entrypoint with the existing handoff
+   facts unchanged. Otherwise retain the confirmed mapping and pending recovery,
+   then wait or report without releasing priming, duplicating creation, or
+   re-priming the owner. An initial creation prompt may arrive before
+   confirmation, but it must wait without artifact writes or research until a
+   controller continuation delivers the binding. GitHub items use
    `github-issue-priming`; Linear items use `linear-issue-priming`.
    Convert provider-prefixed `source_issue_identifier` values into
    provider-native entrypoint arguments before invoking source-specific issue
@@ -448,6 +455,10 @@ they do not authorize live task creation during fixture evaluation.
 | Existing compatible confirmed owner, branch, checkout, and authority match the complete key                                                                                                                                          | Reuse the same depth-0 owner and continuity evidence without a generic reapproval or re-priming.                                                                                                                                                                                                                                                |
 | Active start-work item is missing creation authority                                                                                                                                                                                 | Ask for that one authority decision before any host creation or provider priming.                                                                                                                                                                                                                                                               |
 | Host-resolution variants each change one fact from valid start-work: capability is unavailable, definitive denial with no creation, only a provisional creation identifier, or an unknown result                                     | Respectively report the manual owner-dispatch action without a controller child; release only the denied attempt so a later authorized equal-key retry can run; retain and reconcile pending creation without a provisional `owner_thread_id`; or retain unknown recovery state and reconcile before any retry.                                 |
+| Pending creation confirms while the source remains active, intent remains start-work, effect authority remains applicable, and the exact route remains compatible                                                                    | Retain the confirmed mapping, then release exactly one waiting owner continuation to the matching provider priming entrypoint.                                                                                                                                                                                                                  |
+| Pending creation confirms after exactly one current release fact changes: source becomes terminal, intent becomes inspect/monitor-only, effect authority is revoked or unknown, or the exact route becomes incompatible              | Retain the confirmed mapping and recovery evidence, then wait or report; do not release provider priming, duplicate creation, or re-prime the owner.                                                                                                                                                                                            |
+| Batch binding has expected repository A, no explicit adoption candidate, an invocation in canonical repository A, and a native or fallback result with an equivalent canonical repository identity                                   | Validate the invocation before provisioning, validate the selected result before evidence writes, then continue through the existing provisioning path.                                                                                                                                                                                         |
+| Batch binding has expected repository A and exactly one repository fact changes: the no-candidate invocation is repository B, or a valid invocation selects repository B or an ambiguous result                                      | Respectively stop before native or fallback provisioning effects, or stop before evidence writes; do not infer A from B, switch checkout, reset, delete, or provision an alternate result.                                                                                                                                                      |
 | Checkout-adoption variants each hold all other facts fixed: direct primary invocation without an explicit candidate, a validated root-task checkout with existing issue work, or an explicit unrelated/mismatched/ambiguous checkout | Respectively provision through the current native-first/fallback path; adopt and preserve the work before artifact guards without fallback or nested worktree; or block before writes, branch repurposing, or fallback provisioning.                                                                                                            |
 
 Use these concrete fixture outcomes to self-check monitor decisions:

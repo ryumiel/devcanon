@@ -55,6 +55,19 @@ explicit candidate stops here; do not repurpose it or fall back from that
 refusal. With no explicit candidate, ordinary direct invocation, including from
 a primary checkout, continues to native-first/fallback provisioning.
 
+For paired batch context, the controller-proven expected repository is required
+for every selected checkout. An explicit adoption candidate continues to prove
+its own root and repository against that binding before adoption; its valid
+selection does not depend on an unrelated ambient invocation checkout. With no
+explicit adoption candidate, independently validate the invocation repository
+against that expected repository before native create or reuse effects and
+before fallback helper invocation. No explicit adoption candidate does not make
+the ambient checkout an expected repository. Use supported Git/provider evidence
+to compare canonical repository identities; equivalent aliases may match, while
+raw URL or path spelling alone is insufficient. Missing, ambiguous, or mismatched
+identity stops before those provisioning effects and before any artifact write.
+Direct non-batch provisioning keeps its existing primary path.
+
 Compare the supplied directory and Git-reported root as canonical host-native
 directory identities, not raw path strings: normalize equivalent separators and
 trailing separators, and resolve links according to the host's native identity
@@ -124,7 +137,10 @@ Once `WORKTREE_PATH` is available — either from native tooling or the
 fallback helper — validate it before any write. It must be nonempty,
 absolute according to the host platform, name an existing searchable directory,
 and be the Git worktree root already validated for the expected repository
-identity. POSIX shell example:
+identity. For paired batch context, validate this selected result against the
+same controller-proven expected repository after native or fallback selection
+and before artifact guards; a missing, ambiguous, or mismatched result stops
+before evidence writes. POSIX shell example:
 
 ```bash
 [ -n "$WORKTREE_PATH" ] || { echo "worktree path missing" >&2; exit 1; }
