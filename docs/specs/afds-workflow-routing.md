@@ -195,11 +195,11 @@ coordination converge on the router's one owner-dispatch sequence: independently
 prove the expected repository from source/project context, validate the complete
 route and effect-authority facts, and discover a compatible top-level owner.
 Reuse a compatible confirmed owner when found. Only when no compatible owner
-exists, preflight task-creation capability and the host's supported identity
-operation for a top-level owner's ID, depth, and scoped host identity, then
-create exactly one top-level owner task only when those current capabilities and
-authority permit it. Missing or unknown creation or identity capability stops
-before creation. Retain an in-flight attempt before host creation. Record a
+exists, preflight task-creation capability and an owner-accessible current-task
+identity operation so the created top-level owner can confirm its own ID, depth,
+and scoped host identity, then create exactly one top-level owner task only when
+those current capabilities and authority permit it. Missing or unknown creation
+or identity capability stops before creation. Retain an in-flight attempt before host creation. Record a
 routed key only for accepted pending/confirmed creation or compatible confirmed
 reuse; a definitive no-creation denial releases only that in-flight suppression
 and leaves the equal-key retry eligible when authority later permits it. An
