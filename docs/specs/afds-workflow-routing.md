@@ -193,31 +193,42 @@ unsupported enforcement is documented as guidance, not a hard guarantee.
 For an active item without a confirmed owner, both direct routing and
 coordination converge on the router's one owner-dispatch sequence: independently
 prove the expected repository from source/project context, validate the complete
-route and effect-authority facts, discover a compatible top-level owner, and
-create exactly one top-level owner task only when current host capability and
-authority permit it. Retain an in-flight attempt before host creation. Record a
-routed key only for accepted pending/confirmed creation or compatible confirmed
-reuse; a definitive no-creation denial releases only that in-flight suppression
-and leaves the equal-key retry eligible when authority later permits it. An
-unknown host outcome remains pending and is reconciled before another attempt,
-even after a source-state refresh. Confirm the mapping from host evidence bound
-to expected repository, canonical issue, route, actual owner ID, and host
-identity when task IDs are scoped. Confirmation establishes mapping only. Before
-a continuation releases a waiting owner to priming, revalidate current active
-eligibility, start-work intent, applicable effect authority, and exact route
-compatibility from controller-held facts. Failed or unknown release facts retain
-mapping and recovery, then wait or report without priming, duplicate creation,
-or re-priming; restored compatible facts continue through the existing gate.
-Missing authority or host support stops before creation; task creation never
-grants publication or merge authority.
+route and effect-authority facts, preflight task-creation capability and the
+host's supported identity operation for a top-level owner's ID, depth, and
+scoped host identity, discover a compatible top-level owner, and create exactly
+one top-level owner task only when those current capabilities and authority
+permit it. Missing or unknown identity capability stops before creation. Retain
+an in-flight attempt before host creation. Record a routed key only for accepted
+pending/confirmed creation or compatible confirmed reuse; a definitive
+no-creation denial releases only that in-flight suppression and leaves the
+equal-key retry eligible when authority later permits it. An unknown host outcome
+remains pending and is reconciled before another attempt, even after a
+source-state refresh. Confirm the mapping from host evidence bound to expected
+repository, canonical issue, original complete route key, actual owner ID, and
+host identity when task IDs are scoped. The expected missing-to-confirmed mapping
+does not change that key or invalidate the same attempt. Before a continuation
+releases a waiting owner to priming, refresh that exact owner's supported host
+state and revalidate current active eligibility, start-work intent, applicable
+effect authority, and the retained source digest, provider-native argument,
+repository, issue, and owner/host identity. A waiting or resumable idle owner
+with current facts passes the existing initial-release-once gate. Unknown state
+waits; definitively unavailable, cancelled, archived, failed, or non-resumable
+state reports unavailable for existing controller/manual
+reconciliation. Those outcomes retain mapping and recovery without release,
+replacement, unarchive, deletion, or clearing suppression. Other fact drift
+waits or reports without priming, duplicate creation, or re-priming; restored
+compatible facts continue through the existing gate. Missing authority or host
+support stops before creation; task creation never grants publication or merge
+authority.
 Inspect/monitor-only work may reconcile and report but cannot create an owner;
 start-work uses its applicable authority under actual host restrictions while
 preserving compatible existing authority without generic reapproval.
 
 The confirmed provider owner preserves that binding through both provider
-entrypoints and the shared consumer. Before artifact writes or research, the
-entrypoint and shared Phase 1 independently compare the current supported task
-identity with the confirmed owner and host identity when scoped. For every
+entrypoints and the shared consumer. The entrypoint compares the current
+supported task identity with the confirmed owner and scoped host identity before
+its evidence writes. After those entrypoint writes, shared Phase 1 independently
+compares the same identity before artifact reads or research. For every
 batch-selected checkout, the setup owner validates an explicit adoption
 candidate's root and repository against the controller-proven expected
 repository before adoption. Without an explicit candidate, it independently
