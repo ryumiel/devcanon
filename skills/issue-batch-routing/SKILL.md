@@ -222,11 +222,13 @@ For each open batch item:
 2. Classify source-issue state before deciding whether missing-owner issue
    priming is valid.
 3. If `owner_thread_id` is missing, first reconcile any pending owner creation
-   through supported host result. A pending result waits or reports when it
-   cannot yet be confirmed; changed source state does not authorize a second
-   dispatch or erase its original key and suppression. With no pending result,
-   inspect/monitor-only first proves the expected repository and canonical issue
-   identity, then performs supported read-only compatible-owner discovery. A
+   through supported host result or supported read-only compatible-owner
+   discovery bound to that attempt's retained original complete route key. A
+   pending result waits or reports when it cannot yet be confirmed; changed
+   source state does not authorize a second dispatch or erase its original key
+   and suppression. With no pending result, inspect/monitor-only first proves
+   the expected repository and canonical issue identity, then performs
+   supported read-only compatible-owner discovery. A
    unique compatible confirmed depth-0 owner maps to that exact owner/host and
    continues ordinary monitoring without provider priming. No match, unknown
    discovery capability, or unknown or ambiguous owner identity waits or reports
@@ -289,10 +291,13 @@ For each open batch item:
    `source_issue_identifier`, independently proven expected repository, and
    host-confirmed owner binding, plus the optional paired checkout candidate
    when present, as non-authorizing controller handoff context to the
-   source-specific issue-priming prompt. The source entrypoint must preserve
-   every received value unchanged into the shared issue-priming workflow; it
-   must not derive expected repository identity from the candidate checkout or
-   derive, replace, or shorten the canonical source issue identifier. The shared
+   source-specific issue-priming prompt. The source entrypoint must preserve the
+   received complete key, canonical source issue identifier, independently
+   proven expected repository, and host-confirmed owner binding unchanged into
+   the shared issue-priming workflow, and pass the optional paired checkout
+   candidate to `issue-worktree-setup` for its existing validation. It must not
+   derive expected repository identity from the candidate checkout or derive,
+   replace, or shorten the canonical source issue identifier. The shared
    issue-priming workflow may only forward that received route key unchanged
    into its initial owner-handoff report for equality comparison and must use
    the received canonical identifier for batch reports. Missing, provisional,
