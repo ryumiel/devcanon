@@ -225,6 +225,16 @@ Inspect/monitor-only work may reconcile and report but cannot create an owner;
 start-work uses its applicable authority under actual host restrictions while
 preserving compatible existing authority without generic reapproval.
 
+For monitor-only work with neither a pending creation nor a local owner mapping,
+the router first proves the expected repository and canonical issue, then uses
+supported read-only compatible-owner discovery. A unique compatible confirmed
+depth-0 owner/host mapping is recorded and monitored without task creation,
+start-work authority, a route key, or provider priming. No match, unknown
+discovery capability, or unknown or ambiguous owner identity waits or reports
+without effects. Pending recovery remains first: its original key and
+suppression survive a source refresh until supported reconciliation, so discovery
+cannot bypass it.
+
 The confirmed provider owner preserves that binding through both provider
 entrypoints and the shared consumer. The entrypoint compares the current
 supported task identity with the confirmed owner and scoped host identity before
@@ -232,7 +242,15 @@ its evidence writes. After those entrypoint writes, shared Phase 1 independently
 compares the same identity before artifact reads or research. For every
 batch-selected checkout, the setup owner validates an explicit adoption
 candidate's root and repository against the controller-proven expected
-repository before adoption. Without an explicit candidate, it independently
+repository before adoption. When supported host confirmation or discovery gives
+an optional candidate, the router retains it only with the exact confirmed
+owner/host and expected repository, then explicitly forwards it only in that
+owner's eligible initial binding/provider handoff. The candidate is unvalidated
+and non-authorizing context: it neither proves the repository or owner identity
+nor comes from the ambient cwd. Its absence keeps the no-candidate path, an
+invalid explicit candidate follows the existing setup refusal, and an existing
+active compatible owner is not re-primed merely to transport one. Without an
+explicit candidate, setup independently
 validates the invocation repository against that binding before native or
 fallback provisioning effects. It then validates the selected result against
 the same binding before evidence writes. Those checks use supported Git/provider

@@ -51,15 +51,23 @@ number model:
   pass.
 - Optional parent approval evidence, scoped as described below.
 
-For a missing owner, the router needs one complete dispatch tuple before it can
-create or reuse owner work: provider, canonical issue identifier, current
-active-eligibility and source-state digest, proven provider-native entrypoint
-argument, complete existing issue-priming route key, work intent, and the
-applicable effect authority. A known confirmed owner, branch, PR, or checkout
-is optional supporting evidence. Missing or unknown required evidence stops
-that boundary for one concrete decision or manual action; it must not be
-reconstructed from an owner report, a provisional host identifier, or a child
-task.
+For read-only owner discovery, the router needs independently proven expected
+repository and canonical provider-prefixed issue identity plus supported
+evidence of an exact compatible depth-0 owner and scoped host identity when
+task IDs are host-scoped. These identity facts may map an owner for ordinary
+monitoring, but they do not manufacture a route key or authorize priming. For
+an effectful missing-owner dispatch, the router instead needs one complete
+dispatch tuple before it can create or reuse owner work: provider, canonical
+issue identifier, current active-eligibility and source-state digest, proven
+provider-native entrypoint argument, complete existing issue-priming route key,
+work intent, and the applicable effect authority. A known confirmed owner,
+branch, PR, or checkout is optional supporting evidence. A supported host
+confirmation or discovery may also provide an optional checkout candidate
+paired with that exact owner and host; it is unvalidated continuity context, not
+repository or identity proof, and is never inferred from the ambient cwd.
+Missing or unknown required evidence stops only its boundary for one concrete
+decision or manual action; it must not be reconstructed from an owner report, a
+provisional host identifier, or a child task.
 
 ## Owner dispatch boundary
 
@@ -214,11 +222,18 @@ For each open batch item:
 2. Classify source-issue state before deciding whether missing-owner issue
    priming is valid.
 3. If `owner_thread_id` is missing, first reconcile any pending owner creation
-   through supported host result or compatible-owner discovery. A pending result
-   waits or reports when it cannot yet be confirmed; changed source state does
-   not authorize a second dispatch. Inspect/monitor-only intent ends after that
-   reconciliation or report. For an active start-work issue with no pending result,
-   first prove the provider-native argument and the expected repository from
+   through supported host result. A pending result waits or reports when it
+   cannot yet be confirmed; changed source state does not authorize a second
+   dispatch or erase its original key and suppression. With no pending result,
+   inspect/monitor-only first proves the expected repository and canonical issue
+   identity, then performs supported read-only compatible-owner discovery. A
+   unique compatible confirmed depth-0 owner maps to that exact owner/host and
+   continues ordinary monitoring without provider priming. No match, unknown
+   discovery capability, or unknown or ambiguous owner identity waits or reports
+   without effects. This discovery requires neither creation nor start-work
+   authority and records no dispatch key. Inspect/monitor-only ends after that
+   reconciliation, mapping, or report. For an active start-work issue with no
+   pending result, first prove the provider-native argument and the expected repository from
    controller-held source/project context, independently of any candidate
    checkout, then compute the complete issue-priming route key. Missing expected
    repository context is one missing decision: wait or report before dispatch.
@@ -233,9 +248,12 @@ For each open batch item:
    top-level owner task with the source-specific priming prompt as its initial
    work. Missing or unknown required creation or identity capability waits or
    reports before creation; do not invent an identity from a checkout.
-   A nested controller child is never an owner
-   substitute. Reuse a confirmed compatible owner and its branch or checkout
-   continuity without re-priming it. Record
+   A nested controller child is never an owner substitute. Reuse a confirmed
+   compatible owner and its branch or checkout continuity without re-priming
+   it. When supported confirmation or discovery provides an optional checkout
+   candidate, retain it only with its exact confirmed owner/host and expected
+   repository context; it remains optional, unvalidated, and non-authorizing.
+   Record
    `last_routed_issue_priming_route_key` only for compatible confirmed reuse or
    host acceptance with a pending or confirmed creation result. A definitive
    host denial that proves no creation occurred clears only that attempt's
@@ -266,11 +284,12 @@ For each open batch item:
    `last_routed_issue_priming_route_key` already matches that complete key and
    `owner_thread_id` is still missing, wait, inspect, or report instead of
    routing another source-specific priming entrypoint or owner task. Missing
-   route-key evidence fails closed to waiting or manual action. Supply the
-   recorded complete key, canonical provider-prefixed
+   route-key evidence fails closed to waiting or manual action. For an eligible
+   initial binding/release only, supply the recorded complete key, canonical provider-prefixed
    `source_issue_identifier`, independently proven expected repository, and
-   host-confirmed owner binding as non-authorizing controller handoff context to
-   the source-specific issue-priming prompt. The source entrypoint must preserve
+   host-confirmed owner binding, plus the optional paired checkout candidate
+   when present, as non-authorizing controller handoff context to the
+   source-specific issue-priming prompt. The source entrypoint must preserve
    every received value unchanged into the shared issue-priming workflow; it
    must not derive expected repository identity from the candidate checkout or
    derive, replace, or shorten the canonical source issue identifier. The shared
@@ -297,9 +316,14 @@ For each open batch item:
    repository, canonical issue, owner/host identity, intent, and authority to
    the retained dispatch facts. The expected missing-to-confirmed mapping alone
    keeps the original complete route key unchanged; any other drift waits or
-   reports. Only when every retained fact remains current and compatible,
-   release that waiting top-level owner once to the matching provider entrypoint
-   with the original key and confirmed owner binding unchanged. When the
+   reports. An optional checkout candidate stays paired to that owner/host and
+   expected repository but is not repository proof or an initial-release fact.
+   Only when every retained fact remains current and compatible, release that
+   waiting top-level owner once to the matching provider entrypoint with the
+   original key and confirmed owner binding unchanged, explicitly including the
+   optional candidate when present. Its absence uses the existing no-candidate
+   path, and an existing active compatible owner is never re-primed only to
+   transport one. When the
    recovery facts show that the initial continuation was already sent, continue
    the existing owner lifecycle without another initial release.
 5. Refresh owner-thread state and integrate any owner-thread gate report or
@@ -469,6 +493,10 @@ they do not authorize live task creation during fixture evaluation.
 | Direct router invocation has active start-work intent, a complete tuple including independently proven expected repository, applicable creation authority, required creation and owner-accessible current-task identity capabilities, and no compatible owner         | Retain an in-flight attempt, dispatch exactly one separate depth-0 owner task carrying the provider priming prompt, retain pending host output, record the route key only after accepted pending/confirmed output, and record the mapping only after host confirmation bound to repository, issue, route, owner, and host identity when scoped. |
 | Coordination handoff has the same accepted scope, authority, and active start-work facts                                                                                                                                                                              | Forward them unchanged to the router and obtain the same owner-dispatch procedure and outcome as direct invocation; coordination creates no second procedure.                                                                                                                                                                                   |
 | Direct or coordinated item is inspect/monitor-only                                                                                                                                                                                                                    | Refresh, discover, reconcile, or report only; do not create an owner task or begin provider priming.                                                                                                                                                                                                                                            |
+| Inspect/monitor-only item has no pending creation or local owner mapping, independently proven repository and canonical issue, and one uniquely compatible supported confirmed depth-0 owner/host mapping                                                             | Record that mapping and continue ordinary monitoring with zero creation, start-work, route-key, or priming effect.                                                                                                                                                                                                                              |
+| The same monitor-only item has no compatible owner                                                                                                                                                                                                                    | Report without creation, start-work, route-key, or priming effect.                                                                                                                                                                                                                                                                              |
+| The same monitor-only item has unknown discovery capability                                                                                                                                                                                                           | Wait or report without creation, start-work, route-key, or priming effect.                                                                                                                                                                                                                                                                      |
+| The same monitor-only item has unknown or ambiguous owner identity                                                                                                                                                                                                    | Wait or report without creation, start-work, route-key, or priming effect.                                                                                                                                                                                                                                                                      |
 | Existing compatible confirmed owner, branch, checkout, and authority match the complete key                                                                                                                                                                           | Reuse the same depth-0 owner and continuity evidence without a generic reapproval or re-priming.                                                                                                                                                                                                                                                |
 | Active start-work item is missing creation authority                                                                                                                                                                                                                  | Ask for that one authority decision before any host creation or provider priming.                                                                                                                                                                                                                                                               |
 | With no compatible owner, host-resolution variants each change one fact from valid start-work: the owner-accessible current-task identity capability is unavailable, definitive denial with no creation, only a provisional creation identifier, or an unknown result | Respectively report the manual owner-dispatch action before creation; release only the denied attempt so a later authorized equal-key retry can run; retain and reconcile pending creation without a provisional `owner_thread_id`; or retain unknown recovery state and reconcile before any retry.                                            |
@@ -479,6 +507,7 @@ they do not authorize live task creation during fixture evaluation.
 | Batch binding has expected repository A, no explicit adoption candidate, an invocation in canonical repository A, and a native or fallback result with an equivalent canonical repository identity                                                                    | Validate the invocation before provisioning, validate the selected result before evidence writes, then continue through the existing provisioning path.                                                                                                                                                                                         |
 | Batch binding has expected repository A and exactly one repository fact changes: the no-candidate invocation is repository B, or a valid invocation selects repository B or an ambiguous result                                                                       | Respectively stop before native or fallback provisioning effects, or stop before evidence writes; do not infer A from B, switch checkout, reset, delete, or provision an alternate result.                                                                                                                                                      |
 | Checkout-adoption variants each hold all other facts fixed: direct primary invocation without an explicit candidate, a validated root-task checkout with existing issue work, or an explicit unrelated/mismatched/ambiguous checkout                                  | Respectively provision through the current native-first/fallback path; adopt and preserve the work before artifact guards without fallback or nested worktree; or block before writes, branch repurposing, or fallback provisioning.                                                                                                            |
+| An eligible initial binding for confirmed owner O on host H has expected repository A and an optional host-confirmed checkout candidate P paired to O/H                                                                                                               | Include P explicitly in that one provider handoff; the existing provider/setup path validates and adopts it before writes. P is not repository or owner proof.                                                                                                                                                                                  |
 
 Use these concrete fixture outcomes to self-check monitor decisions:
 
