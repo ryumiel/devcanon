@@ -233,6 +233,17 @@ suppression. Other fact drift waits or reports without priming, duplicate
 creation, or re-priming; restored compatible facts continue through the existing
 gate. Missing authority or host support stops before creation; task creation
 never grants publication or merge authority.
+
+The confirmed owner/host binding retains its independently proven expected
+repository with the canonical issue and original complete route key. Before
+keyed-route retention, current approved-route derivation, receipt acceptance, or
+continuation, the router compares the current independently proven repository
+with that retained binding using supported canonical repository identity, so an
+equivalent alias may match. A missing, ambiguous, or mismatched current or
+retained repository waits or reports, retains the original owner, key, and
+binding, and has no receipt effect. The router does not replace retained
+repository evidence from changed input, a checkout, an owner report, or a
+receipt; restored compatible facts use the existing gates.
 Inspect/monitor-only work may reconcile and report but cannot create an owner;
 start-work uses its applicable authority under actual host restrictions while
 preserving compatible existing authority without generic reapproval.

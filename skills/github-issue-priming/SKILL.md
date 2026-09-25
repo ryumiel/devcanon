@@ -43,10 +43,19 @@ Examples: `/github-issue-priming 149`, `/github-issue-priming 149 --auto`, `/git
 
 ## Phase 0: Fetch the Issue
 
-Parse the argument — accept an issue number or a full GitHub URL.
+Parse the argument — accept an issue number or a full GitHub URL. When the
+argument is a full URL, pass that exact URL unchanged to the existing
+`{{tool:github-cli}} issue view`; derive the numeric issue ID `<N>` separately
+and use only `<N>` for branch, worktree, and artifact names. The URL, not an
+ambient checkout, selects the issue to fetch. When paired batch context supplies
+a bare `<N>`, independently prove that the current repository matches the
+controller-proven expected repository before fetching or writing. Missing,
+ambiguous, conflicting, or mismatched repository context waits or reports
+without a fetch or write. Direct non-batch `<N>` invocation keeps the existing
+current-repository lookup.
 
 ```bash
-gh issue view <N> --json title,body,labels,comments,assignees
+gh issue view <issue-number-or-full-url> --json title,body,labels,comments,assignees
 ```
 
 Present a one-line summary to the user:

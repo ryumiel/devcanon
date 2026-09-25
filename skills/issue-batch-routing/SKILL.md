@@ -161,6 +161,17 @@ initialize, refresh, authenticate, or validate those facts. These are
 controller-local facts, not a new receipt artifact, ledger schema, or
 persistence system.
 
+The existing confirmed owner/host binding also retains the independently proven
+expected repository with its canonical issue and complete route key. Before
+retaining an existing keyed route, deriving
+`current_approved_owner_route_identity`, accepting a receipt, or continuing an
+owner route, compare the current independently proven expected repository to
+that retained binding. Use the existing supported canonical repository identity
+comparison, so equivalent aliases may match. A missing, ambiguous, or
+mismatched current or retained repository waits or reports while retaining the
+original owner, key, and binding, with no receipt effect. Do not replace the
+retained binding from changed input, a checkout, a report, or a receipt.
+
 `current_approved_owner_route_identity` is the controller-local deterministic
 identity of the current issue-authority approval binding: source provider,
 source issue identifier, owner thread ID, current issue-authority approval
@@ -245,8 +256,11 @@ For each open batch item:
    candidate checkout, and compute the complete issue-priming route key from
    the actual observed missing-owner/discovery state. Missing expected
    repository context is one missing decision: wait or report before dispatch.
-   If an already bound recorded key matches, retain the existing route and do
-   not initialize or replace it. For an unkeyed discovered mapping, validate the
+   Before retaining an already bound recorded matching key, compare the current
+   independently proven expected repository to its retained confirmed-owner/host
+   binding. A missing, ambiguous, or mismatched comparison waits or reports and
+   retains the original owner, key, and binding; do not initialize or replace
+   it. For an unkeyed discovered mapping, validate the
    complete controller tuple and current active start-work authority, then
    revalidate the exact supported owner/host as a compatible **top-level owner
    task**. The complete tuple includes provider, canonical provider-prefixed
@@ -360,8 +374,10 @@ For each open batch item:
    genuine gate, use its gate path and do not consume a receipt. Stale gate
    evidence remains a gate and cannot be bypassed by a receipt.
 7. At initial approval, validated initial owner handoff, and on a resumed route,
-   use the router's existing controller-held approved-route facts to derive and
-   record `current_approved_owner_route_identity`, including the refreshed
+   use the router's existing controller-held approved-route facts to first
+   compare the current independently proven expected repository to the retained
+   confirmed-owner/host binding, then derive and record
+   `current_approved_owner_route_identity`, including the refreshed
    source-issue state snapshot digest. Keep the refreshed current head SHA as a
    separate mandatory receipt comparison whenever a branch or PR exists. Record
    `current_reviewed_plan_handoff_provenance` from the reviewed plan digest and
@@ -377,8 +393,10 @@ For each open batch item:
    controller's continuation dispatch acknowledges that route's initial
    required positive sequence and refreshed source-issue state snapshot digest
    to the same owner.
-8. Before remaining gate classification, validate every unfinished non-gate
-   progress receipt fact against the current item: the same approved route
+8. Before remaining gate classification, compare the current independently
+   proven expected repository to the retained confirmed-owner/host binding, then
+   validate every unfinished non-gate progress receipt fact against the current
+   item: the same approved route
    (`current_approved_owner_route_identity`), reviewed-plan provenance
    (`current_reviewed_plan_handoff_provenance`), refreshed source-issue state
    snapshot digest, current head when required (the receipt must carry the
@@ -529,6 +547,9 @@ they do not authorize live task creation during fixture evaluation.
 | The same discovered mapping has a pending original creation attempt                                                                                                                                                                                                          | Reconcile that attempt first and retain its original key unchanged; do not replace it with compatible-owner reuse.                                                                                                                                                                                                                              |
 | The same discovered mapping already has a bound matching key                                                                                                                                                                                                                 | Continue the existing owner route; do not initialize or replace the key, re-prime, or release an initial continuation.                                                                                                                                                                                                                          |
 | Existing compatible confirmed owner, branch, checkout, and authority match the complete key                                                                                                                                                                                  | Reuse the same depth-0 owner and continuity evidence without a generic reapproval or re-priming.                                                                                                                                                                                                                                                |
+| A confirmed Linear owner/host binding retains repository A, while the same issue, digest, provider-native argument, and complete key now have repository B                                                                                                                   | Wait or report before keyed retention, approved-route derivation, receipt acceptance, or continuation; retain the original owner, key, and repository binding with no receipt effect.                                                                                                                                                           |
+| The same retained binding is absent while every current route fact remains otherwise compatible                                                                                                                                                                              | Wait or report before keyed retention, approved-route derivation, receipt acceptance, or continuation; retain the original owner and key, with no receipt effect.                                                                                                                                                                               |
+| The same retained binding has repository A and current repository is a supported canonical alias of A                                                                                                                                                                        | The alias passes only this repository comparison; every existing retention, derivation, receipt, and continuation gate still applies.                                                                                                                                                                                                           |
 | Active start-work item is missing creation authority                                                                                                                                                                                                                         | Ask for that one authority decision before any host creation or provider priming.                                                                                                                                                                                                                                                               |
 | With no compatible owner, host-resolution variants each change one fact from valid start-work: the owner-accessible current-task identity capability is unavailable, definitive denial with no creation, only a provisional creation identifier, or an unknown result        | Respectively report the manual owner-dispatch action before creation; release only the denied attempt so a later authorized equal-key retry can run; retain and reconcile pending creation without a provisional `owner_thread_id`; or retain unknown recovery state and reconcile before any retry.                                            |
 | Pending creation confirms while the source remains active, intent remains start-work, effect authority remains applicable, the original complete key remains compatible, and the current owner is waiting or resumable idle                                                  | Retain the original key and confirmed mapping, refresh the owner state, then release exactly one waiting owner continuation to the matching provider priming entrypoint.                                                                                                                                                                        |
