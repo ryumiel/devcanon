@@ -194,12 +194,24 @@ For an active item without a confirmed owner, both direct routing and
 coordination converge on the router's one owner-dispatch sequence: independently
 prove the expected repository from source/project context, validate the complete
 route and effect-authority facts, and discover a compatible top-level owner.
-Reuse a compatible confirmed owner when found. Only when no compatible owner
-exists, preflight task-creation capability and an owner-accessible current-task
-identity operation so the created top-level owner can confirm its own ID, depth,
-and scoped host identity, then create exactly one top-level owner task only when
-those current capabilities and authority permit it. Missing or unknown creation
-or identity capability stops before creation. Retain an in-flight attempt before host creation. Record a
+Reuse a compatible confirmed owner when found. A read-only discovery mapping is
+not an approved route: when a later active start-work pass finds its mapped owner
+without a key, first reconcile any pending original creation and retain that
+original key unchanged. Then validate the current complete controller tuple,
+including the observed missing-owner/discovery state, independently proven
+repository and canonical provider-native argument, active effect authority, and
+the exact supported owner/host compatibility. Record the existing compatible
+owner's key and retain its mapping only after that validation; missing, stale,
+conflicting, unauthorized, or incompatible facts retain the mapping and wait or
+report. This reuse creates no owner, provider priming, or initial release. Its
+existing validated owner handoff, reviewed-plan provenance, controller-held
+approved-route identity, and sequence acknowledgement remain prerequisites to
+receipt consumption. A previously bound key continues unchanged. Only when no
+compatible owner exists, preflight task-creation capability and an
+owner-accessible current-task identity operation so the created top-level owner
+can confirm its own ID, depth, and scoped host identity, then create exactly one
+top-level owner task only when those current capabilities and authority permit
+it. Missing or unknown creation or identity capability stops before creation. Retain an in-flight attempt before host creation. Record a
 routed key only for accepted pending/confirmed creation or compatible confirmed
 reuse; a definitive no-creation denial releases only that in-flight suppression
 and leaves the equal-key retry eligible when authority later permits it. An
