@@ -190,6 +190,104 @@ use remains available; the router must not implicitly activate or call the
 companion back. Target invocation controls must preserve owning-workflow calls;
 unsupported enforcement is documented as guidance, not a hard guarantee.
 
+For an active item without a confirmed owner, both direct routing and
+coordination converge on the router's one owner-dispatch sequence: independently
+prove the expected repository from source/project context, validate the complete
+route and effect-authority facts, and discover a compatible top-level owner.
+Reuse a compatible confirmed owner when found. A read-only discovery mapping is
+not an approved route: when a later active start-work pass finds its mapped owner
+without a key, first reconcile any pending original creation and retain that
+original key unchanged. Then validate the current complete controller tuple,
+including the observed missing-owner/discovery state, independently proven
+repository and canonical provider-native argument, active effect authority, and
+the exact supported owner/host compatibility. Record the existing compatible
+owner's key and retain its mapping only after that validation; missing, stale,
+conflicting, unauthorized, or incompatible facts retain the mapping and wait or
+report. This reuse creates no owner, provider priming, or initial release. Its
+existing validated owner handoff, reviewed-plan provenance, controller-held
+approved-route identity, and sequence acknowledgement remain prerequisites to
+receipt consumption. A previously bound key continues unchanged. Only when no
+compatible owner exists, preflight task-creation capability and an
+owner-accessible current-task identity operation so the created top-level owner
+can confirm its own ID, depth, and scoped host identity, then create exactly one
+top-level owner task only when those current capabilities and authority permit
+it. Missing or unknown creation or identity capability stops before creation. Retain an in-flight attempt before host creation. Record a
+routed key only for accepted pending/confirmed creation or compatible confirmed
+reuse; a definitive no-creation denial releases only that in-flight suppression
+and leaves the equal-key retry eligible when authority later permits it. An
+unknown host outcome remains pending and is reconciled before another attempt,
+even after a source-state refresh. Confirm the mapping from host evidence bound
+to expected repository, canonical issue, original complete route key, actual
+owner ID, and host identity when task IDs are scoped. The expected
+missing-to-confirmed mapping does not change that key or invalidate the same
+attempt. Before a continuation releases a waiting owner to priming, refresh that
+exact owner's supported host state and revalidate current active eligibility,
+start-work intent, applicable effect authority, and the retained source digest,
+provider-native argument, repository, issue, and owner/host identity. A waiting
+or resumable idle owner with current facts passes the existing
+initial-release-once gate. Unknown state waits; definitively unavailable,
+cancelled, archived, failed, or non-resumable state reports unavailable for
+existing controller/manual reconciliation. Those outcomes retain mapping and
+recovery without release, replacement, unarchive, deletion, or clearing
+suppression. Other fact drift waits or reports without priming, duplicate
+creation, or re-priming; restored compatible facts continue through the existing
+gate. Missing authority or host support stops before creation; task creation
+never grants publication or merge authority.
+
+The confirmed owner/host binding retains its independently proven expected
+repository with the canonical issue and original complete route key. Before
+keyed-route retention, current approved-route derivation, receipt acceptance, or
+continuation, the router compares the current independently proven repository
+with that retained binding using supported canonical repository identity, so an
+equivalent alias may match. A missing, ambiguous, or mismatched current or
+retained repository waits or reports, retains the original owner, key, and
+binding, and has no receipt effect. The router does not replace retained
+repository evidence from changed input, a checkout, an owner report, or a
+receipt; restored compatible facts use the existing gates.
+Inspect/monitor-only work may reconcile and report but cannot create an owner;
+start-work uses its applicable authority under actual host restrictions while
+preserving compatible existing authority without generic reapproval.
+
+For monitor-only work with neither a pending creation nor a local owner mapping,
+the router first proves the expected repository and canonical issue, then uses
+supported read-only compatible-owner discovery. A unique compatible confirmed
+depth-0 owner/host mapping is recorded and monitored without task creation,
+start-work authority, a route key, or provider priming. No match, unknown
+discovery capability, or unknown or ambiguous owner identity waits or reports
+without effects. Pending recovery remains first: its original key and
+suppression survive a source refresh until supported reconciliation, so discovery
+cannot bypass it.
+
+The confirmed provider owner preserves that binding through both provider
+entrypoints and the shared consumer. The entrypoint compares the current
+supported task identity with the confirmed owner and scoped host identity before
+its evidence writes. After those entrypoint writes, shared Phase 1 independently
+compares the same identity before artifact reads or research. For every
+batch-selected checkout, the setup owner validates an explicit adoption
+candidate's root and repository against the controller-proven expected
+repository before adoption. When supported host confirmation or discovery gives
+an optional candidate, the router retains it only with the exact confirmed
+owner/host and expected repository, then explicitly forwards it only in that
+owner's eligible initial binding/provider handoff. The candidate is unvalidated
+and non-authorizing context: it neither proves the repository or owner identity
+nor comes from the ambient cwd. Its absence keeps the no-candidate path, an
+invalid explicit candidate follows the existing setup refusal, and an existing
+active compatible owner is not re-primed merely to transport one. Without an
+explicit candidate, setup independently
+validates the invocation repository against that binding before native or
+fallback provisioning effects. It then validates the selected result against
+the same binding before evidence writes. Those checks use supported Git/provider
+evidence and canonical repository identity, so equivalent aliases remain valid
+without treating raw URL or path spelling as identity. Missing, ambiguous, or
+mismatched required repository identity stops the setup path without automatic
+switching, reset, deletion, alternate provisioning, or writes. A task checkout
+is adopted only when explicitly supplied as a router/host candidate. Suitable
+issue work and user changes continue intact; a clean unassigned managed checkout
+follows existing branching policy. Direct invocation from a primary checkout
+without an explicit candidate provisions through that path. An explicit
+unrelated, mismatched, or ambiguous checkout blocks before repurposing or
+writes, and a native adoption does not fall through to fallback provisioning.
+
 Coordination keeps actual dependencies separate from shared-file conflicts and
 combined behavior separate from publication readiness. Combined acceptance
 uses the intended current revisions and an existing appropriate validation

@@ -60,14 +60,28 @@ If the issue cannot be fetched (Linear skill unavailable, identifier not found),
 
 Slug rules apply to the `<title-slug>` segment only: lowercase, kebab-case, alphanumeric-and-hyphen only, max ~40 chars. The `<IDENTIFIER>` prefix retains its original casing (e.g., `ENG-123`).
 
-### Provision the worktree and persist the issue body
+### Adopt or provision the owner checkout and persist the issue body
+
+When this entrypoint comes from `issue-batch-routing`, it runs in the
+router-created or router-located top-level owner task. Before any artifact
+write, confirm the controller's binding: the canonical batch issue and route,
+the independently proven expected repository, the confirmed owner ID, and host
+identity when that host scopes task IDs. Compare the current supported host task
+identity to that confirmation; a missing, provisional, nested, changed, or
+mismatched binding is a blocker. Do not infer expected repository identity from
+the task checkout. Give an explicit router/host adoption candidate, when one was
+supplied, plus the expected repository to `issue-worktree-setup`; ordinary
+direct invocation supplies no candidate and follows its existing provisioning
+path. The
+[setup-worktree usage](../issue-worktree-setup/references/setup-worktree-usage.md#native-first-selection)
+is the sole owner of checkout identity, refusal, and fallback decisions.
 
 Provision or adopt the worktree and validate `WORKTREE_PATH` by following the
 setup-worktree usage's
 `## Consumer worktree provisioning and artifact write guards` section:
-native-first selection (including the Windows-hosted Codex/PowerShell
-caution), fallback helper invocation, `WORKTREE_SETUP_OUTPUT` parsing, and
-worktree path validation.
+checkout-adoption validation, native-first selection (including the
+Windows-hosted Codex/PowerShell caution), fallback helper invocation,
+`WORKTREE_SETUP_OUTPUT` parsing, and worktree path validation.
 
 Compute the issue-body artifact path inside `WORKTREE_PATH`:
 `.ephemeral/<YYYY-MM-DD>-<id>-issue-body.md` (today's date; slugged
@@ -128,16 +142,19 @@ supplies the Linear-specific values:
 - `source`: `linear`
 - `identifier`: `<IDENTIFIER>`
 - `batch-source-issue-identifier`: `linear:<IDENTIFIER>` (only when supplied by `issue-batch-routing`)
+- `batch-expected-repository`: <controller-proven repository identity> (paired batch context only)
+- `batch-confirmed-owner-id`: <host-confirmed owner task ID> (paired batch context only)
+- `batch-confirmed-host-identity`: <host identity when task IDs are host-scoped> (paired batch context only)
 
 The `mode` field is `auto` when `--auto` was passed and `interactive` otherwise. The `research` field is `forced` when `--research` was passed and `gated` otherwise.
 
-When `issue-batch-routing` supplies the paired batch fields, forward both
-unchanged to `issue-priming-workflow`. `identifier: <IDENTIFIER>` remains the
-provider-native entrypoint value; it must not replace the canonical
+When `issue-batch-routing` supplies the paired batch fields, forward every
+binding fact unchanged to `issue-priming-workflow`. `identifier: <IDENTIFIER>`
+remains the provider-native entrypoint value; it must not replace the canonical
 `batch-source-issue-identifier`. The entrypoint may neither derive nor modify
-the route key or canonical identifier. Missing, incomplete, or mismatched
-paired batch context is a handoff blocker: wait or report instead of invoking
-the shared workflow.
+the route key, canonical identifier, expected repository, or confirmed owner
+binding. Missing, incomplete, provisional, or mismatched paired batch context
+is a handoff blocker: wait or report instead of invoking the shared workflow.
 
 The workflow handles every subsequent phase (gate, research,
 brainstorming, planning, implementation, branch review, PR creation). Do

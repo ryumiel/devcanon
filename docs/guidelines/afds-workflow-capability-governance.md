@@ -366,6 +366,13 @@ route contracts. The companion explicitly invokes that router and does not
 copy its decision tables. Generic batch-management intent selects coordination;
 explicit user or owning-workflow invocation selects routing.
 
+That router also owns compatible-owner reuse. A read-only discovered owner
+mapping remains monitor evidence until the router validates a later complete
+active start-work tuple and effect authority; only the router may record the
+existing route key and continue its existing handoff, approved-route, and
+receipt prerequisites. Coordination does not turn the mapping into permission
+or add a creation, priming, or release path.
+
 [ADR-0037](../adr/adr-0037-issue-batch-coordination-boundary.md) records the
 durable ownership decision, consequences, and rejected alternatives.
 

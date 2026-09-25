@@ -78,7 +78,10 @@ for removal.
 3. **Route once.** Explicitly invoke `issue-batch-routing` with the affected
    provider-tagged items, current owner evidence, scope, relevant policy, and
    existing approval facts. The router validates and deduplicates each route;
-   do not create a second key or approval mechanism here. Advance eligible
+   do not create a second key, owner-dispatch procedure, or approval mechanism
+   here. Forward accepted scope and applicable authority unchanged; the router
+   alone decides whether a compatible top-level owner is reused, host creation
+   is allowed, or the item waits. Advance eligible
    queued work within authorization without a generic “proceed” request. A
    blocked item need not stop independent eligible siblings.
 4. **Record and yield.** Reconcile the router's outcome into the affected

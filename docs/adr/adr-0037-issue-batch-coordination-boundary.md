@@ -26,7 +26,12 @@ select the coordinator in return.
 
 Keep route eligibility, approval bindings, receipts, and archival with the
 router. The coordinator reuses existing state and owner workflows instead of
-copying their decision tables or granting new mutation authority.
+copying their decision tables or granting new mutation authority. The router
+alone decides whether an independently discovered mapped owner can be reused
+when active start-work authority arrives; a coordinator handoff or read-only
+mapping cannot supply a route key or effect authority. That reuse retains the
+existing owner boundary and does not add a coordinator-owned creation, priming,
+or release protocol.
 
 Canonical policy refresh is part of coordination. An optional, authorized host
 watchdog may prompt refresh and recovery; it adds no DevCanon scheduler and

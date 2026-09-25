@@ -51,6 +51,40 @@ number model:
   pass.
 - Optional parent approval evidence, scoped as described below.
 
+For read-only owner discovery, the router needs independently proven expected
+repository and canonical provider-prefixed issue identity plus supported
+evidence of an exact compatible depth-0 owner and scoped host identity when
+task IDs are host-scoped. These identity facts may map an owner for ordinary
+monitoring, but they do not manufacture a route key or authorize priming. For
+an effectful missing-owner dispatch, the router instead needs one complete
+dispatch tuple before it can create or reuse owner work: provider, canonical
+issue identifier, current active-eligibility and source-state digest, proven
+provider-native entrypoint argument, complete existing issue-priming route key,
+work intent, and the applicable effect authority. A known confirmed owner,
+branch, PR, or checkout is optional supporting evidence. A supported host
+confirmation or discovery may also provide an optional checkout candidate
+paired with that exact owner and host; it is unvalidated continuity context, not
+repository or identity proof, and is never inferred from the ambient cwd.
+Missing or unknown required evidence stops only its boundary for one concrete
+decision or manual action; it must not be reconstructed from an owner report, a
+provisional host identifier, or a child task.
+
+## Owner dispatch boundary
+
+A separate top-level owner task is an independently managed depth-0 root for
+the shared provider and priming workflow, with its own checkout, reports, and
+continuation. It is not a label for a nested controller child.
+
+Keep inspect/monitor-only work separate from start-work. Inspect/monitor-only
+may refresh, discover, reconcile pending creation, or report; it must not create
+an owner task or begin provider priming. Start-work requires explicit work
+intent and applicable effect authority, subject to the current host's actual
+task capability and restrictions. Preserve compatible existing authority and
+confirmed owner continuity without requesting a generic reapproval. When only a
+required decision is missing, ask for that decision; a host denial remains a
+separate manual outcome and no skill prose overrides it. Start-work authority
+does not grant publication, merge, or another downstream effect.
+
 When the host provides thread-management or automation tools, use those tools to
 start, inspect, message, and archive owner threads. When those tools are absent,
 report the needed manual routing action and keep the ledger in the
@@ -101,6 +135,14 @@ deduplication must use the full route-key fields.
 matching approval evidence is present. Report-only waiting state uses
 `last_reported_approval_waiting_key` instead.
 
+Pending host creation is controller-local recovery evidence, not an
+`owner_thread_id`, route-key replacement, schema field, or durable notice. A
+pending result retains its complete requested route key and any provisional host
+identifier only for supported confirmation or discovery. A source refresh,
+including one with a changed digest, must reconcile that pending creation before
+considering another dispatch and must not erase it or treat the provisional
+identifier as a confirmed owner mapping.
+
 ## Controller-Held Approved-Route Facts
 
 For receipt validation, the router holds the approved-route facts from the
@@ -118,6 +160,17 @@ an owner-handoff cannot initialize or refresh that controller-held fact. A recei
 initialize, refresh, authenticate, or validate those facts. These are
 controller-local facts, not a new receipt artifact, ledger schema, or
 persistence system.
+
+The existing confirmed owner/host binding also retains the independently proven
+expected repository with its canonical issue and complete route key. Before
+retaining an existing keyed route, deriving
+`current_approved_owner_route_identity`, accepting a receipt, or continuing an
+owner route, compare the current independently proven expected repository to
+that retained binding. Use the existing supported canonical repository identity
+comparison, so equivalent aliases may match. A missing, ambiguous, or
+mismatched current or retained repository waits or reports while retaining the
+original owner, key, and binding, with no receipt effect. Do not replace the
+retained binding from changed input, a checkout, a report, or a receipt.
 
 `current_approved_owner_route_identity` is the controller-local deterministic
 identity of the current issue-authority approval binding: source provider,
@@ -179,9 +232,81 @@ For each open batch item:
 1. Refresh source-issue state through the provider surface when available.
 2. Classify source-issue state before deciding whether missing-owner issue
    priming is valid.
-3. If `owner_thread_id` is missing, route only active source issues to the
-   matching source-specific issue-priming entrypoint: GitHub items route to
-   `github-issue-priming`, Linear items route to `linear-issue-priming`.
+3. If `owner_thread_id` is missing, first reconcile any pending owner creation
+   through supported host result or supported read-only compatible-owner
+   discovery bound to that attempt's retained original complete route key. A
+   pending result waits or reports when it cannot yet be confirmed; changed
+   source state does not authorize a second dispatch or erase its original key
+   and suppression. With no pending result, inspect/monitor-only first proves
+   the expected repository and canonical issue identity, then performs
+   supported read-only compatible-owner discovery. A
+   unique compatible confirmed depth-0 owner maps to that exact owner/host and
+   continues ordinary monitoring without provider priming. No match, unknown
+   discovery capability, or unknown or ambiguous owner identity waits or reports
+   without effects. This discovery requires neither creation nor start-work
+   authority and records no dispatch key. Inspect/monitor-only ends after that
+   reconciliation, mapping, or report. Independently of that missing-owner
+   branch, a monitor-only discovery mapping has an `owner_thread_id` but no
+   approved route key; it remains mapping-only until a later active start-work
+   pass. That later pass enters the compatible-owner reuse transition below,
+   not missing-owner discovery or creation. Before it can reuse the mapped
+   owner, reconcile any pending original creation first and retain its original
+   key unchanged. Then prove the provider-native argument and expected
+   repository from controller-held source/project context, independently of any
+   candidate checkout, and compute the complete issue-priming route key from
+   the actual observed missing-owner/discovery state. Missing expected
+   repository context is one missing decision: wait or report before dispatch.
+   Before retaining an already bound recorded matching key, compare the current
+   independently proven expected repository to its retained confirmed-owner/host
+   binding. A missing, ambiguous, or mismatched comparison waits or reports and
+   retains the original owner, key, and binding; do not initialize or replace
+   it. For an unkeyed discovered mapping, validate the
+   complete controller tuple and current active start-work authority, then
+   revalidate the exact supported owner/host as a compatible **top-level owner
+   task**. The complete tuple includes provider, canonical provider-prefixed
+   issue identity, current active eligibility and source-state digest,
+   independently proven provider-native argument and expected repository,
+   complete route key, work intent, and applicable effect authority. Missing,
+   stale, conflicting, unauthorized, or incompatible facts retain the mapping
+   and wait or report. A compatible mapped owner records that existing complete
+   key while retaining its binding; it does not create an owner, begin provider
+   priming, or release an initial continuation. It proceeds through the existing
+   validated owner-handoff, reviewed-plan provenance, controller-held approved
+   route identity, and sequence-acknowledgement prerequisites before any receipt
+   consumption. Only for an item whose `owner_thread_id` remains missing after
+   that reconciliation, use this owner-dispatch sequence: validate the complete
+   dispatch tuple and current effect authority; discover a compatible existing
+   **top-level owner task** using that key; and, only when no compatible owner
+   exists, preflight that the host supports both task creation and an
+   owner-accessible current-task identity operation so the created top-level
+   owner can confirm its own ID, depth, and host identity when task IDs are
+   scoped before retaining an in-flight attempt and creating one separate
+   top-level owner task with the source-specific priming prompt as its initial
+   work. Missing or unknown required creation or identity capability waits or
+   reports before creation; do not invent an identity from a checkout.
+   A nested controller child is never an owner substitute. Reuse a confirmed
+   compatible owner and its branch or checkout continuity without re-priming
+   it. When supported confirmation or discovery provides an optional checkout
+   candidate, retain it only with its exact confirmed owner/host and expected
+   repository context; it remains optional, unvalidated, and non-authorizing.
+   Record
+   `last_routed_issue_priming_route_key` only for compatible confirmed reuse or
+   host acceptance with a pending or confirmed creation result. A definitive
+   host denial that proves no creation occurred clears only that attempt's
+   in-flight suppression and leaves no routed key, so a later authorized
+   same-key retry is eligible. An unknown result remains pending for
+   reconciliation before any retry, including after a source-digest refresh;
+   never clear it or record it as an accepted denial. Record an
+   `owner_thread_id` only from supported host evidence that confirms the
+   mapping; report host denial separately from missing user authority. The
+   controller binds that confirmation to the expected repository, canonical
+   provider-prefixed source issue identifier, and exact route key, and includes
+   the actual owner ID plus host identity when task IDs are host-scoped. A host
+   confirmation establishes that mapping but does not authorize work. An initial
+   creation prompt may arrive before confirmation, but it must wait without
+   artifact writes or research until a controller continuation delivers the
+   binding. GitHub items use
+   `github-issue-priming`; Linear items use `linear-issue-priming`.
    Convert provider-prefixed `source_issue_identifier` values into
    provider-native entrypoint arguments before invoking source-specific issue
    priming. GitHub conversion must preserve repository identity as a full issue
@@ -194,33 +319,65 @@ For each open batch item:
    provider-native entrypoint argument, and missing-owner state. If
    `last_routed_issue_priming_route_key` already matches that complete key and
    `owner_thread_id` is still missing, wait, inspect, or report instead of
-   routing another source-specific priming entrypoint. Missing route-key
-   evidence fails closed to waiting or manual action. Record
-   `last_routed_issue_priming_route_key` before or at handoff, and supply that
-   recorded complete key plus the canonical provider-prefixed
-   `source_issue_identifier` as non-authorizing controller handoff context to
-   the source-specific issue-priming route. The source entrypoint must forward
-   both received values unchanged into the shared issue-priming workflow; it
-   must not derive, replace, or shorten the canonical source issue identifier.
-   The shared issue-priming workflow may only forward that received route key
-   unchanged into its initial owner-handoff report for equality comparison and
-   must use the received canonical identifier for batch reports. Missing or
-   changed handoff context must wait or report. Record the created or located
-   owner-thread mapping before continuing the item. Only active source issues
+   routing another source-specific priming entrypoint or owner task. Missing
+   route-key evidence fails closed to waiting or manual action. For an eligible
+   initial binding/release only, supply the recorded complete key, canonical provider-prefixed
+   `source_issue_identifier`, independently proven expected repository, and
+   host-confirmed owner binding, plus the optional paired checkout candidate
+   when present, as non-authorizing controller handoff context to the
+   source-specific issue-priming prompt. The source entrypoint must preserve the
+   received complete key, canonical source issue identifier, independently
+   proven expected repository, and host-confirmed owner binding unchanged into
+   the shared issue-priming workflow, and pass the optional paired checkout
+   candidate to `issue-worktree-setup` for its existing validation. It must not
+   derive expected repository identity from the candidate checkout or derive,
+   replace, or shorten the canonical source issue identifier. The shared
+   issue-priming workflow may only forward that received route key unchanged
+   into its initial owner-handoff report for equality comparison and must use
+   the received canonical identifier for batch reports. Missing, provisional,
+   changed, or mismatched binding context must wait or report before artifact
+   writes or research. Record the host-confirmed
+   created or located owner-thread mapping before continuing the item. Only active source issues
    with missing owner threads route to source-specific issue priming. Terminal,
    duplicate, abandoned, blocked, or unknown no-owner states wait or report
    instead of creating owner work.
-4. Refresh owner-thread state and integrate any owner-thread gate report or
+4. After missing-owner reconciliation, independently of whether
+   `owner_thread_id` is now present, use the retained pending-creation recovery
+   facts to identify a confirmed owner still waiting for its initial binding
+   continuation. Before that continuation, refresh that exact owner's supported
+   host state. A waiting or resumable idle owner is eligible for the ordinary
+   initial-release-once gate. Unknown state waits; definitively unavailable,
+   cancelled, archived, failed, or non-resumable state reports unavailable for
+   the existing controller/manual reconciliation. In every unavailable case,
+   retain the confirmed mapping and pending recovery without release,
+   replacement, unarchive, deletion, or clearing suppression. For an eligible
+   owner, compare the current source digest, provider-native argument,
+   repository, canonical issue, owner/host identity, intent, and authority to
+   the retained dispatch facts. The expected missing-to-confirmed mapping alone
+   keeps the original complete route key unchanged; any other drift waits or
+   reports. An optional checkout candidate stays paired to that owner/host and
+   expected repository but is not repository proof or an initial-release fact.
+   Only when every retained fact remains current and compatible, release that
+   waiting top-level owner once to the matching provider entrypoint with the
+   original key and confirmed owner binding unchanged, explicitly including the
+   optional candidate when present. Its absence uses the existing no-candidate
+   path, and an existing active compatible owner is never re-primed only to
+   transport one. When the
+   recovery facts show that the initial continuation was already sent, continue
+   the existing owner lifecycle without another initial release.
+5. Refresh owner-thread state and integrate any owner-thread gate report or
    validated initial owner-handoff report.
-5. Refresh current source and PR state. Apply the canonical
+6. Refresh current source and PR state. Apply the canonical
    `issue-priming-workflow` genuine-gate classification while preserving the
    router's PR, source-issue, publication, and terminal precedence before any
    non-gate receipt continuation: when current evidence identifies a canonical
    genuine gate, use its gate path and do not consume a receipt. Stale gate
    evidence remains a gate and cannot be bypassed by a receipt.
-6. At initial approval, validated initial owner handoff, and on a resumed route,
-   use the router's existing controller-held approved-route facts to derive and
-   record `current_approved_owner_route_identity`, including the refreshed
+7. At initial approval, validated initial owner handoff, and on a resumed route,
+   use the router's existing controller-held approved-route facts to first
+   compare the current independently proven expected repository to the retained
+   confirmed-owner/host binding, then derive and record
+   `current_approved_owner_route_identity`, including the refreshed
    source-issue state snapshot digest. Keep the refreshed current head SHA as a
    separate mandatory receipt comparison whenever a branch or PR exists. Record
    `current_reviewed_plan_handoff_provenance` from the reviewed plan digest and
@@ -236,8 +393,10 @@ For each open batch item:
    controller's continuation dispatch acknowledges that route's initial
    required positive sequence and refreshed source-issue state snapshot digest
    to the same owner.
-7. Before remaining gate classification, validate every unfinished non-gate
-   progress receipt fact against the current item: the same approved route
+8. Before remaining gate classification, compare the current independently
+   proven expected repository to the retained confirmed-owner/host binding, then
+   validate every unfinished non-gate progress receipt fact against the current
+   item: the same approved route
    (`current_approved_owner_route_identity`), reviewed-plan provenance
    (`current_reviewed_plan_handoff_provenance`), refreshed source-issue state
    snapshot digest, current head when required (the receipt must carry the
@@ -262,13 +421,13 @@ For each open batch item:
    changes must not evict their earlier replay state. Missing identity, route
    provenance, or unfinished non-gate evidence fails closed to waiting or
    manual action. A genuine gate does not qualify as progress.
-8. For an item without receipt continuation, classify any remaining gate using
+9. For an item without receipt continuation, classify any remaining gate using
    PR gate precedence, source-issue state, and any owner-thread report.
-9. Compare the gate's duplicate-route key with the ledger.
-10. Route only when the route key is new or the current state invalidates the
+10. Compare the gate's duplicate-route key with the ledger.
+11. Route only when the route key is new or the current state invalidates the
     prior route.
-11. Record the route, approval, waiting reason, or terminal state in the ledger.
-12. Report the monitor pass.
+12. Record the route, approval, waiting reason, or terminal state in the ledger.
+13. Report the monitor pass.
 
 If a required live-state surface is unavailable, report the item as waiting
 with the missing surface and the next safe manual command or workflow.
@@ -300,8 +459,10 @@ as still current.
 Persist the complete route key after routing; partial fields such as only the
 unresolved-thread-set digest or only the check identifier are diagnostic hints,
 not replay authority.
-`issue-priming` route keys suppress duplicate source-specific priming while
-`owner_thread_id` remains missing for the same complete key. Missing
+`issue-priming` route keys suppress duplicate owner dispatch and source-specific
+priming while `owner_thread_id` remains missing for the same complete key.
+Pending creation must be reconciled before a changed key is treated as a new
+dispatch opportunity. Missing
 source-state digest or provider-native entrypoint argument makes the
 issue-priming key incomplete and must fail closed to waiting or manual action.
 `source-issue-reporting` is distinct from `source-issue-state` and must not
@@ -364,44 +525,83 @@ source-specific workflow or explicitly authorized provider workflow.
 
 ## Routing Fixtures
 
+### Owner dispatch and checkout adoption
+
+The following bounded fixture families are the self-check surface for the owner
+route. Each yields one eligible action or an explicit wait/manual outcome;
+they do not authorize live task creation during fixture evaluation.
+
+| Family                                                                                                                                                                                                                                                                       | Required outcome                                                                                                                                                                                                                                                                                                                                |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Direct router invocation has active start-work intent, a complete tuple including independently proven expected repository, applicable creation authority, required creation and owner-accessible current-task identity capabilities, and no compatible owner                | Retain an in-flight attempt, dispatch exactly one separate depth-0 owner task carrying the provider priming prompt, retain pending host output, record the route key only after accepted pending/confirmed output, and record the mapping only after host confirmation bound to repository, issue, route, owner, and host identity when scoped. |
+| Coordination handoff has the same accepted scope, authority, and active start-work facts                                                                                                                                                                                     | Forward them unchanged to the router and obtain the same owner-dispatch procedure and outcome as direct invocation; coordination creates no second procedure.                                                                                                                                                                                   |
+| Direct or coordinated item is inspect/monitor-only                                                                                                                                                                                                                           | Refresh, discover, reconcile, or report only; do not create an owner task or begin provider priming.                                                                                                                                                                                                                                            |
+| Inspect/monitor-only item has no pending creation or local owner mapping, independently proven repository and canonical issue, and one uniquely compatible supported confirmed depth-0 owner/host mapping                                                                    | Record that mapping and continue ordinary monitoring with zero creation, start-work, route-key, or priming effect.                                                                                                                                                                                                                              |
+| The same monitor-only item has no compatible owner                                                                                                                                                                                                                           | Report without creation, start-work, route-key, or priming effect.                                                                                                                                                                                                                                                                              |
+| The same monitor-only item has unknown discovery capability                                                                                                                                                                                                                  | Wait or report without creation, start-work, route-key, or priming effect.                                                                                                                                                                                                                                                                      |
+| The same monitor-only item has unknown or ambiguous owner identity                                                                                                                                                                                                           | Wait or report without creation, start-work, route-key, or priming effect.                                                                                                                                                                                                                                                                      |
+| A later active start-work pass has that discovery-only mapping for owner O on host H, no pending creation or recorded key, a complete current controller tuple including the observed missing-owner/discovery state, applicable effect authority, and O/H remains compatible | Record the existing complete key while retaining O/H's mapping; do not create, prime, or initially release O. Use the existing validated owner-handoff, reviewed-plan provenance, approved-route identity, and sequence acknowledgement before consuming a receipt.                                                                             |
+| The same discovered mapping has exactly one absent active effect-authority fact                                                                                                                                                                                              | Retain the mapping and wait or report with no key, creation, priming, or release.                                                                                                                                                                                                                                                               |
+| The same discovered mapping has active authority but exactly one missing or stale complete-tuple fact                                                                                                                                                                        | Retain the mapping and wait or report with no key, creation, priming, or release.                                                                                                                                                                                                                                                               |
+| The same discovered mapping has a complete authorized tuple but O/H is incompatible                                                                                                                                                                                          | Retain the mapping and wait or report with no key, creation, priming, or release.                                                                                                                                                                                                                                                               |
+| The same discovered mapping has a pending original creation attempt                                                                                                                                                                                                          | Reconcile that attempt first and retain its original key unchanged; do not replace it with compatible-owner reuse.                                                                                                                                                                                                                              |
+| The same discovered mapping already has a bound matching key                                                                                                                                                                                                                 | Continue the existing owner route; do not initialize or replace the key, re-prime, or release an initial continuation.                                                                                                                                                                                                                          |
+| Existing compatible confirmed owner, branch, checkout, and authority match the complete key                                                                                                                                                                                  | Reuse the same depth-0 owner and continuity evidence without a generic reapproval or re-priming.                                                                                                                                                                                                                                                |
+| A confirmed Linear owner/host binding retains repository A, while the same issue, digest, provider-native argument, and complete key now have repository B                                                                                                                   | Wait or report before keyed retention, approved-route derivation, receipt acceptance, or continuation; retain the original owner, key, and repository binding with no receipt effect.                                                                                                                                                           |
+| The same retained binding is absent while every current route fact remains otherwise compatible                                                                                                                                                                              | Wait or report before keyed retention, approved-route derivation, receipt acceptance, or continuation; retain the original owner and key, with no receipt effect.                                                                                                                                                                               |
+| The same retained binding has repository A and current repository is a supported canonical alias of A                                                                                                                                                                        | The alias passes only this repository comparison; every existing retention, derivation, receipt, and continuation gate still applies.                                                                                                                                                                                                           |
+| Active start-work item is missing creation authority                                                                                                                                                                                                                         | Ask for that one authority decision before any host creation or provider priming.                                                                                                                                                                                                                                                               |
+| With no compatible owner, host-resolution variants each change one fact from valid start-work: the owner-accessible current-task identity capability is unavailable, definitive denial with no creation, only a provisional creation identifier, or an unknown result        | Respectively report the manual owner-dispatch action before creation; release only the denied attempt so a later authorized equal-key retry can run; retain and reconcile pending creation without a provisional `owner_thread_id`; or retain unknown recovery state and reconcile before any retry.                                            |
+| Pending creation confirms while the source remains active, intent remains start-work, effect authority remains applicable, the original complete key remains compatible, and the current owner is waiting or resumable idle                                                  | Retain the original key and confirmed mapping, refresh the owner state, then release exactly one waiting owner continuation to the matching provider priming entrypoint.                                                                                                                                                                        |
+| Pending creation confirms after exactly one current release fact changes: source becomes terminal, intent becomes inspect/monitor-only, effect authority is revoked or unknown, or the exact route becomes incompatible                                                      | Retain the confirmed mapping and recovery evidence, then wait or report; do not release provider priming, duplicate creation, or re-prime the owner.                                                                                                                                                                                            |
+| A confirmed owner awaiting initial release has unknown supported state                                                                                                                                                                                                       | Wait while retaining the mapping and recovery; do not release or clear suppression.                                                                                                                                                                                                                                                             |
+| A confirmed owner awaiting initial release is definitively unavailable, cancelled, archived, failed, or non-resumable                                                                                                                                                        | Report unavailable for existing controller/manual reconciliation while retaining the mapping and recovery; do not release, replace, unarchive, delete, or clear suppression.                                                                                                                                                                    |
+| Batch binding has expected repository A, no explicit adoption candidate, an invocation in canonical repository A, and a native or fallback result with an equivalent canonical repository identity                                                                           | Validate the invocation before provisioning, validate the selected result before evidence writes, then continue through the existing provisioning path.                                                                                                                                                                                         |
+| Batch binding has expected repository A and exactly one repository fact changes: the no-candidate invocation is repository B, or a valid invocation selects repository B or an ambiguous result                                                                              | Respectively stop before native or fallback provisioning effects, or stop before evidence writes; do not infer A from B, switch checkout, reset, delete, or provision an alternate result.                                                                                                                                                      |
+| Checkout-adoption variants each hold all other facts fixed: direct primary invocation without an explicit candidate, a validated root-task checkout with existing issue work, or an explicit unrelated/mismatched/ambiguous checkout                                         | Respectively provision through the current native-first/fallback path; adopt and preserve the work before artifact guards without fallback or nested worktree; or block before writes, branch repurposing, or fallback provisioning.                                                                                                            |
+| An eligible initial binding for confirmed owner O on host H has expected repository A and an optional host-confirmed checkout candidate P paired to O/H                                                                                                                      | Include P explicitly in that one provider handoff; the existing provider/setup path validates and adopts it before writes. P is not repository or owner proof.                                                                                                                                                                                  |
+
 Use these concrete fixture outcomes to self-check monitor decisions:
 
-| Fixture state                                                                                                                                                                                                                                                     | Required outcome                                                                                                                                                                                                                  |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GitHub issue and Linear issue are in the same batch                                                                                                                                                                                                               | Normalize both into provider-tagged batch items; preserve `source_provider: github` and `source_provider: linear`.                                                                                                                |
-| Missing `owner_thread_id` for a GitHub item                                                                                                                                                                                                                       | If active, route to `github-issue-priming`, then record the owner-thread mapping before monitoring PR gates.                                                                                                                      |
-| Active GitHub source issue with missing `owner_thread_id`                                                                                                                                                                                                         | Route to `github-issue-priming`, then record the owner-thread mapping before monitoring PR gates.                                                                                                                                 |
-| Active GitHub source issue `github:owner/repo#123` with missing `owner_thread_id`                                                                                                                                                                                 | Convert to the full issue URL before routing to `github-issue-priming`; use a bare issue number only when current repository context is explicitly proven, and do not pass the prefixed ledger key or `owner/repo#123` shorthand. |
-| Active GitHub source issue `github:owner/repo#511` at source-state digest `S1` has missing `owner_thread_id`, provider-native entrypoint argument `https://github.com/owner/repo/issues/511`, and matching `last_routed_issue_priming_route_key` already recorded | Wait, inspect, or report instead of routing another `github-issue-priming` call while `owner_thread_id` remains missing.                                                                                                          |
-| Missing source-state digest or provider-native entrypoint argument for an issue-priming route key                                                                                                                                                                 | Report waiting or manual action; do not route source-specific issue priming with an incomplete replay key.                                                                                                                        |
-| Missing `owner_thread_id` for a Linear item                                                                                                                                                                                                                       | If active, route to `linear-issue-priming`, then record the owner-thread mapping before monitoring PR gates.                                                                                                                      |
-| Active Linear source issue with missing `owner_thread_id`                                                                                                                                                                                                         | Route to `linear-issue-priming`, then record the owner-thread mapping before monitoring PR gates.                                                                                                                                 |
-| Active Linear source issue `linear:ENG-123` with missing `owner_thread_id`                                                                                                                                                                                        | Convert to `ENG-123` or a Linear issue URL before routing to `linear-issue-priming`; do not pass the prefixed ledger key.                                                                                                         |
-| Closed/completed source issue with missing `owner_thread_id`                                                                                                                                                                                                      | Report waiting or terminal disposition; do not create an owner thread.                                                                                                                                                            |
-| Source issue state is unknown to the generic workflow                                                                                                                                                                                                             | Report waiting; do not mutate source issue status and do not coerce provider terminology.                                                                                                                                         |
-| PR has active blocking bot signal                                                                                                                                                                                                                                 | Wait for bot review; do not merge.                                                                                                                                                                                                |
-| PR has approving bot signal from old head SHA                                                                                                                                                                                                                     | Treat the approval as stale; wait for a fresh review signal for the current head SHA.                                                                                                                                             |
-| PR has failing check run `A` at head `H`, source provider `github`, source issue identifier `S`, PR provider `github`, PR `P`, and observable provider-specific GitHub CI-failure repair capability evidence                                                      | Route CI-fix once using that observed capability evidence. Route CI-fix once for check run `A`, keyed by source provider `github`, source issue identifier `S`, PR provider `github`, PR `P`, head SHA `H`, and check run ID `A`. |
-| No provider-specific CI-fix workflow is available for failing check run `A`                                                                                                                                                                                       | Report waiting with the missing CI-fix workflow; do not rerun CI directly and do not fall back to `pr-merge` for repair.                                                                                                          |
-| The same PR with no observable provider-specific CI-fix capability                                                                                                                                                                                                | Report waiting or manual action with the missing provider-specific CI-fix capability; do not name `github:gh-fix-ci` as a required source workflow.                                                                               |
-| PR has unresolved review-thread digest `B` at head `H`, source provider `github`, source issue identifier `S`, PR provider `github`, and PR `P`                                                                                                                   | Route review-response once for the complete key: source provider `github`, source issue identifier `S`, PR provider `github`, PR `P`, head SHA `H`, and unresolved-thread-set digest `B`.                                         |
-| PR has unresolved review-thread digest `B` and lacks required human merge approval                                                                                                                                                                                | Route review-response before waiting for human merge approval.                                                                                                                                                                    |
-| PR is merge-conflicted at head `C`                                                                                                                                                                                                                                | Route owner thread once by PR, head SHA, and mergeability state, plus proven base branch or base evidence digest.                                                                                                                 |
-| PR is merge-conflicted at head `C` against proven base `release/1.x`                                                                                                                                                                                              | Route owner thread once by PR, head SHA, mergeability state, and proven base branch or base evidence digest.                                                                                                                      |
-| PR base changes after prior merge-conflict routing                                                                                                                                                                                                                | Treat the changed base evidence as a new `merge-conflict` route key.                                                                                                                                                              |
-| Merge-conflicted PR has unknown base evidence                                                                                                                                                                                                                     | Report waiting with missing base evidence; do not assume `origin/main`.                                                                                                                                                           |
-| Owner thread reports approval gate `D`                                                                                                                                                                                                                            | Send approval only when parent approval evidence matches the source issue or PR, head SHA/current state, gate kind, route key, and allowed side effect.                                                                           |
-| Owner thread reports source-issue reporting gate `E`                                                                                                                                                                                                              | Route only to a provider-specific workflow that owns that source-issue side effect.                                                                                                                                               |
-| Owner thread reports source-issue reporting gate `E` at source-state digest `S1` with requested side effect `close-as-completed`                                                                                                                                  | Route source-issue reporting once for the complete `source-issue-reporting` key including source issue, owner thread, gate/report digest, requested side effect, source-state digest `S1`, and head SHA when known.               |
-| Owner thread reports source-issue reporting gate `E`, but no provider-specific source-issue reporting workflow is available                                                                                                                                       | Report waiting or manual action with the missing source-issue reporting workflow and next safe action; do not mutate the source issue directly and do not route to a generic fallback workflow.                                   |
-| Source issue is verified closed/completed without a PR and owner thread reports terminal state                                                                                                                                                                    | Archive only after verified closed/completed source state, terminal owner-thread state, no active gate, no pending work, no unresolved follow-up, and `last_routed_archival_key` recording.                                       |
-| Repository policy requires explicit human merge approval and PR is otherwise merge-ready                                                                                                                                                                          | Wait until matching human merge approval evidence is present.                                                                                                                                                                     |
-| PR is otherwise merge-ready but lacks required human merge approval                                                                                                                                                                                               | Wait for matching human merge approval evidence; do not route to `pr-merge`.                                                                                                                                                      |
-| PR is non-draft, green, conflict-free, no unresolved threads, required human approval present, and fresh required approval signal present                                                                                                                         | Route `pr-merge` once with `last_routed_merge_routing_key`.                                                                                                                                                                       |
-| PR is non-draft, pending CI, conflict-free, no unresolved threads, no active blocking bot signal, branch protection and review state allow waiting for CI, required human approval is present, and fresh required approval signal is present                      | Route `pr-merge` once with `last_routed_merge_routing_key` for CI polling; `pr-merge` may merge only after CI becomes green and protections still pass.                                                                           |
-| PR previously routed to `pr-merge` with pending CI later becomes CI-green at the same head SHA                                                                                                                                                                    | Treat the green CI state as a new `merge-routing` route key; do not suppress it with the prior pending-CI merge-routing key.                                                                                                      |
-| PR has failing CI that requires repair while non-CI merge gates are otherwise satisfied                                                                                                                                                                           | Route to provider-specific CI-fix when available, or wait/manual action when unavailable; do not treat failing CI as pending `pr-merge` polling.                                                                                  |
-| PR merged and owner thread reports terminal state                                                                                                                                                                                                                 | Archive only after terminal PR or source state, no active gate, no pending work, and `last_routed_archival_key` recording.                                                                                                        |
+| Fixture state                                                                                                                                                                                                                                                     | Required outcome                                                                                                                                                                                                                                         |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GitHub issue and Linear issue are in the same batch                                                                                                                                                                                                               | Normalize both into provider-tagged batch items; preserve `source_provider: github` and `source_provider: linear`.                                                                                                                                       |
+| Missing `owner_thread_id` for a GitHub item                                                                                                                                                                                                                       | If active and dispatch-eligible, retain the original key through owner dispatch, confirm and record the owner-thread mapping, refresh that owner's supported state, then release `github-issue-priming` once only when the release facts remain current. |
+| Active GitHub source issue with missing `owner_thread_id`                                                                                                                                                                                                         | Reuse a compatible owner without re-priming. For a newly created owner, confirm and record its mapping, then use Monitor Loop step 4 to release `github-issue-priming` once from retained pending-creation recovery.                                     |
+| Active GitHub source issue `github:owner/repo#123` with missing `owner_thread_id`                                                                                                                                                                                 | Convert to the full issue URL before routing to `github-issue-priming`; use a bare issue number only when current repository context is explicitly proven, and do not pass the prefixed ledger key or `owner/repo#123` shorthand.                        |
+| Active GitHub source issue `github:owner/repo#511` at source-state digest `S1` has missing `owner_thread_id`, provider-native entrypoint argument `https://github.com/owner/repo/issues/511`, and matching `last_routed_issue_priming_route_key` already recorded | Wait, inspect, or report instead of routing another `github-issue-priming` call while `owner_thread_id` remains missing.                                                                                                                                 |
+| Host definitively denies a same-key creation and later receives applicable creation authority without any issue change                                                                                                                                            | Release the denied attempt without a `last_routed_issue_priming_route_key`, then allow exactly one later owner-dispatch attempt.                                                                                                                         |
+| Host result for a same-key creation is unknown                                                                                                                                                                                                                    | Retain recovery state and reconcile before another owner-dispatch attempt; do not clear it or record a denial.                                                                                                                                           |
+| Missing source-state digest or provider-native entrypoint argument for an issue-priming route key                                                                                                                                                                 | Report waiting or manual action; do not route source-specific issue priming with an incomplete replay key.                                                                                                                                               |
+| Missing `owner_thread_id` for a Linear item                                                                                                                                                                                                                       | If active and dispatch-eligible, retain the original key through owner dispatch, confirm and record the owner-thread mapping, refresh that owner's supported state, then release `linear-issue-priming` once only when the release facts remain current. |
+| Active Linear source issue with missing `owner_thread_id`                                                                                                                                                                                                         | Reuse a compatible owner without re-priming. For a newly created owner, confirm and record its mapping, then use Monitor Loop step 4 to release `linear-issue-priming` once from retained pending-creation recovery.                                     |
+| Active Linear source issue `linear:ENG-123` with missing `owner_thread_id`                                                                                                                                                                                        | Convert to `ENG-123` or a Linear issue URL before routing to `linear-issue-priming`; do not pass the prefixed ledger key.                                                                                                                                |
+| GitHub or Linear item lacks independently proven expected repository, or its confirmed owner binding has a changed repository, issue, route, owner, or scoped host identity                                                                                       | Wait or report before owner artifact writes or research; no consumer derives expected repository from its checkout.                                                                                                                                      |
+| Closed/completed source issue with missing `owner_thread_id`                                                                                                                                                                                                      | Report waiting or terminal disposition; do not create an owner thread.                                                                                                                                                                                   |
+| Source issue state is unknown to the generic workflow                                                                                                                                                                                                             | Report waiting; do not mutate source issue status and do not coerce provider terminology.                                                                                                                                                                |
+| PR has active blocking bot signal                                                                                                                                                                                                                                 | Wait for bot review; do not merge.                                                                                                                                                                                                                       |
+| PR has approving bot signal from old head SHA                                                                                                                                                                                                                     | Treat the approval as stale; wait for a fresh review signal for the current head SHA.                                                                                                                                                                    |
+| PR has failing check run `A` at head `H`, source provider `github`, source issue identifier `S`, PR provider `github`, PR `P`, and observable provider-specific GitHub CI-failure repair capability evidence                                                      | Route CI-fix once using that observed capability evidence. Route CI-fix once for check run `A`, keyed by source provider `github`, source issue identifier `S`, PR provider `github`, PR `P`, head SHA `H`, and check run ID `A`.                        |
+| No provider-specific CI-fix workflow is available for failing check run `A`                                                                                                                                                                                       | Report waiting with the missing CI-fix workflow; do not rerun CI directly and do not fall back to `pr-merge` for repair.                                                                                                                                 |
+| The same PR with no observable provider-specific CI-fix capability                                                                                                                                                                                                | Report waiting or manual action with the missing provider-specific CI-fix capability; do not name `github:gh-fix-ci` as a required source workflow.                                                                                                      |
+| PR has unresolved review-thread digest `B` at head `H`, source provider `github`, source issue identifier `S`, PR provider `github`, and PR `P`                                                                                                                   | Route review-response once for the complete key: source provider `github`, source issue identifier `S`, PR provider `github`, PR `P`, head SHA `H`, and unresolved-thread-set digest `B`.                                                                |
+| PR has unresolved review-thread digest `B` and lacks required human merge approval                                                                                                                                                                                | Route review-response before waiting for human merge approval.                                                                                                                                                                                           |
+| PR is merge-conflicted at head `C`                                                                                                                                                                                                                                | Route owner thread once by PR, head SHA, and mergeability state, plus proven base branch or base evidence digest.                                                                                                                                        |
+| PR is merge-conflicted at head `C` against proven base `release/1.x`                                                                                                                                                                                              | Route owner thread once by PR, head SHA, mergeability state, and proven base branch or base evidence digest.                                                                                                                                             |
+| PR base changes after prior merge-conflict routing                                                                                                                                                                                                                | Treat the changed base evidence as a new `merge-conflict` route key.                                                                                                                                                                                     |
+| Merge-conflicted PR has unknown base evidence                                                                                                                                                                                                                     | Report waiting with missing base evidence; do not assume `origin/main`.                                                                                                                                                                                  |
+| Owner thread reports approval gate `D`                                                                                                                                                                                                                            | Send approval only when parent approval evidence matches the source issue or PR, head SHA/current state, gate kind, route key, and allowed side effect.                                                                                                  |
+| Owner thread reports source-issue reporting gate `E`                                                                                                                                                                                                              | Route only to a provider-specific workflow that owns that source-issue side effect.                                                                                                                                                                      |
+| Owner thread reports source-issue reporting gate `E` at source-state digest `S1` with requested side effect `close-as-completed`                                                                                                                                  | Route source-issue reporting once for the complete `source-issue-reporting` key including source issue, owner thread, gate/report digest, requested side effect, source-state digest `S1`, and head SHA when known.                                      |
+| Owner thread reports source-issue reporting gate `E`, but no provider-specific source-issue reporting workflow is available                                                                                                                                       | Report waiting or manual action with the missing source-issue reporting workflow and next safe action; do not mutate the source issue directly and do not route to a generic fallback workflow.                                                          |
+| Source issue is verified closed/completed without a PR and owner thread reports terminal state                                                                                                                                                                    | Archive only after verified closed/completed source state, terminal owner-thread state, no active gate, no pending work, no unresolved follow-up, and `last_routed_archival_key` recording.                                                              |
+| Repository policy requires explicit human merge approval and PR is otherwise merge-ready                                                                                                                                                                          | Wait until matching human merge approval evidence is present.                                                                                                                                                                                            |
+| PR is otherwise merge-ready but lacks required human merge approval                                                                                                                                                                                               | Wait for matching human merge approval evidence; do not route to `pr-merge`.                                                                                                                                                                             |
+| PR is non-draft, green, conflict-free, no unresolved threads, required human approval present, and fresh required approval signal present                                                                                                                         | Route `pr-merge` once with `last_routed_merge_routing_key`.                                                                                                                                                                                              |
+| PR is non-draft, pending CI, conflict-free, no unresolved threads, no active blocking bot signal, branch protection and review state allow waiting for CI, required human approval is present, and fresh required approval signal is present                      | Route `pr-merge` once with `last_routed_merge_routing_key` for CI polling; `pr-merge` may merge only after CI becomes green and protections still pass.                                                                                                  |
+| PR previously routed to `pr-merge` with pending CI later becomes CI-green at the same head SHA                                                                                                                                                                    | Treat the green CI state as a new `merge-routing` route key; do not suppress it with the prior pending-CI merge-routing key.                                                                                                                             |
+| PR has failing CI that requires repair while non-CI merge gates are otherwise satisfied                                                                                                                                                                           | Route to provider-specific CI-fix when available, or wait/manual action when unavailable; do not treat failing CI as pending `pr-merge` polling.                                                                                                         |
+| PR merged and owner thread reports terminal state                                                                                                                                                                                                                 | Archive only after terminal PR or source state, no active gate, no pending work, and `last_routed_archival_key` recording.                                                                                                                               |
 
 ## Owner-Thread Gate Reports
 
