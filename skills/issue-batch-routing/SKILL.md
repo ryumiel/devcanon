@@ -234,9 +234,11 @@ For each open batch item:
    discovery capability, or unknown or ambiguous owner identity waits or reports
    without effects. This discovery requires neither creation nor start-work
    authority and records no dispatch key. Inspect/monitor-only ends after that
-   reconciliation, mapping, or report. A monitor-only discovery mapping has an
-   `owner_thread_id` but no approved route key; it remains mapping-only until a
-   later active start-work pass. Before that later pass can reuse the mapped
+   reconciliation, mapping, or report. Independently of that missing-owner
+   branch, a monitor-only discovery mapping has an `owner_thread_id` but no
+   approved route key; it remains mapping-only until a later active start-work
+   pass. That later pass enters the compatible-owner reuse transition below,
+   not missing-owner discovery or creation. Before it can reuse the mapped
    owner, reconcile any pending original creation first and retain its original
    key unchanged. Then prove the provider-native argument and expected
    repository from controller-held source/project context, independently of any
@@ -257,7 +259,8 @@ For each open batch item:
    priming, or release an initial continuation. It proceeds through the existing
    validated owner-handoff, reviewed-plan provenance, controller-held approved
    route identity, and sequence-acknowledgement prerequisites before any receipt
-   consumption. Only then use this owner-dispatch sequence: validate the complete
+   consumption. Only for an item whose `owner_thread_id` remains missing after
+   that reconciliation, use this owner-dispatch sequence: validate the complete
    dispatch tuple and current effect authority; discover a compatible existing
    **top-level owner task** using that key; and, only when no compatible owner
    exists, preflight that the host supports both task creation and an
