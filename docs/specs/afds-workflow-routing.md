@@ -72,7 +72,13 @@ placing content in a convenient non-owner artifact.
 
 ### ROUTE-002: Canonical Work-Origin Routing
 
-The toolkit must route common work origins with this table:
+The toolkit must route common work origins with this table. For concrete
+user-confirmed feature or behavior-change proposals, use the proposal-drafting
+route in [SLICE-001](#slice-001-issue-draft-origins) and its
+[EVID-005](#evid-005-proposal-origin-evidence) evidence requirements, including
+when a current feature spec exists. That route applies instead of the
+acceptance-ready behavior-question row below when the request is to draft a
+confirmed proposal.
 
 | Work origin                                            | Authoritative owner                                                                                         | Evidence owner                                                                                  | Next action                                                        | Durable-update trigger                                                                                                   | Blocker wording                                                                |
 | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
