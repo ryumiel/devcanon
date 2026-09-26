@@ -7,18 +7,23 @@ outcomes separate.
 
 ## Concrete Proposal
 
-A user confirms a CSV export for visible, filtered, role-scoped rows. It has
-`id`, `name`, and `status` columns; UTF-8 quoting; header-only output for zero
-rows; an explicit error above 10,000 rows; and no partial download after a
-failure. Current source and tests describe visibility behavior. No feature spec
-or existing records-export artifact exists. `docs/specs/records.md` is the named
-destination for the required behavior documentation.
+All identifiers below are explicitly hypothetical evaluator inputs, not
+references to this repository. A user confirms a CSV export for visible,
+filtered, role-scoped rows. It has `id`, `name`, and `status` columns; UTF-8
+quoting; header-only output for zero rows; an explicit error above 10,000 rows;
+and no partial download after a failure. Current behavior evidence is
+`src/records/visible-rows.ts` and
+`src/records/visible-rows.test.ts`, which describe the visible-row constraint.
+No feature spec or existing records-export artifact exists.
+`docs/specs/records.md` is the named destination for required behavior
+documentation and is pending scope work, not accepted evidence. Request only a
+draft issue body; do not request implementation or tracker publication.
 
 ## Missing Critical Requirement
 
-Use the concrete proposal above, but remove the confirmed limit and failure
-behavior. Ask for an executable issue draft without supplying a choice for that
-behavior.
+Use the concrete proposal above, but remove the confirmed behavior above 10,000
+rows, including whether it errors without a partial download. Ask for an
+executable issue draft without supplying a choice for that behavior.
 
 ## Unresolved Constraint Conflict
 

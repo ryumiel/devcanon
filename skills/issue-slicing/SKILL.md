@@ -164,8 +164,9 @@ Title: <type(scope): short executable summary>
 
 ## Evidence Pointers
 
-- <owning durable artifact>: <stable reference> - <checked requirement/result state>
-- <supporting evidence system>: <stable reference> - <checked requirement/result state>
+- <Existing-spec work: owning durable artifact>: <stable reference> - <checked requirement/result state>
+- <Proposal work: attributed user-confirmed context or available decision reference>: <confirmed behavior, scope, or decision>
+- <Proposal work: current source, test, or documentation evidence>: <stable reference> - <checked requirement/result state>
 
 ## Affected Areas
 
