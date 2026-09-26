@@ -37,14 +37,10 @@ evidence. They do not override the owning durable artifact.
 
 ## Procedure
 
-1. Load project instructions and, when present, the Portable AFDS procedure map
-   at `docs/guidelines/portable-afds-user-procedure-map.md`.
-   Apply [ROUTE-001](../../docs/specs/afds-workflow-routing.md#route-001-authoritative-owner-selection),
-   [SLICE-001](../../docs/specs/afds-workflow-routing.md#slice-001-issue-draft-origins),
-   and [EVID-005](../../docs/specs/afds-workflow-routing.md#evid-005-proposal-origin-evidence)
-   with the ownership boundaries in the
-   [documentation standard](../../docs/guidelines/documentation-standard.md)
-   and [project management model](../../docs/guidelines/project-management-model.md).
+1. Load active project instructions and any available project-local ownership
+   rules or Portable AFDS procedure map. Use them to identify the appropriate
+   owning artifact or destination, then apply this skill's origin, readiness,
+   evidence, and drafting safeguards.
 2. Classify the work origin:
    - **Existing-spec work** slices a named owning durable artifact. Do not
      relabel a request to slice an existing spec as a proposal to evade its
