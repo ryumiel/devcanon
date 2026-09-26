@@ -143,12 +143,24 @@ An actual request to slice an existing spec retains its readiness requirements
 and cannot evade them by relabeling that work as a proposal. Missing
 execution-critical requirements or unresolved conflicts block until clarified.
 
+An execution-ready proposal draft that combines implementation with required
+documentation creation or updates is allowed only for a narrow change with no
+new architectural decision, contract boundary, schema migration, security
+policy, or broad workflow shaping. Size and those structural blockers are
+independent conditions.
+
+When a concrete proposal is broad without a structural blocker, its draft may
+record the proposal with a named decomposition prerequisite. It must not claim
+an execution-ready implementation slice or treat that prerequisite plus
+implementation as a narrow hybrid. Decompose first; normal readiness and
+implementation slicing apply after that prerequisite is satisfied.
+
 When a concrete proposal requires an architectural decision, contract boundary,
 schema migration, security policy, or broad workflow shaping, its draft may
 record the proposal with a named shaping prerequisite. It must not claim an
-execution-ready implementation slice or treat broad shaping plus implementation
-as a narrow hybrid. Shape the owning durable artifact first; normal readiness
-and implementation slicing apply after that prerequisite is satisfied.
+execution-ready implementation slice or treat shaping plus implementation as a
+narrow hybrid. Shape the owning durable artifact first; normal readiness and
+implementation slicing apply after that prerequisite is satisfied.
 
 Proposal scope must include required documentation creation or updates with the
 affected owner or destination. A draft does not approve implementation or tracker
@@ -685,9 +697,10 @@ resolution recommendation.
   intent even when a current feature spec exists, while concrete proposal drafts
   require confirmed execution-critical requirements, current evidence, and
   documentation scope under SLICE-001 and EVID-005.
-- A structural proposal draft records its named shaping prerequisite without an
-  execution-ready implementation claim; broad shaping and implementation remain
-  separate under the unchanged structural policy owners.
+- A broad proposal draft records its named decomposition prerequisite, and a
+  structural proposal draft records its named shaping prerequisite, without an
+  execution-ready implementation claim; broad or structural shaping and
+  implementation remain separate under the unchanged policy owners.
 - Missing, private, inaccessible, or incomplete evidence is represented as a
   blocker under EVID-003.
 - Agent-local evidence reuse follows EVID-004: session-local artifacts stay

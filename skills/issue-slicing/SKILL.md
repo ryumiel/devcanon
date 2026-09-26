@@ -59,22 +59,33 @@ evidence. They do not override the owning durable artifact.
      an intended constraint change must be explicit and user-confirmed.
      Missing execution-critical requirements or unresolved conflicts return
      `MODE=blocked` with the concrete clarification needed.
+   - A proposal may claim an execution-ready draft that combines implementation
+     with required documentation creation or updates only when the change is
+     narrow and has no new architectural decision, contract boundary, schema
+     migration, security policy, or broad workflow shaping. Check size and
+     structural blockers independently.
+   - When a concrete proposal is broad without a structural blocker, name the
+     decomposition prerequisite in the draft. Do not call it an execution-ready
+     implementation slice or use narrow-hybrid treatment for that prerequisite
+     plus implementation. Decompose first; apply normal readiness and
+     implementation slicing afterward.
    - When a concrete proposal requires an architectural decision, contract
      boundary, schema migration, security policy, or broad workflow shaping,
      name the shaping prerequisite in the draft. Do not call it an
      execution-ready implementation slice or use narrow-hybrid treatment for
-     broad shaping plus implementation. Shape the owning durable artifact
-     first; apply normal readiness and implementation slicing afterward.
+     shaping plus implementation. Shape the owning durable artifact first;
+     apply normal readiness and implementation slicing afterward.
 4. Extract or summarize only what the external issue needs to execute the work.
    Do not copy live tracker state, PR review history, validation logs, or
    agent-local plans into the draft.
 5. For proposal work, put required documentation creation or updates, including
    their owners or destinations, in Scope. Treat those future docs as pending
    work, never as accepted evidence.
-6. Draft one provider-neutral issue body. A structural proposal draft records
-   the proposal and its pending shaping prerequisite; it does not claim
-   execution-ready implementation work. Prefer Markdown that can be pasted into
-   either GitHub Issues or Linear without provider-specific metadata.
+6. Draft one provider-neutral issue body. A broad proposal draft records the
+   proposal and its pending decomposition prerequisite; a structural proposal
+   draft records its pending shaping prerequisite. Neither claims execution-ready
+   implementation work. Prefer Markdown that can be pasted into either GitHub
+   Issues or Linear without provider-specific metadata.
 7. Stop after presenting the draft. A draft does not approve implementation or
    publication. Do not create live issues, assign users, set
    status, mutate labels, link blockers in the tracker, or post comments unless
@@ -161,9 +172,9 @@ Title: <type(scope): short draft summary>
 
 <Proposal work only: noncritical follow-up decisions. Omit when none remain.>
 
-## Shaping Prerequisite
+## Shaping Or Decomposition Prerequisite
 
-<Structural proposal work only: named owning artifact and prerequisite to satisfy before implementation slicing.>
+<Broad proposal work: named decomposition prerequisite. Structural proposal work: named owning artifact and shaping prerequisite. Satisfy the applicable prerequisite before implementation slicing.>
 
 ## Scope
 
@@ -171,7 +182,7 @@ Title: <type(scope): short draft summary>
 
 <For proposal work, required documentation creation or updates and their owners or destinations.>
 
-<For structural proposal work, record proposal/shaping work only; do not claim an execution-ready implementation slice.>
+<For broad proposal work, record proposal/decomposition work only. For structural proposal work, record proposal/shaping work only. Do not claim an execution-ready implementation slice.>
 
 ## Acceptance Criteria
 
@@ -235,9 +246,11 @@ Final mode: MODE=blocked
   the artifact can support issue slicing.
 - Treating missing proposal documentation as a readiness blocker while omitting
   the required documentation work from Scope.
-- Calling a structural proposal with a pending architectural decision, contract
-  boundary, schema migration, security policy, or broad workflow shaping an
-  execution-ready implementation slice or a narrow hybrid.
+- Calling a broad proposal, or a proposal with a pending architectural decision,
+  contract boundary, schema migration, security policy, or broad workflow
+  shaping, an execution-ready implementation slice or a narrow hybrid.
+- Replacing the required shaping of an owning durable artifact with
+  decomposition when a structural blocker is present.
 - Calling an unresolved constraint conflict or a missing execution-critical
   proposal requirement an executable acceptance criterion.
 - Copying live issue comments, PR review history, validation logs, or

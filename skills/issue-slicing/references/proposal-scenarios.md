@@ -18,11 +18,11 @@ behavior evidence is
 No feature spec or existing records-export artifact exists.
 `docs/specs/records.md` is the named destination for required behavior
 documentation and is pending scope work, not accepted evidence. Request only a
-draft issue body; do not request implementation or tracker publication.
-The draft must include an automated acceptance-verification expectation covering
-the confirmed export behavior: visible filtered role-scoped rows in visible
-order, the three columns and UTF-8 quoting, header-only empty output, and both
-the over-limit error and no-partial-download failure behavior.
+draft issue body; do not request implementation or tracker publication. This is
+a narrow change. The confirmed requirements include automated verification of
+visible filtered role-scoped rows in visible order, the three columns and UTF-8
+quoting, header-only empty output, and both the over-limit error and
+no-partial-download failure behavior.
 
 ## Confirmed Existing-Feature Behavior Change
 
@@ -35,11 +35,10 @@ export with the visible-row constraint and is current evidence for that behavior
 Updating that spec for the proposed export change is pending scope work, not
 accepted evidence. A user additionally confirms that the export must include a
 `created_at` column and explicitly preserve that constraint. Request a proposal
-draft for this new behavior-change intent; it must make the current constraint
-and confirmed column change visible. The proposed column change is not already
-accepted content in the current spec. Its automated verification expectation now
-covers the four `id`, `name`, `status`, and `created_at` columns. This request is
-not a request to slice the existing spec.
+draft for this new behavior-change intent. The proposed column change is not
+already accepted content in the current spec. The required automated
+verification covers the four `id`, `name`, `status`, and `created_at` columns.
+This request is not a request to slice the existing spec.
 
 ## Structural Proposal With Pending Shaping
 
@@ -50,9 +49,28 @@ test evidence, and pending documentation destination. A user additionally
 confirms that the records export requires a new cross-product access contract.
 The requested draft identifies `docs/adr/records-export-access.md` as the owning
 artifact to shape and names that contract decision as a prerequisite. Request a
-proposal draft that records the concrete proposal and pending prerequisite only;
-do not request an implementation slice or a narrow hybrid that combines the
-broad contract shaping with implementation.
+proposal draft; do not request implementation or tracker publication.
+
+## Broad Nonstructural Proposal
+
+All paths and identifiers in this scenario are hypothetical evaluator inputs.
+Current behavior evidence is `src/records/visible-rows.ts` and
+`src/records/visible-rows.test.ts`, which establish the visible filtered,
+role-scoped row constraint. A user confirms the complete CSV behavior from the
+concrete proposal for twelve export categories: accounts, contacts, invoices,
+payments, subscriptions, refunds, products, orders, shipments, returns, quotes,
+and credits. Every category exports visible filtered role-scoped rows in visible
+order with `id`, `name`, and `status` columns and UTF-8 quoting; an empty result
+is header-only; more than 10,000 rows returns an actionable error; and a failed
+export produces no partial download. The confirmed requirements include
+automated verification for the full CSV behavior in every category. No existing
+records-export behavior document exists. `docs/specs/records.md` is the named
+destination for its required creation and is pending scope work, not accepted
+evidence. The user explicitly describes the twelve-category scope as large. No
+architectural decision, contract boundary, schema migration, security policy, or
+broad workflow shaping is involved. Request one draft that combines
+implementation with the pending documentation creation; do not request tracker
+publication.
 
 ## Missing Critical Requirement
 
@@ -67,13 +85,25 @@ Use the concrete proposal above, but provide one current source constraint that
 limits export to an administrator role and a conflicting request for all roles.
 Do not confirm which constraint should govern.
 
-## Existing-Spec Readiness Gap
-
-Request slicing from a named existing behavior spec that has a problem
-statement, scope, boundaries, acceptance criteria, and evidence but no
-verification expectations.
-
 ## Ready Existing-Spec Control
 
-Request slicing from a named existing behavior spec with a clear owning pointer,
-scope, boundaries, acceptance criteria, verification expectations, and evidence.
+All paths and identifiers in this scenario are hypothetical evaluator inputs.
+Request slicing from `docs/specs/records-export.md` at the `## CSV Export
+Contract` heading. That owned behavior spec states that visible, filtered,
+role-scoped rows are exported in visible order with `id`, `name`, and `status`
+columns and UTF-8 quoting; an empty result is header-only; more than 10,000 rows
+returns an actionable error; and a failed export produces no partial download.
+Its scope is the records export endpoint, and its boundaries exclude hidden rows
+and exports for rows outside the caller's role scope. Its acceptance criteria
+require those row-selection, CSV, empty-result, over-limit, and failure
+behaviors. Its verification expectations require automated endpoint tests for
+each acceptance criterion, including the no-partial-download failure case. Its
+evidence is `src/records/visible-rows.ts` and
+`src/records/visible-rows.test.ts`, which establish the current visible-row
+constraint.
+
+## Missing Verification From Ready Existing-Spec Control
+
+Use the Ready Existing-Spec Control unchanged, but remove only its verification
+expectations. The owning path and heading, behavior, scope, boundaries,
+acceptance criteria, and evidence remain present.
