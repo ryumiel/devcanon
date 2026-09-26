@@ -514,13 +514,26 @@ authority.
 The existing stop rule fires when a fix needs `Anchor: out-of-diff`; a unit
 contains a `play-review` hard-rule judgment-required `Blocking | Safety`
 Sub-check 1 or `Blocking | Contracts` Sub-check 2 finding; or the fix changes
-a function signature, control-flow structure, more than one module, or needs
-context beyond the flagged lines and permitted adjacent same-invariant
-active-diff surfaces. The candidate hard-stop check applies this rule after
-qualification and proportionality authorization and again to every resulting
-unit. A hit halts `--fix` immediately: do not process later findings or commit
-anything beyond fixes already applied. This preserves the caller's coherent
-handoff boundary.
+a function signature, control-flow structure unless it meets the narrow
+exception below, more than one module, or needs context beyond the flagged
+lines and permitted adjacent same-invariant active-diff surfaces.
+
+The control-flow branch has one narrow exception. It does not stop an otherwise
+eligible critic-verified in-scope product blocker when current explicit
+`--fix` task authority covers the exact correction; the authoritative behavior
+contract and finding evidence are unambiguous; a concrete behavioral regression
+has failed before the edit; and the correction is the minimum
+contract-determined restoration within the flagged lines and permitted adjacent
+same-invariant active-diff surfaces in one module. It must make no signature,
+interface, dependency, policy, or scope change. Check current authority before
+asking again: control flow alone does not establish missing authority. The
+exception does not apply to Nits, widened or ambiguous work, or either Safety
+or Contracts hard-rule finding.
+
+The candidate hard-stop check applies this rule after qualification and
+proportionality authorization and again to every resulting unit. A hit halts
+`--fix` immediately: do not process later findings or commit anything beyond
+fixes already applied. This preserves the caller's coherent handoff boundary.
 
 Only after at least one candidate has passed the gates above and no required
 hard stop has fired, read the bundled
