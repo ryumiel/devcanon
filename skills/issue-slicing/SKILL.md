@@ -1,12 +1,15 @@
 ---
 name: issue-slicing
-description: Drafts provider-neutral executable issue bodies from durable AFDS evidence or concrete user-confirmed proposal context. Use when slicing a PRD, behavior spec, roadmap item, guideline, ADR, source-owner artifact, readiness review, or concrete proposal into GitHub Issues or Linear work.
+description: Drafts provider-neutral issue bodies from durable AFDS evidence or concrete user-confirmed proposal context. Use when slicing a PRD, behavior spec, roadmap item, guideline, ADR, source-owner artifact, readiness review, or concrete proposal into GitHub Issues or Linear work.
 ---
 
 # Issue Slicing
 
-Draft executable issue bodies from an existing durable artifact or a concrete
-user-confirmed proposal. This skill is provider-neutral: it can produce Markdown
+Draft issue bodies from an existing durable artifact or a concrete
+user-confirmed proposal. Existing-spec work and narrow complete, nonstructural
+proposals can support execution-ready drafts; broad or structural proposals
+record their prerequisite work without claiming an execution-ready implementation
+slice. This skill is provider-neutral: it can produce Markdown
 suitable for GitHub Issues or Linear, but it does not create live issues, assign
 users, set status, mutate labels, or duplicate live tracker state.
 
@@ -36,6 +39,12 @@ evidence. They do not override the owning durable artifact.
 
 1. Load project instructions and, when present, the Portable AFDS procedure map
    at `docs/guidelines/portable-afds-user-procedure-map.md`.
+   Apply [ROUTE-001](../../docs/specs/afds-workflow-routing.md#route-001-authoritative-owner-selection),
+   [SLICE-001](../../docs/specs/afds-workflow-routing.md#slice-001-issue-draft-origins),
+   and [EVID-005](../../docs/specs/afds-workflow-routing.md#evid-005-proposal-origin-evidence)
+   with the ownership boundaries in the
+   [documentation standard](../../docs/guidelines/documentation-standard.md)
+   and [project management model](../../docs/guidelines/project-management-model.md).
 2. Classify the work origin:
    - **Existing-spec work** slices a named owning durable artifact. Do not
      relabel a request to slice an existing spec as a proposal to evade its
@@ -51,9 +60,15 @@ evidence. They do not override the owning durable artifact.
      scope, boundaries, acceptance criteria, verification expectations, and
      evidence. A readiness blocker remains `MODE=blocked`.
    - Proposal work requires confirmed behavior, scope, boundaries, acceptance
-     criteria, verification expectations, relevant available current-behavior
-     evidence, and affected documentation owners or destinations. A missing
-     feature spec alone is pending scope work, not a blocker.
+     criteria, verification expectations, and affected documentation owners or
+     destinations. Cite relevant current source, test, or documentation evidence
+     when it is available; missing material evidence blocks. A missing feature
+     spec alone is pending scope work, not a blocker.
+   - Validate a proposal's documentation owner or destination against the
+     project's AFDS ownership boundaries, not a path alone. An appropriate
+     future owning surface is allowed as pending scope work; a summary-only,
+     inappropriate, or ambiguous owner or destination returns `MODE=blocked`
+     with the ownership clarification needed.
    - For a proposal, make current behavior, proposed behavior, and every
      unresolved decision distinguishable. Keep existing constraints visible;
      an intended constraint change must be explicit and user-confirmed.
@@ -75,12 +90,13 @@ evidence. They do not override the owning durable artifact.
      execution-ready implementation slice or use narrow-hybrid treatment for
      shaping plus implementation. Shape the owning durable artifact first;
      apply normal readiness and implementation slicing afterward.
-4. Extract or summarize only what the external issue needs to execute the work.
+4. Extract or summarize only what the external issue needs to describe the next
+   work.
    Do not copy live tracker state, PR review history, validation logs, or
    agent-local plans into the draft.
 5. For proposal work, put required documentation creation or updates, including
-   their owners or destinations, in Scope. Treat those future docs as pending
-   work, never as accepted evidence.
+   their validated owners or destinations, in Scope. Treat those future docs as
+   pending work, never as accepted evidence.
 6. Draft one provider-neutral issue body. A broad proposal draft records the
    proposal and its pending decomposition prerequisite; a structural proposal
    draft records its pending shaping prerequisite. Neither claims execution-ready
@@ -103,9 +119,10 @@ pointer.
 
 For proposal work, cite confirmed decisions with an available reference or a
 concise attributed user-confirmed context, plus relevant current source, test,
-or documentation evidence. Do not invent a URL, decision ID, accepted feature
-spec, or acceptance status. A missing stable discussion URL alone is not a
-blocker when the confirmed context is concrete; missing material evidence is.
+or documentation evidence when it is available. Do not invent a URL, decision
+ID, accepted feature spec, or acceptance status. A missing stable discussion URL
+alone is not a blocker when the confirmed context is concrete; missing material
+evidence is.
 
 An evidence pointer should identify:
 
@@ -131,8 +148,9 @@ Return `MODE=blocked` instead of drafting when:
   affect issue execution;
 - multiple owners conflict and no source of truth resolves the conflict;
 - proposal behavior, scope, boundaries, acceptance criteria, verification
-  expectations, relevant current evidence, or documentation owner/destination
-  is missing when it affects execution;
+  expectations, or material evidence is missing when it affects execution;
+- a proposal documentation owner or destination is missing, inappropriate for
+  the project's ownership boundaries, or ambiguous;
 - a proposal has an unresolved execution-critical decision or conflict;
 - the requested output requires provider-specific mutation, such as creating an
   issue, setting labels, assigning users, setting status, or linking blockers.
@@ -246,6 +264,8 @@ Final mode: MODE=blocked
   the artifact can support issue slicing.
 - Treating missing proposal documentation as a readiness blocker while omitting
   the required documentation work from Scope.
+- Treating a future documentation destination as accepted evidence, or accepting
+  a convenient summary location as the behavior owner without validating it.
 - Calling a broad proposal, or a proposal with a pending architectural decision,
   contract boundary, schema migration, security policy, or broad workflow
   shaping, an execution-ready implementation slice or a narrow hybrid.

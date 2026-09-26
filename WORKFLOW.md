@@ -24,8 +24,14 @@ This document is the procedural guide for contributing to the repository. For po
 
 ## Creating an Issue
 
+- **Concrete proposal**: For a user-confirmed feature or behavior change, use
+  the [`issue-slicing` Procedure](skills/issue-slicing/SKILL.md#procedure) and
+  [Draft Shape](skills/issue-slicing/SKILL.md#draft-shape). Its proposal route
+  preserves current and proposed behavior, any unresolved decision, verification
+  and evidence, and the pending appropriate documentation owner or destination.
+  It produces a draft only; it does not authorize implementation or publication.
 - **Title**: Use a Conventional Commits-style prefix: `type(scope): short summary` or `type: short summary`
-- **Body structure**:
+- **Generic bug or issue report body structure**:
   - Problem statement: what is wrong or missing
   - Expected behavior: what should happen instead
   - Acceptance criteria: observable conditions that mean "done"
