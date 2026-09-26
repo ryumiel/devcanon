@@ -106,6 +106,9 @@ fixable nit-severity findings. Issue priming does not create caller-owned
 post-review fix commits after branch review; it reruns branch review after any
 branch-review-owned fix commit and carries only the final approval-summary
 notice path plus any judgment-required remaining nits into branch finish.
+Branch Review alone owns its bounded control-flow-restoration eligibility;
+downstream parent workflows own the post-fix freshness, closure, validation,
+and re-review evidence.
 
 ## Consequences
 
