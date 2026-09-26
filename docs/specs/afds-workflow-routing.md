@@ -117,8 +117,10 @@ entrypoints, provider integration specs, source code, or focused follow-up work.
 
 ### SLICE-001: Issue-Draft Origins
 
-`issue-slicing` must distinguish existing-spec work from a concrete
-user-confirmed proposal before drafting.
+`issue-slicing` must distinguish an actual request to slice an existing spec
+from a concrete user-confirmed proposal before drafting. Confirmed new-feature
+or existing-feature behavior-change intent selects proposal origin independently
+of whether a current feature spec exists.
 
 Existing-spec work requires a named owning durable artifact and execution-ready
 scope, boundaries, acceptance criteria, verification expectations, and evidence.
@@ -131,8 +133,16 @@ destinations are sufficient. Missing proposal documentation is pending scope
 work, not accepted evidence or a blocker by itself. The draft must distinguish
 current behavior, proposed behavior, and unresolved decisions; preserve
 applicable constraints; and make a confirmed intended constraint change explicit.
-Missing execution-critical requirements or unresolved conflicts block until
-clarified.
+An actual request to slice an existing spec retains its readiness requirements
+and cannot evade them by relabeling that work as a proposal. Missing
+execution-critical requirements or unresolved conflicts block until clarified.
+
+When a concrete proposal requires an architectural decision, contract boundary,
+schema migration, security policy, or broad workflow shaping, its draft may
+record the proposal with a named shaping prerequisite. It must not claim an
+execution-ready implementation slice or treat broad shaping plus implementation
+as a narrow hybrid. Shape the owning durable artifact first; normal readiness
+and implementation slicing apply after that prerequisite is satisfied.
 
 Proposal scope must include required documentation creation or updates with the
 affected owner or destination. A draft does not approve implementation or tracker
@@ -665,8 +675,13 @@ resolution recommendation.
 - Evidence pointers satisfy EVID-001 without copying live tracker, PR, CI,
   validation, or agent-local history into repository docs.
 - Existing-spec issue drafts retain their owning artifact and readiness gate;
-  concrete proposal drafts require confirmed execution-critical requirements,
-  current evidence, and documentation scope under SLICE-001 and EVID-005.
+  concrete proposal origin follows confirmed new-feature or behavior-change
+  intent even when a current feature spec exists, while concrete proposal drafts
+  require confirmed execution-critical requirements, current evidence, and
+  documentation scope under SLICE-001 and EVID-005.
+- A structural proposal draft records its named shaping prerequisite without an
+  execution-ready implementation claim; broad shaping and implementation remain
+  separate under the unchanged structural policy owners.
 - Missing, private, inaccessible, or incomplete evidence is represented as a
   blocker under EVID-003.
 - Agent-local evidence reuse follows EVID-004: session-local artifacts stay

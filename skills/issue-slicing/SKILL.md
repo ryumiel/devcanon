@@ -41,7 +41,9 @@ evidence. They do not override the owning durable artifact.
      relabel a request to slice an existing spec as a proposal to evade its
      readiness requirements.
    - **Proposal work** drafts a new feature or behavior change from sufficiently
-     concrete user-confirmed context, including when no feature spec exists.
+     concrete user-confirmed context, whether or not a current feature spec
+     exists. Preserve relevant existing constraints and make each intended
+     constraint change explicit.
    - If the request cannot be classified, return `MODE=blocked` and name the
      missing origin or owner.
 3. Validate the origin before drafting:
@@ -57,14 +59,22 @@ evidence. They do not override the owning durable artifact.
      an intended constraint change must be explicit and user-confirmed.
      Missing execution-critical requirements or unresolved conflicts return
      `MODE=blocked` with the concrete clarification needed.
+   - When a concrete proposal requires an architectural decision, contract
+     boundary, schema migration, security policy, or broad workflow shaping,
+     name the shaping prerequisite in the draft. Do not call it an
+     execution-ready implementation slice or use narrow-hybrid treatment for
+     broad shaping plus implementation. Shape the owning durable artifact
+     first; apply normal readiness and implementation slicing afterward.
 4. Extract or summarize only what the external issue needs to execute the work.
    Do not copy live tracker state, PR review history, validation logs, or
    agent-local plans into the draft.
 5. For proposal work, put required documentation creation or updates, including
    their owners or destinations, in Scope. Treat those future docs as pending
    work, never as accepted evidence.
-6. Draft one provider-neutral issue body. Prefer Markdown that can be pasted
-   into either GitHub Issues or Linear without provider-specific metadata.
+6. Draft one provider-neutral issue body. A structural proposal draft records
+   the proposal and its pending shaping prerequisite; it does not claim
+   execution-ready implementation work. Prefer Markdown that can be pasted into
+   either GitHub Issues or Linear without provider-specific metadata.
 7. Stop after presenting the draft. A draft does not approve implementation or
    publication. Do not create live issues, assign users, set
    status, mutate labels, link blockers in the tracker, or post comments unless
@@ -129,7 +139,7 @@ When the origin is ready to draft, return `MODE=draft` and include exactly one
 draft issue body in this shape:
 
 ```markdown
-Title: <type(scope): short executable summary>
+Title: <type(scope): short draft summary>
 
 ## Problem
 
@@ -151,16 +161,22 @@ Title: <type(scope): short executable summary>
 
 <Proposal work only: noncritical follow-up decisions. Omit when none remain.>
 
+## Shaping Prerequisite
+
+<Structural proposal work only: named owning artifact and prerequisite to satisfy before implementation slicing.>
+
 ## Scope
 
 <What is included.>
 
 <For proposal work, required documentation creation or updates and their owners or destinations.>
 
+<For structural proposal work, record proposal/shaping work only; do not claim an execution-ready implementation slice.>
+
 ## Acceptance Criteria
 
-- [ ] <Concrete executable requirement>
-- [ ] <Concrete executable requirement>
+- [ ] <Concrete implementation or shaping requirement>
+- [ ] <Concrete implementation or shaping requirement>
 
 ## Evidence Pointers
 
@@ -219,6 +235,9 @@ Final mode: MODE=blocked
   the artifact can support issue slicing.
 - Treating missing proposal documentation as a readiness blocker while omitting
   the required documentation work from Scope.
+- Calling a structural proposal with a pending architectural decision, contract
+  boundary, schema migration, security policy, or broad workflow shaping an
+  execution-ready implementation slice or a narrow hybrid.
 - Calling an unresolved constraint conflict or a missing execution-critical
   proposal requirement an executable acceptance criterion.
 - Copying live issue comments, PR review history, validation logs, or
