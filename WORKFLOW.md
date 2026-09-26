@@ -7,7 +7,7 @@ This document is the procedural guide for contributing to the repository. For po
 | I want to...                                | Go to                                                                                                    |
 | ------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | Pick my next task                           | [Picking Work](#picking-work)                                                                            |
-| Report a bug or propose work                | [Creating an Issue](#creating-an-issue)                                                                  |
+| Report a bug or draft a concrete proposal   | [Creating an Issue](#creating-an-issue)                                                                  |
 | Report a shared-skill or shared-agent issue | [docs/guidelines/shared-skill-reporting-workflow.md](docs/guidelines/shared-skill-reporting-workflow.md) |
 | Implement a change                          | [Implementing](#implementing)                                                                            |
 | Open a pull request                         | [Opening a PR](#opening-a-pr)                                                                            |
@@ -36,7 +36,7 @@ This document is the procedural guide for contributing to the repository. For po
   - Notes: anything the implementer needs that does not fit above
 - **Dependencies**: If this issue cannot start until another closes, set the
   equivalent blocker relationship in the external issue tracker.
-- **Workflow path**: Use the [AI-assisted product workflow guideline](docs/guidelines/ai-assisted-product-workflow-guideline.md) to choose between shaping an owning durable AFDS artifact first and implementing an already-sliced issue.
+- **Workflow path**: Use the [AI-assisted product workflow guideline](docs/guidelines/ai-assisted-product-workflow-guideline.md) to choose between shaping an owning durable AFDS artifact, drafting a concrete confirmed proposal, and implementing an already-sliced issue.
 - **Labels**: `bug` for defects, `enhancement` for features, `tech-debt` for structural debt
 
 ### When the issue is about a shared skill or agent
