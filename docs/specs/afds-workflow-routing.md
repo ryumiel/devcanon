@@ -115,6 +115,29 @@ evidence pointer, durable-update trigger, and follow-up route.
 Provider-specific API fields and automation behavior belong in provider
 entrypoints, provider integration specs, source code, or focused follow-up work.
 
+### SLICE-001: Issue-Draft Origins
+
+`issue-slicing` must distinguish existing-spec work from a concrete
+user-confirmed proposal before drafting.
+
+Existing-spec work requires a named owning durable artifact and execution-ready
+scope, boundaries, acceptance criteria, verification expectations, and evidence.
+It must not bypass those requirements by relabeling the work as a proposal.
+
+Proposal work may draft, including before a feature spec exists, when confirmed
+behavior, scope, boundaries, acceptance criteria, verification expectations,
+relevant available current evidence, and affected documentation owners or
+destinations are sufficient. Missing proposal documentation is pending scope
+work, not accepted evidence or a blocker by itself. The draft must distinguish
+current behavior, proposed behavior, and unresolved decisions; preserve
+applicable constraints; and make a confirmed intended constraint change explicit.
+Missing execution-critical requirements or unresolved conflicts block until
+clarified.
+
+Proposal scope must include required documentation creation or updates with the
+affected owner or destination. A draft does not approve implementation or tracker
+publication; those actions remain separately authorized.
+
 ### ROUTE-006: Semantic Direct-Child Routing
 
 Every current direct child surface must resolve to one of the six semantic
@@ -467,6 +490,18 @@ skill-reporting workflow. The shared owner should be a shared system, artifact,
 policy, process, workflow component, or blocker, not a private person, live
 tracker assignment, or schedule.
 
+### EVID-005: Proposal-Origin Evidence
+
+Existing-spec issue drafts must point to the owning durable artifact. Proposal
+drafts must identify confirmed decisions through an available reference or a
+concise attributed user-confirmed context and cite relevant current source, test,
+or documentation evidence when available. They must not invent a stable URL,
+decision ID, accepted feature spec, or acceptance status.
+
+The absence of a stable discussion URL alone does not block a concrete confirmed
+proposal. Missing material evidence, however, blocks the draft. A future
+documentation destination is pending work rather than accepted evidence.
+
 ### DRIFT-001: Drift and Conflict Classification
 
 The toolkit must classify drift and conflict cases before changing durable
@@ -497,9 +532,11 @@ Approved follow-up surfaces:
   review skill. Its installable runtime subset is packaged under
   `skills/spec-readiness-review/references/`.
 - `issue-slicing` is approved as a provider-neutral draft-only issue slicing
-  skill. It drafts executable issue bodies from owning durable artifact
-  evidence for GitHub Issues or Linear, but it does not create live issues,
-  assign users, set status, mutate labels, or duplicate live tracker state.
+  skill. It drafts executable issue bodies from existing durable artifact
+  evidence or concrete user-confirmed proposal context for GitHub Issues or
+  Linear, but it does not create live issues, assign users, set status, mutate
+  labels, duplicate live tracker state, approve implementation, or publish
+  drafts.
 - [AFDS workflow capability governance](../guidelines/afds-workflow-capability-governance.md)
   is approved as the reusable guideline for classifying whether a workflow need
   should use the ordinary execution fast path, update an existing asset, create
@@ -561,7 +598,22 @@ derived evidence. If renderer behavior caused the drift, the route is to update
 the source renderer or its owning spec. Generated output itself remains
 disposable.
 
-### Scenario E: Valid Source-Immutable Handoff
+### Scenario E: Concrete Proposal Before a Feature Spec
+
+A user confirms a role-scoped CSV export: only visible filtered rows, `id`,
+`name`, and `status` columns, UTF-8 quoting, header-only empty output, an
+explicit limit error above 10,000 rows, and no partial download on failure.
+Current source and test evidence exist, but no feature spec does. The route may
+draft proposed work, keep current visibility constraints visible, and scope the
+required documentation creation at its named destination. It neither treats the
+future document as accepted evidence nor authorizes implementation or tracker
+publication.
+
+If the failure or limit behavior is not confirmed, or a role-scope conflict is
+unresolved, the route blocks for that concrete clarification. A request to slice
+an unready existing spec remains blocked under its existing readiness path.
+
+### Scenario F: Valid Source-Immutable Handoff
 
 The owner captures a new private baseline `B` while optional named handoff `H`
 is absent. The child leaves Git-visible content unchanged and creates a valid
@@ -574,7 +626,7 @@ when `H` is nested, pre-existing, symlinked, missing, empty, unreadable, or
 outside `.ephemeral`, or when either owned leaf is a directory. Each variant
 changes one guard dimension and is rejected before consumption.
 
-### Scenario F: Final Whole-Implementation Review
+### Scenario G: Final Whole-Implementation Review
 
 D16 consumes the exact route owned by the
 [policy inventory](../guidelines/agent-routing-and-mutation-policy.md#direct-child-route-inventory).
@@ -586,7 +638,7 @@ does not enter branch finish.
 D16 must not collapse into the D15 task-quality session, substitute ambient
 routing, or treat review unavailability as a passing verdict.
 
-### Scenario G: CI Diagnosis Before Fix Classification
+### Scenario H: CI Diagnosis Before Fix Classification
 
 D17 consumes the exact diagnosis and fix-classification routes owned by the
 [policy inventory](../guidelines/agent-routing-and-mutation-policy.md#direct-child-route-inventory).
@@ -612,6 +664,9 @@ resolution recommendation.
   when ROUTE-003 applies.
 - Evidence pointers satisfy EVID-001 without copying live tracker, PR, CI,
   validation, or agent-local history into repository docs.
+- Existing-spec issue drafts retain their owning artifact and readiness gate;
+  concrete proposal drafts require confirmed execution-critical requirements,
+  current evidence, and documentation scope under SLICE-001 and EVID-005.
 - Missing, private, inaccessible, or incomplete evidence is represented as a
   blocker under EVID-003.
 - Agent-local evidence reuse follows EVID-004: session-local artifacts stay

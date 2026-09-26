@@ -41,7 +41,11 @@ raw idea -> product requirements or owning durable AFDS artifact -> behavior spe
 The shape path may produce product requirements, a behavior spec, guideline,
 roadmap item, ADR, contract authority note, or another owning durable AFDS
 artifact. Once the owning durable AFDS artifact is stable enough to execute,
-slice implementation issues from it.
+slice implementation issues from it. A concrete user-confirmed proposal may also
+be drafted before a new feature spec exists when it has confirmed behavior,
+scope, boundaries, acceptance and verification expectations, relevant current
+evidence, and named documentation work; the draft remains proposed and does not
+authorize implementation or tracker mutation.
 
 Feature lifecycle work belongs here:
 

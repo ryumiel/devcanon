@@ -117,21 +117,28 @@ output, appetite, sequencing, or validation direction.
 
 ```mermaid
 flowchart TD
-  prd["Concrete product requirements evidence"] --> pointer["Minimum evidence pointer"]
-  spec["Concrete behavior spec evidence"] --> pointer
+  existing["Existing owning durable artifact"] --> readiness["Readiness review when useful"]
+  readiness --> pointer["Minimum evidence pointer"]
+  proposal["Concrete user-confirmed proposal"] --> proposalCheck["Confirmed requirements and current evidence"]
+  proposalCheck --> pointer
   roadmap["Concrete roadmap evidence"] --> pointer
   source["Concrete source-owner evidence"] --> pointer
   guideline["Reusable workflow or role-boundary evidence"] --> reusable["Reusable capability gap?"]
   reusable -->|yes| classify["Capability classification"]
   reusable -->|no, executable work| pointer
-  pointer --> readiness["Readiness review before slicing"]
-  readiness --> slice["Draft executable issue body"]
+  pointer --> slice["Draft executable issue body"]
   slice --> tracker["External issue tracker"]
 ```
 
-Use this path to create executable work from an owning durable artifact. Issue
-slicing should produce draft tracker work from evidence; provider-specific live
-mutation needs separate approval.
+Use this path to create executable work from an existing durable artifact or a
+concrete user-confirmed proposal. Existing-spec work keeps its owning-artifact
+and readiness requirements. Proposal work needs confirmed behavior, scope,
+boundaries, acceptance and verification expectations, relevant current evidence,
+and named documentation owners or destinations; missing future documentation
+alone is pending scope work. Drafts distinguish current, proposed, and unresolved
+decisions, and provider-specific live mutation or implementation needs separate
+approval. The [routing spec](../specs/afds-workflow-routing.md#slice-001-issue-draft-origins)
+owns the exact semantics.
 
 ### Execute Ready Issue
 
