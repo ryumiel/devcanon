@@ -41,11 +41,7 @@ raw idea -> product requirements or owning durable AFDS artifact -> behavior spe
 The shape path may produce product requirements, a behavior spec, guideline,
 roadmap item, ADR, contract authority note, or another owning durable AFDS
 artifact. Once the owning durable AFDS artifact is stable enough to execute,
-slice implementation issues from it. A concrete user-confirmed proposal may also
-be drafted before a new feature spec exists when it has confirmed behavior,
-scope, boundaries, acceptance and verification expectations, relevant current
-evidence, and named documentation work; the draft remains proposed and does not
-authorize implementation or tracker mutation.
+slice implementation issues from it.
 
 Feature lifecycle work belongs here:
 
@@ -61,6 +57,21 @@ Feature lifecycle work belongs here:
 10. Post-merge gardening.
 
 The lifecycle stays visible, but it is not mandatory for every issue.
+
+### Confirmed Proposal Recording
+
+Use confirmed proposal recording when a concrete user-confirmed feature or
+behavior change needs a draft issue body. This draft-only route may record the
+proposal before future documentation exists, with those documentation owners or
+destinations remaining pending work. The exact route and evidence requirements
+belong to [SLICE-001](../specs/afds-workflow-routing.md#slice-001-issue-draft-origins)
+and [EVID-005](../specs/afds-workflow-routing.md#evid-005-proposal-origin-evidence).
+
+Proposal recording does not authorize implementation or tracker publication. It
+does not replace shape-path work for unclear intent or the actual readiness
+requirements of an existing-spec request. When architecture, contract, schema,
+security, or broad workflow shaping is required, name and shape that prerequisite
+before implementation-ready work.
 
 ### 2.2 Execution Path
 
@@ -166,10 +177,12 @@ roadmap-scale target output.
 
 ## 5. Issue and PR Flow
 
-1. Classify the work origin: shape path, execution path, or narrow hybrid pass.
-2. Confirm the immediate execution contract: owning doc, issue acceptance
-   criteria, repro, audit finding, PR comment, test, stable requirement ID, or
-   scenario ID.
+1. Classify the work origin: shape path, confirmed proposal recording, execution
+   path, or narrow hybrid pass. Confirmed proposal recording produces a draft;
+   it is not implementation-ready work.
+2. Before implementation, confirm the immediate execution contract: owning doc,
+   issue acceptance criteria, repro, audit finding, PR comment, test, stable
+   requirement ID, or scenario ID.
 3. Check blockers in the external issue tracker before starting work.
 4. Implement on a branch scoped to one issue.
 5. Run the repository validation commands that cover the changed files, such as

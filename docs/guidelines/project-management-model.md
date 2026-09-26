@@ -75,6 +75,21 @@ the uncertainty is product intent, start with product requirements. When product
 intent is stable enough, derive the next owner: behavior spec, guideline,
 roadmap update, ADR, or implementation issues.
 
+### Confirmed proposal recording
+
+Use proposal recording for a concrete user-confirmed feature or behavior change
+that needs a draft issue body, including before future documentation exists. The
+draft records the proposal and its pending documentation owners or prerequisites;
+it does not authorize implementation or tracker publication. Its exact routing
+and evidence requirements are owned by
+[SLICE-001](../specs/afds-workflow-routing.md#slice-001-issue-draft-origins)
+and [EVID-005](../specs/afds-workflow-routing.md#evid-005-proposal-origin-evidence).
+
+Proposal recording does not replace the shape path for unclear intent or the
+readiness requirements of an actual existing-spec request. Required
+architecture, contract, schema, security, or broad workflow shaping remains a
+named prerequisite before implementation-ready work.
+
 ### 4.2 Execution path
 
 Use issue implementation when work is already sliced or starts from a concrete

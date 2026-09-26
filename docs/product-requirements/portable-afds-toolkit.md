@@ -49,6 +49,13 @@ guidance.
   `.ephemeral/` files.
 - **Shape path**: work that starts from unclear product or workflow intent and
   first creates or updates an owning durable AFDS artifact.
+- **Confirmed proposal recording**: draft-only recording of a concrete,
+  user-confirmed feature or behavior change, including before future
+  documentation exists. It remains distinct from shape-path work for unclear
+  intent and from execution-ready implementation; the AFDS workflow routing spec
+  owns its exact [routing](../specs/afds-workflow-routing.md#slice-001-issue-draft-origins)
+  and [evidence](../specs/afds-workflow-routing.md#evid-005-proposal-origin-evidence)
+  semantics.
 - **Execution path**: work that starts from an already-sliced issue, finding,
   test, or review comment and updates durable docs only when behavior or policy
   changes.
@@ -256,6 +263,7 @@ instead of inventing a repository-local summary.
 The toolkit should route work based on how it starts:
 
 - unclear product or workflow intent;
+- concrete user-confirmed feature or behavior-change proposals;
 - acceptance-ready behavior;
 - executable issue work;
 - failing tests;
@@ -265,8 +273,13 @@ The toolkit should route work based on how it starts:
 - stale, duplicated, misplaced, or conflicting knowledge.
 
 Routing should identify whether the next step is shaping an owning durable AFDS
-artifact, executing against an existing contract, updating source behavior,
+artifact, recording a confirmed proposal draft, including before future
+documentation, executing against an existing contract, updating source behavior,
 opening follow-up work, or recording that no durable artifact update is needed.
+Proposal recording must remain draft-only; the AFDS workflow routing spec owns
+its exact [routing](../specs/afds-workflow-routing.md#slice-001-issue-draft-origins)
+and [evidence](../specs/afds-workflow-routing.md#evid-005-proposal-origin-evidence)
+requirements.
 
 Ordinary execution work should have a lightweight path. If work starts from an
 executable issue, review comment, failing test, or audit finding and does not

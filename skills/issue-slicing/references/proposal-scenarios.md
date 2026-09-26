@@ -29,12 +29,15 @@ the over-limit error and no-partial-download failure behavior.
 All paths and identifiers in this scenario are hypothetical evaluator inputs.
 Retain the concrete proposal's confirmed export behavior, scope, boundaries,
 acceptance criteria, automated verification expectation, current source and
-test evidence, and pending documentation destination. An existing
-`docs/specs/records.md` currently governs the CSV export with the visible-row
-constraint. A user additionally confirms that the export must include a
+test evidence. This replaces the concrete proposal's no-spec and pending-
+destination state: an existing `docs/specs/records.md` currently governs the CSV
+export with the visible-row constraint and is current evidence for that behavior.
+Updating that spec for the proposed export change is pending scope work, not
+accepted evidence. A user additionally confirms that the export must include a
 `created_at` column and explicitly preserve that constraint. Request a proposal
 draft for this new behavior-change intent; it must make the current constraint
-and confirmed column change visible. Its automated verification expectation now
+and confirmed column change visible. The proposed column change is not already
+accepted content in the current spec. Its automated verification expectation now
 covers the four `id`, `name`, `status`, and `created_at` columns. This request is
 not a request to slice the existing spec.
 
