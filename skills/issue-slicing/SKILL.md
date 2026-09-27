@@ -1,27 +1,33 @@
 ---
 name: issue-slicing
-description: Drafts provider-neutral executable issue bodies from durable AFDS evidence. Use when slicing a PRD, behavior spec, roadmap item, guideline, ADR, source-owner artifact, or readiness review into GitHub Issues or Linear work.
+description: Drafts provider-neutral issue bodies from durable AFDS evidence or concrete user-confirmed proposal context. Use when slicing a PRD, behavior spec, roadmap item, guideline, ADR, source-owner artifact, readiness review, or concrete proposal into GitHub Issues or Linear work.
 ---
 
 # Issue Slicing
 
-Draft executable issue bodies from owning durable AFDS artifacts. This skill is
-provider-neutral: it can produce Markdown suitable for GitHub Issues or Linear,
-but it does not create live issues, assign users, set status, mutate labels, or
-duplicate live tracker state.
+Draft issue bodies from an existing durable artifact or a concrete
+user-confirmed proposal. Existing-spec work and narrow complete, nonstructural
+proposals can support execution-ready drafts; broad or structural proposals
+record their prerequisite work without claiming an execution-ready implementation
+slice. This skill is provider-neutral: it can produce Markdown
+suitable for GitHub Issues or Linear, but it does not create live issues, assign
+users, set status, mutate labels, or duplicate live tracker state.
 
-Use this after the owning durable artifact is clear and, when useful, after
-`spec-readiness-review` has checked whether the artifact is ready to slice.
-`spec-readiness-review` remains read-only; this skill owns draft issue text.
+Use existing-spec work after its owning durable artifact is clear and, when
+useful, after `spec-readiness-review` has checked whether it is ready to slice.
+`spec-readiness-review` remains read-only and existing-artifact scoped; this
+skill owns draft issue text.
 
 ## Inputs
 
 Accept any combination of:
 
-- an owning durable artifact path or stable reference, such as
+- an existing-spec owning durable artifact path or stable reference, such as
   `docs/specs/<topic>.md`, `docs/product-requirements/<topic>.md`,
   `docs/roadmap/<topic>.md`, a guideline, an ADR, or a source-owner artifact;
 - readiness-review output or readiness findings;
+- user-confirmed proposal behavior, scope, boundaries, acceptance criteria, and
+  verification expectations;
 - evidence pointers from issues, PRs, tests, CI, source findings, or review
   notes;
 - an intended tracker target, such as GitHub Issues or Linear, when known.
@@ -31,19 +37,69 @@ evidence. They do not override the owning durable artifact.
 
 ## Procedure
 
-1. Load project instructions and, when present, the Portable AFDS procedure map
-   at `docs/guidelines/portable-afds-user-procedure-map.md`.
-2. Identify the work origin and owning durable artifact. If ownership is
-   unclear, return `MODE=blocked`.
-3. Check whether the artifact or readiness findings provide enough scope,
-   boundaries, acceptance criteria, verification expectations, and evidence to
-   draft executable work. If the artifact is not ready, return `MODE=blocked`.
-4. Extract or summarize only what the external issue needs to execute the work.
+1. Load active project instructions and any available project-local ownership
+   rules or Portable AFDS procedure map. Use them to identify the appropriate
+   owning artifact or destination, then apply this skill's origin, readiness,
+   evidence, and drafting safeguards.
+2. Classify the work origin:
+   - **Existing-spec work** slices a named owning durable artifact. Do not
+     relabel a request to slice an existing spec as a proposal to evade its
+     readiness requirements.
+   - **Proposal work** drafts a new feature or behavior change from sufficiently
+     concrete user-confirmed context, whether or not a current feature spec
+     exists. Preserve relevant existing constraints and make each intended
+     constraint change explicit.
+   - If the request cannot be classified, return `MODE=blocked` and name the
+     missing origin or owner.
+3. Validate the origin before drafting:
+   - Existing-spec work requires a named owning artifact and execution-ready
+     scope, boundaries, acceptance criteria, verification expectations, and
+     evidence. A readiness blocker remains `MODE=blocked`.
+   - Proposal work requires confirmed behavior, scope, boundaries, acceptance
+     criteria, verification expectations, and affected documentation owners or
+     destinations. Cite relevant current source, test, or documentation evidence
+     when it is available; missing material evidence blocks. A missing feature
+     spec alone is pending scope work, not a blocker.
+   - Validate a proposal's documentation owner or destination against the
+     project's AFDS ownership boundaries, not a path alone. An appropriate
+     future owning surface is allowed as pending scope work; a summary-only,
+     inappropriate, or ambiguous owner or destination returns `MODE=blocked`
+     with the ownership clarification needed.
+   - For a proposal, make current behavior, proposed behavior, and every
+     unresolved decision distinguishable. Keep existing constraints visible;
+     an intended constraint change must be explicit and user-confirmed.
+     Missing execution-critical requirements or unresolved conflicts return
+     `MODE=blocked` with the concrete clarification needed.
+   - A proposal may claim an execution-ready draft that combines implementation
+     with required documentation creation or updates only when the change is
+     narrow and has no new architectural decision, contract boundary, schema
+     migration, security policy, or broad workflow shaping. Check size and
+     structural blockers independently.
+   - When a concrete proposal is broad without a structural blocker, name the
+     decomposition prerequisite in the draft. Do not call it an execution-ready
+     implementation slice or use narrow-hybrid treatment for that prerequisite
+     plus implementation. Decompose first; apply normal readiness and
+     implementation slicing afterward.
+   - When a concrete proposal requires an architectural decision, contract
+     boundary, schema migration, security policy, or broad workflow shaping,
+     name the shaping prerequisite in the draft. Do not call it an
+     execution-ready implementation slice or use narrow-hybrid treatment for
+     shaping plus implementation. Shape the owning durable artifact first;
+     apply normal readiness and implementation slicing afterward.
+4. Extract or summarize only what the external issue needs to describe the next
+   work.
    Do not copy live tracker state, PR review history, validation logs, or
    agent-local plans into the draft.
-5. Draft one provider-neutral issue body. Prefer Markdown that can be pasted
-   into either GitHub Issues or Linear without provider-specific metadata.
-6. Stop after presenting the draft. Do not create live issues, assign users, set
+5. For proposal work, put required documentation creation or updates, including
+   their validated owners or destinations, in Scope. Treat those future docs as
+   pending work, never as accepted evidence.
+6. Draft one provider-neutral issue body. A broad proposal draft records the
+   proposal and its pending decomposition prerequisite; a structural proposal
+   draft records its pending shaping prerequisite. Neither claims execution-ready
+   implementation work. Prefer Markdown that can be pasted into either GitHub
+   Issues or Linear without provider-specific metadata.
+7. Stop after presenting the draft. A draft does not approve implementation or
+   publication. Do not create live issues, assign users, set
    status, mutate labels, link blockers in the tracker, or post comments unless
    a separate approved provider-specific workflow owns that behavior.
 
@@ -52,9 +108,17 @@ evidence. They do not override the owning durable artifact.
 Each draft must include evidence pointers that preserve traceability without
 turning repository docs into live-state stores.
 
-At least one evidence pointer must name the owning durable artifact being
-sliced. Supporting evidence may cite issues, PRs, tests, CI, source findings, or
-review notes, but it cannot replace the owning artifact pointer.
+For existing-spec work, at least one evidence pointer must name the owning
+durable artifact being sliced. Supporting evidence may cite issues, PRs, tests,
+CI, source findings, or review notes, but it cannot replace the owning artifact
+pointer.
+
+For proposal work, cite confirmed decisions with an available reference or a
+concise attributed user-confirmed context, plus relevant current source, test,
+or documentation evidence when it is available. Do not invent a URL, decision
+ID, accepted feature spec, or acceptance status. A missing stable discussion URL
+alone is not a blocker when the confirmed context is concrete; missing material
+evidence is.
 
 An evidence pointer should identify:
 
@@ -74,11 +138,16 @@ pointer.
 
 Return `MODE=blocked` instead of drafting when:
 
-- the owning durable artifact is missing or unclear;
+- existing-spec work has a missing or unclear owning durable artifact;
 - evidence is inaccessible or too vague to support executable work;
 - readiness review says `Needs revision` or `Blocked` and the missing details
   affect issue execution;
 - multiple owners conflict and no source of truth resolves the conflict;
+- proposal behavior, scope, boundaries, acceptance criteria, verification
+  expectations, or material evidence is missing when it affects execution;
+- a proposal documentation owner or destination is missing, inappropriate for
+  the project's ownership boundaries, or ambiguous;
+- a proposal has an unresolved execution-critical decision or conflict;
 - the requested output requires provider-specific mutation, such as creating an
   issue, setting labels, assigning users, setting status, or linking blockers.
 
@@ -91,11 +160,11 @@ Name the blocker concretely, for example:
 
 ## Draft Shape
 
-When the artifact is slice-ready, return `MODE=draft` and include exactly one
+When the origin is ready to draft, return `MODE=draft` and include exactly one
 draft issue body in this shape:
 
 ```markdown
-Title: <type(scope): short executable summary>
+Title: <type(scope): short draft summary>
 
 ## Problem
 
@@ -105,19 +174,42 @@ Title: <type(scope): short executable summary>
 
 <The outcome the issue should make true.>
 
+## Current Behavior
+
+<Proposal work only: relevant current behavior and constraints.>
+
+## Proposed Behavior
+
+<Proposal work only: confirmed intended behavior and explicit constraint changes.>
+
+## Unresolved Decisions
+
+<Proposal work only: noncritical follow-up decisions. Omit when none remain.>
+
+## Shaping Or Decomposition Prerequisite
+
+<Broad proposal work: named decomposition prerequisite. Structural proposal work: named owning artifact and shaping prerequisite. Satisfy the applicable prerequisite before implementation slicing.>
+
 ## Scope
 
 <What is included.>
 
+<For proposal work, required documentation creation or updates and their owners or destinations.>
+
+<For broad proposal work, record proposal/decomposition work only. For structural proposal work, record proposal/shaping work only. Do not claim an execution-ready implementation slice.>
+
 ## Acceptance Criteria
 
-- [ ] <Concrete executable requirement>
-- [ ] <Concrete executable requirement>
+- [ ] <Concrete, verifiable requirement appropriate to the selected implementation, shaping, or decomposition work>
+- [ ] <Concrete, verifiable requirement appropriate to the selected implementation, shaping, or decomposition work>
 
 ## Evidence Pointers
 
-- <owning durable artifact>: <stable reference> - <checked requirement/result state>
-- <supporting evidence system>: <stable reference> - <checked requirement/result state>
+Include only the rows that apply to the classified origin.
+
+- <Existing-spec work: owning durable artifact>: <stable reference> - <checked requirement/result state>
+- <Proposal work: attributed user-confirmed context or available decision reference>: <confirmed behavior, scope, or decision>
+- <Proposal work: current source, test, or documentation evidence>: <stable reference> - <checked requirement/result state>
 
 ## Affected Areas
 
@@ -133,8 +225,9 @@ Title: <type(scope): short executable summary>
 ```
 
 Omit optional sections only when they add no signal. Keep acceptance criteria
-implementation-facing and verifiable. Do not add assignees, labels, status,
-milestones, priority fields, or provider-specific relationship metadata.
+concrete, verifiable, and appropriate to the selected implementation, shaping,
+or decomposition work. Do not add assignees, labels, status, milestones,
+priority fields, or provider-specific relationship metadata.
 
 ## Output Format
 
@@ -163,10 +256,28 @@ Final mode: MODE=blocked
 ## Common Mistakes
 
 - Creating or posting the issue. This skill drafts only.
+- Treating a draft as implementation approval or publication permission.
 - Treating a readiness review as implementation approval. Readiness only means
   the artifact can support issue slicing.
+- Treating missing proposal documentation as a readiness blocker while omitting
+  the required documentation work from Scope.
+- Treating a future documentation destination as accepted evidence, or accepting
+  a convenient summary location as the behavior owner without validating it.
+- Calling a broad proposal, or a proposal with a pending architectural decision,
+  contract boundary, schema migration, security policy, or broad workflow
+  shaping, an execution-ready implementation slice or a narrow hybrid.
+- Replacing the required shaping of an owning durable artifact with
+  decomposition when a structural blocker is present.
+- Calling an unresolved constraint conflict or a missing execution-critical
+  proposal requirement an executable acceptance criterion.
 - Copying live issue comments, PR review history, validation logs, or
   agent-local plans into the draft.
 - Hiding missing acceptance criteria by writing vague issue text.
 - Adding GitHub- or Linear-specific metadata before a provider-specific workflow
   is approved to own that mutation.
+
+## Verification Scenarios
+
+Use [proposal scenarios](references/proposal-scenarios.md) for focused
+proposal-origin retests. They are evaluator inputs, not a replacement for the
+routing policy or an output protocol.

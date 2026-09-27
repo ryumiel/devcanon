@@ -7,7 +7,7 @@ This document is the procedural guide for contributing to the repository. For po
 | I want to...                                | Go to                                                                                                    |
 | ------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | Pick my next task                           | [Picking Work](#picking-work)                                                                            |
-| Report a bug or propose work                | [Creating an Issue](#creating-an-issue)                                                                  |
+| Report a bug or draft a concrete proposal   | [Creating an Issue](#creating-an-issue)                                                                  |
 | Report a shared-skill or shared-agent issue | [docs/guidelines/shared-skill-reporting-workflow.md](docs/guidelines/shared-skill-reporting-workflow.md) |
 | Implement a change                          | [Implementing](#implementing)                                                                            |
 | Open a pull request                         | [Opening a PR](#opening-a-pr)                                                                            |
@@ -24,8 +24,14 @@ This document is the procedural guide for contributing to the repository. For po
 
 ## Creating an Issue
 
+- **Concrete proposal**: For a user-confirmed feature or behavior change, use
+  the [`issue-slicing` Procedure](skills/issue-slicing/SKILL.md#procedure) and
+  [Draft Shape](skills/issue-slicing/SKILL.md#draft-shape). Its proposal route
+  preserves current and proposed behavior, any unresolved decision, verification
+  and evidence, and the pending appropriate documentation owner or destination.
+  It produces a draft only; it does not authorize implementation or publication.
 - **Title**: Use a Conventional Commits-style prefix: `type(scope): short summary` or `type: short summary`
-- **Body structure**:
+- **Generic bug or issue report body structure**:
   - Problem statement: what is wrong or missing
   - Expected behavior: what should happen instead
   - Acceptance criteria: observable conditions that mean "done"
@@ -36,7 +42,7 @@ This document is the procedural guide for contributing to the repository. For po
   - Notes: anything the implementer needs that does not fit above
 - **Dependencies**: If this issue cannot start until another closes, set the
   equivalent blocker relationship in the external issue tracker.
-- **Workflow path**: Use the [AI-assisted product workflow guideline](docs/guidelines/ai-assisted-product-workflow-guideline.md) to choose between shaping an owning durable AFDS artifact first and implementing an already-sliced issue.
+- **Workflow path**: Use the [AI-assisted product workflow guideline](docs/guidelines/ai-assisted-product-workflow-guideline.md) to choose between shaping an owning durable AFDS artifact, drafting a concrete confirmed proposal, and implementing an already-sliced issue.
 - **Labels**: `bug` for defects, `enhancement` for features, `tech-debt` for structural debt
 
 ### When the issue is about a shared skill or agent
