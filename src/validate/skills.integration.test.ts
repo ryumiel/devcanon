@@ -1,4 +1,4 @@
-import { cp, mkdir, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -13,6 +13,8 @@ import type {
   FileArtifacts,
   ToolNames,
 } from "../config/schema.js";
+import { SkillSourceSchema } from "../config/schema.js";
+import { parseFrontmatter } from "../render/frontmatter.js";
 import { UserError } from "../utils/errors.js";
 import { type Logger, getLogger, setLogger } from "../utils/output.js";
 import type { ValidationDiagnostic } from "./diagnostics.js";
@@ -225,6 +227,20 @@ describe("loadAndValidateSkills", () => {
     await createSkillFixture(skillsDir, "conditional-helper");
 
     await expect(loadAndValidateSkills(skillsDir)).resolves.toHaveLength(2);
+  });
+
+  it("declares the PR-gate review-response sibling in shipped batch routing", async () => {
+    const content = await readFile(
+      path.resolve("skills", "issue-batch-routing", "SKILL.md"),
+      "utf-8",
+    );
+    const { frontmatter, body } = parseFrontmatter(content);
+    const source = SkillSourceSchema.parse(frontmatter);
+
+    expect(body).toContain(
+      "Unresolved inline review threads route to the review-response workflow",
+    );
+    expect(source.requires).toContain("play-review-response");
   });
 
   it("requires play-agent-dispatch for the shipped skill-authoring workflow", async () => {

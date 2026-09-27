@@ -5,6 +5,7 @@ requires:
   - github-issue-priming
   - issue-worktree-setup
   - linear-issue-priming
+  - play-review-response
   - pr-merge
 claude:
   model: "{{model:frontier}}"
