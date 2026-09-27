@@ -1,6 +1,10 @@
 ---
 name: play-review-response
 description: Explicit-invocation workflow for verification-first response to code review feedback. Use only when the user explicitly invokes `play-review-response` or asks to address review feedback through that workflow.
+requires:
+  - branch-review
+  - play-planning
+  - play-subagent-execution
 codex_sidecar:
   policy:
     allow_implicit_invocation: false

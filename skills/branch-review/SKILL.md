@@ -1,6 +1,10 @@
 ---
 name: branch-review
 description: Multi-agent code review of a local branch's commits against a base ref. Use when reviewing a branch before creating a PR or when the user asks to review changes without a GitHub PR.
+requires:
+  - play-review
+  - play-review-response
+  - play-validate-review-artifacts
 ---
 
 # Branch Review

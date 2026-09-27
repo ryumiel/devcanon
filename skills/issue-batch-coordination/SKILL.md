@@ -1,6 +1,9 @@
 ---
 name: issue-batch-coordination
 description: Coordinates issue batches across existing owners, dependencies, readiness checks, and controller recovery. Use when the user asks to manage a batch, keep several issues moving, or resume batch coordination; users need not name a skill. Do not use for a single issue's implementation or a bounded explicit routing request.
+requires:
+  - issue-batch-routing
+  - play-review-response
 codex:
   license: MIT
   metadata:

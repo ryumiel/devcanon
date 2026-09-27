@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -13,6 +13,8 @@ import type {
   FileArtifacts,
   ToolNames,
 } from "../config/schema.js";
+import { SkillSourceSchema } from "../config/schema.js";
+import { parseFrontmatter } from "../render/frontmatter.js";
 import { UserError } from "../utils/errors.js";
 import { type Logger, getLogger, setLogger } from "../utils/output.js";
 import type { ValidationDiagnostic } from "./diagnostics.js";
@@ -160,6 +162,106 @@ describe("loadAndValidateSkills", () => {
       body: "# greeting\n\nA greeting skill.\n",
       subdirs: [],
     });
+  });
+
+  it("reports every declared sibling omitted from the loaded source set", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "requester",
+      "---\nname: requester\ndescription: Requests a sibling.\nrequires:\n  - missing-sibling\n---\n\n# requester\n",
+    );
+    await createSkillFixture(
+      skillsDir,
+      "another-requester",
+      "---\nname: another-requester\ndescription: Requests another sibling.\nrequires:\n  - another-missing-sibling\n---\n\n# another requester\n",
+    );
+
+    await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(
+      /requester.*missing-sibling/i,
+    );
+    await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(
+      /another-requester.*another-missing-sibling/i,
+    );
+  });
+
+  it("accepts complete declared chains and cycles", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "alpha",
+      "---\nname: alpha\ndescription: Requires beta.\nrequires:\n  - beta\n---\n\n# alpha\n",
+    );
+    await createSkillFixture(
+      skillsDir,
+      "beta",
+      "---\nname: beta\ndescription: Requires gamma.\nrequires:\n  - gamma\n---\n\n# beta\n",
+    );
+    await createSkillFixture(
+      skillsDir,
+      "gamma",
+      "---\nname: gamma\ndescription: Requires alpha.\nrequires:\n  - alpha\n---\n\n# gamma\n",
+    );
+
+    await expect(loadAndValidateSkills(skillsDir)).resolves.toHaveLength(3);
+  });
+
+  it("does not infer a requirement from an optional prose-only sibling reference", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "author",
+      "---\nname: author\ndescription: Offers optional guidance.\n---\n\n# author\n\nOptionally use `missing-helper` for follow-up work.\n",
+    );
+
+    await expect(loadAndValidateSkills(skillsDir)).resolves.toHaveLength(1);
+  });
+
+  it("accepts a sibling declared for a conditional branch when it is loaded", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "dispatcher",
+      "---\nname: dispatcher\ndescription: Dispatches conditional work.\nrequires:\n  - conditional-helper\n---\n\n# dispatcher\n\nWhen the condition applies, use `conditional-helper`.\n",
+    );
+    await createSkillFixture(skillsDir, "conditional-helper");
+
+    await expect(loadAndValidateSkills(skillsDir)).resolves.toHaveLength(2);
+  });
+
+  it("declares the PR-gate review-response sibling in shipped batch routing", async () => {
+    const content = await readFile(
+      path.resolve("skills", "issue-batch-routing", "SKILL.md"),
+      "utf-8",
+    );
+    const { frontmatter } = parseFrontmatter(content);
+    const source = SkillSourceSchema.parse(frontmatter);
+
+    expect(source.requires).toContain("play-review-response");
+  });
+
+  it("requires play-agent-dispatch for the shipped skill-authoring workflow", async () => {
+    await Promise.all(
+      ["play-skill-authoring", "play-tdd", "subagent-lifecycle"].map((skill) =>
+        cp(path.resolve("skills", skill), path.join(skillsDir, skill), {
+          recursive: true,
+        }),
+      ),
+    );
+
+    await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(
+      /play-skill-authoring.*play-agent-dispatch/i,
+    );
+  });
+
+  it("allows the shipped readiness review to load without an executor", async () => {
+    await cp(
+      path.resolve("skills", "spec-readiness-review"),
+      path.join(skillsDir, "spec-readiness-review"),
+      { recursive: true },
+    );
+
+    await expect(loadAndValidateSkills(skillsDir)).resolves.toHaveLength(1);
   });
 
   it("detects all known subdirs when present", async () => {

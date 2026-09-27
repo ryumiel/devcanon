@@ -966,6 +966,46 @@ describe("SkillSourceSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts absent and empty requires declarations", () => {
+    const absent = SkillSourceSchema.safeParse({
+      name: "example",
+      description: "Use when X.",
+    });
+    const empty = SkillSourceSchema.safeParse({
+      name: "example",
+      description: "Use when X.",
+      requires: [],
+    });
+
+    expect(absent.success).toBe(true);
+    expect(empty.success).toBe(true);
+  });
+
+  it("accepts unique sibling skill names in requires", () => {
+    const result = SkillSourceSchema.safeParse({
+      name: "example",
+      description: "Use when X.",
+      requires: ["sibling-skill", "another-skill"],
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it.each([
+    ["a scalar", "sibling-skill"],
+    ["a malformed name", ["../sibling-skill"]],
+    ["a non-string member", [42]],
+    ["duplicates", ["sibling-skill", "sibling-skill"]],
+  ])("rejects requires with %s", (_label, requires) => {
+    const result = SkillSourceSchema.safeParse({
+      name: "example",
+      description: "Use when X.",
+      requires,
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   it("accepts allowed-tools as a string or string array", () => {
     const str = SkillSourceSchema.safeParse({
       name: "xy",

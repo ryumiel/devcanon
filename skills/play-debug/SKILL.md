@@ -1,6 +1,8 @@
 ---
 name: play-debug
 description: Explicit-invocation workflow for systematic root-cause debugging before fixes. Use only when the user explicitly invokes `play-debug` or an owning workflow explicitly requires root-cause debugging.
+requires:
+  - play-tdd
 codex_sidecar:
   policy:
     allow_implicit_invocation: false

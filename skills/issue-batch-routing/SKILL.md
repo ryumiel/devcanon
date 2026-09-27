@@ -1,6 +1,12 @@
 ---
 name: issue-batch-routing
 description: Routes provider-tagged issue work across owner tasks, PR gates, approvals, merges, and archival. Use only when the user explicitly invokes issue-batch-routing or an owning workflow explicitly hands off routing work. Ordinary batch-management requests belong to issue-batch-coordination.
+requires:
+  - github-issue-priming
+  - issue-worktree-setup
+  - linear-issue-priming
+  - play-review-response
+  - pr-merge
 claude:
   model: "{{model:frontier}}"
 codex:

@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -1649,6 +1649,202 @@ describe("renderLoaded", () => {
     expect(generatedSkillContent).toContain("A test skill.");
     expect(generatedSkillContent).not.toContain("Mutated source");
     expect(generatedSkillContent).not.toContain("# changed");
+  });
+
+  it.each(["claude", "codex"] as const)(
+    "rejects an omitted selected sibling before %s writes even when validatedSkills contains it",
+    async (target) => {
+      await createSkillFixture(
+        config.library.skillsDir,
+        "requester",
+        "---\nname: requester\ndescription: Requests a sibling.\nrequires:\n  - sibling\n---\n\n# requester\n",
+      );
+      await createSkillFixture(config.library.skillsDir, "sibling");
+      const validatedSkills = await loadAndValidateSkills(
+        config.library.skillsDir,
+      );
+      const [requester] = validatedSkills.filter(
+        (skill) => skill.name === "requester",
+      );
+      const sentinel = path.join(
+        config.library.generatedDir,
+        target,
+        "skills",
+        "requester",
+        "sentinel.txt",
+      );
+      await mkdir(path.dirname(sentinel), { recursive: true });
+      await writeFile(sentinel, "must survive\n", "utf-8");
+
+      await expect(
+        renderLoaded({
+          config,
+          skills: [requester],
+          validatedSkills,
+          agents: [],
+          writeToGenerated: true,
+          targetFilter: target,
+        }),
+      ).rejects.toThrow(/requester.*sibling/i);
+
+      expect(await readFile(sentinel, "utf-8")).toBe("must survive\n");
+      expect(
+        await pathExists(path.join(path.dirname(sentinel), "SKILL.md")),
+      ).toBe(false);
+    },
+  );
+
+  it("keeps requires source-only when both targets render a complete selection", async () => {
+    await createSkillFixture(
+      config.library.skillsDir,
+      "requester",
+      "---\nname: requester\ndescription: Requests a sibling.\nrequires:\n  - sibling\n---\n\n# requester\n",
+    );
+    await createSkillFixture(config.library.skillsDir, "sibling");
+    const skills = await loadAndValidateSkills(config.library.skillsDir);
+
+    const result = await renderLoaded({ config, skills, agents: [] });
+
+    const requesterOutputs = result.outputs.filter(
+      (output) => output.type === "skill" && output.name === "requester",
+    );
+    expect(requesterOutputs).toHaveLength(2);
+    expect(
+      requesterOutputs.every((output) => !output.content.includes("requires")),
+    ).toBe(true);
+  });
+
+  it.each(["claude", "codex"] as const)(
+    "checks each selected direct declaration for a %s render chain",
+    async (target) => {
+      await createSkillFixture(
+        config.library.skillsDir,
+        "alpha",
+        "---\nname: alpha\ndescription: Requires beta.\nrequires:\n  - beta\n---\n\n# alpha\n",
+      );
+      await createSkillFixture(
+        config.library.skillsDir,
+        "beta",
+        "---\nname: beta\ndescription: Requires gamma.\nrequires:\n  - gamma\n---\n\n# beta\n",
+      );
+      await createSkillFixture(config.library.skillsDir, "gamma");
+      const skills = await loadAndValidateSkills(config.library.skillsDir);
+      const selectedWithoutGamma = skills.filter(
+        (skill) => skill.name !== "gamma",
+      );
+
+      await expect(
+        renderLoaded({
+          config,
+          skills: selectedWithoutGamma,
+          agents: [],
+          targetFilter: target,
+        }),
+      ).rejects.toThrow(/beta.*gamma/i);
+
+      const result = await renderLoaded({
+        config,
+        skills,
+        agents: [],
+        targetFilter: target,
+      });
+
+      expect(result.outputs).toHaveLength(3);
+    },
+  );
+
+  it("requires shipped product-spec conditional siblings in the selected render", async () => {
+    const sourceConfig: ResolvedConfig = {
+      ...config,
+      fileArtifacts: {
+        "workflow-guide": { claude: "WORKFLOW.md", codex: "WORKFLOW.md" },
+      },
+    };
+    const requiredSkills = [
+      "write-product-spec",
+      "spec-readiness-review",
+      "issue-slicing",
+    ];
+    await Promise.all(
+      requiredSkills.map((skill) =>
+        cp(
+          path.resolve("skills", skill),
+          path.join(config.library.skillsDir, skill),
+          { recursive: true },
+        ),
+      ),
+    );
+    const validatedSkills = await loadAndValidateSkills(
+      config.library.skillsDir,
+    );
+    const productSpec = validatedSkills.filter(
+      (skill) => skill.name === "write-product-spec",
+    );
+
+    await expect(
+      renderLoaded({
+        config: sourceConfig,
+        skills: productSpec,
+        validatedSkills,
+        agents: [],
+      }),
+    ).rejects.toThrow(/write-product-spec.*spec-readiness-review/i);
+    await expect(
+      renderLoaded({
+        config: sourceConfig,
+        skills: productSpec,
+        validatedSkills,
+        agents: [],
+      }),
+    ).rejects.toThrow(/write-product-spec.*issue-slicing/i);
+
+    const result = await renderLoaded({
+      config: sourceConfig,
+      skills: validatedSkills,
+      agents: [],
+    });
+
+    const productSpecOutputs = result.outputs.filter(
+      (output) =>
+        output.type === "skill" && output.name === "write-product-spec",
+    );
+    expect(productSpecOutputs.map((output) => output.target).sort()).toEqual([
+      "claude",
+      "codex",
+    ]);
+    expect(
+      productSpecOutputs.every(
+        (output) => !output.content.includes("requires"),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not require selected siblings when no render target is enabled", async () => {
+    await createSkillFixture(
+      config.library.skillsDir,
+      "requester",
+      "---\nname: requester\ndescription: Requests a sibling.\nrequires:\n  - sibling\n---\n\n# requester\n",
+    );
+    await createSkillFixture(config.library.skillsDir, "sibling");
+    const validatedSkills = await loadAndValidateSkills(
+      config.library.skillsDir,
+    );
+    const requester = validatedSkills.filter(
+      (skill) => skill.name === "requester",
+    );
+    const noTargetsConfig = makeResolvedConfig(tempDir, {
+      claude: { enabled: false },
+      codex: { enabled: false },
+    });
+
+    const result = await renderLoaded({
+      config: noTargetsConfig,
+      skills: requester,
+      validatedSkills,
+      agents: [],
+    });
+
+    expect(result.outputs).toEqual([]);
   });
 
   it("rejects a forged passive runtime in ordinary loaded skills", async () => {

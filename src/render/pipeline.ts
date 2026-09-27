@@ -24,6 +24,7 @@ import {
   DEVCANON_RUNTIME_SKILL_NAME,
   KNOWN_SUBDIRS,
   collectActiveModelPlaceholderErrors,
+  collectMissingRequiredSkillErrors,
   loadAndValidateSkills,
 } from "../validate/skills.js";
 import { renderClaudeAgent } from "./claude.js";
@@ -547,6 +548,18 @@ function validateLoadedInputs(
       throw new UserError(
         `Loaded skill "${skill.name}" is missing from validatedSkills.`,
       );
+    }
+  }
+
+  const selectedTargets = (["claude", "codex"] as const).filter(
+    (target) =>
+      config.targets[target].enabled &&
+      (targetFilter === undefined || targetFilter === target),
+  );
+  if (selectedTargets.length > 0) {
+    const requiredSkillErrors = collectMissingRequiredSkillErrors(skills);
+    if (requiredSkillErrors.length > 0) {
+      throw new UserError(requiredSkillErrors.join("\n"));
     }
   }
 
