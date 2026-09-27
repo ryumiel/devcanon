@@ -3,8 +3,11 @@ name: play-subagent-execution
 description: Explicit-invocation workflow for executing an implementation plan with fresh subagents per independent task. Use only when the user explicitly invokes `play-subagent-execution` or an owning workflow explicitly requires plan execution.
 requires:
   - branch-review
+  - issue-priming-workflow
+  - play-agent-dispatch
   - play-branch-finish
   - play-planning
+  - play-review-response
   - subagent-lifecycle
 codex_sidecar:
   policy:

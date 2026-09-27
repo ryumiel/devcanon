@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -1752,6 +1752,72 @@ describe("renderLoaded", () => {
       expect(result.outputs).toHaveLength(3);
     },
   );
+
+  it("requires shipped product-spec conditional siblings in the selected render", async () => {
+    const sourceConfig: ResolvedConfig = {
+      ...config,
+      fileArtifacts: {
+        "workflow-guide": { claude: "WORKFLOW.md", codex: "WORKFLOW.md" },
+      },
+    };
+    const requiredSkills = [
+      "write-product-spec",
+      "spec-readiness-review",
+      "issue-slicing",
+    ];
+    await Promise.all(
+      requiredSkills.map((skill) =>
+        cp(
+          path.resolve("skills", skill),
+          path.join(config.library.skillsDir, skill),
+          { recursive: true },
+        ),
+      ),
+    );
+    const validatedSkills = await loadAndValidateSkills(
+      config.library.skillsDir,
+    );
+    const productSpec = validatedSkills.filter(
+      (skill) => skill.name === "write-product-spec",
+    );
+
+    await expect(
+      renderLoaded({
+        config: sourceConfig,
+        skills: productSpec,
+        validatedSkills,
+        agents: [],
+      }),
+    ).rejects.toThrow(/write-product-spec.*spec-readiness-review/i);
+    await expect(
+      renderLoaded({
+        config: sourceConfig,
+        skills: productSpec,
+        validatedSkills,
+        agents: [],
+      }),
+    ).rejects.toThrow(/write-product-spec.*issue-slicing/i);
+
+    const result = await renderLoaded({
+      config: sourceConfig,
+      skills: validatedSkills,
+      agents: [],
+    });
+
+    const productSpecOutputs = result.outputs.filter(
+      (output) =>
+        output.type === "skill" && output.name === "write-product-spec",
+    );
+    expect(productSpecOutputs.map((output) => output.target).sort()).toEqual([
+      "claude",
+      "codex",
+    ]);
+    expect(
+      productSpecOutputs.every(
+        (output) => !output.content.includes("requires"),
+      ),
+    ).toBe(true);
+  });
 
   it("does not require selected siblings when no render target is enabled", async () => {
     await createSkillFixture(

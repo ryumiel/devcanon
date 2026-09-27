@@ -2,6 +2,7 @@
 name: play-skill-authoring
 description: Explicit-invocation workflow for TDD-style skill authoring with subagent pressure scenarios for baseline testing and loophole closure. Use only when the user explicitly invokes `play-skill-authoring` or an owning workflow explicitly requires skill-authoring verification.
 requires:
+  - play-agent-dispatch
   - play-tdd
   - subagent-lifecycle
 codex_sidecar:

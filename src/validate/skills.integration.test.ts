@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { cp, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -225,6 +225,30 @@ describe("loadAndValidateSkills", () => {
     await createSkillFixture(skillsDir, "conditional-helper");
 
     await expect(loadAndValidateSkills(skillsDir)).resolves.toHaveLength(2);
+  });
+
+  it("requires play-agent-dispatch for the shipped skill-authoring workflow", async () => {
+    await Promise.all(
+      ["play-skill-authoring", "play-tdd", "subagent-lifecycle"].map((skill) =>
+        cp(path.resolve("skills", skill), path.join(skillsDir, skill), {
+          recursive: true,
+        }),
+      ),
+    );
+
+    await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(
+      /play-skill-authoring.*play-agent-dispatch/i,
+    );
+  });
+
+  it("allows the shipped readiness review to load without an executor", async () => {
+    await cp(
+      path.resolve("skills", "spec-readiness-review"),
+      path.join(skillsDir, "spec-readiness-review"),
+      { recursive: true },
+    );
+
+    await expect(loadAndValidateSkills(skillsDir)).resolves.toHaveLength(1);
   });
 
   it("detects all known subdirs when present", async () => {
