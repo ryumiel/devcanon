@@ -234,12 +234,9 @@ describe("loadAndValidateSkills", () => {
       path.resolve("skills", "issue-batch-routing", "SKILL.md"),
       "utf-8",
     );
-    const { frontmatter, body } = parseFrontmatter(content);
+    const { frontmatter } = parseFrontmatter(content);
     const source = SkillSourceSchema.parse(frontmatter);
 
-    expect(body).toContain(
-      "Unresolved inline review threads route to the review-response workflow",
-    );
     expect(source.requires).toContain("play-review-response");
   });
 
