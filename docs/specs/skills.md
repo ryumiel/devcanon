@@ -16,13 +16,29 @@ Frontmatter is `.strict()` — unknown top-level keys are rejected.
 Three optional top-level keys (`claude`, `codex`, `codex_sidecar`)
 host target-specific overrides; the rest are shared.
 
-### Shared keys (emitted to both targets)
+### Shared keys
 
-| Key             | Type           | Required | Notes                                           |
-| --------------- | -------------- | -------- | ----------------------------------------------- |
-| `name`          | string         | yes      | `^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$`, 2-64 chars |
-| `description`   | string         | yes      | ≤ 1024 chars, no `<` / `>`                      |
-| `allowed-tools` | string or list | no       | Non-empty space-separated string or YAML list   |
+| Key             | Type           | Required | Notes                                            |
+| --------------- | -------------- | -------- | ------------------------------------------------ |
+| `name`          | string         | yes      | `^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$`, 2-64 chars  |
+| `description`   | string         | yes      | ≤ 1024 chars, no `<` / `>`                       |
+| `requires`      | string list    | no       | Unique required sibling skill names; source-only |
+| `allowed-tools` | string or list | no       | Non-empty space-separated string or YAML list    |
+
+`requires` declares the sibling skills an ordinary skill needs in any supported
+workflow branch, including a required read from an owned support reference.
+Absent and empty declarations both mean no requirements. Each member uses the
+`name` grammar and members must be unique. Optional suggestions, examples,
+historical mentions, and navigation links do not belong in `requires`.
+
+The declaration is validated against the loaded source-skill set. Loaded-input
+rendering validates it again against the actual selected skills for each enabled
+target before generated-output writes or cleanup. `validatedSkills` remains the
+broader agent-reference universe and does not satisfy a selected skill's
+requirements. Chains, cycles, and self references are valid when every direct
+name is present. The renderer neither resolves, selects, installs, nor fetches
+required skills, and `requires` is not emitted in either target's native
+frontmatter or Codex sidecar.
 
 ### Optional per-target override blocks
 

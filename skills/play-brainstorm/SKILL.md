@@ -1,6 +1,8 @@
 ---
 name: play-brainstorm
 description: Explicit-invocation workflow for guiding executable ideas into approved designs saved to `.ephemeral/`, or emitting durable owner referral notices for non-executable work. Use only when the user explicitly invokes `play-brainstorm` or an owning workflow explicitly requires brainstorming.
+requires:
+  - play-planning
 codex_sidecar:
   policy:
     allow_implicit_invocation: false

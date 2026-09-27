@@ -242,6 +242,12 @@ The render module exposes two orchestration levels:
   `LoadedSkill.dirPath`. Agent-only or skill-omitting partial renders must pass
   `validatedSkills` with the full already-validated skill reference universe.
 
+For an enabled selected target, `renderLoaded()` also checks direct required
+sibling declarations against its supplied skill selection before any generated
+write or cleanup. The broader `validatedSkills` set continues to validate agent
+references and cannot satisfy a missing selected sibling; the declaration and
+availability contract is owned by the [Skill Specification](../specs/skills.md).
+
 Generated-output cleanup is a full-library operation. Partial loaded-input
 renders may write the supplied outputs when explicitly requested, but omitted
 skills or agents are not treated as stale.

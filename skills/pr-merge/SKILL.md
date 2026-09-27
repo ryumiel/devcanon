@@ -1,6 +1,12 @@
 ---
 name: pr-merge
 description: PR merge automation with CI polling and in-scope failure investigation. Use when a PR is ready to merge pending CI, or when asked to "merge this PR" or "check CI and merge".
+requires:
+  - play-agent-dispatch
+  - play-debug
+  - play-verification
+  - pr-authoring
+  - subagent-lifecycle
 ---
 
 # PR Merge

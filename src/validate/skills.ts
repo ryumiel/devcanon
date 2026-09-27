@@ -51,6 +51,26 @@ export interface SkillValidationDiagnosticsOptions {
   reporter?: ValidationDiagnosticReporter;
 }
 
+/** Reports declarations that are unavailable from an applicable skill set. */
+export function collectMissingRequiredSkillErrors(
+  skills: readonly Pick<LoadedSkill, "name" | "source">[],
+): string[] {
+  const availableSkillNames = new Set(skills.map((skill) => skill.name));
+  const errors: string[] = [];
+
+  for (const skill of skills) {
+    for (const requiredSkill of skill.source.requires ?? []) {
+      if (!availableSkillNames.has(requiredSkill)) {
+        errors.push(
+          `Skill "${skill.name}" requires missing sibling skill "${requiredSkill}".`,
+        );
+      }
+    }
+  }
+
+  return errors;
+}
+
 interface LoadAndValidateSkillsOptions {
   diagnostics?: SkillValidationDiagnosticsOptions;
 }
@@ -225,6 +245,8 @@ export async function loadAndValidateSkills(
       subdirs,
     });
   }
+
+  errors.push(...collectMissingRequiredSkillErrors(skills));
 
   if (errors.length > 0) {
     const [onlyActiveModelErrorPath] = activeModelErrorPaths;

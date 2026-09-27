@@ -640,7 +640,20 @@ describe("sync", () => {
     const rows = catalogRows.filter((row) => representativeIds.has(row.id));
     expect(rows).toHaveLength(3);
     const owningSkills = new Set(rows.map((row) => row.skill));
-    for (const skill of owningSkills) {
+    const selectedSkills = new Set([
+      ...owningSkills,
+      "branch-review",
+      "issue-priming-workflow",
+      "play-branch-finish",
+      "play-brainstorm",
+      "play-planning",
+      "play-review",
+      "play-review-response",
+      "play-validate-review-artifacts",
+      "pr-authoring",
+      "subagent-lifecycle",
+    ]);
+    for (const skill of selectedSkills) {
       await cp(
         path.resolve("skills", skill),
         path.join(config.library.skillsDir, skill),

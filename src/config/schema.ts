@@ -453,6 +453,28 @@ export type Manifest = z.infer<typeof ManifestSchema>;
 // --- Skill source ---
 const SKILL_NAME = /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$/;
 
+const RequiredSkillsSchema = z
+  .array(
+    z
+      .string()
+      .regex(SKILL_NAME, "Must match /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$/")
+      .max(64),
+  )
+  .superRefine((requiredSkills, ctx) => {
+    const seen = new Set<string>();
+    for (const [index, skillName] of requiredSkills.entries()) {
+      if (seen.has(skillName)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "requires must contain unique skill names",
+          path: [index],
+        });
+        continue;
+      }
+      seen.add(skillName);
+    }
+  });
+
 const AllowedToolsSchema = z.union([
   z.string().min(1),
   z.array(z.string().min(1)).min(1),
@@ -529,6 +551,7 @@ const SkillSourceShape = {
     .refine((v) => !/[<>]/.test(v), {
       message: "description must not contain '<' or '>'",
     }),
+  requires: RequiredSkillsSchema.optional(),
   "allowed-tools": AllowedToolsSchema.optional(),
   claude: ClaudeSkillOverrideSchema.optional(),
   codex: CodexSkillOverrideSchema.optional(),

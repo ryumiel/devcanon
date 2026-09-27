@@ -78,6 +78,8 @@ Rendering must be deterministic.
 Source-driven renders recreate generated outputs from source on each
 `renderAll()` run. The loaded-input render core may render an already-validated
 partial input set without treating omitted skills or agents as stale.
+Required sibling declarations remain source-only; their availability rules are
+defined by the [Skill Specification](skills.md).
 
 ### Manual editing policy
 

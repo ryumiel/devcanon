@@ -1,6 +1,10 @@
 ---
 name: play-review
 description: Internal multi-agent review pipeline shared by `branch-review` and `pr-review`. Use when invoked by one of those wrappers. Do not use directly — call `branch-review` for local diffs or `pr-review` for GitHub PRs.
+requires:
+  - play-agent-dispatch
+  - play-validate-review-artifacts
+  - subagent-lifecycle
 claude:
   model: "{{model:frontier}}"
   user-invocable: false

@@ -162,6 +162,71 @@ describe("loadAndValidateSkills", () => {
     });
   });
 
+  it("reports every declared sibling omitted from the loaded source set", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "requester",
+      "---\nname: requester\ndescription: Requests a sibling.\nrequires:\n  - missing-sibling\n---\n\n# requester\n",
+    );
+    await createSkillFixture(
+      skillsDir,
+      "another-requester",
+      "---\nname: another-requester\ndescription: Requests another sibling.\nrequires:\n  - another-missing-sibling\n---\n\n# another requester\n",
+    );
+
+    await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(
+      /requester.*missing-sibling/i,
+    );
+    await expect(loadAndValidateSkills(skillsDir)).rejects.toThrow(
+      /another-requester.*another-missing-sibling/i,
+    );
+  });
+
+  it("accepts complete declared chains and cycles", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "alpha",
+      "---\nname: alpha\ndescription: Requires beta.\nrequires:\n  - beta\n---\n\n# alpha\n",
+    );
+    await createSkillFixture(
+      skillsDir,
+      "beta",
+      "---\nname: beta\ndescription: Requires gamma.\nrequires:\n  - gamma\n---\n\n# beta\n",
+    );
+    await createSkillFixture(
+      skillsDir,
+      "gamma",
+      "---\nname: gamma\ndescription: Requires alpha.\nrequires:\n  - alpha\n---\n\n# gamma\n",
+    );
+
+    await expect(loadAndValidateSkills(skillsDir)).resolves.toHaveLength(3);
+  });
+
+  it("does not infer a requirement from an optional prose-only sibling reference", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "author",
+      "---\nname: author\ndescription: Offers optional guidance.\n---\n\n# author\n\nOptionally use `missing-helper` for follow-up work.\n",
+    );
+
+    await expect(loadAndValidateSkills(skillsDir)).resolves.toHaveLength(1);
+  });
+
+  it("accepts a sibling declared for a conditional branch when it is loaded", async () => {
+    await mkdir(skillsDir, { recursive: true });
+    await createSkillFixture(
+      skillsDir,
+      "dispatcher",
+      "---\nname: dispatcher\ndescription: Dispatches conditional work.\nrequires:\n  - conditional-helper\n---\n\n# dispatcher\n\nWhen the condition applies, use `conditional-helper`.\n",
+    );
+    await createSkillFixture(skillsDir, "conditional-helper");
+
+    await expect(loadAndValidateSkills(skillsDir)).resolves.toHaveLength(2);
+  });
+
   it("detects all known subdirs when present", async () => {
     await mkdir(skillsDir, { recursive: true });
     await createSkillFixture(skillsDir, "full-skill", undefined, [

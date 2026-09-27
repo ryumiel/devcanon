@@ -1,6 +1,8 @@
 ---
 name: spec-readiness-review
 description: Read-only readiness review for durable AFDS artifacts before issue slicing. Use when checking whether a PRD, behavior spec, roadmap item, guideline, ADR, or source-owner artifact is ready to become executable work. Do not use for implementation-vs-spec review.
+requires:
+  - play-subagent-execution
 ---
 
 # Spec Readiness Review
