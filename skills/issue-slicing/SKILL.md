@@ -200,8 +200,8 @@ Title: <type(scope): short draft summary>
 
 ## Acceptance Criteria
 
-- [ ] <Concrete implementation or shaping requirement>
-- [ ] <Concrete implementation or shaping requirement>
+- [ ] <Concrete, verifiable requirement appropriate to the selected implementation, shaping, or decomposition work>
+- [ ] <Concrete, verifiable requirement appropriate to the selected implementation, shaping, or decomposition work>
 
 ## Evidence Pointers
 
@@ -225,8 +225,9 @@ Include only the rows that apply to the classified origin.
 ```
 
 Omit optional sections only when they add no signal. Keep acceptance criteria
-implementation-facing and verifiable. Do not add assignees, labels, status,
-milestones, priority fields, or provider-specific relationship metadata.
+concrete, verifiable, and appropriate to the selected implementation, shaping,
+or decomposition work. Do not add assignees, labels, status, milestones,
+priority fields, or provider-specific relationship metadata.
 
 ## Output Format
 

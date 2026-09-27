@@ -560,11 +560,11 @@ Approved follow-up surfaces:
   review skill. Its installable runtime subset is packaged under
   `skills/spec-readiness-review/references/`.
 - `issue-slicing` is approved as a provider-neutral draft-only issue slicing
-  skill. It drafts executable issue bodies from existing durable artifact
-  evidence or concrete user-confirmed proposal context for GitHub Issues or
-  Linear, but it does not create live issues, assign users, set status, mutate
-  labels, duplicate live tracker state, approve implementation, or publish
-  drafts.
+  skill. It drafts issue bodies from existing durable artifact evidence or
+  concrete user-confirmed proposal context under
+  [SLICE-001](#slice-001-issue-draft-origins). It does not create live issues,
+  assign users, set status, mutate labels, duplicate live tracker state,
+  approve implementation, or publish drafts.
 - [AFDS workflow capability governance](../guidelines/afds-workflow-capability-governance.md)
   is approved as the reusable guideline for classifying whether a workflow need
   should use the ordinary execution fast path, update an existing asset, create
