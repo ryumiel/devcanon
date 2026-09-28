@@ -708,6 +708,11 @@ prepare_judgment_nits() {
     def fail($message): error($message);
     def valid_index_string:
       test("^[0-9]+(,[0-9]+)*$");
+    def selection_pool:
+      if .schema == "play-review/findings/v3" then
+        reduce (.findings + .carry_forward)[] as $finding
+          ([]; if any(.id == $finding.id) then . else . + [$finding] end)
+      else .findings end;
     def selected_indexes:
       $indexes
       | if valid_index_string then split(",") | map(tonumber)
@@ -717,14 +722,14 @@ prepare_judgment_nits() {
       selected_indexes as $xs
       | ($xs | unique | length) != ($xs | length);
     def selected:
-      . as $envelope
+      selection_pool as $pool
       | selected_indexes as $xs
       | if duplicate_indexes then
           fail("JUDGMENT_REQUIRED_FINDING_INDEXES must not contain duplicate indexes")
-        elif ($xs | any(. < 0 or . >= ($envelope.findings | length))) then
+        elif ($xs | any(. < 0 or . >= ($pool | length))) then
           fail("JUDGMENT_REQUIRED_FINDING_INDEXES contains out-of-range index")
         else
-          $xs | map(. as $index | $envelope.findings[$index])
+          $xs | map(. as $index | $pool[$index])
         end;
     def true_blocking:
       .severity == "Blocking" and (.critic != "INVALID" and .critic != "DOWNGRADE");
@@ -751,6 +756,11 @@ prepare_judgment_nits() {
   rm -f "$tmp_file"
   trap 'rm -f "$tmp_file"' EXIT
   jq --arg indexes "$JUDGMENT_REQUIRED_FINDING_INDEXES" '
+    def selection_pool:
+      if .schema == "play-review/findings/v3" then
+        reduce (.findings + .carry_forward)[] as $finding
+          ([]; if any(.id == $finding.id) then . else . + [$finding] end)
+      else .findings end;
     def selected_indexes: $indexes | split(",") | map(tonumber);
     def normalize_downgrade:
       if .critic == "DOWNGRADE" then
@@ -761,14 +771,15 @@ prepare_judgment_nits() {
         .
       end;
     . as $envelope
+    | selection_pool as $pool
     | if .schema == "play-review/findings/v3" then
-      .findings = (selected_indexes | map(. as $index | $envelope.findings[$index]))
+      .findings = (selected_indexes | map(. as $index | $pool[$index]))
       | .carry_forward = []
       | .verification.selected_ids = [.findings[] | select(.assessment.selection != "none") | .id]
       | if (.verification.selected_ids | length) == 0 then .verification = {state: "not-required", selected_ids: [], reason: "Report-only nit selection"} else . end
     else {
       schema: "play-review/findings/v2",
-      findings: (selected_indexes | map(. as $index | $envelope.findings[$index] | normalize_downgrade)),
+      findings: (selected_indexes | map(. as $index | $pool[$index] | normalize_downgrade)),
       carry_forward: [],
       incomplete_topical_routes: $envelope.incomplete_topical_routes
     } end

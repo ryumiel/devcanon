@@ -43,6 +43,13 @@ automatic fix qualification. Every changed candidate requires fresh validation
 and review. Repeated blocking failures in the same family require bounded
 scope/design reassessment rather than indefinite identical fix waves.
 
+This decision supersedes ADR-0012’s findings/v2 schema and D7–D9 completeness
+representation, old-head post-fix subtraction, and fixable-versus-judgment-required
+nit consumer provisions. Its side-channel transport, deterministic notice/path,
+write/read guards, data residency, and lifecycle cleanup remain unchanged.
+New candidate review supplies final evidence after fixes; all remaining nits
+use the existing report-only handoff.
+
 This decision supersedes ADR-0022's topical fanout
 and critic-always-for-nits requirements. It supersedes only ADR-0034's
 all-candidate independent critic calibration, unchanged-v2 transport, and

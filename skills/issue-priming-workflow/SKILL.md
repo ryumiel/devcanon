@@ -969,7 +969,7 @@ new `HEAD`, return through Candidate Closure and Source Freeze, rerun applicable
 acceptance and full validation for the new frozen candidate, then use the paired
 post-fix Branch Review route that the loaded reference defines. Preserve the
 same selected base; invoke it through `--last-reviewed`/`--prior-findings` with
-only the prior run's validated immutable review head and post-fix findings as
+only the prior run's validated immutable review head and findings artifact as
 non-authorizing context; and regenerate current risk signals or omit stale
 ones. Candidate Closure is the required re-entry point; do not consume snapshot
 anchors after the commit.
@@ -977,8 +977,8 @@ anchors after the commit.
 This runs the full multi-agent review on `git diff <base>...HEAD` where
 `<base>` is branch-review's selected base: normally the repository's default
 branch, or the supplied full base SHA for detached issue-base risk signals that
-use that same base side. With `--fix`, `branch-review` attempts eligible
-`Blocking` auto-fixes and eligible fixable-nit units, and commits
+use that same base side. With `--fix`, `branch-review` attempts
+eligible separately verified valid `Blocking` auto-fixes, and commits
 branch-review-owned fixes. Apply the loaded reference's evidence validation and
 stop rules to every result, including its remaining-nit handoff. Before Phase 8,
 capture the final run's exact `Approval summary written to <path>.` notice

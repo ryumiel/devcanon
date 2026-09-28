@@ -19,6 +19,7 @@ import {
   cleanupTempDir,
 } from "../__test-helpers__/fixtures.js";
 import { currentReviewFixture } from "../__test-helpers__/review-evidence.js";
+import { validateTargetedReviewEvidence } from "../runtime/review-artifacts.js";
 
 const execFileAsync = promisify(execFile);
 const symlinkAvailable = await canCreateSymlinks();
@@ -240,6 +241,55 @@ async function commandAvailable(command: string): Promise<boolean> {
 }
 
 describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
+  it.each(["resolved", "invalid"])(
+    "publishes a prior %s disposition with runtime/shell parity",
+    async (status) => {
+      const { cwd, reviewHeadSha, findingsFile } =
+        await makeReviewSourceWorkspace();
+      try {
+        const value = {
+          schema: "play-review/findings/v3",
+          review_head_sha: reviewHeadSha,
+          findings: [],
+          carry_forward: [],
+          incomplete_review_routes: [],
+          verification: {
+            state: "not-required",
+            selected_ids: [],
+            reason: "No unresolved blocking claims",
+          },
+          prior_dispositions: [
+            {
+              id: "prior-1",
+              origin_head_sha: "b".repeat(40),
+              status,
+              assessed_head_sha: reviewHeadSha,
+              reason: "Current source disproves the prior claim",
+            },
+          ],
+        };
+        expect(() => validateTargetedReviewEvidence(value)).not.toThrow();
+        await expect(
+          runHelperWithStdin(cwd, "publish-findings", JSON.stringify(value), {
+            HEAD_SHA: reviewHeadSha,
+            FINDINGS_FILE: findingsFile,
+          }),
+        ).resolves.toMatchObject({ stdout: `${findingsFile}\n` });
+        await expect(
+          runHelper(cwd, "validate-findings", {
+            HEAD_SHA: reviewHeadSha,
+            FINDINGS_FILE: findingsFile,
+          }),
+        ).resolves.toMatchObject({ stderr: "" });
+        expect(
+          JSON.parse(await readFile(path.join(cwd, findingsFile), "utf8")),
+        ).toEqual(value);
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+
   it("reads legacy evidence as history but refuses to publish it as a new review", async () => {
     const cwd = await makeTopicGitWorkspace();
     try {
@@ -1167,6 +1217,49 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       await expect(
         runHelper(cwd, "validate-nits-file", { NITS_FILE: nitsFile }),
       ).resolves.toMatchObject({ stdout: "" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("hands off carried-only nits with unchanged provenance and deduplicates mirrors", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      const nit = finding({
+        severity: "Nit",
+        critic: null,
+        body: `**Nit | Contracts** — ${finding().why}\n\n**Recommendation:** ${finding().recommendation}`,
+      });
+      await writeRawEnvelope(cwd, findingsFile, {
+        schema: "play-review/findings/v2",
+        findings: [nit],
+        carry_forward: [nit, { ...nit, line: 43 }],
+        incomplete_topical_routes: [],
+      });
+      const original = JSON.parse(
+        await readFile(path.join(cwd, findingsFile), "utf-8"),
+      );
+      const carried = original.carry_forward[1];
+      carried.origin_head_sha = "b".repeat(40);
+      carried.assessment.state = "reused";
+      carried.assessment.assessed_head_sha = "b".repeat(40);
+      carried.assessment.reuse_checked_head_sha = original.review_head_sha;
+      await writeFile(path.join(cwd, findingsFile), JSON.stringify(original));
+      await runHelper(cwd, "prepare-judgment-nits", {
+        FINDINGS_FILE: findingsFile,
+        JUDGMENT_REQUIRED_FINDING_INDEXES: "1,0",
+      });
+      const written = JSON.parse(
+        await readFile(path.join(cwd, nitsFile), "utf-8"),
+      );
+      expect(written.findings).toEqual([carried, original.findings[0]]);
+      expect(written.carry_forward).toEqual([]);
+      await expect(
+        runHelper(cwd, "validate-nits-file", { NITS_FILE: nitsFile }),
+      ).resolves.toMatchObject({ stdout: "" });
+      expect(
+        JSON.parse(await readFile(path.join(cwd, findingsFile), "utf-8")),
+      ).toEqual(original);
     } finally {
       await cleanupTempDir(cwd);
     }

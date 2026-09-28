@@ -2803,6 +2803,14 @@ async function validateApprovalSummary(
   if (!options.emitGateResult) {
     return "";
   }
+  if (
+    summary.schema !== "branch-review/approval-summary/v2" ||
+    findings.schema !== "play-review/findings/v3"
+  ) {
+    fail(
+      "current approval gate requires approval-summary/v2 and findings/v3 evidence",
+    );
+  }
   return `${JSON.stringify({
     terminal_state: terminalState,
     gate_result: gateResultForApprovalTerminalState(terminalState),

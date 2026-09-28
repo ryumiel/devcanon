@@ -46,6 +46,6 @@ and (.prior_dispositions | type == "array" and unique_ids)
 and (.prior_dispositions | all(.[];
   keys == ["assessed_head_sha", "id", "origin_head_sha", "reason", "status"]
   and (.id | nonblank) and (.origin_head_sha | sha)
-  and (.why | nonblank) and (.recommendation | nonblank) and .assessed_head_sha == $e.review_head_sha
+  and .assessed_head_sha == $e.review_head_sha
   and (.reason | nonblank) and (.status == "resolved" or .status == "invalid")
   and (.id as $id | ($e.findings + $e.carry_forward) | all(.[]; .id != $id))))

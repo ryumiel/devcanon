@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   chmod,
   copyFile,
@@ -610,6 +611,87 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
       );
       expect(result.stdout).not.toContain("prior_findings_validation");
       expect(result.stdout).not.toContain("narrow_allowed");
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("allows legacy historical inspection but rejects its otherwise valid current gate", async () => {
+    const { cwd, headSha } = await makeGitWorkspace();
+    const validator = path.resolve(
+      "skills/play-validate-review-artifacts/scripts/review-artifacts.sh",
+    );
+    try {
+      const decisionPath = scopePath(headSha);
+      const summaryPath = approvalSummaryPath(headSha);
+      const findingsFile = await writeEmptyFindings(cwd, headSha);
+      await writeJson(
+        cwd,
+        decisionPath,
+        initialScope("main", headSha, {
+          full_range: "main...HEAD",
+          selected_range: "main...HEAD",
+          candidate_narrow_range: "main...HEAD",
+          selection_reason: "not-followup",
+        }),
+      );
+      await runHelper(cwd, helperScript, "write-approval-summary", {
+        HEAD_SHA: headSha,
+        BASE: "main",
+        FULL_DIFF_RANGE: "main...HEAD",
+        ACTIVE_DIFF_RANGE: "main...HEAD",
+        SCOPE_DECISION_FILE: decisionPath,
+        FINDINGS_FILE: findingsFile,
+        APPROVAL_SUMMARY_FILE: summaryPath,
+      });
+      const args = [
+        "validate-approval-summary",
+        "--surface",
+        "branch-review",
+        "--head-sha",
+        headSha,
+        "--approval-summary-file",
+        summaryPath,
+      ];
+      await expect(
+        execFileAsync("bash", [validator, ...args, "--emit-gate-result"], {
+          cwd,
+        }),
+      ).resolves.toMatchObject({
+        stdout: expect.stringContaining('"gate_result":"passing"'),
+      });
+      const legacyFindings = JSON.stringify({
+        schema: "play-review/findings/v2",
+        findings: [],
+        carry_forward: [],
+        incomplete_topical_routes: [],
+      });
+      await writeFile(path.join(cwd, findingsFile), legacyFindings);
+      const { verification_state: _verification, ...summary } = await readJson(
+        cwd,
+        summaryPath,
+      );
+      await writeFile(
+        path.join(cwd, summaryPath),
+        JSON.stringify({
+          ...summary,
+          schema: "branch-review/approval-summary/v1",
+          findings_sha256: createHash("sha256")
+            .update(legacyFindings)
+            .digest("hex"),
+        }),
+      );
+      await expect(
+        execFileAsync("bash", [validator, ...args], { cwd }),
+      ).resolves.toMatchObject({ stdout: "", stderr: "" });
+      await expect(
+        execFileAsync("bash", [validator, ...args, "--emit-gate-result"], {
+          cwd,
+        }),
+      ).rejects.toMatchObject({
+        stdout: "",
+        stderr: expect.stringContaining("current approval gate requires"),
+      });
     } finally {
       await cleanupTempDir(cwd);
     }

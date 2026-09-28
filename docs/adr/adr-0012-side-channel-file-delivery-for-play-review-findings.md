@@ -2,7 +2,14 @@
 
 ## Status
 
-Accepted
+Accepted; partially superseded by
+[ADR-0038](adr-0038-single-reviewer-targeted-verification.md). Its findings/v3
+and targeted-review contract replaces this record’s v2 schema, D7–D9
+completeness, old-head post-fix subtraction, and fixable-versus-judgment-required
+nit consumer provisions. Those provisions below are historical, not current
+execution authority. The side-channel transport, deterministic notice/path,
+write/read guards, data residency, and lifecycle cleanup decisions remain
+accepted and unchanged.
 
 ## Context
 
@@ -90,7 +97,8 @@ Path scheme:
   shapes that would widen the path-interpretation surface (empty after
   stripping, bare `.`/`..`, or starting with `-`/`.`).
 
-The path scheme and consumer responsibilities in this ADR remain authoritative.
+The path scheme remains authoritative. Consumer responsibilities remain
+authoritative only where not superseded by ADR-0038 as listed in Status.
 The detailed `play-review/findings/v2` envelope, write-target guard, validation,
 and derived nits-file contract lives in
 `skills/play-review/references/findings-envelope-contract.md`;

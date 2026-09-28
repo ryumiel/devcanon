@@ -1,21 +1,21 @@
 # Nit classification taxonomy — `issue-priming-workflow` Phase 7
 
-Phase 7's classification rule is a remaining-feedback handoff rule. It uses
-the final `branch-review --fix` findings envelope to distinguish feedback that
-branch-review owns as fixable from judgment-required feedback that should be
-posted after PR creation. The rule itself stays in `SKILL.md`; this file
-expands the taxonomy with concrete examples.
+Phase 7 uses the final findings/v3 envelope to hand off all remaining
+nonblocking feedback. Every Nit and every `DOWNGRADE` goes to the existing
+`nits_file` for Phase 8, after INVALID entries are excluded and true blockers
+stop auto mode. The descriptions below help operators understand the feedback;
+neither class authorizes branch-review or issue-priming source edits.
 
-- **Fixable by branch-review** — 1–3 line source change (excluding generated
-  test snapshot churn), no design judgment, single obvious correct fix.
-  Branch-review owns resolving these when `--fix` can do so. Examples:
-  - Typos and misspellings.
-  - Truncated, incomplete, or broken sentences with one clear reconstruction (e.g., a sentence ending mid-clause).
-  - Broken cross-references where the intended target is unambiguous (wrong file paths, stale section numbers after a renumber, dead links to renamed identifiers).
-  - Missing words or punctuation where context fully constrains the fix.
-  - Variable-naming or placeholder gaps (e.g., a literal `<TODO>` left in a code example) with one obvious replacement.
-- **Judgment-required** — anything else. Examples: "this could be clearer,"
-  "consider extracting a helper," subjective wording, structural suggestions,
-  or any nit where a competent reviewer could defend more than one fix. Only
-  this class becomes `nits_file` input when it remains after the final
-  branch-review run.
+- **Apparently mechanical, still report-only** — a small correction with one
+  obvious answer, such as a typo, misspelling, unambiguous broken cross-reference,
+  truncated sentence, missing word/punctuation, or constrained placeholder
+  replacement. Lack of judgment does not supply the separate verification
+  required for automatic mutation; nits are not verifier inputs merely to
+  obtain fix eligibility. Include these remaining nits in `nits_file`.
+- **Judgment-required, report-only** — subjective wording, extraction or
+  structural suggestions, or any nit with multiple defensible fixes. Include
+  these remaining nits in the same `nits_file`.
+
+Feedback withheld by verification eligibility or proportionality remains in
+this handoff. Manual operators decide how to address it under their existing
+authority; classification creates no implementation authority or new fix loop.
