@@ -20,6 +20,12 @@ authorize mutation of claims that no verifier examined.
 
 ## Decision
 
+Only findings/v3 and approval-summary/v2 are accepted by artifact consumers.
+Older artifacts require fresh review, with no legacy reads or conversion.
+Current-schema earlier-candidate evidence remains subject to existing freshness
+and head-binding rules. The routing policy names the active route set,
+D1–D7 and D10–D18; no retired-route tombstones are maintained.
+
 Use one independent reviewer covering baseline quality/data safety and all
 applicable architecture, specification, documentation, example, platform, and
 external-invocation checks. Preserve semantic context assessment. Risk selects

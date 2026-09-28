@@ -186,7 +186,7 @@ describe("shipped skill rendering", () => {
     }
   });
 
-  it("materializes every D1-D18 route model binding from the configured capability", async () => {
+  it("materializes every active route model binding from the configured capability", async () => {
     const config = await loadConfig(
       path.join(process.cwd(), "devcanon.config.yaml"),
     );

@@ -60,10 +60,13 @@ Preparation creates `.ephemeral` and validates targets; `derive-nits-pending`, `
 ## Targeted evidence compatibility
 
 New publication and GitHub payload creation require current-head
-`play-review/findings/v3`; legacy v2 validation is historical context only.
+`play-review/findings/v3`. Older artifacts are rejected and require fresh review.
+`validate-findings` binds `review_head_sha` to supplied `HEAD_SHA`; these may
+both identify a historical candidate without matching the checkout head.
+`validate-nits-file` accepts only v3.
 The v3 envelope records selected verification separately from legitimate skip
 and required failure. APPROVE rejects any incomplete route or remaining
 blocker. Derived nit subsets preserve provenance and DOWNGRADE transport;
 presentation renders downgraded blockers as Nits without rewriting evidence.
 
-For `prepare-judgment-nits`, v3 selection indexes address `findings` in original order followed by `carry_forward` entries whose IDs are not already present. Exact mirrors count once. Legacy envelopes retain findings-only indexing. Select every remaining report-only nit for the issue-priming handoff, including carried-only nits; the derived artifact preserves original assessment provenance.
+For `prepare-judgment-nits`, v3 selection indexes address `findings` in original order followed by `carry_forward` entries whose IDs are not already present. Exact mirrors count once. Select every remaining report-only nit for the issue-priming handoff, including carried-only nits; the derived artifact preserves original assessment provenance.

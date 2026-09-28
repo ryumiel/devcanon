@@ -631,7 +631,7 @@ findings_count_json() {
   local file="$1"
 
   jq -c '
-    if (.schema != "play-review/findings/v2" and .schema != "play-review/findings/v3") or (.findings | type) != "array" or (.carry_forward | type) != "array" or ((.incomplete_review_routes // .incomplete_topical_routes) | type) != "array" then
+    if (.schema != "play-review/findings/v3") or (.findings | type) != "array" or (.carry_forward | type) != "array" or (.incomplete_review_routes | type) != "array" then
       error("findings schema mismatch")
     else
       def true_blocker:
@@ -647,8 +647,8 @@ findings_count_json() {
           blocker_count: ($remaining | map(select(true_blocker)) | length),
           nit_count: ($remaining | map(select(nonblocking_feedback)) | length),
           carry_forward_count: (.carry_forward | map(select(carry_forward_feedback)) | length),
-          incomplete_topical_count: ((.incomplete_review_routes // .incomplete_topical_routes) | length),
-          verification_state: (.verification.state // "legacy")
+          incomplete_topical_count: (.incomplete_review_routes | length),
+          verification_state: .verification.state
         }
     end
   ' "$file" || fail "findings evidence validation failed"
@@ -710,7 +710,7 @@ write_approval_summary() {
   rm -f "$tmp_file"
   tmp_file="${tmp_file}-approval-summary.json"
   jq -n \
-    --arg schema "$(if [ "$(jq -r .schema "$FINDINGS_FILE")" = "play-review/findings/v3" ]; then printf branch-review/approval-summary/v2; else printf branch-review/approval-summary/v1; fi)" \
+    --arg schema "branch-review/approval-summary/v2" \
     --arg surface "branch-review" \
     --arg review_head_sha "$HEAD_SHA" \
     --arg base_ref "$BASE" \
@@ -738,7 +738,7 @@ write_approval_summary() {
       nit_count: $counts.nit_count,
       carry_forward_count: $counts.carry_forward_count,
       incomplete_topical_count: $counts.incomplete_topical_count
-    } + (if $schema == "branch-review/approval-summary/v2" then {verification_state: $counts.verification_state} else {} end)' >"$tmp_file"
+    } + {verification_state: $counts.verification_state}' >"$tmp_file"
   if ! run_approval_summary_validator "$tmp_file"; then
     rm -f "$tmp_file"
     fail "approval summary validation failed"

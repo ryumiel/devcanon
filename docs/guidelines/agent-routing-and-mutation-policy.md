@@ -20,7 +20,7 @@ declaration and retains the existing unavailable/rejected-pair behavior.
 The [agent spec](../specs/agents.md#semantic-role-catalog) is the single
 owner of the six semantic identities and their exact capability, Claude effort,
 route effort, tools, sandbox, network, source default, and external default.
-This policy consumes that envelope and records the complete D1-D18 route tuple;
+This policy consumes that envelope and records the complete route tuple for each active route;
 it does not add a source-level Codex model or effort default.
 
 ## Review Route Contract
@@ -37,9 +37,9 @@ documentation, examples, platform and external-invocation checks. D10 covers
 only consequential, disputed or uncertain Blocking candidates. The
 [workflow contract](../../skills/play-review/references/single-reviewer-contract.md)
 owns exact triggers, terminals, evidence and failure handling. Missing required
-coverage or verification cannot approve. D8 and D9 are retired: reject old
-requests rather than aliasing them. Their checks move into D7; D18 and all
-other routes remain unchanged. Neither review child delegates or mutates.
+coverage or verification cannot approve. D7 owns the complete review coverage;
+D18 and all other active routes remain unchanged. Neither review child delegates
+or mutates.
 
 ## Closed Classifications
 
@@ -127,6 +127,9 @@ child role.
 
 ## Direct-Child Route Inventory
 
+The **active route set** is D1–D7 and D10–D18. Every inventory and
+normative route consumer uses exactly these 16 routes.
+
 The row IDs and source anchors are inventory keys, not a marker or annotation
 language. Each source-immutable row is response-only unless it explicitly
 declares a handoff. It uses the minimum source-immutable guard around the
@@ -198,7 +201,7 @@ distinct sessions just because they share a semantic agent.
 ## Fresh Codex Route Contract
 
 This policy is the sole owner of the complete fresh-Codex spawn contract for
-D1-D18. For every fresh child, the controller validates and supplies all of the
+the active route set. For every fresh child, the controller validates and supplies all of the
 following from the selected policy route and its Codex-bound rendered binding:
 
 - a lifecycle-owned, route-local `task_name`;
@@ -217,7 +220,7 @@ to replace the rendered binding. A missing, blank, unresolved, or mismatched
 binding blocks before spawn; no alias, nearby or ambient model, effort change,
 or fallback is permitted. Compatible same-session reuse is permitted only for D12's
 original stable-task fix or within-scope continuation and D17's unchanged stable
-branch/task. Every other D1-D18 route is fresh-only; D14, D15, and D16 are
+branch/task. Every other route in the active route set is fresh-only; D14, D15, and D16 are
 explicitly one-shot fresh reviewers. After this route permission, the existing
 lifecycle owner performs task-name allocation, follow-up, capture,
 supersession, cleanup, slot recovery, and rejection mechanics; this policy does

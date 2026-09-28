@@ -170,7 +170,7 @@ publication; those actions remain separately authorized.
 
 Every current direct child surface must resolve to one of the six semantic
 roles, a deterministic helper, or a guarded inline path before dispatch. The
-complete mandatory inventory is D1 through D18 in the
+complete mandatory inventory is the active route set in the
 [Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md#direct-child-route-inventory).
 Each row's semantic role, capability, effort, and source authority are
 normative. Its final inventory column is a non-authoritative locator/summary;
@@ -213,7 +213,7 @@ governs review and acceptance.
 Task-specific prompts, schemas, network authorization, route-local failure,
 skip criteria, retry loops, and termination remain owned by the source skill.
 A shared role provides stable work identity and target-native constraints, not
-workflow method. This spec does not duplicate the D1-D18 fresh-route tuple or
+workflow method. This spec does not duplicate the active route set fresh-route tuple or
 continuity rules.
 
 Capability-escalation adoption is not owned by this spec. For routing context,
@@ -710,7 +710,7 @@ resolution recommendation.
   TARGET-001 without making derived outputs authoritative.
 - The spec identifies follow-up workflow surfaces without approving them before
   AFDS workflow capability governance.
-- Every D1-D18 direct-child route matches the policy inventory exactly and
+- Every direct-child route in the active route set matches the policy inventory exactly and
   keeps task prompts and termination in its source skill.
 - Source and external authority use separate closed axes; no target capability
   or source permission grants external mutation, every semantic child has
@@ -733,7 +733,7 @@ resolution recommendation.
 - Existing PRD, roadmap, and guideline references no longer describe this spec
   as future-only once this file exists.
 - Focused contract checks prove the policy contains exactly 33 source skills
-  and D1-D18 exactly once, and that every normative route matches its source
+  and the active route set exactly once, and that every normative route matches its source
   anchor.
 - Guard tests exercise the valid baseline/handoff lifecycle and reject tracked
   content change, nested/existing/symlinked/missing handoffs, and directory

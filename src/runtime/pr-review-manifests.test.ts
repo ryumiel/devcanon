@@ -23,6 +23,7 @@ import {
   vi,
 } from "vitest";
 import { PrReviewCommandHarness } from "../__test-helpers__/pr-review-command-harness.js";
+import { createReviewEnvelope } from "../__test-helpers__/review-evidence.js";
 
 const originalCwd = process.cwd();
 const reviewArtifactsHelper = path.join(
@@ -1261,7 +1262,7 @@ describe("pr-review findings publication rebinder", () => {
     );
     process.chdir(workspace.worktree);
     const replacement = JSON.stringify({
-      schema: "play-review/findings/v2",
+      schema: "play-review/findings/v3",
       findings: [{ id: "F2", title: "Replacement finding" }],
       carry_forward: [],
     });
@@ -1323,7 +1324,7 @@ describe("pr-review findings publication rebinder", () => {
     process.chdir(workspace.worktree);
 
     const replacement = JSON.stringify({
-      schema: "play-review/findings/v2",
+      schema: "play-review/findings/v3",
       findings: [{ id: "F2", title: "Replacement finding" }],
       carry_forward: [],
     });
@@ -1363,7 +1364,7 @@ describe("pr-review findings publication rebinder", () => {
     );
     process.chdir(workspace.worktree);
     const replacement = JSON.stringify({
-      schema: "play-review/findings/v2",
+      schema: "play-review/findings/v3",
       findings: [{ id: "F2", title: "Portable guard acquisition" }],
       carry_forward: [],
     });
@@ -1397,7 +1398,7 @@ describe("pr-review findings publication rebinder", () => {
       "utf8",
     );
     const replacement = JSON.stringify({
-      schema: "play-review/findings/v2",
+      schema: "play-review/findings/v3",
       findings: [{ id: "F2", title: "Contending replacement" }],
       carry_forward: [],
     });
@@ -1441,7 +1442,7 @@ describe("pr-review findings publication rebinder", () => {
     const publisherMarker = path.join(workspace.tempRoot, "publisher-marker");
     process.env.DRIFT_FILE = publisherMarker;
     const published = JSON.stringify({
-      schema: "play-review/findings/v2",
+      schema: "play-review/findings/v3",
       findings: [{ id: "F2", title: "Published before process death" }],
       carry_forward: [],
     });
@@ -1491,7 +1492,7 @@ describe("pr-review findings publication rebinder", () => {
     const publisherMarker = path.join(workspace.tempRoot, "publisher-marker");
     process.env.DRIFT_FILE = publisherMarker;
     const replacement = JSON.stringify({
-      schema: "play-review/findings/v2",
+      schema: "play-review/findings/v3",
       findings: [{ id: "F2", title: "Blocked by retained guard" }],
       carry_forward: [],
     });
@@ -1547,7 +1548,7 @@ describe("pr-review findings publication rebinder", () => {
       const outcome = await runManifestCommandWithStdin(
         ["replace-findings"],
         JSON.stringify({
-          schema: "play-review/findings/v2",
+          schema: "play-review/findings/v3",
           findings: [],
           carry_forward: [],
         }),
@@ -1577,7 +1578,7 @@ describe("pr-review findings publication rebinder", () => {
       "utf8",
     );
     const replacement = JSON.stringify({
-      schema: "play-review/findings/v2",
+      schema: "play-review/findings/v3",
       findings: [{ id: "F2", title: "Unpublished replacement" }],
       carry_forward: [],
     });
@@ -1616,7 +1617,7 @@ describe("pr-review findings publication rebinder", () => {
       "utf8",
     );
     const replacement = JSON.stringify({
-      schema: "play-review/findings/v2",
+      schema: "play-review/findings/v3",
       findings: [{ id: "F2", title: "Published before digest drift" }],
       carry_forward: [],
     });
@@ -1672,7 +1673,7 @@ describe("pr-review findings publication rebinder", () => {
       "utf8",
     );
     const replacement = JSON.stringify({
-      schema: "play-review/findings/v2",
+      schema: "play-review/findings/v3",
       findings: [{ id: "F2", title: "Published before helper failure" }],
       carry_forward: [],
     });
@@ -1743,7 +1744,7 @@ describe("pr-review findings publication rebinder", () => {
     );
     const invalidUtf8 = Buffer.concat([
       Buffer.from(
-        '{"schema":"play-review/findings/v2","findings":[{"id":"F2","title":"invalid ',
+        '{"schema":"play-review/findings/v3","findings":[{"id":"F2","title":"invalid ',
       ),
       Buffer.from([0x80]),
       Buffer.from('"}],"carry_forward":[]}'),
@@ -1780,7 +1781,7 @@ describe("pr-review findings publication rebinder", () => {
     );
     process.chdir(workspace.worktree);
     const published = JSON.stringify({
-      schema: "play-review/findings/v2",
+      schema: "play-review/findings/v3",
       findings: [{ id: "F2", title: "Published before interruption" }],
       carry_forward: [],
     });
@@ -1817,12 +1818,12 @@ describe("pr-review findings publication rebinder", () => {
     );
     process.chdir(workspace.worktree);
     const drifted = JSON.stringify({
-      schema: "play-review/findings/v2",
+      schema: "play-review/findings/v3",
       findings: [{ id: "F2", title: "Unrelated canonical drift" }],
       carry_forward: [],
     });
     const replacement = JSON.stringify({
-      schema: "play-review/findings/v2",
+      schema: "play-review/findings/v3",
       findings: [{ id: "F3", title: "Different submitted envelope" }],
       carry_forward: [],
     });
@@ -1870,7 +1871,7 @@ describe("pr-review findings publication rebinder", () => {
       "utf8",
     );
     const replacement = JSON.stringify({
-      schema: "play-review/findings/v2",
+      schema: "play-review/findings/v3",
       findings: [{ id: "F2", title: "Published before body drift" }],
       carry_forward: [],
     });
@@ -1912,7 +1913,7 @@ describe("pr-review findings publication rebinder", () => {
       runManifestCommandWithStdin(
         ["replace-findings"],
         JSON.stringify({
-          schema: "play-review/findings/v2",
+          schema: "play-review/findings/v3",
           findings: [{ id: "F3", title: "Blocked retry" }],
           carry_forward: [],
         }),
@@ -1964,7 +1965,7 @@ describe("pr-review findings publication rebinder", () => {
     {
       name: "stale immutable identity",
       input: JSON.stringify({
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [],
         carry_forward: [],
       }),
@@ -1977,7 +1978,7 @@ describe("pr-review findings publication rebinder", () => {
     {
       name: "unrelated result drift",
       input: JSON.stringify({
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [],
         carry_forward: [],
       }),
@@ -2122,12 +2123,19 @@ async function makeManifestWorkspace(
     path.join(worktree, providerScopeEvidenceFile),
   );
 
-  await writeJson(worktree, findingsFile, {
-    schema: "play-review/findings/v2",
-    findings,
-    carry_forward: carryForward,
-    incomplete_topical_routes: [],
-  });
+  await writeJson(
+    worktree,
+    findingsFile,
+    createReviewEnvelope(
+      {
+        schema: "play-review/findings/v3",
+        findings,
+        carry_forward: carryForward,
+        incomplete_review_routes: [],
+      },
+      headSha,
+    ),
+  );
   await writeFile(path.join(worktree, reviewBodyFile), "Review body.\n");
   await writeFile(path.join(worktree, previewFile), "Rendered preview.\n");
   await writeJson(worktree, scopeFile, {

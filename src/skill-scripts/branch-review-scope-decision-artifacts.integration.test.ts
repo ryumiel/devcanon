@@ -13,7 +13,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { cleanupTempDir } from "../__test-helpers__/fixtures.js";
-import { currentReviewFixture } from "../__test-helpers__/review-evidence.js";
+import { createReviewEnvelope } from "../__test-helpers__/review-evidence.js";
 
 const execFileAsync = promisify(execFile);
 const helperScript = path.join(
@@ -175,7 +175,7 @@ async function writeJson(cwd: string, relPath: string, value: unknown) {
   await writeFile(
     path.join(cwd, relPath),
     JSON.stringify(
-      currentReviewFixture(
+      createReviewEnvelope(
         value,
         /([a-f0-9]{40})/.exec(relPath)?.[1] ?? "a".repeat(40),
       ),
@@ -188,10 +188,10 @@ async function writeJson(cwd: string, relPath: string, value: unknown) {
 async function writeEmptyFindings(cwd: string, headSha: string) {
   const file = findingsPath(headSha);
   await writeJson(cwd, file, {
-    schema: "play-review/findings/v2",
+    schema: "play-review/findings/v3",
     findings: [],
     carry_forward: [],
-    incomplete_topical_routes: [],
+    incomplete_review_routes: [],
   });
   return file;
 }
@@ -616,7 +616,7 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
     }
   });
 
-  it("allows legacy historical inspection but rejects its otherwise valid current gate", async () => {
+  it("rejects legacy inspection and its otherwise bound current gate", async () => {
     const { cwd, headSha } = await makeGitWorkspace();
     const validator = path.resolve(
       "skills/play-validate-review-artifacts/scripts/review-artifacts.sh",
@@ -683,14 +683,14 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
       );
       await expect(
         execFileAsync("bash", [validator, ...args], { cwd }),
-      ).resolves.toMatchObject({ stdout: "", stderr: "" });
+      ).rejects.toThrow();
       await expect(
         execFileAsync("bash", [validator, ...args, "--emit-gate-result"], {
           cwd,
         }),
       ).rejects.toMatchObject({
         stdout: "",
-        stderr: expect.stringContaining("current approval gate requires"),
+        stderr: expect.stringContaining("approval summary schema mismatch"),
       });
     } finally {
       await cleanupTempDir(cwd);
@@ -715,12 +715,12 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
             selection_reason: "not-followup",
           }),
         );
-        const value = currentReviewFixture(
+        const value = createReviewEnvelope(
           {
-            schema: "play-review/findings/v2",
+            schema: "play-review/findings/v3",
             findings: [reviewFinding({ critic: "INVALID" })],
             carry_forward: [],
-            incomplete_topical_routes: [],
+            incomplete_review_routes: [],
           },
           headSha,
         ) as Record<string, unknown>;
@@ -922,10 +922,10 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         }),
       );
       await writeJson(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [reviewFinding()],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       });
 
       await expect(
@@ -969,10 +969,10 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         }),
       );
       await writeJson(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [],
         carry_forward: [],
-        incomplete_topical_routes: [
+        incomplete_review_routes: [
           { route: "D7", disposition: "NEEDS_CONTEXT" },
         ],
       });
@@ -1017,15 +1017,15 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
       );
       for (const findings of [
         {
-          schema: "play-review/findings/v2",
+          schema: "play-review/findings/v3",
           findings: [],
           carry_forward: [],
         },
         {
-          schema: "play-review/findings/v2",
+          schema: "play-review/findings/v3",
           findings: [],
           carry_forward: [],
-          incomplete_topical_routes: [
+          incomplete_review_routes: [
             { route: "D7", disposition: "FAILED" },
             { route: "D7", disposition: "NEEDS_CONTEXT" },
           ],
@@ -1071,10 +1071,10 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         { route: "D7", disposition: "CONTROLLER_OBSERVED_FAILURE" },
       ]) {
         await writeJson(cwd, findingsFile, {
-          schema: "play-review/findings/v2",
+          schema: "play-review/findings/v3",
           findings: [],
           carry_forward: [],
-          incomplete_topical_routes: [incompleteRoute],
+          incomplete_review_routes: [incompleteRoute],
         });
         await runHelper(cwd, helperScript, "write-approval-summary", {
           HEAD_SHA: headSha,
@@ -1112,10 +1112,10 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         }),
       );
       await writeJson(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [reviewFinding({ critic: "DOWNGRADE" })],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       });
 
       await expect(
@@ -1159,10 +1159,10 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         }),
       );
       await writeJson(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [reviewFinding({ critic: "INVALID" })],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       });
 
       await expect(
@@ -1206,7 +1206,7 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         }),
       );
       await writeJson(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [],
         carry_forward: [
           reviewFinding({
@@ -1214,7 +1214,7 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
             critic: "INVALID",
           }),
         ],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       });
 
       await expect(
@@ -1299,14 +1299,14 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         }),
       );
       await writeJson(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [
           {
             severity: "Blocking",
           },
         ],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       });
 
       await expect(

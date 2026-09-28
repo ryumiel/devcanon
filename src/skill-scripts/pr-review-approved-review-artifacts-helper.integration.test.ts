@@ -19,7 +19,7 @@ import {
   canCreateSymlinks,
   cleanupTempDir,
 } from "../__test-helpers__/fixtures.js";
-import { currentReviewFixture } from "../__test-helpers__/review-evidence.js";
+import { createReviewEnvelope } from "../__test-helpers__/review-evidence.js";
 
 const execFileAsync = promisify(execFile);
 const symlinkAvailable = await canCreateSymlinks();
@@ -77,10 +77,10 @@ async function makeGitWorkspace(): Promise<string> {
 
 function findingsEnvelope() {
   return {
-    schema: "play-review/findings/v2",
+    schema: "play-review/findings/v3",
     findings: [],
     carry_forward: [],
-    incomplete_topical_routes: [],
+    incomplete_review_routes: [],
   };
 }
 
@@ -169,7 +169,7 @@ async function writeJson(cwd: string, relPath: string, value: unknown) {
   await writeFile(
     path.join(cwd, relPath),
     JSON.stringify(
-      currentReviewFixture(
+      createReviewEnvelope(
         value,
         /([a-f0-9]{40})/.exec(relPath)?.[1] ?? headSha,
       ),
@@ -1673,10 +1673,10 @@ describe.skipIf(!jqAvailable)(
 
         for (const invalidEntry of invalidFreezeEntries) {
           await writeJson(cwd, findingsFile, {
-            schema: "play-review/findings/v2",
+            schema: "play-review/findings/v3",
             findings: [invalidEntry],
             carry_forward: [],
-            incomplete_topical_routes: [],
+            incomplete_review_routes: [],
           });
 
           await expect(
@@ -1702,7 +1702,7 @@ describe.skipIf(!jqAvailable)(
         artifact.findings_sha256 = "0".repeat(64);
         await writeJson(cwd, approvedReviewFile, artifact);
         await writeJson(cwd, findingsFile, {
-          schema: "play-review/findings/v2",
+          schema: "play-review/findings/v3",
           findings: [
             {
               path: "src/example.ts",
@@ -1718,7 +1718,7 @@ describe.skipIf(!jqAvailable)(
             },
           ],
           carry_forward: [],
-          incomplete_topical_routes: [],
+          incomplete_review_routes: [],
         });
 
         await expect(

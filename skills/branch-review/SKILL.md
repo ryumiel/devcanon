@@ -342,8 +342,8 @@ side-channel `play-review/findings/v3` envelope file at
 contract lives in `skills/play-review/references/findings-envelope-contract.md`;
 `skills/play-review/SKILL.md` owns the workflow and notice-line hook.
 Require v3 evidence for this invocation and preserve its per-finding assessment,
-identity, verification selection/state, and incomplete routes. Legacy v2 is
-historical input only and requires fresh assessment; never infer verification
+identity, verification selection/state, and incomplete routes. Older artifact
+schemas require fresh review; never infer verification
 from prose or `critic: null`.
 
 In `--fix` mode only currently separately verified valid blockers may qualify.

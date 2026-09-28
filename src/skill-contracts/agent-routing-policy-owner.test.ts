@@ -190,7 +190,7 @@ const FRESH_SPAWNS = [
 ] as const;
 
 describe("agent routing and mutation policy owner", () => {
-  it("parses the complete skill and D1-D18 route inventories", async () => {
+  it("parses the complete skill and active route set route inventories", async () => {
     const [owner, sourceSkills] = await Promise.all([
       readAgentRoutingPolicyOwner(OWNER_PATH),
       readdir("skills", { withFileTypes: true }).then((entries) =>
@@ -215,17 +215,16 @@ describe("agent routing and mutation policy owner", () => {
     expect(owner.inventory.map((row) => row.skill).sort()).toEqual(
       sourceSkills,
     );
-    expect(owner.directChildRoutes.map((row) => row.id)).toEqual(
-      Array.from({ length: 18 }, (_, index) => `D${index + 1}`).filter(
-        (id) => id !== "D8" && id !== "D9",
-      ),
-    );
+    expect(owner.directChildRoutes.map((row) => row.id)).toEqual([
+      ...Array.from({ length: 7 }, (_, index) => `D${index + 1}`),
+      ...Array.from({ length: 9 }, (_, index) => `D${index + 10}`),
+    ]);
     expect(owner.escalationAdoptionInventory).toEqual(
-      Array.from({ length: 18 }, (_, index) => ({
-        id: `D${index + 1}`,
+      owner.directChildRoutes.map(({ id }) => ({
+        id,
         state: "opt-out",
         transition: "none",
-      })).filter((row) => row.id !== "D8" && row.id !== "D9"),
+      })),
     );
   });
 
@@ -251,7 +250,7 @@ describe("agent routing and mutation policy owner", () => {
     }
   });
 
-  it("correlates every fixed D1-D18 policy clause to its exact fresh Codex tuple", async () => {
+  it("correlates every fixed active route set policy clause to its exact fresh Codex tuple", async () => {
     const [owner, config] = await Promise.all([
       readAgentRoutingPolicyOwner(OWNER_PATH),
       loadConfig("devcanon.config.yaml", true),

@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { cleanupTempDir } from "../__test-helpers__/fixtures.js";
-import { currentReviewFixture } from "../__test-helpers__/review-evidence.js";
+import { createReviewEnvelope } from "../__test-helpers__/review-evidence.js";
 import { parseGitNumstatZ } from "./git-diff-parser.js";
 import {
   buildApprovedReviewPayload,
@@ -1214,7 +1214,7 @@ async function writeProviderScopeAndFindings(
   await writeJson(
     cwd,
     ".ephemeral/topic-findings.json",
-    currentReviewFixture(findings, headSha),
+    createReviewEnvelope(findings, headSha),
   );
 }
 
@@ -1228,7 +1228,7 @@ async function writeApprovedPayloadFiles(
     headSha,
     reviewEvent: "COMMENT",
     reviewBody,
-    findings,
+    findings: createReviewEnvelope(findings, headSha) as JsonObject,
   });
   await writeFile(
     path.join(cwd, ".ephemeral/topic-review-body.md"),
@@ -1261,65 +1261,69 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
       headSha: "a".repeat(40),
       reviewEvent: "COMMENT",
       reviewBody: "Body\n",
-      findings: {
-        schema: "play-review/findings/v2",
-        findings: [
-          {
-            path: "src/app.ts",
-            line: 2,
-            start_line: null,
-            severity: "Blocking",
-            category: "Logic",
-            critic: "VALID",
-            anchor: "natural",
-            why: "why",
-            recommendation: "recommendation",
-            body: "Inline body.",
-          },
-          {
-            path: "src/missing.ts",
-            line: 1,
-            severity: "Blocking",
-            category: "Safety",
-            critic: null,
-            anchor: "missing-file",
-            why: "why",
-            recommendation: "recommendation",
-            body: "Missing body.",
-          },
-        ],
-        carry_forward: [
-          {
-            path: "docs/old.md",
-            line: 3,
-            severity: "Blocking",
-            category: "Documentation",
-            critic: "VALID",
-            anchor: "out-of-diff",
-            why: "why",
-            recommendation: "recommendation",
-            body: "Carry forward body.",
-          },
-        ],
-      },
+      findings: createReviewEnvelope(
+        {
+          schema: "play-review/findings/v3",
+          findings: [
+            {
+              path: "src/app.ts",
+              line: 2,
+              start_line: null,
+              severity: "Blocking",
+              category: "Logic",
+              critic: "VALID",
+              anchor: "natural",
+              why: "why.",
+              recommendation: "recommendation",
+              body: "**Blocking | Logic** — why.\n\n**Recommendation:** recommendation",
+            },
+            {
+              path: "src/missing.ts",
+              line: 1,
+              severity: "Blocking",
+              category: "Safety",
+              critic: null,
+              anchor: "missing-file",
+              why: "why.",
+              recommendation: "recommendation",
+              body: "**Blocking | Safety** — why.\n\n**Recommendation:** recommendation",
+            },
+          ],
+          incomplete_review_routes: [],
+          carry_forward: [
+            {
+              path: "docs/old.md",
+              line: 3,
+              severity: "Blocking",
+              category: "Documentation",
+              critic: "VALID",
+              anchor: "out-of-diff",
+              why: "why.",
+              recommendation: "recommendation",
+              body: "**Blocking | Documentation** — why.\n\n**Recommendation:** recommendation",
+            },
+          ],
+        },
+        "a".repeat(40),
+      ) as JsonObject,
     });
 
     expect(payload).toEqual({
       commit_id: "a".repeat(40),
       event: "COMMENT",
-      body: "Body\n\n## Out-of-diff Findings\n\nCarry forward body.",
+      body: "Body\n\n## Out-of-diff Findings\n\n**Blocking | Documentation** — why.\n\n**Recommendation:** recommendation",
       comments: [
         {
           path: "src/app.ts",
           line: 2,
           side: "RIGHT",
-          body: "Inline body.",
+          body: "**Blocking | Logic** — why.\n\n**Recommendation:** recommendation",
         },
         {
           path: "src/missing.ts",
           line: 1,
           side: "RIGHT",
-          body: "Missing-file finding (no natural anchor — see body):\n\nMissing body.",
+          body: "Missing-file finding (no natural anchor — see body):\n\n**Blocking | Safety** — why.\n\n**Recommendation:** recommendation",
         },
       ],
     });
@@ -2181,10 +2185,10 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
         await makeProviderLeadingColonWorkspace();
       const evidencePath = providerScopeEvidencePath(headSha);
       const findings = {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [inlineFinding(":(top)README.md")],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       };
       try {
         const fileEntry = await providerEvidenceFileEntry(
@@ -2217,7 +2221,7 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
         await writeJson(
           cwd,
           ".ephemeral/topic-findings.json",
-          currentReviewFixture(findings, headSha),
+          createReviewEnvelope(findings, headSha),
         );
         await expect(
           runReviewArtifactsCommand(providerDiffAnchorArgs(headSha, baseSha)),
@@ -2285,14 +2289,13 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
   ])("rejects NUL finding paths for $command", async ({ args }) => {
     const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
     const findings = {
-      schema: "play-review/findings/v2",
+      schema: "play-review/findings/v3",
       findings: [inlineFinding("src/app.ts\0spoof")],
       carry_forward: [],
-      incomplete_topical_routes: [],
+      incomplete_review_routes: [],
     };
     try {
       await writeProviderScopeAndFindings(cwd, baseSha, headSha, findings);
-      await writeApprovedPayloadFiles(cwd, headSha, findings);
 
       await expect(
         runReviewArtifactsCommand(args(headSha, baseSha)),
@@ -2313,14 +2316,13 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
   ])("rejects non-NUL invalid finding paths for $command", async ({ args }) => {
     const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
     const findings = {
-      schema: "play-review/findings/v2",
+      schema: "play-review/findings/v3",
       findings: [inlineFinding("../src/app.ts")],
       carry_forward: [],
-      incomplete_topical_routes: [],
+      incomplete_review_routes: [],
     };
     try {
       await writeProviderScopeAndFindings(cwd, baseSha, headSha, findings);
-      await writeApprovedPayloadFiles(cwd, headSha, findings);
 
       await expect(
         runReviewArtifactsCommand(args(headSha, baseSha)),
@@ -2341,10 +2343,10 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
   ])("rejects invalid UTF-8 findings files for $command", async ({ args }) => {
     const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
     const findings = {
-      schema: "play-review/findings/v2",
+      schema: "play-review/findings/v3",
       findings: [inlineFinding()],
       carry_forward: [],
-      incomplete_topical_routes: [],
+      incomplete_review_routes: [],
     };
     try {
       await writeProviderScopeAndFindings(cwd, baseSha, headSha, findings);
@@ -2353,7 +2355,7 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
         path.join(cwd, ".ephemeral/topic-findings.json"),
         Buffer.from([
           ...Buffer.from(
-            '{"schema":"play-review/findings/v2","findings":[{"path":"src/',
+            '{"schema":"play-review/findings/v3","findings":[{"path":"src/',
           ),
           0xc3,
           0x28,
@@ -2412,10 +2414,10 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
   ])("rejects $poisonName for $command", async ({ args, poison, stderr }) => {
     const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
     const findings = {
-      schema: "play-review/findings/v2",
+      schema: "play-review/findings/v3",
       findings: [inlineFinding()],
       carry_forward: [],
-      incomplete_topical_routes: [],
+      incomplete_review_routes: [],
     };
     try {
       await writeProviderScopeAndFindings(cwd, baseSha, headSha, findings);

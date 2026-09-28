@@ -1,10 +1,12 @@
-/** Current-contract evidence for pre-existing presentation fixtures.
- * This is test data construction, never a production legacy migration.
- */
-export function currentReviewFixture(value: unknown, headSha: string): unknown {
+/** Build current review evidence from presentation fixtures and a review head. */
+export function createReviewEnvelope(value: unknown, headSha: string): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;
   const envelope = value as Record<string, unknown>;
-  if (envelope.schema !== "play-review/findings/v2") return value;
+  if (
+    envelope.schema !== "play-review/findings/v3" ||
+    "review_head_sha" in envelope
+  )
+    return value;
   const identities = new Map<string, string>();
   const entries = (items: unknown) =>
     Array.isArray(items)
@@ -37,15 +39,13 @@ export function currentReviewFixture(value: unknown, headSha: string): unknown {
   ]
     .filter((finding) => finding?.critic)
     .map((finding) => finding.id);
-  const { incomplete_topical_routes, ...rest } = envelope;
   return {
-    ...rest,
+    ...envelope,
     schema: "play-review/findings/v3",
     review_head_sha: headSha,
     findings,
     carry_forward: carry,
     prior_dispositions: [],
-    incomplete_review_routes: incomplete_topical_routes,
     verification: {
       state: selected.length ? "completed" : "not-required",
       selected_ids: [...new Set(selected)],

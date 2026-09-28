@@ -193,11 +193,10 @@ compatibility avoids unrelated consumer churn. Required failure blocks even
 with no surviving blockers. Head, ranges, digests, and completeness remain
 independently validated. A skipped verifier never grants mutation permission.
 
-Legacy v2 envelopes and v1 summaries retain their old validation for historical
-pre-migration evidence. They are not output by this pipeline and cannot stand
-in for v3 evidence: schema pairing is exact. A new run must reassess old
-findings and assign identities, never fabricate reusable provenance or convert
-old approval to new approval. Wrappers require v3 before accepting a new run.
+Only findings/v3 and approval-summary/v2 artifacts are accepted. Older artifacts
+require fresh review; no historical read or schema conversion grants reuse or
+approval. Current-schema evidence from an earlier candidate remains usable
+under the existing freshness and head-binding rules.
 
 Existing deterministic notices, direct-child paths, path/symlink/file-kind
 checks, validation-before-replacement, source guards, and digest/cleanup

@@ -2760,12 +2760,6 @@ async function validateApprovalSummary(
   const findings = await assertFindingsEnvelope(findingsFile);
   validateFindingsHead(findings, options.headSha);
   if (
-    (summary.schema === "branch-review/approval-summary/v2") !==
-    (findings.schema === "play-review/findings/v3")
-  )
-    fail("approval and findings schema mismatch");
-  if (
-    findings.schema === "play-review/findings/v3" &&
     summary.verification_state !== objectField(findings, "verification").state
   )
     fail("approval verification state mismatch");
@@ -2802,14 +2796,6 @@ async function validateApprovalSummary(
 
   if (!options.emitGateResult) {
     return "";
-  }
-  if (
-    summary.schema !== "branch-review/approval-summary/v2" ||
-    findings.schema !== "play-review/findings/v3"
-  ) {
-    fail(
-      "current approval gate requires approval-summary/v2 and findings/v3 evidence",
-    );
   }
   return `${JSON.stringify({
     terminal_state: terminalState,
@@ -3083,14 +3069,9 @@ function validateApprovalSummarySchema(summary: JsonObject): void {
         "nit_count",
         "carry_forward_count",
         "incomplete_topical_count",
-        ...(summary.schema === "branch-review/approval-summary/v2"
-          ? ["verification_state"]
-          : []),
+        "verification_state",
       ]) ||
-      ![
-        "branch-review/approval-summary/v1",
-        "branch-review/approval-summary/v2",
-      ].includes(stringField(summary, "schema")) ||
+      stringField(summary, "schema") !== "branch-review/approval-summary/v2" ||
       stringField(summary, "surface") !== "branch-review" ||
       !isSha(stringField(summary, "review_head_sha")) ||
       stringField(summary, "base_ref").length === 0 ||
@@ -3347,10 +3328,7 @@ async function assertFindingsEnvelope(file: string): Promise<JsonObject> {
 }
 
 function validateFindingsHead(findings: JsonObject, headSha: string): void {
-  if (
-    findings.schema === "play-review/findings/v3" &&
-    findings.review_head_sha !== headSha
-  )
+  if (findings.review_head_sha !== headSha)
     fail("findings review head mismatch");
 }
 
@@ -3524,70 +3502,18 @@ export function validateTargetedReviewEvidence(envelope: JsonObject): void {
 
 function validateFindingsEnvelopeSchema(envelope: JsonObject): void {
   if (
-    !["play-review/findings/v2", "play-review/findings/v3"].includes(
-      stringField(envelope, "schema"),
-    ) ||
+    envelope.schema !== "play-review/findings/v3" ||
     !Array.isArray(envelope.findings) ||
     !Array.isArray(envelope.carry_forward) ||
-    !Array.isArray(
-      envelope.schema === "play-review/findings/v3"
-        ? envelope.incomplete_review_routes
-        : envelope.incomplete_topical_routes,
-    )
-  ) {
+    !Array.isArray(envelope.incomplete_review_routes)
+  )
     fail("findings envelope validation failed");
-  }
-  if (envelope.schema === "play-review/findings/v3")
-    validateTargetedReviewEvidence(envelope);
-  for (const finding of allFindings(envelope)) {
-    if (!isFinding(finding)) {
-      fail("findings envelope validation failed");
-    }
-  }
-  for (const incompleteRoute of incompleteTopicalRoutes(envelope)) {
-    if (
-      envelope.schema !== "play-review/findings/v3" &&
-      !isIncompleteTopicalRoute(incompleteRoute)
-    ) {
-      fail("findings envelope validation failed");
-    }
-  }
+  validateTargetedReviewEvidence(envelope);
 }
 
 function incompleteTopicalRoutes(envelope: JsonObject): JsonObject[] {
-  if (
-    !Array.isArray(
-      envelope.schema === "play-review/findings/v3"
-        ? envelope.incomplete_review_routes
-        : envelope.incomplete_topical_routes,
-    )
-  ) {
-    fail("findings envelope validation failed");
-  }
-  const routes = arrayField(
-    envelope,
-    envelope.schema === "play-review/findings/v3"
-      ? "incomplete_review_routes"
-      : "incomplete_topical_routes",
-  ).map((item) => item as JsonObject);
-  if (
-    new Set(routes.map((route) => String(route.route))).size !== routes.length
-  ) {
-    fail("findings envelope validation failed");
-  }
-  return routes;
-}
-
-function isIncompleteTopicalRoute(value: unknown): value is JsonObject {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    !Array.isArray(value) &&
-    hasExactKeys(value as JsonObject, ["route", "disposition"]) &&
-    ["D7", "D8", "D9"].includes(String((value as JsonObject).route)) &&
-    ["NEEDS_CONTEXT", "FAILED", "CONTROLLER_OBSERVED_FAILURE"].includes(
-      String((value as JsonObject).disposition),
-    )
+  return arrayField(envelope, "incomplete_review_routes").map(
+    (item) => item as JsonObject,
   );
 }
 
@@ -4151,16 +4077,14 @@ export function buildApprovedReviewPayload(input: {
   reviewBody: string;
   findings: JsonObject;
 }): JsonObject {
-  if (input.findings.schema === "play-review/findings/v3") {
-    validateFindingsEnvelopeSchema(input.findings);
-    validateFindingsHead(input.findings, input.headSha);
-    const counts = findingsCounts(input.findings);
-    if (
-      input.reviewEvent === "APPROVE" &&
-      (counts.incompleteTopicalCount > 0 || counts.blockerCount > 0)
-    )
-      fail("incomplete or blocking review cannot approve");
-  }
+  validateFindingsEnvelopeSchema(input.findings);
+  validateFindingsHead(input.findings, input.headSha);
+  const counts = findingsCounts(input.findings);
+  if (
+    input.reviewEvent === "APPROVE" &&
+    (counts.incompleteTopicalCount > 0 || counts.blockerCount > 0)
+  )
+    fail("incomplete or blocking review cannot approve");
   let reviewBody = stripTrailingNewlines(input.reviewBody);
   const outOfDiffBodies = allFindings(input.findings)
     .filter(

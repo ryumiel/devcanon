@@ -3,7 +3,7 @@
 ## Role
 
 Documents the generic fresh-Codex dispatch ritual that every route-owning
-skill follows for its fixed D1-D18 route or planner-selected D4 route: resolve
+skill follows for its fixed route from the active route set or planner-selected D4 route: resolve
 the Codex-bound model binding, validate the complete tuple, allocate the
 route-local `task_name`, freeze one self-contained prompt, capture, create
 exactly one fresh child, verify, clean up, and only then integrate. Load it
@@ -15,7 +15,7 @@ that route's capture.
 This reference owns only the generic ritual order and its blocking rule. It
 consumes, and neither restates nor overrides, these owners:
 
-- The shared agent routing policy owns the D1-D18 route inventory, the
+- The shared agent routing policy owns the active route set inventory, the
   complete fresh-Codex tuple fields, and the D4 declaration obligation.
 - `subagent-lifecycle` owns the controller ledger, `<instance_ordinal>` and
   `task_name` allocation, configuration continuity, the cleanup gate,

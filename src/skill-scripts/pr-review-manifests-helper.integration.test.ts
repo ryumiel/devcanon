@@ -167,11 +167,11 @@ describe("pr-review manifest helpers", () => {
         root,
         script,
         "replace-findings",
-        '{"schema":"play-review/findings/v2"}',
+        '{"schema":"play-review/findings/v3"}',
         { PLAY_REVIEW_HELPER: "/tmp/public-play-review-helper" },
       ),
     ).resolves.toEqual({
-      stdout: '{"schema":"play-review/findings/v2"}',
+      stdout: '{"schema":"play-review/findings/v3"}',
       stderr: "",
     });
   });

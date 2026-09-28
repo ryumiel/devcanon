@@ -22,7 +22,7 @@ require_env() {
 
 require_jq() {
   command -v jq >/dev/null 2>&1 || {
-    echo "jq is required to validate play-review/findings/v2" >&2
+    echo "jq is required to validate play-review/findings/v3" >&2
     exit 1
   }
 }
@@ -162,35 +162,20 @@ assert_readable_envelope() {
       and (.why | type == "string")
       and (.recommendation | type == "string")
       and valid_body;
-    def valid_incomplete_topical_route:
-      type == "object"
-      and (keys == ["disposition", "route"])
-      and one_of(["D7", "D8", "D9"]; .route)
-      and one_of(["NEEDS_CONTEXT", "FAILED", "CONTROLLER_OBSERVED_FAILURE"]; .disposition);
-    def valid_incomplete_topical_routes:
-      (.incomplete_topical_routes | type == "array")
-      and (.incomplete_topical_routes | all(.[]; valid_incomplete_topical_route))
-      and (
-        .incomplete_topical_routes as $routes
-        | ($routes | map(.route) | unique | length) == ($routes | length)
-      );
-    (.schema == "play-review/findings/v2" or .schema == "play-review/findings/v3")
+    .schema == "play-review/findings/v3"
     and (.findings | type == "array")
     and (.carry_forward | type == "array")
-    and (if .schema == "play-review/findings/v3" then true else valid_incomplete_topical_routes end)
     and ((.findings + .carry_forward) | all(.[]; valid_finding))
   ' "$file" >/dev/null || {
     echo "envelope schema mismatch or envelope shape mismatch: $file" >&2
     exit 1
   }
-  if [ "$(jq -r '.schema' "$file")" = "play-review/findings/v3" ]; then
-    local helper_dir
-    helper_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-    jq -e -f "$helper_dir/targeted-review-evidence.jq" "$file" >/dev/null || {
-      echo "envelope schema mismatch or envelope shape mismatch: targeted review evidence validation failed: $file" >&2
-      exit 1
-    }
-  fi
+  local helper_dir
+  helper_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+  jq -e -f "$helper_dir/targeted-review-evidence.jq" "$file" >/dev/null || {
+    echo "envelope schema mismatch or envelope shape mismatch: targeted review evidence validation failed: $file" >&2
+    exit 1
+  }
 
 }
 
@@ -709,10 +694,8 @@ prepare_judgment_nits() {
     def valid_index_string:
       test("^[0-9]+(,[0-9]+)*$");
     def selection_pool:
-      if .schema == "play-review/findings/v3" then
-        reduce (.findings + .carry_forward)[] as $finding
-          ([]; if any(.id == $finding.id) then . else . + [$finding] end)
-      else .findings end;
+      reduce (.findings + .carry_forward)[] as $finding
+        ([]; if any(.id == $finding.id) then . else . + [$finding] end);
     def selected_indexes:
       $indexes
       | if valid_index_string then split(",") | map(tonumber)
@@ -757,32 +740,14 @@ prepare_judgment_nits() {
   trap 'rm -f "$tmp_file"' EXIT
   jq --arg indexes "$JUDGMENT_REQUIRED_FINDING_INDEXES" '
     def selection_pool:
-      if .schema == "play-review/findings/v3" then
-        reduce (.findings + .carry_forward)[] as $finding
-          ([]; if any(.id == $finding.id) then . else . + [$finding] end)
-      else .findings end;
+      reduce (.findings + .carry_forward)[] as $finding
+        ([]; if any(.id == $finding.id) then . else . + [$finding] end);
     def selected_indexes: $indexes | split(",") | map(tonumber);
-    def normalize_downgrade:
-      if .critic == "DOWNGRADE" then
-        .severity = "Nit"
-        | .critic = null
-        | .body = ("**Nit | " + .category + "** — " + .why + "\n\n**Recommendation:** " + .recommendation)
-      else
-        .
-      end;
-    . as $envelope
-    | selection_pool as $pool
-    | if .schema == "play-review/findings/v3" then
-      .findings = (selected_indexes | map(. as $index | $pool[$index]))
+    selection_pool as $pool
+    | .findings = (selected_indexes | map(. as $index | $pool[$index]))
       | .carry_forward = []
       | .verification.selected_ids = [.findings[] | select(.assessment.selection != "none") | .id]
       | if (.verification.selected_ids | length) == 0 then .verification = {state: "not-required", selected_ids: [], reason: "Report-only nit selection"} else . end
-    else {
-      schema: "play-review/findings/v2",
-      findings: (selected_indexes | map(. as $index | $pool[$index] | normalize_downgrade)),
-      carry_forward: [],
-      incomplete_topical_routes: $envelope.incomplete_topical_routes
-    } end
   ' "$FINDINGS_FILE" >"$tmp_file"
   mv "$tmp_file" "$nits_pending_file"
   trap - EXIT
@@ -796,6 +761,7 @@ case "$command_name" in
     require_env FINDINGS_FILE
     validate_findings_path_shape "$FINDINGS_FILE"
     assert_readable_envelope "findings file" "$FINDINGS_FILE"
+    require_current_envelope "$FINDINGS_FILE"
     ;;
   validate-nits-file)
     require_repo_root
