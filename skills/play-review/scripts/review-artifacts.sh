@@ -122,7 +122,7 @@ assert_readable_envelope() {
     exit 1
   }
   jq -e '
-    def one_of($values; $value): ($values | index($value)) != null;
+    def one_of($values; $value): ($value | type == "string") and ($values | index($value)) != null;
     def positive_integer:
       type == "number" and . == floor and . >= 1;
     def repo_relative_path:
@@ -556,7 +556,7 @@ build_review_body() {
   fi
   out_of_diff="$(jq -r '
     (.findings + .carry_forward)
-    | map(select(.anchor == "out-of-diff") | (if .critic == "DOWNGRADE" then "**Nit | " + .category + "** — " + .why + "\n\n**Recommendation:** " + .recommendation else .body end))
+    | map(select(.critic != "INVALID" and .anchor == "out-of-diff") | (if .critic == "DOWNGRADE" then "**Nit | " + .category + "** — " + .why + "\n\n**Recommendation:** " + .recommendation else .body end))
     | if length == 0 then empty
       else "## Out-of-diff Findings\n\n" + join("\n\n")
       end
@@ -671,7 +671,7 @@ build_github_review_payload() {
       body: $body,
       comments: (
         $envelope[0].findings
-        | map(select(.anchor == "natural" or .anchor == "missing-file"))
+        | map(select(.critic != "INVALID" and (.anchor == "natural" or .anchor == "missing-file")))
         | map({
             path,
             line,

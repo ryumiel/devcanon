@@ -697,6 +697,99 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
     }
   });
 
+  it.each(["selection", "status"])(
+    "rejects malformed %s at summary creation and correctly bound gate",
+    async (field) => {
+      const { cwd, headSha } = await makeGitWorkspace();
+      try {
+        const decisionPath = scopePath(headSha);
+        const summaryPath = approvalSummaryPath(headSha);
+        const findingsFile = findingsPath(headSha);
+        await writeJson(
+          cwd,
+          decisionPath,
+          initialScope("main", headSha, {
+            full_range: "main...HEAD",
+            selected_range: "main...HEAD",
+            candidate_narrow_range: "main...HEAD",
+            selection_reason: "not-followup",
+          }),
+        );
+        const value = currentReviewFixture(
+          {
+            schema: "play-review/findings/v2",
+            findings: [reviewFinding({ critic: "INVALID" })],
+            carry_forward: [],
+            incomplete_topical_routes: [],
+          },
+          headSha,
+        ) as Record<string, unknown>;
+        value.prior_dispositions = [
+          {
+            id: "old",
+            origin_head_sha: headSha,
+            assessed_head_sha: headSha,
+            status: "resolved",
+            reason: "Disproved",
+          },
+        ];
+        await writeJson(cwd, findingsFile, value);
+        const env = {
+          HEAD_SHA: headSha,
+          BASE: "main",
+          FULL_DIFF_RANGE: "main...HEAD",
+          ACTIVE_DIFF_RANGE: "main...HEAD",
+          SCOPE_DECISION_FILE: decisionPath,
+          FINDINGS_FILE: findingsFile,
+          APPROVAL_SUMMARY_FILE: summaryPath,
+        };
+        await runHelper(cwd, helperScript, "write-approval-summary", env);
+        const summary = await readJson(cwd, summaryPath);
+        if (field === "status")
+          (value.prior_dispositions as Record<string, unknown>[])[0].status = [
+            "resolved",
+          ];
+        else
+          (
+            (value.findings as Record<string, unknown>[])[0]
+              .assessment as Record<string, unknown>
+          ).selection = ["consequential"];
+        const serialized = JSON.stringify(value);
+        await writeFile(path.join(cwd, findingsFile), serialized);
+        await writeJson(cwd, summaryPath, {
+          ...summary,
+          findings_sha256: createHash("sha256")
+            .update(serialized)
+            .digest("hex"),
+        });
+        await expect(
+          execFileAsync(
+            "bash",
+            [
+              path.resolve(
+                "skills/play-validate-review-artifacts/scripts/review-artifacts.sh",
+              ),
+              "validate-approval-summary",
+              "--surface",
+              "branch-review",
+              "--head-sha",
+              headSha,
+              "--approval-summary-file",
+              summaryPath,
+              "--emit-gate-result",
+            ],
+            { cwd },
+          ),
+        ).rejects.toMatchObject({ stdout: "" });
+        await expect(
+          runHelper(cwd, helperScript, "write-approval-summary", env),
+        ).rejects.toThrow();
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+
   it.each([false, true])(
     "binds v3 skipped verification and incomplete review to approval v2: %s",
     async (incomplete) => {

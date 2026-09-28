@@ -549,7 +549,7 @@ Review head: $REVIEW_HEAD_SHA.
 Then report:
 
 - Number of blocking findings auto-fixed
-- Remaining non-mutating candidates and judgment-required nits (left for the
+- Remaining non-mutating candidates and all report-only nits (left for the
   user), including `Anchor: out-of-diff` nits
 - The finding that triggered the halt, if any (cite file:line, severity,
   category, and which stop-rule branch fired)
@@ -592,7 +592,6 @@ the threshold unmet. This grants no new implementation authority.
 | Blocking finding needs design change or out-of-diff edits | Stop, report to caller                |
 | Hard-rule judgment-required blocker                       | Stop, preserve in findings file       |
 | Nit findings + `--fix`                                    | Report-only handoff; no automatic fix |
-| Non-qualified or judgment-required nits + `--fix`         | Leave for user, list in report        |
 
 ## Common Mistakes
 

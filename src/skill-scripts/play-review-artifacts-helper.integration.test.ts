@@ -19,7 +19,10 @@ import {
   cleanupTempDir,
 } from "../__test-helpers__/fixtures.js";
 import { currentReviewFixture } from "../__test-helpers__/review-evidence.js";
-import { validateTargetedReviewEvidence } from "../runtime/review-artifacts.js";
+import {
+  buildApprovedReviewPayload,
+  validateTargetedReviewEvidence,
+} from "../runtime/review-artifacts.js";
 
 const execFileAsync = promisify(execFile);
 const symlinkAvailable = await canCreateSymlinks();
@@ -241,6 +244,144 @@ async function commandAvailable(command: string): Promise<boolean> {
 }
 
 describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
+  it("rejects malformed enum types at runtime, approval and shell publication boundaries", async () => {
+    const { cwd, reviewHeadSha, findingsFile } =
+      await makeReviewSourceWorkspace();
+    try {
+      const baseline = currentReviewFixture(
+        {
+          schema: "play-review/findings/v2",
+          findings: [sourceFinding({ critic: "INVALID" })],
+          carry_forward: [],
+          incomplete_topical_routes: [],
+        },
+        reviewHeadSha,
+      ) as Record<string, unknown>;
+      baseline.prior_dispositions = [
+        {
+          id: "old",
+          origin_head_sha: reviewHeadSha,
+          assessed_head_sha: reviewHeadSha,
+          status: "resolved",
+          reason: "Disproved",
+        },
+      ];
+      const cases = [
+        ["findings", 0, "assessment", "state"],
+        ["findings", 0, "assessment", "selection"],
+        ["findings", 0, "assessment", "verification"],
+        ["verification", "state"],
+        ["findings", 0, "critic"],
+        ["findings", 0, "severity"],
+        ["findings", 0, "category"],
+        ["findings", 0, "anchor"],
+        ["prior_dispositions", 0, "status"],
+        ["incomplete_review_routes", 0, "route"],
+        ["incomplete_review_routes", 0, "disposition"],
+      ];
+      for (const keys of cases) {
+        for (const kind of ["array", "object", "number", "boolean", "null"]) {
+          const value = structuredClone(baseline);
+          if (keys[0] === "incomplete_review_routes")
+            value.incomplete_review_routes = [
+              { route: "D7", disposition: "FAILED" },
+            ];
+          let target = value;
+          for (const key of keys.slice(0, -1))
+            target = target[key] as Record<string, unknown>;
+          const key = keys.at(-1);
+          if (key === undefined) throw new Error("Empty enum path");
+          const original = target[key];
+          target[key] =
+            kind === "array"
+              ? [original]
+              : kind === "object"
+                ? { value: original }
+                : kind === "number"
+                  ? 1
+                  : kind === "boolean"
+                    ? true
+                    : null;
+          expect(
+            () => validateTargetedReviewEvidence(value),
+            `${keys.join(".")} ${kind}`,
+          ).toThrow();
+          expect(() =>
+            buildApprovedReviewPayload({
+              headSha: reviewHeadSha,
+              reviewEvent: "APPROVE",
+              reviewBody: "Summary",
+              findings: value,
+            }),
+          ).toThrow();
+          await expect(
+            runHelperWithStdin(cwd, "publish-findings", JSON.stringify(value), {
+              HEAD_SHA: reviewHeadSha,
+              FINDINGS_FILE: findingsFile,
+            }),
+          ).rejects.toThrow();
+        }
+      }
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("keeps INVALID audit evidence out of runtime and shell public payloads", async () => {
+    const { cwd, reviewHeadSha, findingsFile } =
+      await makeReviewSourceWorkspace();
+    try {
+      const value = currentReviewFixture(
+        {
+          schema: "play-review/findings/v2",
+          findings: [
+            sourceFinding({ critic: "INVALID" }),
+            sourceFinding({ critic: "INVALID", anchor: "out-of-diff" }),
+          ],
+          carry_forward: [
+            sourceFinding({
+              critic: "INVALID",
+              anchor: "out-of-diff",
+              line: 3,
+            }),
+          ],
+          incomplete_topical_routes: [],
+        },
+        reviewHeadSha,
+      ) as Record<string, unknown>;
+      const bodyFile = ".ephemeral/review-body.md";
+      await writeFile(path.join(cwd, bodyFile), "Summary");
+      await writeRawEnvelope(cwd, findingsFile, value);
+      const expected = {
+        commit_id: reviewHeadSha,
+        event: "APPROVE",
+        body: "Summary",
+        comments: [],
+      };
+      expect(
+        buildApprovedReviewPayload({
+          headSha: reviewHeadSha,
+          reviewEvent: "APPROVE",
+          reviewBody: "Summary",
+          findings: value,
+        }),
+      ).toEqual(expected);
+      const { stdout } = await runHelper(cwd, "build-github-review-payload", {
+        HEAD_SHA: reviewHeadSha,
+        FINDINGS_FILE: findingsFile,
+        REVIEW_SURFACE: "pr-review",
+        REVIEW_BODY_FILE: bodyFile,
+        REVIEW_EVENT: "APPROVE",
+      });
+      expect(JSON.parse(stdout)).toEqual(expected);
+      expect(
+        JSON.parse(await readFile(path.join(cwd, findingsFile), "utf8")),
+      ).toEqual(value);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it.each(["resolved", "invalid"])(
     "publishes a prior %s disposition with runtime/shell parity",
     async (status) => {

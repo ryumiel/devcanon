@@ -43,6 +43,12 @@ automatic fix qualification. Every changed candidate requires fresh validation
 and review. Repeated blocking failures in the same family require bounded
 scope/design reassessment rather than indefinite identical fix waves.
 
+This decision supersedes only ADR-0007’s branch-review reviewer/verifier and
+findings/approval-summary evidence versions, automatic nit-fix eligibility, and
+judgment-only nit handoff
+provisions. Its implementation-review ownership and per-task-review decisions
+remain unchanged.
+
 This decision supersedes ADR-0012’s findings/v2 schema and D7–D9 completeness
 representation, old-head post-fix subtraction, and fixable-versus-judgment-required
 nit consumer provisions. Its side-channel transport, deterministic notice/path,

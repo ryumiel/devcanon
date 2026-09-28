@@ -56,9 +56,9 @@ not an envelope write. A caller-authored replacement uses the public
 publication boundary; direct prompt-controlled writes never substitute for its
 guarded path lifecycle.
 
-## Judgment-Required Nits
+## Remaining Report-Only Nits
 
-Phase 7 selects judgment-required findings only after final review evidence.
+Phase 7 selects every remaining Nit and DOWNGRADE only after final review evidence, including apparently mechanical and carried-only nits. INVALID evidence is excluded; no nit gains automatic mutation authority.
 `DOWNGRADE` items are preserved as postable Nits; unresolved true blockers and
 selected `INVALID` items stop the handoff. Empty selection omits the nits
 artifact. `play-branch-finish` validates supplied nits before posting.

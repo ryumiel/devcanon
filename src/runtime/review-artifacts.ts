@@ -3377,6 +3377,9 @@ export function validateTargetedReviewEvidence(envelope: JsonObject): void {
       const finding = item as JsonObject;
       if (
         !isFinding(finding) ||
+        !["severity", "category", "anchor"].every(
+          (key) => typeof finding[key] === "string",
+        ) ||
         !text(finding.why) ||
         !text(finding.recommendation) ||
         finding.body !==
@@ -3434,7 +3437,7 @@ export function validateTargetedReviewEvidence(envelope: JsonObject): void {
       } else {
         if (
           !["consequential", "disputed", "uncertain"].includes(
-            String(assessment.selection),
+            stringField(assessment, "selection"),
           ) ||
           finding.severity !== "Blocking"
         )
@@ -3442,7 +3445,9 @@ export function validateTargetedReviewEvidence(envelope: JsonObject): void {
         selectedClaims.push(id);
         if (assessment.verification === "completed") {
           if (
-            !["VALID", "INVALID", "DOWNGRADE"].includes(String(finding.critic))
+            !["VALID", "INVALID", "DOWNGRADE"].includes(
+              stringField(finding, "critic"),
+            )
           )
             reject();
         } else if (assessment.verification === "incomplete") {
@@ -3461,9 +3466,9 @@ export function validateTargetedReviewEvidence(envelope: JsonObject): void {
     routes.some(
       (route) =>
         !hasExactKeys(route, ["route", "disposition"]) ||
-        !["D7", "D10"].includes(String(route.route)) ||
+        !["D7", "D10"].includes(stringField(route, "route")) ||
         !["NEEDS_CONTEXT", "FAILED", "CONTROLLER_OBSERVED_FAILURE"].includes(
-          String(route.disposition),
+          stringField(route, "disposition"),
         ),
     )
   )
@@ -3509,7 +3514,7 @@ export function validateTargetedReviewEvidence(envelope: JsonObject): void {
       byId.has(id) ||
       !isSha(stringField(record, "origin_head_sha")) ||
       record.assessed_head_sha !== head ||
-      !["resolved", "invalid"].includes(String(record.status)) ||
+      !["resolved", "invalid"].includes(stringField(record, "status")) ||
       !text(record.reason)
     )
       reject();
@@ -4158,7 +4163,11 @@ export function buildApprovedReviewPayload(input: {
   }
   let reviewBody = stripTrailingNewlines(input.reviewBody);
   const outOfDiffBodies = allFindings(input.findings)
-    .filter((finding) => stringField(finding, "anchor") === "out-of-diff")
+    .filter(
+      (finding) =>
+        finding.critic !== "INVALID" &&
+        stringField(finding, "anchor") === "out-of-diff",
+    )
     .map((finding) => postableFindingBody(finding));
   if (outOfDiffBodies.length > 0) {
     const outOfDiff = `## Out-of-diff Findings\n\n${outOfDiffBodies.join(
@@ -4174,8 +4183,10 @@ export function buildApprovedReviewPayload(input: {
     body: reviewBody,
     comments: arrayField(input.findings, "findings")
       .map((item) => item as JsonObject)
-      .filter((finding) =>
-        ["natural", "missing-file"].includes(stringField(finding, "anchor")),
+      .filter(
+        (finding) =>
+          finding.critic !== "INVALID" &&
+          ["natural", "missing-file"].includes(stringField(finding, "anchor")),
       )
       .map((finding) => {
         const anchor = stringField(finding, "anchor");

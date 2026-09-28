@@ -73,14 +73,13 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
 - **Problem:** A typo fix or one-line change feels too small to brainstorm, so the phase gets dropped — but the worktree-and-PR scaffold is the value, not the deliberation depth
 - **Fix:** Always run brainstorming. For genuinely trivial issues it returns in seconds with a one-line spec; that's fine and still goes through the pipeline
 
-## Passing fixable feedback as Phase 8 nits
+## Dropping remaining nits or reposting resolved feedback
 
-- **Problem:** Feedback that `branch-review --fix` already resolved, or should
-  own as fixable feedback, gets posted as PR comments instead of staying inside
-  branch-review's fix loop
-- **Fix:** After the final `branch-review --fix` run, pass only
-  judgment-required remaining findings through `nits_file`. Do not create
-  caller-owned fix commits in issue priming
+- **Problem:** Apparently mechanical nits are omitted from Phase 8, or resolved
+  feedback is posted again even though the final evidence no longer retains it.
+- **Fix:** After the final `branch-review --fix` run, pass every remaining Nit
+  and DOWNGRADE through `nits_file`, excluding INVALID and resolved evidence.
+  Do not create caller-owned fix commits in issue priming.
 
 ## Reusing stale approval-summary evidence
 

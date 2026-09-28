@@ -12,9 +12,9 @@ def assessment($head):
     elif $a.state == "reused" then $f.severity == "Nit" and $a.selection == "none" and $a.reuse_checked_head_sha == $head
     else false end)
   and (if $a.selection == "none" then $f.critic == null and $a.verification == "not-required"
-    else (["consequential", "disputed", "uncertain"] | index($a.selection)) != null
+    else ($a.selection | type == "string") and (["consequential", "disputed", "uncertain"] | index($a.selection)) != null
       and $f.severity == "Blocking"
-      and (if $a.verification == "completed" then (["VALID", "INVALID", "DOWNGRADE"] | index($f.critic)) != null
+      and (if $a.verification == "completed" then ($f.critic | type == "string") and (["VALID", "INVALID", "DOWNGRADE"] | index($f.critic)) != null
         elif $a.verification == "incomplete" then $f.critic == null else false end)
     end);
 . as $e
