@@ -62,6 +62,10 @@ write/read guards, data residency, and lifecycle cleanup remain unchanged.
 New candidate review supplies final evidence after fixes; all remaining nits
 use the existing report-only handoff.
 
+Publication binds evidence to the requested head and emits each finding identity
+once. User edits to posting are presentation overrides on retained evidence;
+they never rewrite verification history or clear approval or automatic-fix gates.
+
 This decision supersedes ADR-0022's topical fanout
 and critic-always-for-nits requirements. It supersedes only ADR-0034's
 all-candidate independent critic calibration, unchanged-v2 transport, and

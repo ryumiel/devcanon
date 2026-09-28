@@ -948,9 +948,9 @@ the latest exact preview before Phase 6.
 | ------------------------------------ | ----------------------------------------------------------------------------------- |
 | `post`                               | Post review + resolve approved threads                                              |
 | `post as comment`                    | Comment only, no verdict                                                            |
-| `drop #N`                            | Remove finding                                                                      |
-| `change #N severity to Blocking/Nit` | Reclassify severity                                                                 |
-| `change #N category to Logic/...`    | Reclassify category                                                                 |
+| `drop #N`                            | Omit from publication; retain evidence                                              |
+| `change #N severity to Blocking/Nit` | Change published severity; retain evidence                                          |
+| `change #N category to Logic/...`    | Change published category; retain evidence                                          |
 | `edit`                               | Revise draft text                                                                   |
 | `skip threads`                       | Post but don't resolve                                                              |
 | `abort`                              | Record `aborted` with `FINISHED_AT` and `TERMINAL_REASON`, then lease-gated cleanup |

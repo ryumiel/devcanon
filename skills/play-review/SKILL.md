@@ -391,12 +391,13 @@ local dispositions never resolve GitHub threads.
 
 ## Phase 5.5: Finding Pattern Synthesis
 
-After critic verification and before final output, inspect the final validated
+After targeted verification settles and before final output, inspect the current
 finding set for shared structural, architectural, or ownership causes. Emit
 `## Root-Cause Synthesis` only when at least two related concrete findings
-support the same cause. Use only `severity: "Blocking"` findings with
-`critic: "VALID"` plus unresolved blocking carry-forward entries verified
-during follow-up review. Do not use INVALID, DOWNGRADE, or nit-only findings.
+support the same cause. Eligible findings are current assessed Blocking claims,
+including carry-forward, with either `critic: "VALID"` or selection `none`
+and verification `not-required`. Exclude incomplete verification, INVALID,
+DOWNGRADE, and nits. Skipping D10 does not disqualify an ordinary blocker.
 
 This phase is human-facing presentation only. It does not add fields to the
 `play-review/findings/v3` envelope, does not replace individual findings, does

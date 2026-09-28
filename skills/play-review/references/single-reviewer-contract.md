@@ -185,6 +185,14 @@ once; conflicting mirrors reject. Resolved identities cannot remain unresolved.
 Required evidence text is nonblank and SHA values are full lowercase hashes.
 Existing finding/anchor/body validation still applies.
 
+Optional `presentation_overrides` contains unique retained non-INVALID IDs and
+only `{id, action: "drop"}` or `{id, action: "reclassify", severity, category}`.
+Enums use the existing severity/category vocabulary. Edits replace this array;
+they never change raw evidence, verdicts, provenance, completeness, or fix
+eligibility. Projections apply overrides after identity deduplication, preserving
+current-then-carry order. Exact mirrors publish once; carry-only inline entries
+remain non-posting. Public APPROVE also refuses visible Blocking presentation.
+
 Branch approval uses `branch-review/approval-summary/v2`. Keep all existing
 fields, counts, scope/findings paths and digests, including the historical
 field name `incomplete_topical_count` (now counts D7 and D10); add
@@ -234,24 +242,24 @@ the reassessment grants no wider scope or new implementation authority.
 
 ## Acceptance scenarios
 
-| Scenario                                                                | Required outcome                                                                               |
-| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Ordinary nonempty code change                                           | One D7; baseline checks explicit; D10 only if a blocking trigger applies.                      |
-| Architecture/spec risk, including narrow follow-up                      | One D7 with full-PR risk obligations; no D8/D9 child.                                          |
-| Cross-platform invocation change                                        | Documented-behavior and platform checks; substitution exclusions preserved.                    |
-| Complete review with no findings                                        | No D10; empty findings and `not-required`; other gates still apply.                            |
-| Nit-only result                                                         | No D10; nits retained, nonblocking, and not automatically fixed.                               |
-| Unchanged prior Nit                                                     | Same identity and original assessment head; new reuse-check head; no D10.                      |
-| Changed contract or relevant dependency                                 | No reuse; current reassessment or incomplete review.                                           |
-| Resolved prior claim                                                    | Current evidence and explicit disposition; no unresolved count or automatic thread resolution. |
-| Ordinary undisputed blocker                                             | Remains blocking with no D10; no autonomous fix qualification.                                 |
-| Consequential, disputed, or uncertain blocker                           | One targeted D10; no approval until all selected dispositions complete.                        |
-| Required verifier fails while findings are downgraded elsewhere         | Review remains incomplete; other classifications cannot hide failure.                          |
-| Missing D7 context, malformed output, source mutation, stale head/range | No approval; source-integrity failures terminate visibly.                                      |
-| Post-fix review                                                         | New candidate validation and independent review; old results are context only.                 |
-| Second same-family blocking recurrence after fixes                      | Stop automatic repetition for scoped design reassessment.                                      |
-| Legacy input or old approval summary                                    | Historical context only for new pipeline; no fabricated freshness or approval.                 |
-| Duplicate or conflicting identity, mirror, or selected ID               | Reject before counts, approval, mutation, or posting.                                          |
+| Scenario                                                                   | Required outcome                                                                               |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Ordinary nonempty code change                                              | One D7; baseline checks explicit; D10 only if a blocking trigger applies.                      |
+| Architecture/spec risk, including narrow follow-up                         | One D7 with full-PR risk obligations; no D8/D9 child.                                          |
+| Cross-platform invocation change                                           | Documented-behavior and platform checks; substitution exclusions preserved.                    |
+| Complete review with no findings                                           | No D10; empty findings and `not-required`; other gates still apply.                            |
+| Nit-only result                                                            | No D10; nits retained, nonblocking, and not automatically fixed.                               |
+| Unchanged prior Nit                                                        | Same identity and original assessment head; new reuse-check head; no D10.                      |
+| Changed contract or relevant dependency                                    | No reuse; current reassessment or incomplete review.                                           |
+| Resolved prior claim                                                       | Current evidence and explicit disposition; no unresolved count or automatic thread resolution. |
+| Ordinary undisputed blocker                                                | Remains blocking with no D10; no autonomous fix qualification.                                 |
+| Consequential, disputed, or uncertain blocker                              | One targeted D10; no approval until all selected dispositions complete.                        |
+| Required verifier fails while findings are downgraded elsewhere            | Review remains incomplete; other classifications cannot hide failure.                          |
+| Missing D7 context, malformed output, source mutation, stale head/range    | No approval; source-integrity failures terminate visibly.                                      |
+| Post-fix review                                                            | New candidate validation and independent review; old results are context only.                 |
+| Second same-family blocking recurrence after fixes                         | Stop automatic repetition for scoped design reassessment.                                      |
+| Legacy input or old approval summary                                       | Reject; fresh review is required.                                                              |
+| Duplicate ID within an array, conflicting mirror, or duplicate selected ID | Reject before counts, approval, mutation, or posting.                                          |
 
 ## Bounded evaluation
 

@@ -527,10 +527,27 @@ render_entry() {
   if jq -e '.assessment != null' <<<"$entry_json" >/dev/null; then
     jq -r '"- **Evidence:** " + .assessment.state + "; assessed " + .assessment.assessed_head_sha + (if .assessment.reuse_checked_head_sha != null then "; reuse checked " + .assessment.reuse_checked_head_sha else "" end)' <<<"$entry_json"
   fi
+  local override
+  override="$(jq -c --arg id "$(jq -r .id <<<"$entry_json")" '.presentation_overrides[]? | select(.id == $id)' "$FINDINGS_FILE")"
+  if [ -n "$override" ]; then
+    printf -- '- **Presentation override:** %s (raw evidence and approval gates unchanged)\n' "$override"
+    body="$(project_findings all "$FINDINGS_FILE" | jq -r --arg id "$(jq -r .id <<<"$entry_json")" '[.[] | select(.id == $id) | .body][0] // "Omitted from publication; retained evidence above remains authoritative."')"
+    if [ "${REVIEW_SURFACE:-}" = "pr-review" ] && [ "$anchor" = "missing-file" ] && [ "$(jq -r .action <<<"$override")" != "drop" ]; then
+      body="$(printf 'Missing-file finding (no natural anchor — see body):\n\n%s' "$body")"
+    fi
+  fi
   printf '\n'
   render_source_snippet "$entry_path" "$line" "$start_line"
   printf '\n#### Rendered Finding Body\n\n'
   printf '%s\n\n' "$body"
+}
+
+project_findings() {
+  local scope="$1"
+  local file="$2"
+  local helper_dir
+  helper_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+  jq -L "$helper_dir" --arg scope "$scope" 'include "review-presentation"; project($scope)' "$file"
 }
 
 build_review_body() {
@@ -539,13 +556,12 @@ build_review_body() {
   if [ "${REVIEW_SURFACE:-}" = "pr-review" ]; then
     base_body="$(cat "$REVIEW_BODY_FILE")"
   fi
-  out_of_diff="$(jq -r '
-    (.findings + .carry_forward)
-    | map(select(.critic != "INVALID" and .anchor == "out-of-diff") | (if .critic == "DOWNGRADE" then "**Nit | " + .category + "** — " + .why + "\n\n**Recommendation:** " + .recommendation else .body end))
+  out_of_diff="$(project_findings all "$FINDINGS_FILE" | jq -r '
+    map(select(.anchor == "out-of-diff") | .body)
     | if length == 0 then empty
       else "## Out-of-diff Findings\n\n" + join("\n\n")
       end
-  ' "$FINDINGS_FILE")"
+  ')"
   if [ -n "$base_body" ] && [ -n "$out_of_diff" ]; then
     printf '%s\n\n%s\n' "$base_body" "$out_of_diff"
   elif [ -n "$base_body" ]; then
@@ -643,19 +659,25 @@ build_github_review_payload() {
       exit 1
     }
   fi
+  if [ "$REVIEW_EVENT" = "APPROVE" ]; then
+    project_findings posted "$FINDINGS_FILE" | jq -e 'all(.[]; .severity != "Blocking")' >/dev/null || {
+      echo "visible blocking presentation cannot approve" >&2
+      exit 1
+    }
+  fi
   validate_inline_source_anchors
   review_body="$(build_review_body)"
   jq -n \
     --arg commit_id "$HEAD_SHA" \
     --arg event "$REVIEW_EVENT" \
     --arg body "$review_body" \
-    --slurpfile envelope "$FINDINGS_FILE" \
+    --argjson findings "$(project_findings current "$FINDINGS_FILE")" \
     '{
       commit_id: $commit_id,
       event: $event,
       body: $body,
       comments: (
-        $envelope[0].findings
+        $findings
         | map(select(.critic != "INVALID" and (.anchor == "natural" or .anchor == "missing-file")))
         | map({
             path,
@@ -663,9 +685,9 @@ build_github_review_payload() {
             start_line,
             side: "RIGHT",
             body: (if .anchor == "missing-file" then
-              "Missing-file finding (no natural anchor — see body):\n\n" + (if .critic == "DOWNGRADE" then "**Nit | " + .category + "** — " + .why + "\n\n**Recommendation:** " + .recommendation else .body end)
+              "Missing-file finding (no natural anchor — see body):\n\n" + .body
             else
-              (if .critic == "DOWNGRADE" then "**Nit | " + .category + "** — " + .why + "\n\n**Recommendation:** " + .recommendation else .body end)
+              .body
             end)
           } | if .start_line == null then del(.start_line) else . + {start_side: "RIGHT"} end)
       )
@@ -746,6 +768,7 @@ prepare_judgment_nits() {
     selection_pool as $pool
     | .findings = (selected_indexes | map(. as $index | $pool[$index]))
       | .carry_forward = []
+      | if has("presentation_overrides") then .findings as $fs | .presentation_overrides |= map(select(.id as $id | $fs | any(.id == $id))) else . end
       | .verification.selected_ids = [.findings[] | select(.assessment.selection != "none") | .id]
       | if (.verification.selected_ids | length) == 0 then .verification = {state: "not-required", selected_ids: [], reason: "Report-only nit selection"} else . end
   ' "$FINDINGS_FILE" >"$tmp_file"
@@ -763,11 +786,14 @@ case "$command_name" in
     assert_readable_envelope "findings file" "$FINDINGS_FILE"
     require_current_envelope "$FINDINGS_FILE"
     ;;
-  validate-nits-file)
+  validate-nits-file | project-nits)
     require_repo_root
+    validate_head_sha
     require_env NITS_FILE
     validate_nits_path_shape "$NITS_FILE"
     assert_readable_envelope "nits_file" "$NITS_FILE"
+    require_current_envelope "$NITS_FILE"
+    if [ "$command_name" = "project-nits" ]; then project_findings current "$NITS_FILE"; fi
     ;;
   derive-nits-pending)
     require_repo_root
@@ -807,7 +833,7 @@ case "$command_name" in
     build_github_review_payload
     ;;
   *)
-    echo "usage: review-artifacts.sh validate-findings|validate-nits-file|derive-nits-pending|prepare-judgment-nits|prepare-findings-write|publish-findings|render-review-preview|build-github-review-payload" >&2
+    echo "usage: review-artifacts.sh validate-findings|validate-nits-file|project-nits|derive-nits-pending|prepare-judgment-nits|prepare-findings-write|publish-findings|render-review-preview|build-github-review-payload" >&2
     exit 1
     ;;
 esac

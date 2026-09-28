@@ -1254,6 +1254,154 @@ describe("pr-review findings publication rebinder", () => {
     });
   });
 
+  it("publishes presentation-only edits through the public helper while retaining blocker evidence", async () => {
+    const workspace = await makeManifestWorkspace(
+      "pr-review-presentation-public-",
+    );
+    setSummaryEnv(workspace);
+    process.env.PLAY_REVIEW_HELPER = reviewArtifactsHelper;
+    process.chdir(workspace.worktree);
+    const original = JSON.parse(
+      await readFile(
+        path.join(workspace.worktree, workspace.findingsFile),
+        "utf8",
+      ),
+    );
+    for (const presentation_overrides of [
+      [
+        {
+          id: original.findings[0].id,
+          action: "reclassify",
+          severity: "Nit",
+          category: "Documentation",
+        },
+      ],
+      [{ id: original.findings[0].id, action: "drop" }],
+      [],
+    ]) {
+      const next = { ...original, presentation_overrides };
+      const outcome = await runManifestCommandWithStdin(
+        ["replace-findings"],
+        JSON.stringify(next),
+      );
+      expect(outcome).toMatchObject({
+        exitCode: 0,
+        stdout: `${workspace.resultFile}\n`,
+      });
+      const stored = JSON.parse(
+        await readFile(
+          path.join(workspace.worktree, workspace.findingsFile),
+          "utf8",
+        ),
+      );
+      expect(stored).toEqual(next);
+      const preview = await commandHarness.run(
+        "bash",
+        [reviewArtifactsHelper, "render-review-preview"],
+        {
+          cwd: workspace.worktree,
+          env: {
+            ...process.env,
+            FINDINGS_FILE: workspace.findingsFile,
+            REVIEW_SURFACE: "pr-review",
+            REVIEW_BODY_FILE: workspace.reviewBodyFile,
+          },
+        },
+      );
+      expect(preview.stdout).toContain("**Severity:** Blocking");
+      await expect(
+        commandHarness.run(
+          "bash",
+          [reviewArtifactsHelper, "build-github-review-payload"],
+          {
+            cwd: workspace.worktree,
+            env: {
+              ...process.env,
+              FINDINGS_FILE: workspace.findingsFile,
+              REVIEW_SURFACE: "pr-review",
+              REVIEW_BODY_FILE: workspace.reviewBodyFile,
+              REVIEW_EVENT: "APPROVE",
+            },
+          },
+        ),
+      ).rejects.toThrow();
+    }
+  });
+
+  it.each([
+    "raw-drop",
+    "raw-reclassify",
+    "unknown",
+    "duplicate",
+    "extra-key",
+    "bad-enum",
+    "bad-action",
+    "invalid-target",
+  ])("rejects presentation edit %s before publication", async (mutation) => {
+    const workspace = await makeManifestWorkspace(
+      "pr-review-presentation-invalid-",
+      [
+        {
+          ...auditFinding("F1", "Finding"),
+          critic: mutation === "invalid-target" ? "INVALID" : "VALID",
+        },
+      ],
+    );
+    setSummaryEnv(workspace);
+    process.env.PLAY_REVIEW_HELPER = await writePublishingPlayReviewHelper(
+      workspace.tempRoot,
+    );
+    process.chdir(workspace.worktree);
+    const file = path.join(workspace.worktree, workspace.findingsFile);
+    const before = await readFile(file, "utf8");
+    const next = JSON.parse(before);
+    const id = next.findings[0].id;
+    next.presentation_overrides = [{ id, action: "drop" }];
+    if (mutation === "raw-drop") {
+      next.findings = [];
+      next.verification = {
+        state: "not-required",
+        selected_ids: [],
+        reason: "Removed",
+      };
+      next.presentation_overrides = [];
+    }
+    if (mutation === "raw-reclassify") {
+      next.findings[0].category = "Logic";
+      next.findings[0].body = `**Blocking | Logic** — ${next.findings[0].why}\n\n**Recommendation:** ${next.findings[0].recommendation}`;
+    }
+    if (mutation === "unknown") next.presentation_overrides[0].id = "missing";
+    if (mutation === "duplicate")
+      next.presentation_overrides.push({ ...next.presentation_overrides[0] });
+    if (mutation === "extra-key") next.presentation_overrides[0].critic = null;
+    if (mutation === "bad-enum")
+      next.presentation_overrides = [
+        { id, action: "reclassify", severity: ["Nit"], category: "Logic" },
+      ];
+    if (mutation === "bad-action")
+      next.presentation_overrides[0].action = "resolve";
+    const marker = path.join(workspace.tempRoot, "publisher-dispatched");
+    process.env.DRIFT_FILE = marker;
+    const outcome = await runManifestCommandWithStdin(
+      ["replace-findings"],
+      JSON.stringify(next),
+    );
+    expect(outcome.exitCode).toBe(1);
+    expect(await readFile(file, "utf8")).toBe(before);
+    expect(await lstat(marker).catch(() => null)).toBeNull();
+    expect(
+      await lstat(
+        path.join(
+          workspace.worktree,
+          workspace.resultFile.replace(
+            /-result\.json$/u,
+            "-replace-findings.lock",
+          ),
+        ),
+      ).catch(() => null),
+    ).toBeNull();
+  });
+
   it("rebinds published findings and invalidates the rendered preview", async () => {
     const workspace = await makeManifestWorkspace("pr-review-findings-rebind-");
     setSummaryEnv(workspace);
@@ -1261,11 +1409,7 @@ describe("pr-review findings publication rebinder", () => {
       workspace.tempRoot,
     );
     process.chdir(workspace.worktree);
-    const replacement = JSON.stringify({
-      schema: "play-review/findings/v3",
-      findings: [{ id: "F2", title: "Replacement finding" }],
-      carry_forward: [],
-    });
+    const replacement = await presentationReplacement(workspace);
 
     await expect(
       runManifestCommandWithStdin(["replace-findings"], replacement),
@@ -1323,11 +1467,7 @@ describe("pr-review findings publication rebinder", () => {
     );
     process.chdir(workspace.worktree);
 
-    const replacement = JSON.stringify({
-      schema: "play-review/findings/v3",
-      findings: [{ id: "F2", title: "Replacement finding" }],
-      carry_forward: [],
-    });
+    const replacement = await presentationReplacement(workspace);
 
     await expect(
       runManifestCommandWithStdin(["replace-findings"], replacement),
@@ -1363,11 +1503,7 @@ describe("pr-review findings publication rebinder", () => {
       workspace.tempRoot,
     );
     process.chdir(workspace.worktree);
-    const replacement = JSON.stringify({
-      schema: "play-review/findings/v3",
-      findings: [{ id: "F2", title: "Portable guard acquisition" }],
-      carry_forward: [],
-    });
+    const replacement = await presentationReplacement(workspace);
 
     await expect(
       runManifestCommandWithStdin(["replace-findings"], replacement),
@@ -1397,11 +1533,7 @@ describe("pr-review findings publication rebinder", () => {
       path.join(workspace.worktree, workspace.findingsFile),
       "utf8",
     );
-    const replacement = JSON.stringify({
-      schema: "play-review/findings/v3",
-      findings: [{ id: "F2", title: "Contending replacement" }],
-      carry_forward: [],
-    });
+    const replacement = await presentationReplacement(workspace);
     const guardFile = workspace.resultFile.replace(
       /-result\.json$/,
       "-replace-findings.lock",
@@ -1441,11 +1573,7 @@ describe("pr-review findings publication rebinder", () => {
     process.chdir(workspace.worktree);
     const publisherMarker = path.join(workspace.tempRoot, "publisher-marker");
     process.env.DRIFT_FILE = publisherMarker;
-    const published = JSON.stringify({
-      schema: "play-review/findings/v3",
-      findings: [{ id: "F2", title: "Published before process death" }],
-      carry_forward: [],
-    });
+    const published = await presentationReplacement(workspace);
     await writeFile(
       path.join(workspace.worktree, workspace.findingsFile),
       published,
@@ -1491,11 +1619,7 @@ describe("pr-review findings publication rebinder", () => {
     process.chdir(workspace.worktree);
     const publisherMarker = path.join(workspace.tempRoot, "publisher-marker");
     process.env.DRIFT_FILE = publisherMarker;
-    const replacement = JSON.stringify({
-      schema: "play-review/findings/v3",
-      findings: [{ id: "F2", title: "Blocked by retained guard" }],
-      carry_forward: [],
-    });
+    const replacement = await presentationReplacement(workspace);
     const guardFile = workspace.resultFile.replace(
       /-result\.json$/,
       "-replace-findings.lock",
@@ -1577,11 +1701,7 @@ describe("pr-review findings publication rebinder", () => {
       path.join(workspace.worktree, workspace.resultFile),
       "utf8",
     );
-    const replacement = JSON.stringify({
-      schema: "play-review/findings/v3",
-      findings: [{ id: "F2", title: "Unpublished replacement" }],
-      carry_forward: [],
-    });
+    const replacement = await presentationReplacement(workspace);
 
     const outcome = await runManifestCommandWithStdin(
       ["replace-findings"],
@@ -1616,11 +1736,7 @@ describe("pr-review findings publication rebinder", () => {
       path.join(workspace.worktree, workspace.resultFile),
       "utf8",
     );
-    const replacement = JSON.stringify({
-      schema: "play-review/findings/v3",
-      findings: [{ id: "F2", title: "Published before digest drift" }],
-      carry_forward: [],
-    });
+    const replacement = await presentationReplacement(workspace);
     const guardFile = workspace.resultFile.replace(
       /-result\.json$/,
       "-replace-findings.lock",
@@ -1672,11 +1788,7 @@ describe("pr-review findings publication rebinder", () => {
       path.join(workspace.worktree, workspace.resultFile),
       "utf8",
     );
-    const replacement = JSON.stringify({
-      schema: "play-review/findings/v3",
-      findings: [{ id: "F2", title: "Published before helper failure" }],
-      carry_forward: [],
-    });
+    const replacement = await presentationReplacement(workspace);
     const guardFile = workspace.resultFile.replace(
       /-result\.json$/,
       "-replace-findings.lock",
@@ -1773,18 +1885,14 @@ describe("pr-review findings publication rebinder", () => {
     ).resolves.toBeNull();
   });
 
-  it("retries after publication when only the canonical findings digest is stale", async () => {
+  it("requires manual recovery when preexisting canonical findings are not result-bound", async () => {
     const workspace = await makeManifestWorkspace("pr-review-findings-retry-");
     setSummaryEnv(workspace);
     process.env.PLAY_REVIEW_HELPER = await writePublishingPlayReviewHelper(
       workspace.tempRoot,
     );
     process.chdir(workspace.worktree);
-    const published = JSON.stringify({
-      schema: "play-review/findings/v3",
-      findings: [{ id: "F2", title: "Published before interruption" }],
-      carry_forward: [],
-    });
+    const published = await presentationReplacement(workspace);
     await writeFile(
       path.join(workspace.worktree, workspace.findingsFile),
       published,
@@ -1797,16 +1905,76 @@ describe("pr-review findings publication rebinder", () => {
     await expect(
       runManifestCommandWithStdin(["replace-findings"], published),
     ).resolves.toEqual({
-      exitCode: 0,
-      stdout: `${workspace.resultFile}\n`,
-      stderr: "",
-    });
-    await expect(runManifestCommand(["validate-result"])).resolves.toEqual({
-      exitCode: 0,
+      exitCode: 1,
       stdout: "",
-      stderr: "",
+      stderr: `findings digest mismatch: ${workspace.findingsFile}\n`,
     });
+    expect((await runManifestCommand(["validate-result"])).exitCode).toBe(1);
   });
+
+  it.each(["erase", "reclassify"])(
+    "rejects overwritten raw evidence (%s) before invoking the real publisher",
+    async (mutation) => {
+      const workspace = await makeManifestWorkspace(
+        "pr-review-overwritten-evidence-",
+      );
+      setSummaryEnv(workspace);
+      process.chdir(workspace.worktree);
+      const marker = path.join(workspace.tempRoot, "publisher-entered");
+      process.env.PUBLISH_MARKER = marker;
+      process.env.REAL_PLAY_REVIEW_HELPER = reviewArtifactsHelper;
+      process.env.PLAY_REVIEW_HELPER = await writeExecutable(
+        path.join(workspace.tempRoot, "record-real-publisher.sh"),
+        '#!/usr/bin/env bash\nset -euo pipefail\nif [ "$1" = "publish-findings" ]; then printf entered > "$PUBLISH_MARKER"; fi\nexec bash "$REAL_PLAY_REVIEW_HELPER" "$@"\n',
+      );
+      const resultPath = path.join(workspace.worktree, workspace.resultFile);
+      const beforeResult = await readFile(resultPath, "utf8");
+      const findingsPath = path.join(
+        workspace.worktree,
+        workspace.findingsFile,
+      );
+      const next = JSON.parse(await readFile(findingsPath, "utf8"));
+      if (mutation === "erase") {
+        next.findings = [];
+        next.carry_forward = [];
+        next.prior_dispositions = [];
+        next.incomplete_review_routes = [];
+        next.verification = {
+          state: "not-required",
+          selected_ids: [],
+          reason: "Erased",
+        };
+      } else {
+        next.findings[0].category = "Documentation";
+        next.findings[0].body = `**Blocking | Documentation** — ${next.findings[0].why}\n\n**Recommendation:** ${next.findings[0].recommendation}`;
+      }
+      const overwritten = JSON.stringify(next);
+      await writeFile(findingsPath, overwritten);
+      const outcome = await runManifestCommandWithStdin(
+        ["replace-findings"],
+        overwritten,
+      );
+      expect(outcome).toMatchObject({
+        exitCode: 1,
+        stdout: "",
+        stderr: expect.stringContaining("findings digest mismatch"),
+      });
+      expect(await readFile(resultPath, "utf8")).toBe(beforeResult);
+      expect(await readFile(findingsPath, "utf8")).toBe(overwritten);
+      expect(await lstat(marker).catch(() => null)).toBeNull();
+      expect(
+        await lstat(
+          path.join(
+            workspace.worktree,
+            workspace.resultFile.replace(
+              /-result\.json$/u,
+              "-replace-findings.lock",
+            ),
+          ),
+        ).catch(() => null),
+      ).toBeNull();
+    },
+  );
 
   it("refuses retry authority when canonical findings drift differs from stdin", async () => {
     const workspace = await makeManifestWorkspace(
@@ -1822,11 +1990,7 @@ describe("pr-review findings publication rebinder", () => {
       findings: [{ id: "F2", title: "Unrelated canonical drift" }],
       carry_forward: [],
     });
-    const replacement = JSON.stringify({
-      schema: "play-review/findings/v3",
-      findings: [{ id: "F3", title: "Different submitted envelope" }],
-      carry_forward: [],
-    });
+    const replacement = await presentationReplacement(workspace);
     await writeFile(
       path.join(workspace.worktree, workspace.findingsFile),
       drifted,
@@ -1870,11 +2034,7 @@ describe("pr-review findings publication rebinder", () => {
       path.join(workspace.worktree, workspace.reviewBodyFile),
       "utf8",
     );
-    const replacement = JSON.stringify({
-      schema: "play-review/findings/v3",
-      findings: [{ id: "F2", title: "Published before body drift" }],
-      carry_forward: [],
-    });
+    const replacement = await presentationReplacement(workspace);
     const guardFile = workspace.resultFile.replace(
       /-result\.json$/,
       "-replace-findings.lock",
@@ -1943,7 +2103,7 @@ describe("pr-review findings publication rebinder", () => {
 
     const outcome = await runManifestCommandWithStdin(
       ["replace-findings"],
-      Buffer.alloc(1024 * 1024, "x"),
+      `${await presentationReplacement(workspace)}${" ".repeat(1024 * 1024)}`,
     );
 
     expect(outcome).toEqual({
@@ -1959,8 +2119,8 @@ describe("pr-review findings publication rebinder", () => {
       name: "invalid input",
       input: "",
       mutate: async () => undefined,
-      stderr: "findings input must contain exactly one complete JSON envelope",
-      retainedGuard: true,
+      stderr: "findings stdin must be one JSON envelope",
+      retainedGuard: false,
     },
     {
       name: "stale immutable identity",
@@ -2068,6 +2228,21 @@ async function runManifestCommandWithStdin(
       Object.defineProperty(process, "stdin", descriptor);
     }
   }
+}
+
+async function presentationReplacement(
+  workspace: ManifestWorkspace,
+): Promise<string> {
+  const envelope = JSON.parse(
+    await readFile(
+      path.join(workspace.worktree, workspace.findingsFile),
+      "utf8",
+    ),
+  );
+  return JSON.stringify({
+    ...envelope,
+    presentation_overrides: [{ id: envelope.findings[0].id, action: "drop" }],
+  });
 }
 
 async function makeManifestWorkspace(

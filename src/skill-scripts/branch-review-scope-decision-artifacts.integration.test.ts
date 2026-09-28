@@ -905,52 +905,67 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
     }
   });
 
-  it("derives blocked approval summaries from final findings evidence", async () => {
-    const { cwd, headSha } = await makeGitWorkspace();
-    try {
-      const decisionPath = scopePath(headSha);
-      const summaryPath = approvalSummaryPath(headSha);
-      const findingsFile = findingsPath(headSha);
-      await writeJson(
-        cwd,
-        decisionPath,
-        initialScope("main", headSha, {
-          full_range: "main...HEAD",
-          selected_range: "main...HEAD",
-          candidate_narrow_range: "main...HEAD",
-          selection_reason: "not-followup",
-        }),
-      );
-      await writeJson(cwd, findingsFile, {
-        schema: "play-review/findings/v3",
-        findings: [reviewFinding()],
-        carry_forward: [],
-        incomplete_review_routes: [],
-      });
+  it.each(["none", "drop", "reclassify"])(
+    "derives blocked approval summaries from raw evidence despite %s presentation",
+    async (action) => {
+      const { cwd, headSha } = await makeGitWorkspace();
+      try {
+        const decisionPath = scopePath(headSha);
+        const summaryPath = approvalSummaryPath(headSha);
+        const findingsFile = findingsPath(headSha);
+        await writeJson(
+          cwd,
+          decisionPath,
+          initialScope("main", headSha, {
+            full_range: "main...HEAD",
+            selected_range: "main...HEAD",
+            candidate_narrow_range: "main...HEAD",
+            selection_reason: "not-followup",
+          }),
+        );
+        await writeJson(cwd, findingsFile, {
+          schema: "play-review/findings/v3",
+          presentation_overrides:
+            action === "none"
+              ? []
+              : [
+                  {
+                    id: "F1",
+                    action,
+                    ...(action === "reclassify"
+                      ? { severity: "Nit", category: "Documentation" }
+                      : {}),
+                  },
+                ],
+          findings: [reviewFinding()],
+          carry_forward: [],
+          incomplete_review_routes: [],
+        });
 
-      await expect(
-        runHelper(cwd, helperScript, "write-approval-summary", {
-          HEAD_SHA: headSha,
-          BASE: "main",
-          FULL_DIFF_RANGE: "main...HEAD",
-          ACTIVE_DIFF_RANGE: "main...HEAD",
-          SCOPE_DECISION_FILE: decisionPath,
-          FINDINGS_FILE: findingsFile,
-          APPROVAL_SUMMARY_FILE: summaryPath,
-        }),
-      ).resolves.toMatchObject({
-        stdout: `Approval summary written to ${summaryPath}.\n`,
-      });
+        await expect(
+          runHelper(cwd, helperScript, "write-approval-summary", {
+            HEAD_SHA: headSha,
+            BASE: "main",
+            FULL_DIFF_RANGE: "main...HEAD",
+            ACTIVE_DIFF_RANGE: "main...HEAD",
+            SCOPE_DECISION_FILE: decisionPath,
+            FINDINGS_FILE: findingsFile,
+            APPROVAL_SUMMARY_FILE: summaryPath,
+          }),
+        ).resolves.toMatchObject({
+          stdout: `Approval summary written to ${summaryPath}.\n`,
+        });
 
-      await expect(readJson(cwd, summaryPath)).resolves.toMatchObject({
-        terminal_state: "blocked",
-        blocker_count: 1,
-        nit_count: 0,
-      });
-    } finally {
-      await cleanupTempDir(cwd);
-    }
-  });
+        await expect(readJson(cwd, summaryPath)).resolves.toMatchObject({
+          terminal_state: "blocked",
+          blocker_count: 1,
+          nit_count: 0,
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
 
   it("blocks approval when a selected topical route is incomplete", async () => {
     const { cwd, headSha } = await makeGitWorkspace();

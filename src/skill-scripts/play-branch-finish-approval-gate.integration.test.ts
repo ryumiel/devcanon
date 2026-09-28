@@ -342,3 +342,67 @@ describe("play-branch-finish branch-review approval gate adapter", () => {
     }
   });
 });
+
+describe("branch-finish nit posting head binding", () => {
+  it.each(["inline", "top-level"])(
+    "rechecks the checked head immediately before %s posting",
+    async (surface) => {
+      const cwd = await mkdtemp(path.join(os.tmpdir(), "nit-head-"));
+      try {
+        const skill = await readFile(
+          path.resolve("skills/play-branch-finish/SKILL.md"),
+          "utf8",
+        );
+        const blocks = [...skill.matchAll(/```bash\n([\s\S]*?)```/gu)].map(
+          (match) => match[1],
+        );
+        const snippet = blocks.find((block) =>
+          surface === "inline"
+            ? block.includes('--arg commit_id "$NITS_HEAD_SHA"')
+            : block.includes('<<<"$UNANCHORABLE_NITS"'),
+        );
+        expect(snippet).toBeDefined();
+        const head = "a".repeat(40);
+        const mock = `gh() {
+        if [ "$1 $2" = "pr view" ]; then printf '%s\n' "$LIVE_HEAD"; return; fi
+        printf posted > "$POST_MARKER"
+        while [ "$#" -gt 0 ]; do
+          if [ "$1" = "--input" ]; then shift; cat "$1" > "$POST_BODY"; return; fi
+          shift
+        done
+        cat > "$POST_BODY"
+      }`;
+        const env = {
+          ...process.env,
+          NITS_HEAD_SHA: head,
+          PR_NUMBER: "12",
+          ANCHORABLE_NITS_JSON: "[]",
+          UNANCHORABLE_NITS: JSON.stringify([
+            { path: "README.md", line: 1, body: "Nit body" },
+          ]),
+          POST_MARKER: path.join(cwd, "posted"),
+          POST_BODY: path.join(cwd, "body"),
+        };
+        await expect(
+          execFileAsync("bash", ["-c", `${mock}\n${snippet}`], {
+            cwd,
+            env: { ...env, LIVE_HEAD: "b".repeat(40) },
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("PR head changed"),
+        });
+        await expect(readFile(env.POST_MARKER, "utf8")).rejects.toThrow();
+        await execFileAsync("bash", ["-c", `${mock}\n${snippet}`], {
+          cwd,
+          env: { ...env, LIVE_HEAD: head },
+        });
+        expect(await readFile(env.POST_MARKER, "utf8")).toBe("posted");
+        const body = await readFile(env.POST_BODY, "utf8");
+        if (surface === "inline") expect(JSON.parse(body).commit_id).toBe(head);
+        else expect(body).toContain("Nit body");
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+});

@@ -49,3 +49,16 @@ and (.prior_dispositions | all(.[];
   and .assessed_head_sha == $e.review_head_sha
   and (.reason | nonblank) and (.status == "resolved" or .status == "invalid")
   and (.id as $id | ($e.findings + $e.carry_forward) | all(.[]; .id != $id))))
+
+and (if has("presentation_overrides") then
+  (.presentation_overrides | type == "array" and unique_ids)
+  and (.presentation_overrides | all(.[]; . as $o |
+    (.id | nonblank)
+    and (($e.findings + $e.carry_forward) | any(.[]; .id == $o.id and .critic != "INVALID"))
+    and (if .action == "drop" then keys == ["action", "id"]
+      elif .action == "reclassify" then keys == ["action", "category", "id", "severity"]
+        and (.severity == "Blocking" or .severity == "Nit")
+        and (.category | type == "string")
+        and (["Logic", "Safety", "Architecture", "Tests", "Maintainability", "Documentation", "Contracts"] | index($o.category)) != null
+      else false end)))
+  else true end)

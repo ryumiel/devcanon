@@ -3475,6 +3475,37 @@ export function validateTargetedReviewEvidence(envelope: JsonObject): void {
     )
       reject();
   } else reject();
+  if (envelope.presentation_overrides !== undefined) {
+    const overrides = arrayField(
+      envelope,
+      "presentation_overrides",
+    ) as JsonObject[];
+    const seen = new Set<string>();
+    for (const override of overrides) {
+      const id = stringField(override, "id");
+      const finding = byId.get(id);
+      if (!finding || finding.critic === "INVALID" || seen.has(id)) reject();
+      seen.add(id);
+      if (override.action === "drop") {
+        if (!hasExactKeys(override, ["id", "action"])) reject();
+      } else if (override.action === "reclassify") {
+        if (
+          !hasExactKeys(override, ["id", "action", "severity", "category"]) ||
+          !["Blocking", "Nit"].includes(stringField(override, "severity")) ||
+          ![
+            "Logic",
+            "Safety",
+            "Architecture",
+            "Tests",
+            "Maintainability",
+            "Documentation",
+            "Contracts",
+          ].includes(stringField(override, "category"))
+        )
+          reject();
+      } else reject();
+    }
+  }
   const resolved = new Set<string>();
   for (const item of arrayField(envelope, "prior_dispositions")) {
     const record = item as JsonObject;
@@ -4065,10 +4096,38 @@ function languageHints(files: readonly string[]): string[] {
   );
 }
 
-function postableFindingBody(finding: JsonObject): string {
-  return finding.critic === "DOWNGRADE"
-    ? `**Nit | ${stringField(finding, "category")}** — ${stringField(finding, "why")}\n\n**Recommendation:** ${stringField(finding, "recommendation")}`
-    : stringField(finding, "body");
+function projectedFindings(
+  envelope: JsonObject,
+  currentOnly = false,
+): JsonObject[] {
+  const overrides = new Map(
+    ((envelope.presentation_overrides ?? []) as JsonObject[]).map((item) => [
+      item.id,
+      item,
+    ]),
+  );
+  const seen = new Set<unknown>();
+  const findings = currentOnly
+    ? (arrayField(envelope, "findings") as JsonObject[])
+    : allFindings(envelope);
+  return findings.flatMap((finding) => {
+    if (seen.has(finding.id)) return [];
+    seen.add(finding.id);
+    const override = overrides.get(finding.id);
+    if (finding.critic === "INVALID" || override?.action === "drop") return [];
+    const severity =
+      override?.severity ??
+      (finding.critic === "DOWNGRADE" ? "Nit" : finding.severity);
+    const category = override?.category ?? finding.category;
+    return [
+      {
+        ...finding,
+        severity,
+        category,
+        body: `**${severity} | ${category}** — ${finding.why}\n\n**Recommendation:** ${finding.recommendation}`,
+      },
+    ];
+  });
 }
 
 export function buildApprovedReviewPayload(input: {
@@ -4082,17 +4141,25 @@ export function buildApprovedReviewPayload(input: {
   const counts = findingsCounts(input.findings);
   if (
     input.reviewEvent === "APPROVE" &&
-    (counts.incompleteTopicalCount > 0 || counts.blockerCount > 0)
+    (counts.incompleteTopicalCount > 0 ||
+      counts.blockerCount > 0 ||
+      projectedFindings(input.findings, true).some(
+        (finding) => finding.severity === "Blocking",
+      ) ||
+      projectedFindings(input.findings).some(
+        (finding) =>
+          finding.anchor === "out-of-diff" && finding.severity === "Blocking",
+      ))
   )
     fail("incomplete or blocking review cannot approve");
   let reviewBody = stripTrailingNewlines(input.reviewBody);
-  const outOfDiffBodies = allFindings(input.findings)
+  const outOfDiffBodies = projectedFindings(input.findings)
     .filter(
       (finding) =>
         finding.critic !== "INVALID" &&
         stringField(finding, "anchor") === "out-of-diff",
     )
-    .map((finding) => postableFindingBody(finding));
+    .map((finding) => stringField(finding, "body"));
   if (outOfDiffBodies.length > 0) {
     const outOfDiff = `## Out-of-diff Findings\n\n${outOfDiffBodies.join(
       "\n\n",
@@ -4105,8 +4172,7 @@ export function buildApprovedReviewPayload(input: {
     commit_id: input.headSha,
     event: input.reviewEvent,
     body: reviewBody,
-    comments: arrayField(input.findings, "findings")
-      .map((item) => item as JsonObject)
+    comments: projectedFindings(input.findings, true)
       .filter(
         (finding) =>
           finding.critic !== "INVALID" &&
@@ -4120,8 +4186,8 @@ export function buildApprovedReviewPayload(input: {
           side: "RIGHT",
           body:
             anchor === "missing-file"
-              ? `Missing-file finding (no natural anchor — see body):\n\n${postableFindingBody(finding)}`
-              : postableFindingBody(finding),
+              ? `Missing-file finding (no natural anchor — see body):\n\n${stringField(finding, "body")}`
+              : stringField(finding, "body"),
         };
         const startLine = nullableNumberField(finding, "start_line");
         if (startLine !== null) {

@@ -324,6 +324,279 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     }
   });
 
+  it("projects mirrors and presentation edits once without weakening raw approval", async () => {
+    const { cwd, reviewHeadSha, findingsFile } =
+      await makeReviewSourceWorkspace();
+    try {
+      const claim = sourceFinding({ anchor: "out-of-diff" });
+      const value = createReviewEnvelope(
+        {
+          schema: "play-review/findings/v3",
+          findings: [claim],
+          carry_forward: [claim],
+          incomplete_review_routes: [],
+        },
+        reviewHeadSha,
+      ) as Record<string, unknown>;
+      const id = (value.findings as Record<string, unknown>[])[0].id;
+      const bodyFile = ".ephemeral/review-body.md";
+      await writeFile(path.join(cwd, bodyFile), "Summary");
+      for (const overrides of [
+        [],
+        [
+          {
+            id,
+            action: "reclassify",
+            severity: "Nit",
+            category: "Documentation",
+          },
+        ],
+        [{ id, action: "drop" }],
+      ]) {
+        value.presentation_overrides = overrides;
+        await writeRawEnvelope(cwd, findingsFile, value);
+        const expected = buildApprovedReviewPayload({
+          headSha: reviewHeadSha,
+          reviewEvent: "COMMENT",
+          reviewBody: "Summary",
+          findings: value,
+        });
+        const result = await runHelper(cwd, "build-github-review-payload", {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: findingsFile,
+          REVIEW_SURFACE: "pr-review",
+          REVIEW_BODY_FILE: bodyFile,
+          REVIEW_EVENT: "COMMENT",
+        });
+        expect(JSON.parse(result.stdout)).toEqual(expected);
+        expect(
+          (String(expected.body).match(/Recommendation:/gu) ?? []).length,
+        ).toBe(overrides[0]?.action === "drop" ? 0 : 1);
+        if (overrides[0]?.action === "reclassify")
+          expect(expected.body).toContain("**Nit | Documentation**");
+        expect(() =>
+          buildApprovedReviewPayload({
+            headSha: reviewHeadSha,
+            reviewEvent: "APPROVE",
+            reviewBody: "Summary",
+            findings: value,
+          }),
+        ).toThrow();
+        await expect(
+          runHelper(cwd, "build-github-review-payload", {
+            HEAD_SHA: reviewHeadSha,
+            FINDINGS_FILE: findingsFile,
+            REVIEW_SURFACE: "pr-review",
+            REVIEW_BODY_FILE: bodyFile,
+            REVIEW_EVENT: "APPROVE",
+          }),
+        ).rejects.toThrow();
+        const preview = await runHelper(cwd, "render-review-preview", {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: findingsFile,
+          REVIEW_SURFACE: "pr-review",
+          REVIEW_BODY_FILE: bodyFile,
+        });
+        expect(preview.stdout).toContain("**Severity:** Blocking");
+        if (overrides.length)
+          expect(preview.stdout).toContain("**Presentation override:**");
+      }
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it.each(["natural", "missing-file", "out-of-diff"])(
+    "projects DOWNGRADE reclassification consistently for %s without granting APPROVE",
+    async (anchor) => {
+      const { cwd, reviewHeadSha, findingsFile } =
+        await makeReviewSourceWorkspace();
+      try {
+        const value = createReviewEnvelope(
+          {
+            schema: "play-review/findings/v3",
+            findings: [sourceFinding({ critic: "DOWNGRADE", anchor })],
+            carry_forward: [],
+            incomplete_review_routes: [],
+          },
+          reviewHeadSha,
+        ) as Record<string, unknown>;
+        value.presentation_overrides = [
+          {
+            id: "F1",
+            action: "reclassify",
+            severity: "Blocking",
+            category: "Documentation",
+          },
+        ];
+        const bodyFile = ".ephemeral/body.md";
+        await writeFile(path.join(cwd, bodyFile), "Summary");
+        await writeRawEnvelope(cwd, findingsFile, value);
+        const env = {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: findingsFile,
+          REVIEW_SURFACE: "pr-review",
+          REVIEW_BODY_FILE: bodyFile,
+        };
+        const expected = buildApprovedReviewPayload({
+          headSha: reviewHeadSha,
+          reviewEvent: "COMMENT",
+          reviewBody: "Summary",
+          findings: value,
+        });
+        expect(
+          JSON.parse(
+            (
+              await runHelper(cwd, "build-github-review-payload", {
+                ...env,
+                REVIEW_EVENT: "COMMENT",
+              })
+            ).stdout,
+          ),
+        ).toEqual(expected);
+        expect(JSON.stringify(expected)).toContain(
+          "**Blocking | Documentation**",
+        );
+        expect(
+          (await runHelper(cwd, "render-review-preview", env)).stdout,
+        ).toContain("**Blocking | Documentation**");
+        expect(() =>
+          buildApprovedReviewPayload({
+            headSha: reviewHeadSha,
+            reviewEvent: "APPROVE",
+            reviewBody: "Summary",
+            findings: value,
+          }),
+        ).toThrow();
+        await expect(
+          runHelper(cwd, "build-github-review-payload", {
+            ...env,
+            REVIEW_EVENT: "APPROVE",
+          }),
+        ).rejects.toThrow();
+        const nits = (
+          await runHelper(cwd, "prepare-judgment-nits", {
+            ...env,
+            JUDGMENT_REQUIRED_FINDING_INDEXES: "0",
+          })
+        ).stdout.trim();
+        const projection = JSON.parse(
+          (
+            await runHelper(cwd, "project-nits", {
+              HEAD_SHA: reviewHeadSha,
+              NITS_FILE: nits,
+            })
+          ).stdout,
+        );
+        expect(projection[0].body).toContain("**Blocking | Documentation**");
+        const evidence = JSON.parse(
+          await readFile(path.join(cwd, nits), "utf8"),
+        );
+        expect(evidence.findings).toEqual(value.findings);
+        expect(evidence.verification).toEqual(value.verification);
+        expect(evidence.presentation_overrides).toEqual(
+          value.presentation_overrides,
+        );
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+
+  it("rejects malformed presentation overrides in both validators and retains failed verification after a drop", async () => {
+    const { cwd, reviewHeadSha, findingsFile } =
+      await makeReviewSourceWorkspace();
+    try {
+      const value = createReviewEnvelope(
+        {
+          schema: "play-review/findings/v3",
+          findings: [sourceFinding()],
+          carry_forward: [],
+          incomplete_review_routes: [],
+        },
+        reviewHeadSha,
+      ) as Record<string, unknown>;
+      for (const overrides of [
+        null,
+        [{ id: "unknown", action: "drop" }],
+        [{ id: "F1", action: "drop", critic: null }],
+        [
+          { id: "F1", action: "drop" },
+          { id: "F1", action: "drop" },
+        ],
+        [
+          {
+            id: "F1",
+            action: "reclassify",
+            severity: ["Nit"],
+            category: "Logic",
+          },
+        ],
+        [{ id: "F1", action: "resolve" }],
+      ]) {
+        value.presentation_overrides = overrides;
+        expect(() => validateTargetedReviewEvidence(value)).toThrow();
+        await expect(
+          runHelperWithStdin(cwd, "publish-findings", JSON.stringify(value), {
+            HEAD_SHA: reviewHeadSha,
+            FINDINGS_FILE: findingsFile,
+          }),
+        ).rejects.toThrow();
+      }
+      const claims = value.findings as Record<string, unknown>[];
+      claims[0].critic = null;
+      (claims[0].assessment as Record<string, unknown>).verification =
+        "incomplete";
+      value.verification = {
+        state: "incomplete",
+        selected_ids: ["F1"],
+        reason: "Verifier failed",
+      };
+      value.incomplete_review_routes = [
+        { route: "D10", disposition: "FAILED" },
+      ];
+      value.presentation_overrides = [{ id: "F1", action: "drop" }];
+      await runHelperWithStdin(cwd, "publish-findings", JSON.stringify(value), {
+        HEAD_SHA: reviewHeadSha,
+        FINDINGS_FILE: findingsFile,
+      });
+      expect(() =>
+        buildApprovedReviewPayload({
+          headSha: reviewHeadSha,
+          reviewEvent: "APPROVE",
+          reviewBody: "Summary",
+          findings: value,
+        }),
+      ).toThrow();
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("requires the checked head for nits and rejects stale evidence", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      await writeEnvelope(cwd, nitsFile);
+      await expect(
+        runHelper(cwd, "validate-nits-file", {
+          NITS_FILE: nitsFile,
+          HEAD_SHA: "",
+        }),
+      ).rejects.toThrow();
+      await expect(
+        runHelper(cwd, "validate-nits-file", {
+          NITS_FILE: nitsFile,
+          HEAD_SHA: "b".repeat(40),
+        }),
+      ).rejects.toThrow();
+      await expect(
+        runHelper(cwd, "validate-nits-file", { NITS_FILE: nitsFile }),
+      ).resolves.toMatchObject({ stdout: "" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("keeps INVALID audit evidence out of runtime and shell public payloads", async () => {
     const { cwd, reviewHeadSha, findingsFile } =
       await makeReviewSourceWorkspace();

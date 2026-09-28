@@ -32,10 +32,15 @@ authority before allowing a retry or render. Then render with the same
 
 ## Dropped or reclassified findings
 
-Author one complete valid-UTF-8 `play-review/findings/v3` replacement envelope
-in the caller. Recompute a changed finding's canonical `body` from its final
-severity, category, `why`, and `recommendation`, and preserve all other
-coherence rules, including `critic: null` for Nit findings. From the target
+Author one complete valid-UTF-8 `play-review/findings/v3` envelope, changing
+only optional `presentation_overrides`: `{id, action: "drop"}` omits a finding
+from publication; `{id, action: "reclassify", severity, category}` changes its
+published classification. Replace or remove these overrides to revise an edit.
+Keep every raw field unchanged, including findings, critic, assessment, identity,
+selected IDs, and provenance. The command rejects evidence edits and invalid
+overrides before publisher dispatch. Raw blockers/incomplete review still block
+APPROVE, and a visible Blocking presentation also prevents public APPROVE.
+From the target
 worktree root, discover the public manifest-helper action and stop on failure:
 
 ```bash
@@ -47,7 +52,9 @@ worktree root, discover the public manifest-helper action and stop on failure:
 
 Then pass that single envelope to `review-manifests.sh replace-findings`. Its
 stdout is the canonical rebound result path: bind it as `REVIEW_RESULT_FILE`
-and clear `RENDERED_PREVIEW_FILE`. A refusal stops Phase 5 continuation.
+and clear `RENDERED_PREVIEW_FILE`. A refusal stops Phase 5 continuation. An existing canonical file that no longer
+matches the result-bound digest requires manual recovery; resubmitting its bytes
+cannot authenticate erased evidence.
 
 If the findings-publication guard is retained after publication dispatch or an
 ambiguous termination, stop and request explicit manual recovery outside
