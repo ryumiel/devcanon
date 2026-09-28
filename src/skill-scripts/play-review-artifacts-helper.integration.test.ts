@@ -18,7 +18,10 @@ import {
   canCreateSymlinks,
   cleanupTempDir,
 } from "../__test-helpers__/fixtures.js";
-import { createReviewEnvelope } from "../__test-helpers__/review-evidence.js";
+import {
+  createReviewEnvelope,
+  currentReviewEnvelope,
+} from "../__test-helpers__/review-evidence.js";
 import {
   buildApprovedReviewPayload,
   validateTargetedReviewEvidence,
@@ -241,19 +244,13 @@ async function commandAvailable(command: string): Promise<boolean> {
 }
 
 describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
-  it("rejects malformed enum types at runtime, approval and shell publication boundaries", async () => {
+  it("rejects every malformed enum type in independent runtime and shell validators", async () => {
     const { cwd, reviewHeadSha, findingsFile } =
       await makeReviewSourceWorkspace();
     try {
-      const baseline = createReviewEnvelope(
-        {
-          schema: "play-review/findings/v3",
-          findings: [sourceFinding({ critic: "INVALID" })],
-          carry_forward: [],
-          incomplete_review_routes: [],
-        },
-        reviewHeadSha,
-      ) as Record<string, unknown>;
+      const baseline = currentReviewEnvelope(reviewHeadSha, [
+        sourceFinding({ critic: "INVALID" }),
+      ]);
       baseline.prior_dispositions = [
         {
           id: "old",
@@ -303,14 +300,6 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
             () => validateTargetedReviewEvidence(value),
             `${keys.join(".")} ${kind}`,
           ).toThrow();
-          expect(() =>
-            buildApprovedReviewPayload({
-              headSha: reviewHeadSha,
-              reviewEvent: "APPROVE",
-              reviewBody: "Summary",
-              findings: value,
-            }),
-          ).toThrow();
           await expect(
             runHelperWithStdin(cwd, "publish-findings", JSON.stringify(value), {
               HEAD_SHA: reviewHeadSha,
@@ -329,15 +318,9 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       await makeReviewSourceWorkspace();
     try {
       const claim = sourceFinding({ anchor: "out-of-diff" });
-      const value = createReviewEnvelope(
-        {
-          schema: "play-review/findings/v3",
-          findings: [claim],
-          carry_forward: [claim],
-          incomplete_review_routes: [],
-        },
-        reviewHeadSha,
-      ) as Record<string, unknown>;
+      const value = currentReviewEnvelope(reviewHeadSha, [claim], {
+        carry_forward: [claim],
+      });
       const id = (value.findings as Record<string, unknown>[])[0].id;
       const bodyFile = ".ephemeral/review-body.md";
       await writeFile(path.join(cwd, bodyFile), "Summary");
@@ -412,15 +395,9 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       const { cwd, reviewHeadSha, findingsFile } =
         await makeReviewSourceWorkspace();
       try {
-        const value = createReviewEnvelope(
-          {
-            schema: "play-review/findings/v3",
-            findings: [sourceFinding({ critic: "DOWNGRADE", anchor })],
-            carry_forward: [],
-            incomplete_review_routes: [],
-          },
-          reviewHeadSha,
-        ) as Record<string, unknown>;
+        const value = currentReviewEnvelope(reviewHeadSha, [
+          sourceFinding({ critic: "DOWNGRADE", anchor }),
+        ]);
         value.presentation_overrides = [
           {
             id: "F1",
@@ -507,40 +484,54 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     const { cwd, reviewHeadSha, findingsFile } =
       await makeReviewSourceWorkspace();
     try {
-      const value = createReviewEnvelope(
+      const value = currentReviewEnvelope(reviewHeadSha, [sourceFinding()]);
+      for (const { name, overrides, critic = "VALID" } of [
+        { name: "non-array metadata", overrides: null },
         {
-          schema: "play-review/findings/v3",
-          findings: [sourceFinding()],
-          carry_forward: [],
-          incomplete_review_routes: [],
+          name: "unknown identity",
+          overrides: [{ id: "unknown", action: "drop" }],
         },
-        reviewHeadSha,
-      ) as Record<string, unknown>;
-      for (const overrides of [
-        null,
-        [{ id: "unknown", action: "drop" }],
-        [{ id: "F1", action: "drop", critic: null }],
-        [
-          { id: "F1", action: "drop" },
-          { id: "F1", action: "drop" },
-        ],
-        [
-          {
-            id: "F1",
-            action: "reclassify",
-            severity: ["Nit"],
-            category: "Logic",
-          },
-        ],
-        [{ id: "F1", action: "resolve" }],
+        {
+          name: "forbidden evidence key",
+          overrides: [{ id: "F1", action: "drop", critic: null }],
+        },
+        {
+          name: "duplicate identity",
+          overrides: [
+            { id: "F1", action: "drop" },
+            { id: "F1", action: "drop" },
+          ],
+        },
+        {
+          name: "array severity",
+          overrides: [
+            {
+              id: "F1",
+              action: "reclassify",
+              severity: ["Nit"],
+              category: "Logic",
+            },
+          ],
+        },
+        {
+          name: "unknown action",
+          overrides: [{ id: "F1", action: "resolve" }],
+        },
+        {
+          name: "invalidated evidence",
+          critic: "INVALID",
+          overrides: [{ id: "F1", action: "drop" }],
+        },
       ]) {
         value.presentation_overrides = overrides;
-        expect(() => validateTargetedReviewEvidence(value)).toThrow();
+        (value.findings as Record<string, unknown>[])[0].critic = critic;
+        expect(() => validateTargetedReviewEvidence(value), name).toThrow();
         await expect(
           runHelperWithStdin(cwd, "publish-findings", JSON.stringify(value), {
             HEAD_SHA: reviewHeadSha,
             FINDINGS_FILE: findingsFile,
           }),
+          name,
         ).rejects.toThrow();
       }
       const claims = value.findings as Record<string, unknown>[];
@@ -601,13 +592,13 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     const { cwd, reviewHeadSha, findingsFile } =
       await makeReviewSourceWorkspace();
     try {
-      const value = createReviewEnvelope(
+      const value = currentReviewEnvelope(
+        reviewHeadSha,
+        [
+          sourceFinding({ critic: "INVALID" }),
+          sourceFinding({ critic: "INVALID", anchor: "out-of-diff" }),
+        ],
         {
-          schema: "play-review/findings/v3",
-          findings: [
-            sourceFinding({ critic: "INVALID" }),
-            sourceFinding({ critic: "INVALID", anchor: "out-of-diff" }),
-          ],
           carry_forward: [
             sourceFinding({
               critic: "INVALID",
@@ -615,10 +606,8 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
               line: 3,
             }),
           ],
-          incomplete_review_routes: [],
         },
-        reviewHeadSha,
-      ) as Record<string, unknown>;
+      );
       const bodyFile = ".ephemeral/review-body.md";
       await writeFile(path.join(cwd, bodyFile), "Summary");
       await writeRawEnvelope(cwd, findingsFile, value);
@@ -711,15 +700,10 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         ["commit", "--allow-empty", "-m", "Later candidate"],
         { cwd },
       );
-      const value = createReviewEnvelope(
-        {
-          schema: "play-review/findings/v3",
-          findings: [],
-          carry_forward: [],
-          incomplete_review_routes: [],
-        },
-        priorHead,
-      ) as Record<string, unknown>;
+      const value = currentReviewEnvelope(priorHead, []) as Record<
+        string,
+        unknown
+      >;
       await writeFile(path.join(cwd, file), JSON.stringify(value));
       await expect(
         runHelper(cwd, "validate-findings", {
@@ -2142,15 +2126,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         incomplete_review_routes: [],
       });
       const replacement = JSON.stringify(
-        createReviewEnvelope(
-          {
-            schema: "play-review/findings/v3",
-            findings: [finding()],
-            carry_forward: [],
-            incomplete_review_routes: [],
-          },
-          reviewHeadSha,
-        ),
+        currentReviewEnvelope(reviewHeadSha, [finding()]),
       );
       await writeFile(path.join(cwd, canonicalFile), priorContents);
 

@@ -79,10 +79,18 @@ describe("targeted review evidence", () => {
     const claim = finding();
     value.findings.push({ ...claim, critic: "VALID" });
     expect(() => validateTargetedReviewEvidence(value)).toThrow();
+    claim.assessment.selection = "disputed";
+    claim.assessment.verification = "incomplete";
+    value.verification = {
+      state: "incomplete",
+      selected_ids: ["F1"],
+      reason: "Verifier unavailable",
+    };
+    value.incomplete_review_routes = [{ route: "D10", disposition: "FAILED" }];
+    value.findings = [claim];
+    expect(() => validateTargetedReviewEvidence(value)).not.toThrow();
     claim.severity = "Nit";
     claim.body = claim.body.replace("**Blocking", "**Nit");
-    claim.assessment.selection = "disputed";
-    value.findings = [claim];
     expect(() => validateTargetedReviewEvidence(value)).toThrow();
   });
   it("requires current reuse checks while preserving original nit assessment", () => {
@@ -112,6 +120,10 @@ describe("targeted review evidence", () => {
     value.carry_forward.push(finding());
     expect(() => validateTargetedReviewEvidence(value)).not.toThrow();
     value.carry_forward[0].why = "Different claim";
+    value.carry_forward[0].body = finding().body.replace(
+      "A supported consequence",
+      "Different claim",
+    );
     expect(() => validateTargetedReviewEvidence(value)).toThrow();
     value.carry_forward = [];
     value.findings.push(finding());

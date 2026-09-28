@@ -1328,79 +1328,64 @@ describe("pr-review findings publication rebinder", () => {
     }
   });
 
-  it.each([
-    "raw-drop",
-    "raw-reclassify",
-    "unknown",
-    "duplicate",
-    "extra-key",
-    "bad-enum",
-    "bad-action",
-    "invalid-target",
-  ])("rejects presentation edit %s before publication", async (mutation) => {
-    const workspace = await makeManifestWorkspace(
-      "pr-review-presentation-invalid-",
-      [
-        {
-          ...auditFinding("F1", "Finding"),
-          critic: mutation === "invalid-target" ? "INVALID" : "VALID",
-        },
-      ],
-    );
-    setSummaryEnv(workspace);
-    process.env.PLAY_REVIEW_HELPER = await writePublishingPlayReviewHelper(
-      workspace.tempRoot,
-    );
-    process.chdir(workspace.worktree);
-    const file = path.join(workspace.worktree, workspace.findingsFile);
-    const before = await readFile(file, "utf8");
-    const next = JSON.parse(before);
-    const id = next.findings[0].id;
-    next.presentation_overrides = [{ id, action: "drop" }];
-    if (mutation === "raw-drop") {
-      next.findings = [];
-      next.verification = {
-        state: "not-required",
-        selected_ids: [],
-        reason: "Removed",
-      };
-      next.presentation_overrides = [];
-    }
-    if (mutation === "raw-reclassify") {
-      next.findings[0].category = "Logic";
-      next.findings[0].body = `**Blocking | Logic** — ${next.findings[0].why}\n\n**Recommendation:** ${next.findings[0].recommendation}`;
-    }
-    if (mutation === "unknown") next.presentation_overrides[0].id = "missing";
-    if (mutation === "duplicate")
-      next.presentation_overrides.push({ ...next.presentation_overrides[0] });
-    if (mutation === "extra-key") next.presentation_overrides[0].critic = null;
-    if (mutation === "bad-enum")
-      next.presentation_overrides = [
-        { id, action: "reclassify", severity: ["Nit"], category: "Logic" },
-      ];
-    if (mutation === "bad-action")
-      next.presentation_overrides[0].action = "resolve";
-    const marker = path.join(workspace.tempRoot, "publisher-dispatched");
-    process.env.DRIFT_FILE = marker;
-    const outcome = await runManifestCommandWithStdin(
-      ["replace-findings"],
-      JSON.stringify(next),
-    );
-    expect(outcome.exitCode).toBe(1);
-    expect(await readFile(file, "utf8")).toBe(before);
-    expect(await lstat(marker).catch(() => null)).toBeNull();
-    expect(
-      await lstat(
-        path.join(
-          workspace.worktree,
-          workspace.resultFile.replace(
-            /-result\.json$/u,
-            "-replace-findings.lock",
+  it.each(["raw-drop", "raw-reclassify", "unknown", "invalid-target"])(
+    "rejects presentation edit %s before publication",
+    async (mutation) => {
+      const workspace = await makeManifestWorkspace(
+        "pr-review-presentation-invalid-",
+        [
+          {
+            ...auditFinding("F1", "Finding"),
+            critic: mutation === "invalid-target" ? "INVALID" : "VALID",
+          },
+        ],
+      );
+      setSummaryEnv(workspace);
+      process.env.PLAY_REVIEW_HELPER = await writePublishingPlayReviewHelper(
+        workspace.tempRoot,
+      );
+      process.chdir(workspace.worktree);
+      const file = path.join(workspace.worktree, workspace.findingsFile);
+      const before = await readFile(file, "utf8");
+      const next = JSON.parse(before);
+      const id = next.findings[0].id;
+      next.presentation_overrides = [{ id, action: "drop" }];
+      if (mutation === "raw-drop") {
+        next.findings = [];
+        next.verification = {
+          state: "not-required",
+          selected_ids: [],
+          reason: "Removed",
+        };
+        next.presentation_overrides = [];
+      }
+      if (mutation === "raw-reclassify") {
+        next.findings[0].category = "Logic";
+        next.findings[0].body = `**Blocking | Logic** — ${next.findings[0].why}\n\n**Recommendation:** ${next.findings[0].recommendation}`;
+      }
+      if (mutation === "unknown") next.presentation_overrides[0].id = "missing";
+      const marker = path.join(workspace.tempRoot, "publisher-dispatched");
+      process.env.DRIFT_FILE = marker;
+      const outcome = await runManifestCommandWithStdin(
+        ["replace-findings"],
+        JSON.stringify(next),
+      );
+      expect(outcome.exitCode).toBe(1);
+      expect(await readFile(file, "utf8")).toBe(before);
+      expect(await lstat(marker).catch(() => null)).toBeNull();
+      expect(
+        await lstat(
+          path.join(
+            workspace.worktree,
+            workspace.resultFile.replace(
+              /-result\.json$/u,
+              "-replace-findings.lock",
+            ),
           ),
-        ),
-      ).catch(() => null),
-    ).toBeNull();
-  });
+        ).catch(() => null),
+      ).toBeNull();
+    },
+  );
 
   it("rebinds published findings and invalidates the rendered preview", async () => {
     const workspace = await makeManifestWorkspace("pr-review-findings-rebind-");

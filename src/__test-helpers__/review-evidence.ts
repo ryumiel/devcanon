@@ -53,3 +53,21 @@ export function createReviewEnvelope(value: unknown, headSha: string): unknown {
     },
   };
 }
+
+/** Valid current baseline; mutate its completed evidence explicitly for rejection cases. */
+export function currentReviewEnvelope(
+  headSha: string,
+  findings: Record<string, unknown>[] = [],
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return createReviewEnvelope(
+    {
+      schema: "play-review/findings/v3",
+      findings,
+      carry_forward: [],
+      incomplete_review_routes: [],
+      ...overrides,
+    },
+    headSha,
+  ) as Record<string, unknown>;
+}
