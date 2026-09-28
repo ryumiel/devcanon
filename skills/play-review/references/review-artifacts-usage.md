@@ -2,7 +2,7 @@
 
 ## Role
 
-Validates, prepares, publishes, and renders `play-review/findings/v2` artifacts.
+Validates, prepares, publishes, and renders `play-review/findings/v3` artifacts.
 
 ## Invocation
 
@@ -56,3 +56,12 @@ Preparation creates `.ephemeral` and validates targets; `derive-nits-pending`, `
 ## Workflow boundary
 
 [Play review workflow context](../SKILL.md) owns command selection, interpretation, and continuation.
+
+## Targeted evidence compatibility
+
+New publication and GitHub payload creation require current-head
+`play-review/findings/v3`; legacy v2 validation is historical context only.
+The v3 envelope records selected verification separately from legitimate skip
+and required failure. APPROVE rejects any incomplete route or remaining
+blocker. Derived nit subsets preserve provenance and DOWNGRADE transport;
+presentation renders downgraded blockers as Nits without rewriting evidence.

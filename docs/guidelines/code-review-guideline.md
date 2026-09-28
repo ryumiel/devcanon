@@ -44,11 +44,12 @@ separate; in particular, a `VALID` blocker must retain a `VALID`
 representative, while duplicate retained Nits may consolidate.
 
 [`play-review`](../../skills/play-review/SKILL.md) operationalizes this judgment
-for consumer repositories. It sends every current candidate through retention:
-blockers receive `VALID`, `DOWNGRADE`, or `INVALID`; Nits receive transient
-`RETAIN` or `INVALID` without severity promotion, and retained final Nits keep
-`critic: null`. It must preserve this decision boundary and its existing
-`play-review/findings/v2` schema; it does not become a second owner of
+for consumer repositories. One D7 independently judges all applicable dimensions
+and admits/calibrates findings before compatible duplicate retention. Separate
+D10 verifies only consequential, disputed, or uncertain Blocking candidates.
+Nits keep `critic: null` and remain report-only. The v3 evidence contract
+explicitly distinguishes skipped and failed required verification and retains
+honest carry-forward freshness. This does not become a second owner of
 DevCanon-local review policy. In particular, the consumer repository owns
 whether ADR coverage is an applicable obligation; `play-review` discovers and
 checks that policy when present but does not invent an independent ADR gate.

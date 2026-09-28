@@ -16,7 +16,7 @@ bash "$PLAY_REVIEW_DIR/scripts/shared-review-context.sh" --help
 
 ## Context Policy
 
-Phase 2.5 creates bounded context for topical reviewers. `SKILL.md` owns when
+Phase 2.5 creates bounded context for the independent reviewer. `SKILL.md` owns when
 the phase runs; this reference owns manifest meaning, budgets, and reviewer
 trust boundaries. The input manifest is the only shared-context content source.
 Do not recompute separate branch identity or fall back to unbounded context.
@@ -88,7 +88,7 @@ semantic families without changing this schema:
 No D18 value is a finding, authority statement, manifest, overlay, or persisted
 handoff. Failure, malformed output, source mutation, cleanup failure, invalid
 membership, or over-budget mapping stops before manifest construction and
-topical fanout; there is no controller-summary or partial-context fallback.
+D7 completion; there is no controller-summary or partial-context fallback.
 
 Populate the doc-impact fields from that full-range evidence as follows:
 

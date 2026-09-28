@@ -32,7 +32,7 @@ authority before allowing a retry or render. Then render with the same
 
 ## Dropped or reclassified findings
 
-Author one complete valid-UTF-8 `play-review/findings/v2` replacement envelope
+Author one complete valid-UTF-8 `play-review/findings/v3` replacement envelope
 in the caller. Recompute a changed finding's canonical `body` from its final
 severity, category, `why`, and `recommendation`, and preserve all other
 coherence rules, including `critic: null` for Nit findings. From the target

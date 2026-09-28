@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { cleanupTempDir } from "../__test-helpers__/fixtures.js";
+import { currentReviewFixture } from "../__test-helpers__/review-evidence.js";
 import { parseGitNumstatZ } from "./git-diff-parser.js";
 import {
   buildApprovedReviewPayload,
@@ -1181,7 +1182,7 @@ function inlineFinding(
     anchor: "natural",
     why: "why",
     recommendation: "recommendation",
-    body: "body",
+    body: "**Blocking | Logic** — why\n\n**Recommendation:** recommendation",
     ...overrides,
   };
 }
@@ -1210,7 +1211,11 @@ async function writeProviderScopeAndFindings(
       scopeOverrides,
     ),
   );
-  await writeJson(cwd, ".ephemeral/topic-findings.json", findings);
+  await writeJson(
+    cwd,
+    ".ephemeral/topic-findings.json",
+    currentReviewFixture(findings, headSha),
+  );
 }
 
 async function writeApprovedPayloadFiles(
@@ -2209,7 +2214,11 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
           runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
         ).resolves.toEqual({ exitCode: 0, stdout: "", stderr: "" });
 
-        await writeJson(cwd, ".ephemeral/topic-findings.json", findings);
+        await writeJson(
+          cwd,
+          ".ephemeral/topic-findings.json",
+          currentReviewFixture(findings, headSha),
+        );
         await expect(
           runReviewArtifactsCommand(providerDiffAnchorArgs(headSha, baseSha)),
         ).resolves.toEqual({ exitCode: 0, stdout: "", stderr: "" });

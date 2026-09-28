@@ -23,6 +23,24 @@ route effort, tools, sandbox, network, source default, and external default.
 This policy consumes that envelope and records the complete D1-D18 route tuple;
 it does not add a source-level Codex model or effort default.
 
+## Review Route Contract
+
+[ADR-0038](../adr/adr-0038-single-reviewer-targeted-verification.md) replaces
+topical fanout with one independent D7 and conditional targeted D10. Both use
+`reviewer`, frontier/high, source-immutable, external authority none,
+response-only, zero handoffs and fresh history. The existing configured
+capability binding, tools, sandbox, exact-pair checks, dispatch ritual, and
+source-protection lifecycle are unchanged.
+
+D7 covers baseline quality/data safety and all applicable architecture, spec,
+documentation, examples, platform and external-invocation checks. D10 covers
+only consequential, disputed or uncertain Blocking candidates. The
+[workflow contract](../../skills/play-review/references/single-reviewer-contract.md)
+owns exact triggers, terminals, evidence and failure handling. Missing required
+coverage or verification cannot approve. D8 and D9 are retired: reject old
+requests rather than aliasing them. Their checks move into D7; D18 and all
+other routes remain unchanged. Neither review child delegates or mutates.
+
 ## Closed Classifications
 
 ### Cognitive demand and stance
@@ -122,10 +140,8 @@ existing response contract.
 | D4  | Focused specialist — `play-agent-dispatch`                                            | Resolve exactly one of the six semantic roles before spawn; use its exact configured capability/effort and matching source default; declare scope/termination; external authority `none`                   | Source-immutable selection is response-only under B3; unresolved route blocks                                                 |
 | D5  | Plan review — `play-planning`                                                         | `reviewer`, frontier/high, source-immutable                                                                                                                                                                | Distinct digest-bound PASS/FAIL; join paired results for one digest                                                           |
 | D6  | Executability review — `play-planning`                                                | `reviewer`, frontier/high, source-immutable                                                                                                                                                                | Distinct digest-bound PASS/FAIL; join paired results for one digest                                                           |
-| D7  | Code-quality topical — `play-review` Phase 3                                          | `reviewer`, frontier/high, source-immutable                                                                                                                                                                | Workflow-owned terminal disposition; controller aggregates completed findings                                                 |
-| D8  | Architecture topical — `play-review` Phase 3                                          | `reviewer`, frontier/high, source-immutable                                                                                                                                                                | Workflow-owned terminal disposition; controller aggregates completed triggered findings                                       |
-| D9  | Spec topical — `play-review` Phase 3                                                  | `reviewer`, frontier/high, source-immutable                                                                                                                                                                | Workflow-owned terminal disposition; controller aggregates completed triggered findings                                       |
-| D10 | Critic — `play-review` Phase 5                                                        | `reviewer`, frontier/high, source-immutable                                                                                                                                                                | Workflow-owned terminal disposition; controller retains critic verdicts; no recursion                                         |
+| D7  | Complete independent review — `play-review` Phase 3                                   | `reviewer`, frontier/high, source-immutable                                                                                                                                                                | Workflow-owned terminal disposition; controller aggregates completed findings                                                 |
+| D10 | Targeted verifier — `play-review` Phase 5                                             | `reviewer`, frontier/high, source-immutable                                                                                                                                                                | Workflow-owned terminal disposition; controller retains critic verdicts; no recursion                                         |
 | D11 | Skill pressure scenario — `play-skill-authoring`                                      | `assessor`, balanced/medium, source-immutable                                                                                                                                                              | Existing scenario evidence; invalid evidence retested                                                                         |
 | D12 | Default implementation — `play-subagent-execution`                                    | `implementer`, balanced/high, source-mutable                                                                                                                                                               | Existing status/snapshot; scoped commit                                                                                       |
 | D13 | Exact task — `play-subagent-execution`                                                | `executor`, efficient/medium, source-mutable, selection-mode `inline-or-delegated`                                                                                                                         | Five guardrails; stop/reclassify on judgment                                                                                  |
@@ -158,8 +174,6 @@ it does not replace any route's workflow-local dispatch or termination owner.
 | D5  | opt-out        | none       |
 | D6  | opt-out        | none       |
 | D7  | opt-out        | none       |
-| D8  | opt-out        | none       |
-| D9  | opt-out        | none       |
 | D10 | opt-out        | none       |
 | D11 | opt-out        | none       |
 | D12 | opt-out        | none       |

@@ -12,6 +12,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { cleanupTempDir } from "../__test-helpers__/fixtures.js";
+import { currentReviewFixture } from "../__test-helpers__/review-evidence.js";
 
 const execFileAsync = promisify(execFile);
 const helperScript = path.join(
@@ -170,7 +171,17 @@ function parseKeyValues(stdout: string) {
 
 async function writeJson(cwd: string, relPath: string, value: unknown) {
   await mkdir(path.dirname(path.join(cwd, relPath)), { recursive: true });
-  await writeFile(path.join(cwd, relPath), JSON.stringify(value, null, 2));
+  await writeFile(
+    path.join(cwd, relPath),
+    JSON.stringify(
+      currentReviewFixture(
+        value,
+        /([a-f0-9]{40})/.exec(relPath)?.[1] ?? "a".repeat(40),
+      ),
+      null,
+      2,
+    ),
+  );
 }
 
 async function writeEmptyFindings(cwd: string, headSha: string) {
@@ -195,7 +206,7 @@ function reviewFinding(overrides: Record<string, unknown> = {}) {
     anchor: "natural",
     why: "The value is wrong.",
     recommendation: "Use the correct value.",
-    body: "**Blocking | Logic** - The value is wrong.\n\n**Recommendation:** Use the correct value.",
+    body: "**Blocking | Logic** — The value is wrong.\n\n**Recommendation:** Use the correct value.",
     ...overrides,
   };
 }
@@ -604,6 +615,60 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
     }
   });
 
+  it.each([false, true])(
+    "binds v3 skipped verification and incomplete review to approval v2: %s",
+    async (incomplete) => {
+      const { cwd, headSha } = await makeGitWorkspace();
+      try {
+        const decisionPath = scopePath(headSha);
+        const summaryPath = approvalSummaryPath(headSha);
+        const findingsFile = findingsPath(headSha);
+        await writeJson(
+          cwd,
+          decisionPath,
+          initialScope("main", headSha, {
+            full_range: "main...HEAD",
+            selected_range: "main...HEAD",
+            candidate_narrow_range: "main...HEAD",
+            selection_reason: "not-followup",
+          }),
+        );
+        await writeJson(cwd, findingsFile, {
+          schema: "play-review/findings/v3",
+          review_head_sha: headSha,
+          findings: [],
+          carry_forward: [],
+          prior_dispositions: [],
+          incomplete_review_routes: incomplete
+            ? [{ route: "D7", disposition: "NEEDS_CONTEXT" }]
+            : [],
+          verification: {
+            state: "not-required",
+            selected_ids: [],
+            reason: "No blocking triggers",
+          },
+        });
+        await runHelper(cwd, helperScript, "write-approval-summary", {
+          HEAD_SHA: headSha,
+          BASE: "main",
+          FULL_DIFF_RANGE: "main...HEAD",
+          ACTIVE_DIFF_RANGE: "main...HEAD",
+          SCOPE_DECISION_FILE: decisionPath,
+          FINDINGS_FILE: findingsFile,
+          APPROVAL_SUMMARY_FILE: summaryPath,
+        });
+        await expect(readJson(cwd, summaryPath)).resolves.toMatchObject({
+          schema: "branch-review/approval-summary/v2",
+          verification_state: "not-required",
+          terminal_state: incomplete ? "blocked" : "approved",
+          incomplete_topical_count: incomplete ? 1 : 0,
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+
   it("prepares, writes, validates, and announces an approval summary after linked evidence is available", async () => {
     const { cwd, headSha } = await makeGitWorkspace();
     try {
@@ -642,7 +707,7 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
       });
 
       await expect(readJson(cwd, summaryPath)).resolves.toMatchObject({
-        schema: "branch-review/approval-summary/v1",
+        schema: "branch-review/approval-summary/v2",
         surface: "branch-review",
         review_head_sha: headSha,
         base_ref: "main",
@@ -733,7 +798,7 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         findings: [],
         carry_forward: [],
         incomplete_topical_routes: [
-          { route: "D8", disposition: "NEEDS_CONTEXT" },
+          { route: "D7", disposition: "NEEDS_CONTEXT" },
         ],
       });
 
@@ -827,8 +892,8 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
       );
       for (const incompleteRoute of [
         { route: "D7", disposition: "FAILED" },
-        { route: "D8", disposition: "NEEDS_CONTEXT" },
-        { route: "D9", disposition: "CONTROLLER_OBSERVED_FAILURE" },
+        { route: "D7", disposition: "NEEDS_CONTEXT" },
+        { route: "D7", disposition: "CONTROLLER_OBSERVED_FAILURE" },
       ]) {
         await writeJson(cwd, findingsFile, {
           schema: "play-review/findings/v2",

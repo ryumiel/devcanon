@@ -78,26 +78,6 @@ const FRESH_SPAWNS = [
     "D7_PROMPT",
   ],
   [
-    "D8",
-    "play-review",
-    "reviewer",
-    "frontier",
-    "D8_MODEL",
-    "high",
-    "source-immutable",
-    "D8_PROMPT",
-  ],
-  [
-    "D9",
-    "play-review",
-    "reviewer",
-    "frontier",
-    "D9_MODEL",
-    "high",
-    "source-immutable",
-    "D9_PROMPT",
-  ],
-  [
     "D10",
     "play-review",
     "reviewer",
@@ -236,14 +216,16 @@ describe("agent routing and mutation policy owner", () => {
       sourceSkills,
     );
     expect(owner.directChildRoutes.map((row) => row.id)).toEqual(
-      Array.from({ length: 18 }, (_, index) => `D${index + 1}`),
+      Array.from({ length: 18 }, (_, index) => `D${index + 1}`).filter(
+        (id) => id !== "D8" && id !== "D9",
+      ),
     );
     expect(owner.escalationAdoptionInventory).toEqual(
       Array.from({ length: 18 }, (_, index) => ({
         id: `D${index + 1}`,
         state: "opt-out",
         transition: "none",
-      })),
+      })).filter((row) => row.id !== "D8" && row.id !== "D9"),
     );
   });
 

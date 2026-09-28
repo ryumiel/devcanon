@@ -311,6 +311,10 @@ Quick navigation index for the DevCanon repository.
 - Where is the shared issue priming workflow? -> [`skills/issue-priming-workflow/SKILL.md`](skills/issue-priming-workflow/SKILL.md)
 - Where is shared PR title/body authoring policy? -> [`skills/pr-authoring/SKILL.md`](skills/pr-authoring/SKILL.md)
 - Where is the shared review pipeline? -> [`skills/play-review/SKILL.md`](skills/play-review/SKILL.md)
+- Where is the single-reviewer contract? ->
+  [`skills/play-review/references/single-reviewer-contract.md`](skills/play-review/references/single-reviewer-contract.md)
+  (decision in
+  [`ADR-0038`](docs/adr/adr-0038-single-reviewer-targeted-verification.md)).
 - Where is the GitHub PR review wrapper? ->
   [`skills/pr-review/SKILL.md`](skills/pr-review/SKILL.md)
 - Where is the PR review handoff/result manifest helper? ->

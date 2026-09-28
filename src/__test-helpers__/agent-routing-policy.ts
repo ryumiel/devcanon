@@ -783,7 +783,7 @@ function assertDirectRouteCoverage(
   const expected: readonly `D${number}`[] = Array.from(
     { length: 18 },
     (_, index) => `D${index + 1}` as const,
-  );
+  ).filter((id) => id !== "D8" && id !== "D9");
   const actual = new Set(routes.map((row) => row.id));
   const missing = expected.filter((id) => !actual.has(id));
   const unexpected = routes
@@ -791,7 +791,7 @@ function assertDirectRouteCoverage(
     .filter((id) => !expected.includes(id));
   if (missing.length > 0 || unexpected.length > 0) {
     throw new Error(
-      `Agent routing policy owner direct-route ID coverage must be exactly D1-D18; missing: ${missing.join(", ") || "none"}; unexpected: ${unexpected.join(", ") || "none"}`,
+      `Agent routing policy owner direct-route ID coverage must be D1-D18 except retired D8/D9; missing: ${missing.join(", ") || "none"}; unexpected: ${unexpected.join(", ") || "none"}`,
     );
   }
 }
@@ -802,7 +802,7 @@ function assertEscalationAdoptionCoverage(
   const expected: readonly `D${number}`[] = Array.from(
     { length: 18 },
     (_, index) => `D${index + 1}` as const,
-  );
+  ).filter((id) => id !== "D8" && id !== "D9");
   const actual = new Set(rows.map((row) => row.id));
   const missing = expected.filter((id) => !actual.has(id));
   const unexpected = rows
@@ -810,7 +810,7 @@ function assertEscalationAdoptionCoverage(
     .filter((id) => !expected.includes(id));
   if (missing.length > 0 || unexpected.length > 0) {
     throw new Error(
-      `Agent routing policy owner escalation-adoption ID coverage must be exactly D1-D18; missing: ${missing.join(", ") || "none"}; unexpected: ${unexpected.join(", ") || "none"}`,
+      `Agent routing policy owner escalation-adoption ID coverage must be D1-D18 except retired D8/D9; missing: ${missing.join(", ") || "none"}; unexpected: ${unexpected.join(", ") || "none"}`,
     );
   }
 }

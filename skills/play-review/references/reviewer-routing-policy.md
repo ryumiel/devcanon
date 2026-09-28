@@ -3,34 +3,20 @@
 This reference expands the Phase 2.75 and Phase 3 routing rules. `SKILL.md`
 keeps the hard rules and fail-closed defaults eager.
 
-## Semantic Routes Preserve Existing Selection
+## One independent review route
 
-These trigger rules select D7-D9 without changing their prompts, maximum-three
-cap, parallel aggregation, or missing-topical fallback. Every selected topical
-route uses `reviewer`, frontier/high, source-immutable, response-only, and zero
-handoffs. D7 remains the always-on `Code-quality` prompt; D8 remains the
-risk-triggered `Architecture` prompt; D9 remains the risk-triggered `Spec`
-prompt. Their review questions stay distinct even though the semantic role is
-shared.
+D7 is the only review child: `reviewer`, frontier/high, source-immutable,
+response-only, zero handoffs, fresh `fork_turns: "none"`. D8 and D9 are
+retired identifiers and must not dispatch. Their full checks below are D7
+coverage obligations. Risk selects checks, never more topical agents.
+D7 uses already-rendered `D7_MODEL`; D10 uses already-rendered `D10_MODEL`.
+Both follow the
+source-guard/dispatch lifecycle in `SKILL.md`; missing or mismatched bindings
+block before capture without substitution. D18 remains unchanged.
 
-For every selected D7-D9 child, the controller consumes the owner-supplied
-already-rendered `D7_MODEL`, already-rendered `D8_MODEL`, or already-rendered
-`D9_MODEL` binding, keeps the route-owned `high` effort independent, validates
-the complete tuple and self-contained prompt, and creates exactly one fresh
-`reviewer` with that model, effort, and `fork_turns: "none"`. A missing, blank,
-unresolved, or mismatched binding blocks before capture or spawn; no
-source-checkout lookup, fallback model, effort change, retry, escalation, or
-role substitution is permitted.
-
-D10 remains a separate `reviewer`, frontier/high critic route after
-topical aggregation. It preserves the existing verdict and unverified-fallback
-contracts and never recursively dispatches another reviewer or critic. Every
-selected D7-D10 route independently uses the no-handoff GUARD-001 lifecycle in
-`SKILL.md`; the guard changes neither a topical trigger nor a critic verdict.
-
-D10 consumes the owner-supplied already-rendered `D10_MODEL` binding while its
-route-owned effort remains `high`; its complete critic prompt and fresh
-`fork_turns: "none"` creation are owned by `SKILL.md`.
+D10 is a separate targeted `reviewer`, frontier/high, only for consequential,
+disputed, or uncertain Blocking claims under `single-reviewer-contract.md`.
+Required failure is incomplete review, not successful skipped verification.
 
 ## Guarded Tiny-Diff Mode
 
@@ -42,7 +28,7 @@ Tiny-diff mode activates only when all are true for `active_diff_range`:
 4. No high-risk disqualifier is present.
 5. `is_followup_narrow` is **false**.
 
-If any check is ambiguous, fall back to full risk-triggered routing.
+If any check is ambiguous, fall back to full conditional coverage.
 
 Low-risk allowlist:
 
@@ -65,7 +51,7 @@ High-risk disqualifiers:
 - changed shell commands, external-invocation examples, path-validation guards,
   critic rules, or core-review rules;
 - changed reviewer-routing policy such as thresholds, allowlists,
-  disqualifiers, risk-triggered reviewer triggers, or follow-up override
+  disqualifiers, conditional check triggers, or follow-up override
   behavior;
 - any follow-up narrow diff.
 
@@ -78,9 +64,9 @@ Small-but-risky example: a 6-line edit in `skills/play-review/SKILL.md` that
 changes a path-validation guard or a `gh` command example. Result: full
 risk-triggered path.
 
-## Architecture Reviewer Trigger
+## Architecture Check Trigger
 
-Spawn when the active diff or full-PR routing summary includes
+Include these D7 checks when the active diff or full-PR routing summary includes
 architecture-routing risks: dependency manifests, config, major entry points,
 `docs/adr/**`, `docs/arch/**`, `MAP.md`, `AGENTS.md`, `agents/**`, `skills/**`
 workflow policy, generated/source ownership changes, module-boundary changes,
@@ -92,14 +78,13 @@ contract changes, and AFDS v2 ADR coverage.
 ### Architecture override
 
 When `is_followup_narrow == true` and `ARCHITECTURE_ROUTING_RISKS` or
-`ARCH_FILES` from the Phase 2 full-PR routing summary is non-empty, always spawn
-Architecture even when the active diff alone would not trigger it. The active
+`ARCH_FILES` from the Phase 2 full-PR routing summary is non-empty, always include architecture checks even when the active diff alone would not trigger it. The active
 diff stays incremental, but ADR coverage and architecture routing checks apply
 to the full PR, not just the incremental diff.
 
-## Spec Reviewer Trigger
+## Spec Check Trigger
 
-Spawn when the active diff or full-PR routing summary includes spec-routing
+Include these D7 checks when the active diff or full-PR routing summary includes spec-routing
 risks: docs/spec/API/user-facing behavior, CLI/operator guidance, examples,
 public config schemas, files referenced by existing docs, or prose that changes
 a documented pattern's canonical direction.
@@ -110,14 +95,14 @@ operator guidance, identifier drift, and spec accuracy.
 ### Spec override
 
 When `is_followup_narrow == true` and `SPEC_ROUTING_RISKS` from the Phase 2
-full-PR routing summary is non-empty, always spawn Spec even when the active
+full-PR routing summary is non-empty, always include spec checks even when the active
 diff alone would not trigger it. The active diff stays incremental, but spec,
 documentation, API, examples, and operator-guidance checks apply to the full PR,
 not just the incremental diff.
 
 ## ADR Coverage Rubric
 
-When Architecture fires, include the doc-impact summary and full-PR routing
+When architecture checks apply, include the doc-impact summary and full-PR routing
 summary in its briefing:
 
 - Durable decision plus new covering `docs/adr/adr-NNNN-*.md`: pass.

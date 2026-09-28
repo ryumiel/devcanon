@@ -442,7 +442,7 @@ In particular, D14 and D15 keep the task incomplete and return `BLOCKED`
 without a passing verdict; D16 keeps final review incomplete and never enters
 branch finish; and a failed D17 diagnosis performs no fix, push, or merge and
 does not increment the retry count. D18 stops before shared-context construction
-and topical fanout without controller summarization or partial context. Only
+and D7 completion without controller summarization or partial context. Only
 source mutation or cleanup failure is a guard-integrity terminal condition.
 
 ### EVID-001: Minimum Evidence Pointer
@@ -721,7 +721,7 @@ resolution recommendation.
   never repaired, and the minimum guard's limitations remain explicit.
 - D14-D18 use the named fail-closed dispositions without inventing a passing
   verdict, retry increment, fix, push, merge, or branch-finish transition; D18
-  stops before shared-context construction and D7-D9 fanout.
+  stops before shared-context construction and D7 review.
 
 ## Verification Expectations
 

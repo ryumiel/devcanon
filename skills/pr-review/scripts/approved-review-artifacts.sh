@@ -480,6 +480,12 @@ compare_payload_with_support() {
 assert_findings_envelope() {
   local file="$1"
   require_jq
+  if [ "$(jq -r '.schema' "$file")" = "play-review/findings/v3" ]; then
+    local helper
+    helper="$(resolve_play_review_helper)"
+    FINDINGS_FILE="$file" bash "$helper" validate-findings
+    return
+  fi
   jq -e '
     def one_of($values; $value): ($values | index($value)) != null;
     def positive_integer:

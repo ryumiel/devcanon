@@ -19,6 +19,7 @@ import {
   canCreateSymlinks,
   cleanupTempDir,
 } from "../__test-helpers__/fixtures.js";
+import { currentReviewFixture } from "../__test-helpers__/review-evidence.js";
 
 const execFileAsync = promisify(execFile);
 const symlinkAvailable = await canCreateSymlinks();
@@ -165,7 +166,17 @@ function prReviewInitialScope(
 }
 
 async function writeJson(cwd: string, relPath: string, value: unknown) {
-  await writeFile(path.join(cwd, relPath), JSON.stringify(value, null, 2));
+  await writeFile(
+    path.join(cwd, relPath),
+    JSON.stringify(
+      currentReviewFixture(
+        value,
+        /([a-f0-9]{40})/.exec(relPath)?.[1] ?? headSha,
+      ),
+      null,
+      2,
+    ),
+  );
 }
 
 async function canonicalGitDiffRaw(
@@ -1675,7 +1686,7 @@ describe.skipIf(!jqAvailable)(
               REVIEW_PAYLOAD_FILE: payloadFile,
             }),
           ).rejects.toMatchObject({
-            stderr: expect.stringContaining("findings schema mismatch"),
+            stderr: expect.stringContaining("envelope schema mismatch"),
           });
         }
 
@@ -1715,7 +1726,7 @@ describe.skipIf(!jqAvailable)(
             APPROVED_REVIEW_FILE: approvedReviewFile,
           }),
         ).rejects.toMatchObject({
-          stderr: expect.stringContaining("findings schema mismatch"),
+          stderr: expect.stringContaining("envelope schema mismatch"),
         });
       } finally {
         await cleanupTempDir(cwd);

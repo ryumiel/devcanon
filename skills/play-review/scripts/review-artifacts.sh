@@ -174,13 +174,29 @@ assert_readable_envelope() {
         .incomplete_topical_routes as $routes
         | ($routes | map(.route) | unique | length) == ($routes | length)
       );
-    .schema == "play-review/findings/v2"
+    (.schema == "play-review/findings/v2" or .schema == "play-review/findings/v3")
     and (.findings | type == "array")
     and (.carry_forward | type == "array")
-    and valid_incomplete_topical_routes
+    and (if .schema == "play-review/findings/v3" then true else valid_incomplete_topical_routes end)
     and ((.findings + .carry_forward) | all(.[]; valid_finding))
   ' "$file" >/dev/null || {
     echo "envelope schema mismatch or envelope shape mismatch: $file" >&2
+    exit 1
+  }
+  if [ "$(jq -r '.schema' "$file")" = "play-review/findings/v3" ]; then
+    local helper_dir
+    helper_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+    jq -e -f "$helper_dir/targeted-review-evidence.jq" "$file" >/dev/null || {
+      echo "envelope schema mismatch or envelope shape mismatch: targeted review evidence validation failed: $file" >&2
+      exit 1
+    }
+  fi
+
+}
+
+require_current_envelope() {
+  jq -e --arg head "$HEAD_SHA" '.schema == "play-review/findings/v3" and .review_head_sha == $head' "$1" >/dev/null || {
+    echo "current publication requires head-bound play-review/findings/v3 evidence" >&2
     exit 1
   }
 }
@@ -358,6 +374,7 @@ publish_findings() {
     exit 1
   }
   assert_readable_envelope "staged findings file" "$staging_file"
+  require_current_envelope "$staging_file"
 
   [ -L .ephemeral ] && {
     echo ".ephemeral must be a directory, not a symlink" >&2
@@ -503,9 +520,9 @@ render_entry() {
   start_line="$(jq -r '.start_line' <<<"$entry_json")"
   severity="$(jq -r '.severity' <<<"$entry_json")"
   category="$(jq -r '.category' <<<"$entry_json")"
-  critic="$(jq -r 'if .critic != null then .critic elif .severity == "Nit" then "(not recorded)" else "(unverified — critic unavailable)" end' <<<"$entry_json")"
+  critic="$(jq -r 'if .critic != null then .critic elif .assessment.verification == "not-required" then "(not required — unverified)" elif .severity == "Nit" then "(not recorded)" else "(unverified — critic unavailable)" end' <<<"$entry_json")"
   anchor="$(jq -r '.anchor' <<<"$entry_json")"
-  body="$(jq -r '.body' <<<"$entry_json")"
+  body="$(jq -r 'if .critic == "DOWNGRADE" then "**Nit | " + .category + "** — " + .why + "\n\n**Recommendation:** " + .recommendation else .body end' <<<"$entry_json")"
   if [ "${REVIEW_SURFACE:-}" = "pr-review" ] && [ "$anchor" = "missing-file" ]; then
     body="$(printf 'Missing-file finding (no natural anchor — see body):\n\n%s' "$body")"
   fi
@@ -521,7 +538,11 @@ render_entry() {
   printf -- '- **Severity:** %s\n' "$severity"
   printf -- '- **Category:** %s\n' "$category"
   printf -- '- **Critic:** %s\n' "$critic"
-  printf -- '- **Anchor:** %s\n\n' "$anchor"
+  printf -- '- **Anchor:** %s\n' "$anchor"
+  if jq -e '.assessment != null' <<<"$entry_json" >/dev/null; then
+    jq -r '"- **Evidence:** " + .assessment.state + "; assessed " + .assessment.assessed_head_sha + (if .assessment.reuse_checked_head_sha != null then "; reuse checked " + .assessment.reuse_checked_head_sha else "" end)' <<<"$entry_json"
+  fi
+  printf '\n'
   render_source_snippet "$entry_path" "$line" "$start_line"
   printf '\n#### Rendered Finding Body\n\n'
   printf '%s\n\n' "$body"
@@ -535,7 +556,7 @@ build_review_body() {
   fi
   out_of_diff="$(jq -r '
     (.findings + .carry_forward)
-    | map(select(.anchor == "out-of-diff") | .body)
+    | map(select(.anchor == "out-of-diff") | (if .critic == "DOWNGRADE" then "**Nit | " + .category + "** — " + .why + "\n\n**Recommendation:** " + .recommendation else .body end))
     | if length == 0 then empty
       else "## Out-of-diff Findings\n\n" + join("\n\n")
       end
@@ -623,6 +644,7 @@ build_github_review_payload() {
   require_env FINDINGS_FILE
   validate_findings_path_shape "$FINDINGS_FILE"
   assert_readable_envelope "findings file" "$FINDINGS_FILE"
+  require_current_envelope "$FINDINGS_FILE"
   validate_review_surface
   [ "$REVIEW_SURFACE" = "pr-review" ] || {
     echo "build-github-review-payload requires REVIEW_SURFACE=pr-review" >&2
@@ -630,6 +652,12 @@ build_github_review_payload() {
   }
   validate_review_body_file
   validate_review_event
+  if [ "$REVIEW_EVENT" = "APPROVE" ] && [ "$(jq -r '.schema' "$FINDINGS_FILE")" = "play-review/findings/v3" ]; then
+    jq -e '(.incomplete_review_routes | length) == 0 and ((.findings + .carry_forward) | all(.[]; .severity != "Blocking" or .critic == "INVALID" or .critic == "DOWNGRADE"))' "$FINDINGS_FILE" >/dev/null || {
+      echo "incomplete or blocking review cannot approve" >&2
+      exit 1
+    }
+  fi
   validate_inline_source_anchors
   review_body="$(build_review_body)"
   jq -n \
@@ -650,9 +678,9 @@ build_github_review_payload() {
             start_line,
             side: "RIGHT",
             body: (if .anchor == "missing-file" then
-              "Missing-file finding (no natural anchor — see body):\n\n" + .body
+              "Missing-file finding (no natural anchor — see body):\n\n" + (if .critic == "DOWNGRADE" then "**Nit | " + .category + "** — " + .why + "\n\n**Recommendation:** " + .recommendation else .body end)
             else
-              .body
+              (if .critic == "DOWNGRADE" then "**Nit | " + .category + "** — " + .why + "\n\n**Recommendation:** " + .recommendation else .body end)
             end)
           } | if .start_line == null then del(.start_line) else . + {start_side: "RIGHT"} end)
       )
@@ -733,12 +761,17 @@ prepare_judgment_nits() {
         .
       end;
     . as $envelope
-    | {
+    | if .schema == "play-review/findings/v3" then
+      .findings = (selected_indexes | map(. as $index | $envelope.findings[$index]))
+      | .carry_forward = []
+      | .verification.selected_ids = [.findings[] | select(.assessment.selection != "none") | .id]
+      | if (.verification.selected_ids | length) == 0 then .verification = {state: "not-required", selected_ids: [], reason: "Report-only nit selection"} else . end
+    else {
       schema: "play-review/findings/v2",
       findings: (selected_indexes | map(. as $index | $envelope.findings[$index] | normalize_downgrade)),
       carry_forward: [],
       incomplete_topical_routes: $envelope.incomplete_topical_routes
-    }
+    } end
   ' "$FINDINGS_FILE" >"$tmp_file"
   mv "$tmp_file" "$nits_pending_file"
   trap - EXIT

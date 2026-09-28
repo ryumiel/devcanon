@@ -24,8 +24,6 @@ const FIXED_ROUTE_OWNER_CONTRACT = [
   ["D5", "play-planning"],
   ["D6", "play-planning"],
   ["D7", "play-review"],
-  ["D8", "play-review"],
-  ["D9", "play-review"],
   ["D10", "play-review"],
   ["D11", "play-skill-authoring"],
   ["D12", "play-subagent-execution"],
@@ -200,8 +198,6 @@ describe("shipped skill rendering", () => {
       ["play-planning", "D5_MODEL", "frontier"],
       ["play-planning", "D6_MODEL", "frontier"],
       ["play-review", "D7_MODEL", "frontier"],
-      ["play-review", "D8_MODEL", "frontier"],
-      ["play-review", "D9_MODEL", "frontier"],
       ["play-review", "D10_MODEL", "frontier"],
       ["play-skill-authoring", "D11_MODEL", "balanced"],
       ["play-subagent-execution", "D12_MODEL", "balanced"],
@@ -259,9 +255,9 @@ describe("shipped skill rendering", () => {
     const referenceContracts = [
       {
         path: "play-review/references/reviewer-routing-policy.md",
-        bindings: ["D7_MODEL", "D8_MODEL", "D9_MODEL", "D10_MODEL"],
+        bindings: ["D7_MODEL", "D10_MODEL"],
         failClosed:
-          "A missing, blank, unresolved, or mismatched binding blocks before capture or spawn; no source-checkout lookup, fallback model, effort change, retry, escalation, or role substitution is permitted.",
+          "missing or mismatched bindings block before capture without substitution.",
       },
       {
         path: "play-subagent-execution/references/implementer-prompt.md",
@@ -381,10 +377,10 @@ describe("shipped skill rendering", () => {
       const { body: playReview } = parseFrontmatter(
         getSkillOutput(outputs, "play-review", target).content,
       );
-      expect(playReview).toContain(
-        "D10 is one response-only `reviewer`, frontier/high and source-immutable",
-      );
-      expect(playReview).toContain("`semantic_role: reviewer`");
+      expect(playReview).toContain("fresh, independent response-only D10");
+      expect(playReview).toContain("D8 and D9 are retired");
+      expect(playReview).not.toContain("model: D8_MODEL");
+      expect(playReview).not.toContain("model: D9_MODEL");
       expect(playReview).toContain(d10Spawn);
       expect(playReview).toContain(config.capabilityProfiles.frontier.codex);
       expect(playReview).not.toContain(

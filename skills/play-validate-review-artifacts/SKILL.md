@@ -29,7 +29,7 @@ to executable mechanics for review-artifact contracts, including schema checks, 
 artifact facts, scope range invariants, follow-up SHA usability, changed-file
 and language-hint derivation, escalation reasons, diff-anchor validation, and
 approved-review payload equivalence. It also owns deterministic validation and
-gate-result interpretation for `branch-review/approval-summary/v1`; approval
+gate-result interpretation for `branch-review/approval-summary/v2`; approval
 summary artifacts store `terminal_state`, never `gate_passed`.
 
 The script does not own:
@@ -37,7 +37,7 @@ The script does not own:
 - human review workflow entry points;
 - review finding judgment, severity, category, or critic decisions;
 - GitHub posting or thread-resolution approval;
-- `play-review/findings/v2` envelope production;
+- `play-review/findings/v3` envelope production;
 - a general shared runtime utility model for unrelated skills.
 
 This support skill is a narrow exception because multiple review surfaces must
@@ -107,7 +107,7 @@ Commands:
 | `validate-prior-threads`    | `pr-review`                               | Validates normalized GitHub prior-thread artifacts and shared review-thread invariants.                                                                                        |
 | `validate-diff-anchors`     | `pr-review`                               | Validates that postable inline anchors target right-side lines in the selected review diff.                                                                                    |
 | `compare-approved-payload`  | `pr-review` approved-review artifact flow | Regenerates the expected approved-review payload from validated scope and findings inputs and compares it to the supplied payload.                                             |
-| `validate-approval-summary` | `branch-review` approval-summary flow     | Validates a `branch-review/approval-summary/v1` artifact, linked scope-decision and findings evidence, counts, digests, reviewed head, and terminal-state gate interpretation. |
+| `validate-approval-summary` | `branch-review` approval-summary flow     | Validates a `branch-review/approval-summary/v2` artifact, linked scope-decision and findings evidence, counts, digests, reviewed head, and terminal-state gate interpretation. |
 | `validate-risk-signals`     | `branch-review` risk-signal handoff       | Validates a `branch-review/risk-signals/v1` artifact from `play-subagent-execution` before branch-review may use it as non-authoritative escalation context.                   |
 
 Every command that validates or consumes a scope decision receives the same

@@ -2,7 +2,7 @@
 
 The [review-artifacts usage](review-artifacts-usage.md) owns helper invocation,
 I/O, path guards, and refusal mechanics. This reference owns the
-`play-review/findings/v2` envelope lifecycle and schema.
+`play-review/findings/v3` envelope lifecycle and schema.
 
 Before a findings-file action, resolve the installed `play-review` bundle and
 discover the executable contract locally:
@@ -19,61 +19,38 @@ Natural, missing-file, and out-of-diff anchors remain distinct.
 
 ## Findings File
 
-The canonical schema is `play-review/findings/v2`. Use the helper usage
+The canonical schema is `play-review/findings/v3`. Use the helper usage
 contract before writing, reading, replacing, deriving nits, or publishing a
 caller-authored envelope. `prepare-findings-write` precedes every direct
 envelope write; publication validates a complete replacement before it becomes
 canonical. Consumers validate notice paths before reading or overwriting them.
 
 The envelope contains `schema`, `findings`, `carry_forward`, and required
-`incomplete_topical_routes`. Finding and carry-forward entries retain
+`incomplete_review_routes`. Finding and carry-forward entries retain
 repo-relative path, HEAD-side line/start-line, severity, category, critic,
 anchor, non-empty why and recommendation, and a derived ready-to-post body. The
 schema does not contain evidence code or a side field; consumers reread source.
 
 ### Machine contract
 
-```json
-{
-  "schema": "play-review/findings/v2",
-  "findings": [
-    {
-      "path": "<repo-relative>",
-      "line": 1,
-      "start_line": null,
-      "severity": "Blocking",
-      "category": "Logic",
-      "critic": "VALID",
-      "anchor": "natural",
-      "why": "<non-empty>",
-      "recommendation": "<non-empty>",
-      "body": "**<severity> | <category>** — <why>\n\n**Recommendation:** <recommendation>"
-    }
-  ],
-  "carry_forward": [],
-  "incomplete_topical_routes": [
-    { "route": "D7", "disposition": "NEEDS_CONTEXT" }
-  ]
-}
-```
+The exact additional evidence fields and invariants are owned by
+[single-reviewer-contract.md](single-reviewer-contract.md#artifact-compatibility-decision).
+Every envelope includes `review_head_sha`, `verification`, and
+`prior_dispositions`, even when findings are empty. Each finding includes stable
+identity and assessment provenance. Empty current review uses verification
+`not-required`, empty selected IDs and arrays, and an explicit reason.
 
-`schema` is exactly `play-review/findings/v2`; `findings` and `carry_forward`
-have the same entry shape. `line` is a HEAD-side integer and `start_line` is an
-integer or `null`; severity is `Blocking` or `Nit`; category is `Logic`,
-`Safety`, `Architecture`, `Tests`, `Maintainability`, `Documentation`, or
-`Contracts`; critic is `null` for a `Nit`, while a `Blocking` entry permits
-`null`, `VALID`, `INVALID`, or `DOWNGRADE`; anchor is `natural`, `missing-file`,
-or `out-of-diff`. Each route has unique route `D7`, `D8`, or `D9` and
-disposition `NEEDS_CONTEXT`, `FAILED`, or `CONTROLLER_OBSERVED_FAILURE`. The
-`body` value is derived exactly from that entry's `severity`, `category`, `why`,
-and `recommendation` using the formula above; those fields must agree. The
-canonical empty form is
-`{"schema":"play-review/findings/v2","findings":[],"carry_forward":[],"incomplete_topical_routes":[]}`.
+Existing presentation fields remain: HEAD-side positive `line`, optional/null
+`start_line`, Blocking/Nit `severity`, existing category, `critic`, anchor,
+nonblank why/recommendation, and body derived exactly as
+`**<severity> | <category>** — <why>\n\n**Recommendation:** <recommendation>`.
+Nit critic is null; selected blockers preserve VALID/INVALID/DOWNGRADE transport.
+The shell helper and runtime validators enforce targeted evidence before use.
 
 ## Write Rules
 
 Write even the canonical empty envelope. A non-empty
-`incomplete_topical_routes` blocks linked branch-review approval and is never
+`incomplete_review_routes` blocks linked branch-review approval and is never
 rendered as a finding or critic input. Do not append. The prepared target is
 not an envelope write. A caller-authored replacement uses the public
 publication boundary; direct prompt-controlled writes never substitute for its
