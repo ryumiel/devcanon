@@ -656,11 +656,20 @@ then continue to combined review.
 
 Immediately before each combined review pass and every handoff, validate the
 saved plan path as a guarded readable regular file, compute SHA-256 over its
-exact bytes, and validate the lowercase 64-hex digest. Run the existing
-`inspect-plan-projection.sh --path <repo-relative-plan-path>` preflight before
-capture or dispatch; malformed, stale, unreadable, or inconsistent projection
-output stops the route. Rehash after inspection, after guard cleanup, and
-immediately before handoff. A changed byte invalidates all prior approval.
+exact bytes, and validate the lowercase 64-hex digest. Resolve
+`PLAY_SUBAGENT_EXECUTION_DIR` from the installed `play-subagent-execution` skill
+bundle, not from the target repository or current working directory. Read its
+[inspect-plan-projection usage](../play-subagent-execution/references/inspect-plan-projection-usage.md)
+for invocation, closed-result validation, and refusal mechanics. From the target
+repository root, run the preflight before capture or dispatch:
+
+```bash
+bash "$PLAY_SUBAGENT_EXECUTION_DIR/scripts/inspect-plan-projection.sh" --path <repo-relative-plan-path>
+```
+
+An unavailable bundle, helper, or usage reference, or any malformed, stale,
+unreadable, or inconsistent projection output stops the route. Rehash after
+inspection, after guard cleanup, and immediately before handoff. A changed byte invalidates all prior approval.
 
 Select the design input before freezing the tuple: a valid `Design: <path>`
 wins whenever both forms were supplied; otherwise preserve the direct

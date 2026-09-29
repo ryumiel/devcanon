@@ -43,10 +43,20 @@ The `*-review-context-input.json` manifest and `*-review-context.md` are future
 Phase 2.5 outputs, so they are not pre-D18 inputs. The required order is:
 preflight existing supplied inputs; verify, validate, and clean D18; use the
 shared-context helper to write the manifest and build the context; validate the
-resulting artifacts; then dispatch D7. Refresh context when source, head,
-policy, authority, or a dirty worktree changes; uncertain semantic impact is
-owned by this review stage and requires broader preparation. The helper remains
-structural only and does not decide semantic relevance.
+resulting artifacts; then dispatch D7.
+
+Freeze resolved base/head identities and both active and full diff ranges with
+D18's inputs, not merely mutable ref names. After D18 cleanup, compare the
+current wrapper-supplied scope and source identities with that frozen tuple
+before constructing the manifest. Once the context is built and immediately
+before D7 dispatch, confirm those identities and both generated artifacts still
+match the same tuple. Refresh preparation when
+source, head, base, either range, policy, authority, or dirty-worktree state
+changes. Scope drift returns to the wrapper for authoritative scope selection;
+do not reselect ranges here. Invalidate affected D18/context evidence and rerun
+preflight and preparation against the newly frozen inputs before D7. Uncertain
+semantic impact requires broader preparation. The helper remains structural
+only and does not decide semantic relevance.
 
 Internal multi-agent code review pipeline. Wrappers gather inputs, select the
 working directory and active diff, and dispose of findings; this skill reviews and emits a local findings envelope.

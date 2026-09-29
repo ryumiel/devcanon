@@ -40,8 +40,8 @@ controller executes the file change inline (Write/Edit + verify + commit),
 skipping the implementer subagent dispatch entirely.
 
 The five conditions (all must hold; #1, #2, #4, and #5 are evaluated at
-execution time by the controller, #3 is an upstream precondition rather
-than a runtime check):
+execution time by the controller; #3 is an upstream semantic precondition
+whose evidence is validated at execution time):
 
 1. **Runtime guardrail.** The plan is single-task.
 2. **Runtime guardrail.** Task 1's header carries `**Mode:** mechanical`
@@ -57,11 +57,16 @@ than a runtime check):
    correctness and executability before `Plan written to <path>.`,
    `Reviewed digest: <sha256>`, and
    `Planning review contract: planning-review/combined-v1` are emitted.
-   The controller does not re-verify this at execution time; direct invocations
-   of `play-subagent-execution` first satisfy the universal canonical Execution
-   Projection gate. A conforming hand-written `FULL` plan with no upstream
-   combined-review return then fails this precondition and falls back to dispatched
-   implementation; a pre-projection plan blocks and returns to planning. The
+   The controller does not repeat the upstream semantic review at execution
+   time. It must validate current exact-byte approval and retained producer
+   provenance under the active
+   [combined-review handoff contract](../../skills/play-planning/references/combined-review-contract.md#handoff-and-compatibility)
+   before relying on this precondition. Invalid reviewed evidence stops the
+   reviewed route; it cannot be downgraded to unreviewed execution. Direct
+   invocations of `play-subagent-execution` first satisfy the universal
+   canonical Execution Projection gate. A conforming hand-written `FULL` plan
+   with no upstream combined-review return then fails this precondition and
+   falls back to dispatched implementation; a pre-projection plan blocks and returns to planning. The
    direct `FULL` route is caller-authorized and structurally validated; it does
    not claim, infer, or synthesize the D5 semantic-completeness assurance of a
    reviewed `play-planning` handoff.

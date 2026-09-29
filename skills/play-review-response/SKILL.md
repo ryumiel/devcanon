@@ -475,12 +475,16 @@ Classification: in-scope product blocker (Writing Skills).
 Mode: Planned execution.
 Action: Apply the canonical `.ephemeral` write guard, write
 `.ephemeral/<date>-review-response-design.md`, invoke `play-planning` with
-`Route: review-response-parent-owned` and `Design: <path>`, wait for both
-planning review gates to pass, capture `Plan written to <path>.` and
-`Reviewed digest: <sha256>`, ask for approval using `{captured-plan-path}`
-replaced with the captured path, wait for approval, rehash the exact saved plan
-bytes, then invoke `play-subagent-execution` with `Plan: <path>` and
-`Expected digest: <sha256>` only when the digest still matches.
+`Route: review-response-parent-owned` and `Design: <path>`. Follow the Plan
+Approval Gate: wait for current combined D5 approval, capture
+`Plan written to <path>.`, `Reviewed digest: <sha256>`, and
+`Planning review contract: planning-review/combined-v1`, and retain validated
+producer provenance. Ask for approval using `{captured-plan-path}` replaced
+with the captured path. After approval and the required exact-byte rehash,
+invoke `play-subagent-execution` with:
+Plan: <path>
+Expected digest: <sha256>
+Planning review contract: planning-review/combined-v1
 ```
 
 Worked inline, no-code, and GitHub-closeout-exclusion scenarios:
