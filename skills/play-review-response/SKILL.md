@@ -350,14 +350,21 @@ The plan approval gate is explicit:
 - `play-planning` returns `Plan written to <path>.` for this route only after
   combined D5 review passes both remits; invalid planning provenance remains
   inside `play-planning` and stops before this approval gate.
-- If the user requests any generated-plan change, route every generated-plan
-  revision back through `play-planning`, including plan self-review and
-  combined D5 review, before renewed approval.
+- If the user requests a generated-plan change, retain the accepted scope and
+  complete D5 pass history, then derive the remaining budget from that history.
+  A PASS from the initial first pass leaves one correction pass; route that edit
+  through `play-planning`, including plan self-review and combined D5 review,
+  before renewed approval. A PASS reached on correction pass two leaves no pass,
+  even when this is the user's first requested edit.
+- When no pass remains, pause the approval loop for the explicit owning
+  reassessment and cycle-reopening decision required by the combined-review
+  contract. Present the exhausted budget and retained scope/pass history; do
+  not dispatch another review until that owner decision explicitly authorizes a
+  new bounded cycle. A user request for another edit is not an implicit reset
+  or reopening.
 - Repeat the user approval loop until the user approves or stops the work.
-  There is no fixed maximum for this human approval loop.
-- Keep the separate `play-planning` agent-review cap out of the user approval
-  gate; that cap governs planning-agent review rounds, not how many times the
-  user may request plan changes before approval.
+  User approval may continue indefinitely, but every edited plan remains
+  subject to the current cycle's D5 pass budget and any required reopening.
 
 ### Planning Input Self-Review
 

@@ -70,22 +70,29 @@ mkdir -p .ephemeral
 ```
 
 After writing the plan artifact, keep the saved path in controller-local state
-while self-review and combined D5 review run. Emit the literal line
-`Plan written to <repo-relative-path>.` followed by the literal line
-`Reviewed digest: <sha256>` only after the applicable review gates have passed
-and the plan is ready for the next handoff. The reviewed digest is the exact
-lowercase 64-hex digest that passed combined D5 and the pre-handoff rehash.
-These two lines are the controller-local handoff contract that parent
-workflows preserve for `play-subagent-execution` — do not reword them or write
-the digest into a persistent artifact.
+while self-review and combined D5 review run. Emit these three literal lines,
+in this order, only after the applicable review gate has passed and the plan is
+ready for the next handoff:
+
+```text
+Plan written to <repo-relative-path>.
+Reviewed digest: <sha256>
+Planning review contract: planning-review/combined-v1
+```
+
+The reviewed digest is the exact lowercase 64-hex digest that passed combined
+D5 and the pre-handoff rehash. These three values are the controller-local
+handoff contract that parent workflows preserve for
+`play-subagent-execution` — do not reword them or write the digest or contract
+tag into a persistent artifact.
 
 After these notices, saved plan artifacts should not be re-inlined or restated
-in controller conversation by default. Carry the plan path and exact reviewed
-digest in controller-local state, plus a short decision summary, unresolved
-blockers if any, and the next gate/action. Preserve both values through any
-interactive execution choice. Inline or display plan content only for a
-specific interactive user review gate or when the user asks to inspect or
-change the plan.
+in controller conversation by default. Carry the plan path, exact reviewed
+digest, and contract tag in controller-local state, plus a short decision
+summary, unresolved blockers if any, and the next gate/action. Preserve all
+three values through any interactive execution choice. Inline or display plan
+content only for a specific interactive user review gate or when the user asks
+to inspect or change the plan.
 
 ## Inputs
 
@@ -655,9 +662,17 @@ capture or dispatch; malformed, stale, unreadable, or inconsistent projection
 output stops the route. Rehash after inspection, after guard cleanup, and
 immediately before handoff. A changed byte invalidates all prior approval.
 
-Freeze one digest-bound tuple containing the exact plan and design paths,
-criteria and readiness results, optional comment evidence, `review_wave` (one
-or two), prior validated gaps, and producer provenance. Load the shared
+Select the design input before freezing the tuple: a valid `Design: <path>`
+wins whenever both forms were supplied; otherwise preserve the direct
+invocation's complete `## Design` payload. Freeze one digest-bound tuple
+containing the exact plan path, the selected design path or preserved inline
+design payload, criteria and readiness paths and results, optional supplied
+comment evidence, `review_wave` (one or two), prior validated gaps, and
+producer provenance. Require only the selected design form: a selected path
+must remain readable and a selected inline payload must remain present. The
+unselected form may be absent. Pass the selected form explicitly to D5 and
+instruct it to read the plan, selected design input, criteria, and readiness
+references before review. Load the shared
 [dispatch ritual](../play-agent-dispatch/references/dispatch-ritual-usage.md),
 then use it with `subagent-lifecycle` and the source-immutability guard in this
 order: capture, fresh D5 dispatch, verify, validate the response, cleanup, then
@@ -708,3 +723,40 @@ Plan: <path>
 Expected digest: <sha256>
 Planning review contract: planning-review/combined-v1
 ```
+
+The three literal values identify a reviewed handoff; they are not persistent
+bearer tokens. Every reviewed consumer validates retained producer provenance,
+the contract tag, and the current exact plan bytes before using them.
+
+## Execution Handoff
+
+For `--auto`, return the three captured values to the parent after the complete
+combined PASS. For `Route: review-response-parent-owned`, return those same
+values to the parent for its separate user-approval gate. Neither route offers
+an execution choice here.
+
+For every other explicit planning invocation, offer this execution choice after
+the complete combined PASS:
+
+```text
+Plan complete and saved to <repo-relative-path>.
+Choose an execution route:
+1. Subagent-driven — invoke play-subagent-execution with fresh task agents and its review routing.
+2. Inline — execute the planned tasks in this session with review checkpoints.
+```
+
+Before either selected route begins execution, rehash the guarded saved plan
+and compare it with the retained reviewed digest, then validate the retained
+combined D5 producer provenance and
+`planning-review/combined-v1` tag. A missing hasher, unreadable plan, malformed
+digest, mismatch, missing provenance, or invalid tag stops execution and
+returns to planning; never replace the expected digest with the current digest.
+
+For the subagent-driven route, invoke `play-subagent-execution` with all three
+literal consumer lines above. It retains its own task-contract validation,
+dispatch/skip-dispatch, and review-routing rules. For the inline route, execute
+the approved tasks sequentially in this session with review checkpoints while
+retaining the same path, digest, tag, and producer provenance. A plan-byte edit
+after PASS invalidates approval on either route: use the remaining combined D5
+pass or stop for the explicit owning reassessment and reopening required by the
+combined-review contract. An execution choice never bypasses that cap.

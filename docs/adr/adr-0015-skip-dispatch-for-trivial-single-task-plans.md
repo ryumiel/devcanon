@@ -7,14 +7,14 @@ Accepted
 ## Note
 
 ADR-0016 later refines the `issue-priming-workflow --auto` single-task
-subset of the path described here. ADR-0023 later updates the upstream
-planning precondition to the two-gate `play-planning` return. The
-behavioral planning-tier decision consumed by guardrail #4 is recorded in
-ADR-0035. The
-skip-dispatch decision in this ADR remains authoritative, but statements below
-that the final whole-implementation reviewer runs on every plan should now be
-read together with ADR-0016, and upstream planning-precondition statements
-should be read together with ADR-0023.
+subset of the path described here. ADR-0039 supersedes only this ADR's
+upstream two-gate planning-precondition statements with the combined D5
+provenance contract. The behavioral planning-tier decision consumed by guardrail
+four is recorded in ADR-0035. The skip-dispatch decision in this ADR remains
+authoritative, but statements below that the final whole-implementation reviewer
+runs on every plan should now be read together with ADR-0016. The historical
+two-gate decision text remains as rationale, while active planning provenance is
+owned by ADR-0039 and the combined-review contract.
 
 ## Context
 
@@ -49,14 +49,18 @@ than a runtime check):
    `play-subagent-execution/references/skip-dispatch-policy.md` § Mechanical
    Task Taxonomy; covers both positive shapes from that taxonomy — verbatim
    file create and unambiguous identifier replacement).
-3. **Upstream precondition.** No clarifying questions could plausibly
-   arise — implicit from the upstream two-gate `play-planning` return
-   introduced by ADR-0023, meaning both Plan Review and Implementer
-   Executability Review passed before `Plan written to <path>.` was emitted.
+3. **Upstream precondition (historical; superseded by ADR-0039).** No
+   clarifying questions could plausibly arise — implicit from the upstream
+   two-gate `play-planning` return introduced by ADR-0023, meaning both Plan
+   Review and Implementer Executability Review passed before the plan-written
+   notice was emitted. The active successor requires one D5 review covering
+   correctness and executability before `Plan written to <path>.`,
+   `Reviewed digest: <sha256>`, and
+   `Planning review contract: planning-review/combined-v1` are emitted.
    The controller does not re-verify this at execution time; direct invocations
    of `play-subagent-execution` first satisfy the universal canonical Execution
    Projection gate. A conforming hand-written `FULL` plan with no upstream
-   two-gate return then fails this precondition and falls back to dispatched
+   combined-review return then fails this precondition and falls back to dispatched
    implementation; a pre-projection plan blocks and returns to planning. The
    direct `FULL` route is caller-authorized and structurally validated; it does
    not claim, infer, or synthesize the D5 semantic-completeness assurance of a
@@ -81,7 +85,7 @@ than a runtime check):
    subject to mutation-authority and `SIDE-EFFECT` ownership validation;
    recovery remains governed by bounded-and-recoverable eligibility plus
    applicable lifecycle behavior. `NO-TRIGGER` requires a task-specific reason.
-   Both reduced tiers require the reviewed two-gate provenance for the plan
+   Both reduced tiers require the reviewed combined provenance for the plan
    being executed. Direct, hand-written, copied, older, or otherwise unreviewed
    plans without that provenance must use a structurally complete assembled
    `FULL` context. If
@@ -123,7 +127,7 @@ here.
   DONE report from an implementer. The benefit concentrates on docs-heavy
   plans (skills, ADRs, guidelines).
 - No new skip-dispatch coupling is added. Guardrail #3 leans on the upstream
-  two-gate `play-planning` return, and guardrail #4 consumes the upstream
+  combined `play-planning` return, and guardrail #4 consumes the upstream
   literal Contract tier field and tier-appropriate task contract emitted by
   `play-planning`. No skip-dispatch-specific eligibility field is added, while
   the upstream literal Contract tier field is required. Guardrails #1, #2, #4,
@@ -137,7 +141,7 @@ here.
   needs judgment) bypass dispatch. Mitigation: same as the existing
   `**Mode:** mechanical` hint policy — under-marking is harmless,
   over-marking is plan-author responsibility, caught by `play-planning`'s
-  Plan Review and Implementer Executability Review and by either the final
+  combined D5 review and by either the final
   whole-implementation reviewer or downstream `branch-review --fix` on the
   ADR-0016 path.
 - The implementer DONE-report snapshot contract (ADR-0014) does not

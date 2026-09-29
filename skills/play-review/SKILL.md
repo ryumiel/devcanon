@@ -25,16 +25,22 @@ freshness, per-finding fix eligibility, and bounded post-fix reassessment.
 
 Use the adjacent [review-artifacts usage](references/review-artifacts-usage.md), [shared-review-context usage](references/shared-review-context-usage.md), and [source-immutability usage](references/source-immutability-usage.md) for reusable invocation, I/O, and refusal mechanics. This workflow owns review ordering, the D18 semantic-context route, and D7/D10 continuation.
 
-Before D18, run controller preflight over frozen candidate inputs. Require every
-shared-context artifact, candidate ADR, and source reference to resolve to a
-readable regular file; require their required fields; and compare declared head,
-base, worktree, authority, and content identity with the frozen review identity,
-current source, and applicable policy. Missing, malformed, or mismatched input
-stops before semantic dispatch. Refresh context when source, head, policy,
-authority, or a dirty worktree changes; uncertain semantic impact is owned by
-this review stage and requires broader preparation. Only after D18 verifies,
-validates, and cleans successfully, use the existing shared-context helper for
-its supported manifest write and context build operations. The helper remains
+Before D18, run controller preflight over only the frozen source inputs and
+supplied prior artifacts that already exist: the review identity and scope
+records, changed-file records, discovered guideline and supplied candidate-ADR
+references, and any supplied prior-review references. Require their required
+fields and readable regular-file identities where the selected input is a path;
+compare declared head, base, worktree, authority, and content identity with the
+frozen review identity, current source, and applicable policy. A missing,
+malformed, or mismatched supplied candidate ADR or source reference stops before
+semantic dispatch. Absent optional or unselected inputs do not fail preflight.
+The `*-review-context-input.json` manifest and `*-review-context.md` are future
+Phase 2.5 outputs, so they are not pre-D18 inputs. The required order is:
+preflight existing supplied inputs; verify, validate, and clean D18; use the
+shared-context helper to write the manifest and build the context; validate the
+resulting artifacts; then dispatch D7. Refresh context when source, head,
+policy, authority, or a dirty worktree changes; uncertain semantic impact is
+owned by this review stage and requires broader preparation. The helper remains
 structural only and does not decide semantic relevance.
 
 Internal multi-agent code review pipeline. Wrappers gather inputs, select the

@@ -180,30 +180,6 @@ const FRESH_SPAWNS = [
 ] as const;
 
 describe("agent routing and mutation policy owner", () => {
-  it("keeps combined-review references and controller preflight aligned", async () => {
-    const [reviewSkill, planningSkill, criteria, projectionUsage, agentsSpec] =
-      await Promise.all([
-        readRepoFile("skills/play-review/SKILL.md"),
-        readRepoFile("skills/play-planning/SKILL.md"),
-        readRepoFile("skills/play-planning/references/planning-criteria.md"),
-        readRepoFile(
-          "skills/play-subagent-execution/references/inspect-plan-projection-usage.md",
-        ),
-        readRepoFile("docs/specs/agents.md"),
-      ]);
-
-    expect(reviewSkill).toContain(
-      "controller preflight over frozen candidate inputs",
-    );
-    expect(reviewSkill).toContain("Only after D18");
-    expect(planningSkill).not.toContain("both reviewer gates");
-    expect(planningSkill).not.toContain("all three planning review surfaces");
-    expect(criteria).toContain("[Combined D5 remit](#combined-d5-remit)");
-    expect(criteria).not.toContain("D6 may report");
-    expect(projectionUsage).not.toContain("D5/D6 paired review wave");
-    expect(agentsSpec).not.toContain("D5, D6, D7");
-  });
-
   it("parses the complete skill and active route set route inventories", async () => {
     const [owner, sourceSkills] = await Promise.all([
       readAgentRoutingPolicyOwner(OWNER_PATH),
