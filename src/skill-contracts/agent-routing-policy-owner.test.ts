@@ -58,16 +58,6 @@ const FRESH_SPAWNS = [
     "D5_PLAN_REVIEW_PROMPT",
   ],
   [
-    "D6",
-    "play-planning",
-    "reviewer",
-    "frontier",
-    "D6_MODEL",
-    "medium",
-    "source-immutable",
-    "D6_EXECUTABILITY_REVIEW_PROMPT",
-  ],
-  [
     "D7",
     "play-review",
     "reviewer",
@@ -216,7 +206,8 @@ describe("agent routing and mutation policy owner", () => {
       sourceSkills,
     );
     expect(owner.directChildRoutes.map((row) => row.id)).toEqual([
-      ...Array.from({ length: 7 }, (_, index) => `D${index + 1}`),
+      ...Array.from({ length: 5 }, (_, index) => `D${index + 1}`),
+      "D7",
       ...Array.from({ length: 9 }, (_, index) => `D${index + 10}`),
     ]);
     expect(owner.escalationAdoptionInventory).toEqual(
@@ -264,10 +255,45 @@ describe("agent routing and mutation policy owner", () => {
 
     expect(reviewerRoutes).toEqual([
       ["D5", "medium"],
-      ["D6", "medium"],
       ["D7", "medium"],
       ["D10", "high"],
     ]);
+  });
+
+  it("activates one combined planning route and retires D6 everywhere", async () => {
+    const [owner, planning, contract] = await Promise.all([
+      readAgentRoutingPolicyOwner(OWNER_PATH),
+      readRepoFile("skills/play-planning/SKILL.md"),
+      readRepoFile(
+        "skills/play-planning/references/combined-review-contract.md",
+      ),
+    ]);
+
+    expect(owner.directChildRoutes.map((route) => route.id)).toEqual([
+      "D1",
+      "D2",
+      "D3",
+      "D4",
+      "D5",
+      "D7",
+      "D10",
+      "D11",
+      "D12",
+      "D13",
+      "D14",
+      "D15",
+      "D16",
+      "D17",
+      "D18",
+    ]);
+    const activeCombined = planning.slice(
+      planning.lastIndexOf("## Exact Digest and Combined Review Orchestration"),
+    );
+    expect(activeCombined).toContain("planning-review/combined-v1");
+    expect(activeCombined).not.toContain("D6_EXECUTABILITY_REVIEW_PROMPT");
+    expect(contract).not.toContain("Status: proposed");
+    expect(contract).toContain("Correctness");
+    expect(contract).toContain("Executability");
   });
 
   it("correlates every fixed active route set policy clause to its exact fresh Codex tuple", async () => {

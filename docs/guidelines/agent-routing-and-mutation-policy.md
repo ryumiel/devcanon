@@ -128,8 +128,8 @@ child role.
 
 ## Direct-Child Route Inventory
 
-The **active route set** is D1–D7 and D10–D18. Every inventory and
-normative route consumer uses exactly these 16 routes.
+The **active route set** is D1–D5, D7 and D10–D18. Every inventory and
+normative route consumer uses exactly these 15 routes.
 
 The row IDs and source anchors are inventory keys, not a marker or annotation
 language. Each source-immutable row is response-only unless it explicitly
@@ -142,8 +142,7 @@ existing response contract.
 | D2  | Internal research — `issue-priming-workflow` Phase 3                                  | `investigator`, balanced/high, source-immutable                                                                                                                                                            | Existing report headings; root synthesizes                                                                                    |
 | D3  | External research — `issue-priming-workflow` Phase 3                                  | `investigator`, balanced/high, source-immutable, network-binding `dispatch-named`, evidence-qualifier `named-network`                                                                                      | Existing necessity/URL/headings; root synthesizes                                                                             |
 | D4  | Focused specialist — `play-agent-dispatch`                                            | Resolve exactly one of the six semantic roles before spawn; use its exact configured capability/effort and matching source default; declare scope/termination; external authority `none`                   | Source-immutable selection is response-only under B3; unresolved route blocks                                                 |
-| D5  | Plan review — `play-planning`                                                         | `reviewer`, frontier/medium, source-immutable                                                                                                                                                              | Distinct digest-bound PASS/FAIL; join paired results for one digest                                                           |
-| D6  | Executability review — `play-planning`                                                | `reviewer`, frontier/medium, source-immutable                                                                                                                                                              | Distinct digest-bound PASS/FAIL; join paired results for one digest                                                           |
+| D5  | Combined planning review — `play-planning`                                            | `reviewer`, frontier/medium, source-immutable                                                                                                                                                              | One digest-bound result covers correctness and executability                                                                  |
 | D7  | Complete independent review — `play-review` Phase 3                                   | `reviewer`, frontier/medium, source-immutable                                                                                                                                                              | Workflow-owned terminal disposition; controller aggregates completed findings                                                 |
 | D10 | Targeted verifier — `play-review` Phase 5                                             | `reviewer`, frontier/high, source-immutable                                                                                                                                                                | Workflow-owned terminal disposition; controller retains critic verdicts; no recursion                                         |
 | D11 | Skill pressure scenario — `play-skill-authoring`                                      | `assessor`, balanced/medium, source-immutable                                                                                                                                                              | Existing scenario evidence; invalid evidence retested                                                                         |
@@ -154,6 +153,27 @@ existing response contract.
 | D16 | Final whole-implementation quality review — `play-subagent-execution` Process step 10 | `deep-reviewer`, frontier/xhigh, source-immutable                                                                                                                                                          | Whole-range prompt; narrow ADR-0016 skip; final fix/fresh-review or terminal-owner route                                      |
 | D17 | CI diagnosis/fix — `pr-merge` Step 4                                                  | branch `diagnosis`: `investigator`, balanced/high, source-immutable; branch `exact-fix`: `executor`, efficient/medium, source-mutable; branch `judgment-fix`: `implementer`, balanced/high, source-mutable | Guard diagnosis before fix classification; mutable child commits only; root alone separately owns external-mutable push/merge |
 | D18 | Semantic review context — `play-review` Phase 2.25                                    | `assessor`, balanced/medium, source-immutable                                                                                                                                                              | Response-only four-family summary; controller validates, cleans, maps, and continues                                          |
+
+## Active combined planning route
+
+[ADR-0039](../adr/adr-0039-combined-planning-review.md) records the accepted
+replacement decision; the [planning owner](../../skills/play-planning/references/combined-review-contract.md)
+owns detailed results, coverage, correction, failure and reassessment.
+
+D5 is the combined correctness/executability review. Its
+tuple remains `reviewer`, frontier/medium, source-immutable, external authority
+`none`, response-only, zero handoffs, fresh history with the configured target
+binding. D6 is retired, never reassigned or interpreted as implicit PASS. The
+active set becomes D1–D5, D7 and D10–D18 (15 routes); remove D6 from both the
+active inventory and escalation adoption inventory together. D5 remains opt-out
+with transition `none`. No new semantic agent or target override is needed.
+
+Exceptional planning specialists use the existing D4 declaration and source
+role constraints, with the planning owner's bounded evidence-only scope. They
+do not change D5's pass budget or borrow D10. D18 ownership, D7/D10 final-review
+behavior, D14–D16, source guards, lifecycle and all other tuples/adoption states
+remain unchanged. Rendering and migration checks must reconcile the complete
+active inventory on both targets before activation.
 
 ## Capability Escalation Adoption Inventory
 
@@ -176,7 +196,6 @@ it does not replace any route's workflow-local dispatch or termination owner.
 | D3  | opt-out        | none       |
 | D4  | opt-out        | none       |
 | D5  | opt-out        | none       |
-| D6  | opt-out        | none       |
 | D7  | opt-out        | none       |
 | D10 | opt-out        | none       |
 | D11 | opt-out        | none       |

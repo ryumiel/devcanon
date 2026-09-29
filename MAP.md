@@ -71,6 +71,15 @@ Quick navigation index for the DevCanon repository.
 
 ---
 
+## Combined planning review
+
+- Where is the active combined planning contract? ->
+  [`skills/play-planning/references/combined-review-contract.md`](skills/play-planning/references/combined-review-contract.md)
+- Where is its accepted decision and predecessor treatment? ->
+  [`ADR-0039`](docs/adr/adr-0039-combined-planning-review.md)
+- Where are its acceptance and preparation requirements? ->
+  [`AFDS workflow spec`](docs/specs/afds-workflow-routing.md#planning-review-and-preparation-behavior)
+
 ## Build and workspace
 
 - Where are build and test commands? -> [`AGENTS.md`](AGENTS.md) § Build and Test
@@ -112,9 +121,10 @@ Quick navigation index for the DevCanon repository.
   [`docs/adr/adr-0036-internal-skill-context-analysis.md`](docs/adr/adr-0036-internal-skill-context-analysis.md)
 - Where is the historical, superseded three-topical play-review fanout decision recorded? ->
   [`docs/adr/adr-0022-three-topical-play-review-fanout.md`](docs/adr/adr-0022-three-topical-play-review-fanout.md)
-- Where is the current play-planning readiness and parallel digest-gate
-  decision recorded? ->
-  [`docs/adr/adr-0030-play-planning-readiness-and-parallel-digest-gates.md`](docs/adr/adr-0030-play-planning-readiness-and-parallel-digest-gates.md)
+- Where is the active combined play-planning review decision recorded? ->
+  [`ADR-0039`](docs/adr/adr-0039-combined-planning-review.md)
+- Where is the superseded readiness and parallel digest-gate decision recorded? ->
+  [`ADR-0030`](docs/adr/adr-0030-play-planning-readiness-and-parallel-digest-gates.md)
 - Where is the historical play-planning implementer executability gate
   rationale recorded? ->
   [`docs/adr/adr-0023-play-planning-implementer-executability-gate.md`](docs/adr/adr-0023-play-planning-implementer-executability-gate.md)

@@ -22,7 +22,6 @@ const FIXED_ROUTE_OWNER_CONTRACT = [
   ["D3", "issue-priming-workflow"],
   ["D4", "play-agent-dispatch"],
   ["D5", "play-planning"],
-  ["D6", "play-planning"],
   ["D7", "play-review"],
   ["D10", "play-review"],
   ["D11", "play-skill-authoring"],
@@ -196,7 +195,6 @@ describe("shipped skill rendering", () => {
       ["issue-priming-workflow", "D2_MODEL", "balanced"],
       ["issue-priming-workflow", "D3_MODEL", "balanced"],
       ["play-planning", "D5_MODEL", "frontier"],
-      ["play-planning", "D6_MODEL", "frontier"],
       ["play-review", "D7_MODEL", "frontier"],
       ["play-review", "D10_MODEL", "frontier"],
       ["play-skill-authoring", "D11_MODEL", "balanced"],
@@ -387,19 +385,6 @@ describe("shipped skill rendering", () => {
         ].join("\n"),
       ],
       [
-        "play-planning",
-        [
-          "Codex.spawn_agent({",
-          "  task_name: d6_<instance_ordinal>,",
-          '  agent_type: "reviewer",',
-          "  model: D6_MODEL,",
-          '  reasoning_effort: "medium",',
-          '  fork_turns: "none",',
-          "  message: D6_EXECUTABILITY_REVIEW_PROMPT,",
-          "})",
-        ].join("\n"),
-      ],
-      [
         "play-review",
         [
           "Codex.spawn_agent({",
@@ -438,6 +423,17 @@ describe("shipped skill rendering", () => {
         expect(body).toContain(spawn);
         expect(body).toContain(config.capabilityProfiles.frontier.codex);
       }
+
+      const { body: planning } = parseFrontmatter(
+        getSkillOutput(outputs, "play-planning", target).content,
+      );
+      const activeCombined = planning.slice(
+        planning.lastIndexOf(
+          "## Exact Digest and Combined Review Orchestration",
+        ),
+      );
+      expect(activeCombined).toContain("planning-review/combined-v1");
+      expect(activeCombined).not.toContain("D6_EXECUTABILITY_REVIEW_PROMPT");
 
       const { body: execution } = parseFrontmatter(
         getSkillOutput(outputs, "play-subagent-execution", target).content,

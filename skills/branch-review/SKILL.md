@@ -13,6 +13,12 @@ requires:
 
 Use the adjacent [prepare-review-inputs usage](references/prepare-review-inputs-usage.md), [scope-decision-artifacts usage](references/scope-decision-artifacts-usage.md), and [play-review review-artifacts usage](../play-review/references/review-artifacts-usage.md) for reusable invocation mechanics. The workflow below retains scope and continuation decisions.
 
+Before handing off to `play-review`, validate the prepared paths and current
+base/head/worktree bindings. The shared-context preflight then runs before D18
+semantic dispatch; missing paths or changed source, policy, authority, or dirty
+worktree state require preparation refresh. This wrapper supplies facts and
+does not decide semantic relevance for `play-review`.
+
 Multi-agent code review on a local branch. Wrapper around `play-review`
 for the local-diff case.
 

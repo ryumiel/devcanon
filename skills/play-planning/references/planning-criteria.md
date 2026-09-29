@@ -1,8 +1,10 @@
 # Canonical Planning Criteria
 
-This reference is the single detailed criteria source for plan authoring,
-self-review, Plan Review, and Implementer Executability Review. The owning
-workflow stays in `../SKILL.md`; do not copy these criteria back into each gate.
+This reference is the detailed criteria source for plan authoring and
+self-review. The active [combined review contract](combined-review-contract.md)
+is the sole detailed D5 result, coverage, correction, and lifecycle authority.
+The owning workflow stays in `../SKILL.md`; do not copy either source into a
+reviewer prompt.
 
 ## Contents
 
@@ -10,8 +12,7 @@ workflow stays in `../SKILL.md`; do not copy these criteria back into each gate.
 - [Scope Envelope](#scope-envelope)
 - [Planning authority and readiness](#planning-authority-and-readiness)
 - [Proportional contract planning](#proportional-contract-planning)
-- [Exact digest and paired-review result contract](#exact-digest-and-paired-review-result-contract)
-- [Blocking materiality and review convergence](#blocking-materiality-and-review-convergence)
+- [Combined review contract](combined-review-contract.md)
 - [Contract and traceability criteria](#contract-and-traceability-criteria)
 - [Ownership-topology mapping](#ownership-topology-mapping)
 - [Execution projection](#execution-projection)
@@ -111,8 +112,8 @@ current task coverage, acceptance criteria, ownership, and proof obligations.
 Planning may decompose or sequence a decision, but it must not silently omit or
 replace it.
 
-This criteria reference owns the shared D5/D6 review-result and gap contract
-below. It must not use review gaps to replace missing project authority.
+The combined review contract owns D5 result and gap lifecycle. These criteria
+must not use review gaps to replace missing project authority.
 
 ## Proportional contract planning
 
@@ -202,268 +203,37 @@ lifecycle behavior remains independently required.
   facts. The omitted known consumer remains a blocking gap; a final-consumer
   test or smaller diff does not make the contract complete.
 
-## Exact digest and paired-review result contract
+## Shared gap grammar and materiality
 
-### Exact saved-plan digest
+Each non-passing gap uses `GAP-<TASK>-<CLASS>-<SUBJECT>`. `TASK` is the
+non-positional Task ID or `PLAN`; `CLASS` comes from the closed table below;
+and `SUBJECT` is an uppercase ASCII-kebab semantic token. Every gap contains
+its stable ID, task or `PLAN`, defect class, `CURRENT` or `BLOCKER`
+classification, `Authority`, `Concrete blocker`, `Inspection insufficiency`,
+and `Smallest correction or decision owner`. The same semantic gap keeps its ID
+across correction; missing fields, unknown classes, conflicting duplicate IDs,
+or malformed digest-bound results are non-passing.
 
-Bind every paired D5/D6 wave to SHA-256 over the exact saved plan bytes after a
-complete write or authorized revision. Do not normalize Markdown, convert line
-endings, trim whitespace, serialize content, or extract a section. The digest
-is lowercase 64-character hexadecimal text. A missing or unreadable plan,
-missing hash utility, read failure, or malformed digest blocks the wave.
+| Precedence | Class           | Governing defect                                                                  |
+| ---------- | --------------- | --------------------------------------------------------------------------------- |
+| 1          | `SIDE-EFFECT`   | Missing or incorrect ownership or permission for a mutation                       |
+| 2          | `ARTIFACT`      | Missing or incorrect artifact shape, custody, freshness, or consumer contract     |
+| 3          | `LIFECYCLE`     | Missing or incorrect transition, failure, recovery, rollback, or cleanup          |
+| 4          | `BOUNDARY`      | Missing or incorrect participant, I/O, ordering, or interaction contract          |
+| 5          | `AUTHORITY`     | Missing, duplicated, conflicting, or unprioritized normative owner                |
+| 6          | `SCOPE`         | Unauthorized work, missing non-goal, or incorrect scope disposition               |
+| 7          | `REQUIREMENT`   | Approved outcome or hard requirement lacks task or acceptance coverage            |
+| 8          | `DEPENDENCY`    | Task prerequisite or dependency order is missing or incorrect                     |
+| 9          | `TRACEABILITY`  | Required mapping among owner, consumer, task, acceptance, or proof is incomplete  |
+| 10         | `DOCUMENTATION` | Required documentation-impact disposition is missing or incorrect                 |
+| 11         | `VERIFICATION`  | Verification authority or minimum-sufficient proof is missing or disproportionate |
+| 12         | `EXECUTION`     | Residual implementer-facing decision remains after more-specific classes          |
 
-The expected digest and saved plan path remain controller-local inputs. D5 and
-D6 each independently hash the exact plan bytes they read and compare that
-computed digest with the expected digest before returning. They must echo their
-computed digest in the first line of their independent responses. After both
-guard lifecycles settle and clean, the controller independently rehashes the
-current exact plan bytes at the join and once more immediately before applying
-dual PASS to a handoff. A reviewer-computed, join-time, or pre-handoff mismatch,
-or any intervening plan-byte edit, invalidates both responses immediately;
-verdicts from different digests never combine.
-
-### Review result shape and exhaustive reporting
-
-The first line is exactly `PASS — digest=<sha256>` or
-`FAIL — digest=<sha256>`. PASS contains no `CURRENT` or `BLOCKER` gap. FAIL
-reports every concrete in-remit gap before returning FAIL, grouped by task and
-defect class, without stopping after the first gap. Reviewers exclude
-speculative improvements and out-of-remit findings.
-
-Every authored task has a required `**Task ID:** <UPPER-ASCII-KEBAB>` field
-immediately after its heading. The task record also contains exactly one
-`**Boundary rows:**` field and one `**Supporting-owner supplements:**` field
-using the canonical JSON-array shape defined below; their relative position and
-the order of unrelated task fields are non-semantic. The Task ID is a semantic identity assigned
-once, unique within the plan, independent of task number, order, and display
-title, and preserved unchanged across task insertions, reordering, title edits,
-and review revisions. Missing, duplicate, positional, or changed task IDs block
-review. `Task N` remains a display and ordering label only.
-
-Each non-passing gap uses `GAP-<TASK>-<CLASS>-<SUBJECT>`. `TASK` is the plan's
-non-positional Task ID or `PLAN`; `CLASS` is selected from the closed
-table below; and `SUBJECT` is an uppercase ASCII kebab semantic token that
-names the contract, not its wording or position. Every gap record contains:
-
-- stable gap ID;
-- task ID or `PLAN`;
-- defect class;
-- classification, exactly `CURRENT` or `BLOCKER`;
-- `Authority`: the authoritative requirement or owner that makes correction
-  necessary;
-- `Concrete blocker`: the specific acceptance, execution, or safety condition
-  that cannot be satisfied;
-- `Inspection insufficiency`: why named source inspection and normal
-  implementer discovery cannot resolve the defect; and
-- `Smallest correction or decision owner`: the minimum plan correction for
-  `CURRENT`, or exactly one decision owner for `BLOCKER`.
-
-The same semantic gap keeps the same ID across reviewers and reruns. Equivalent
-duplicate IDs merge and retain reviewer provenance. Conflicting duplicate IDs
-make the paired wave malformed and non-passing. A missing field, unknown class,
-misapplied class, invalid ID, malformed first line, or digest mismatch is also
-non-passing.
-
-### Closed gap classes and precedence
-
-Use the first matching row in this exact precedence order:
-
-| Precedence | Class           | Governing defect                                                                                                                          |
-| ---------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| 1          | `SIDE-EFFECT`   | Missing or incorrect ownership or permission for a filesystem write, provider, network, user-home, or another external mutation           |
-| 2          | `ARTIFACT`      | Missing or incorrect artifact producer, validator, schema or shape, path, custody, freshness, persistence, cleanup, or consumer contract  |
-| 3          | `LIFECYCLE`     | Missing or incorrect state transition, failure, retry, recovery, rollback, cleanup, continuation, or terminal behavior                    |
-| 4          | `BOUNDARY`      | Missing or incorrect boundary participant, required or optional input, output, error, ordering, or interaction contract not covered above |
-| 5          | `AUTHORITY`     | Missing, duplicated, conflicting, or unprioritized normative owner not covered above                                                      |
-| 6          | `SCOPE`         | Unauthorized work, missing non-goal, or incorrect Scope Envelope or Scope Delta disposition                                               |
-| 7          | `REQUIREMENT`   | Approved outcome or hard requirement lacks task or acceptance coverage                                                                    |
-| 8          | `DEPENDENCY`    | Task prerequisite or dependency order is missing or incorrect                                                                             |
-| 9          | `TRACEABILITY`  | Required mapping among owner, consumer, task, acceptance criterion, or proof is incomplete                                                |
-| 10         | `DOCUMENTATION` | Required documentation-impact or adjacent-governance disposition is missing or incorrect                                                  |
-| 11         | `VERIFICATION`  | Verification authority, observable evidence, or minimum-sufficient proof is missing or disproportionate                                   |
-| 12         | `EXECUTION`     | A residual implementer-facing input, output, or required behavior decision is hidden after all more-specific classes are ruled out        |
-
-`SIDE-EFFECT` separately catches missing or incorrect filesystem-write
-ownership or permission. A filesystem write is external only when it mutates
-externally controlled or outside the authorized worktree state.
-
-### Consolidation, invalidation, and same-digest PASS
-
-Join only after both independent reviewers have settled and completed their
-guard lifecycles. Reject digest mismatch, malformed reports, unknown or
-misapplied classes, missing stable fields, conflicting gap IDs, or incomplete
-in-remit reporting. Consolidate equivalent IDs, retain both reviewer
-provenances, and preserve distinct gaps.
-
-Verified `CURRENT` gaps may revise the plan. A `BLOCKER` returns to its named
-owner. `FOLLOW-UP` and `OPTIONAL` observations use the existing finding policy
-outside the blocking gap records and remain deferred. Any plan-byte edit
-invalidates both verdicts, requires a new exact digest, and requires a fresh
-paired D5/D6 wave. Handoff is valid only when both reviewers independently PASS
-the same current digest.
-
-### Contract examples
-
-#### Valid paired PASS
-
-For a saved plan whose current exact-byte digest is
-`0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef`, the
-canonical response pair is:
-
-D5 response:
-
-```text
-PASS — digest=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-```
-
-D6 response:
-
-```text
-PASS — digest=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-```
-
-Both reviewers independently compute that digest from the exact plan bytes
-they read. After both exact guard cleanups, the controller's join-time and
-pre-handoff rehashes produce the same digest. With no `CURRENT` or `BLOCKER`
-gap, this family passes.
-
-#### Valid complete FAIL
-
-The canonical valid FAIL family uses the same digest and contains two complete,
-distinct in-remit gaps so exhaustive reporting has a positive baseline:
-
-```text
-FAIL — digest=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-Task: PLANNING-GATES
-Class: ARTIFACT
-ID: GAP-PLANNING-GATES-ARTIFACT-DIGEST-FRESHNESS
-Classification: CURRENT
-Authority: Exact plan digest contract.
-Concrete blocker: The current plan digest is not revalidated before handoff.
-Inspection insufficiency: The plan cannot prove a future controller rehash.
-Smallest correction or decision owner: Require the pre-handoff exact-byte rehash.
-Task: PLANNING-GATES
-Class: LIFECYCLE
-ID: GAP-PLANNING-GATES-LIFECYCLE-EARLY-JOIN
-Classification: CURRENT
-Authority: Paired review lifecycle contract.
-Concrete blocker: Routing begins before both reviewer lifecycles settle.
-Inspection insufficiency: The plan's early route is itself the lifecycle defect.
-Smallest correction or decision owner: Join only after both lifecycles settle and clean.
-```
-
-#### Single-dimension invalid families
-
-Each invalid family below changes exactly one named dimension from its
-applicable valid family; all other facts remain consistent with that family and
-source authority. Every invalid family is explicitly non-passing:
-
-- D6 digest mismatch — reject both verdicts and make the wave non-passing;
-  relative to the valid paired PASS, change only D6's digest.
-- FAIL missing a required stable gap field — reject the malformed report and
-  make the wave non-passing; relative to the valid complete FAIL, remove only
-  the first gap's `Authority` field.
-- conflicting meanings for one stable gap ID — reject consolidation as
-  malformed and make the wave non-passing; relative to the valid complete
-  FAIL, change only the second gap's ID to reuse the first gap's ID.
-- reviewer stops after the first concrete in-remit gap — reject the incomplete
-  report and make the wave non-passing; relative to the valid complete FAIL,
-  omit only the second gap.
-- plan bytes change after PASS — invalidate both verdicts and require a fresh
-  paired wave within budget; relative to the valid paired PASS workflow, change
-  only the plan bytes after PASS.
-- route begins while a sibling remains active — reject the early route and
-  wait for settlement and exact cleanup before any join; relative to the valid
-  paired PASS workflow, change only sibling settlement state by routing early.
-
-Positive examples must match the post-change contract. Derived facts must
-remain consistent with source authority. Unsupported or source-inconsistent
-examples are `BLOCKER` findings returned to the owning design or decision
-surface; do not guess.
-
-## Blocking materiality and review convergence
-
-A finding blocks only when all four materiality fields are concrete and
-supported: `Authority`, `Concrete blocker`, `Inspection insufficiency`, and
-`Smallest correction or decision owner`. A reviewer cannot use desired detail,
-personal preference, generic risk, or a possible improvement as a substitute
-for any field. If named source inspection or normal implementation discovery
-is sufficient, the finding is not a blocking execution gap.
-
-Wave one is exhaustive: D5 and D6 each report every concrete blocking gap in
-their distinct remit for the current digest. Wave two verifies every prior
-blocking gap against the revised plan and checks for regressions introduced by
-the revision. A newly blocking wave-two gap must add a `New evidence basis`
-field naming one of these bounded bases:
-
-- a newly discovered concrete source fact;
-- a contradiction exposed by the correction;
-- an invalid dependency or path;
-- an omitted current surface; or
-- a material safety defect.
-
-The basis must identify evidence that was not reasonably available from the
-first-wave plan and named sources, rather than rephrasing an earlier finding.
-Optional infrastructure, available preferences, speculative hardening, and
-unsupported proof expansion cannot become blocking acceptance in wave two.
-Newly noticed ordinary defects that were inspectable in wave one do not gain a
-new acceptance obligation; reviewers preserve exhaustive first-wave
-accountability instead of serializing review.
-
-Review convergence has a maximum of two paired waves. After a non-passing
-second wave, return unresolved `BLOCKER` findings to their named owners and
-surface unresolved authorized `CURRENT` gaps without inventing a third review
-wave or weakening them. The controller retains prior gap IDs, provenance,
-evidence bases, and verification status only as controller-local review state.
-This creates no persistent result artifact, helper, schema, registry, or
-standing review protocol.
-
-Wave-two terminal state is computed independently for each prior gap record
-after both reviewers settle on the same digest. A prior gap whose correction is
-verified and that neither recurs nor regresses remains `RESOLVED` + `PASSED`
-even when a distinct valid new-evidence gap makes the overall wave non-passing.
-For a consumable valid same-digest pair, that prior gap becomes `UNRESOLVED` +
-`FAILED` only when the same gap recurs, its correction regresses, or its own
-record or transition is malformed or out of order. An orthogonal new-evidence
-`CURRENT` or `BLOCKER` never rewrites that prior record to unresolved. The
-overall wave still surfaces every valid new or unresolved gap and stops after
-wave two without weakening the no-third-wave rule.
-
-A final-wave operational or reviewer verification failure prevents a
-consumable valid same-digest pair when it includes guard capture failure; spawn
-failure; reviewer unavailability; a malformed or semantically rejected
-response; a wrong digest; guard verification or cleanup failure; a join-time
-or pre-handoff mismatch; plan or source drift; or an equivalent terminal
-invalidation. For any such failure, the controller transitions each
-still-pending prior record from `CORRECTED` + `PENDING` to `UNRESOLVED` +
-`FAILED`, records concrete verification-failure evidence without claiming that
-the correction recurred or regressed, surfaces the operational failure and
-every affected prior gap, prohibits execution handoff, and stops without a
-third wave. This operational settlement applies only to still-pending records;
-it never overwrites a record already settled from a consumable valid
-same-digest pair.
-
-### Convergence examples
-
-- **Valid wave-two evidence example:** wave one reports a missing consumer
-  proof. The revision adds that proof but exposes a newly discovered concrete
-  source fact showing that the consumer also rejects stale input. Wave two
-  verifies the prior correction, checks that the revision introduced no
-  regression, and reports the newly material stale-input gap with `New evidence
-basis` pointing to that source fact.
-- **Invalid available-evidence mutation:** relative to the valid wave-two
-  example, change only the evidence basis to a source fact already available in
-  the named first-wave sources. It cannot originate a new wave-two blocker.
-- **Invalid optional-infrastructure mutation:** relative to the valid wave-two
-  example, change only the new gap to a request for an optional generalized
-  validation service. Optional infrastructure is not blocking acceptance.
-
-Material omissions and unsafe execution remain fail-closed at every tier and
-wave. In particular, missing consumers, invalid paths or dependencies,
-ambiguous mutation ownership, unsafe cleanup, malformed review results, and
-digest or guard failures prevent handoff. Stable gap IDs and classes,
-exact-digest freshness, paired independent reviews, and the two-wave stop remain
-mandatory.
+A blocking finding requires concrete, supported materiality fields: `Authority`,
+`Concrete blocker`, `Inspection insufficiency`, and `Smallest correction or
+decision owner`. Preference, generic risk, or possible hardening cannot replace
+one. The combined review contract exclusively owns correction coverage,
+late-blocker admission, carry-forward, reopening, and its two-pass limit.
 
 ## Contract and traceability criteria
 
@@ -834,7 +604,7 @@ Boundary-carrier review examples:
   fields, change unrelated prose, or vary JSON whitespace without changing the
   decoded IDs or assembled semantic carriers. D5 does not block the equivalent
   representation, while the exact saved-plan digest still changes and requires
-  a fresh paired review wave.
+  fresh combined review.
 
 A valid `LIGHTWEIGHT` boundary record consumes the selected projection entries
 for every actual known participant and independently necessary execution
@@ -1049,97 +819,12 @@ Plan Review fails any unauthorized task addition, any CURRENT task without an
 authoritative requirement and necessity, or any attempt to use proof scope as a
 reason to create unapproved infrastructure.
 
-## Gate remits
+## Combined D5 remit
 
-### Self-Review
-
-Check the Scope Envelope and Scope Delta first. Then check authoritative
-coverage, placeholders, task contracts, contract and boundary traceability,
-examples, hard-requirement coverage, file citations, documentation impact, and
-minimum-sufficient proof. Classify findings before editing. Do not use
-“fix inline” as authority.
-
-### Plan Review
-
-Validate approved scope, requirement coverage, unjustified tasks, dependencies,
-contract and traceability coverage, documentation impact, and proof
-proportionality. Report all concrete in-remit findings. Classify each finding.
-CURRENT and BLOCKER findings prevent PASS. FOLLOW-UP and OPTIONAL findings do
-not. Explicitly fail missing design Contract Decision and Documentation impact
-item mappings. D5 owns ordinary defects in approved-scope coverage, normative
-authority, boundary and consumer completeness, requirement traceability,
-dependency intent, documentation impact, and proof proportionality. It does not
-repeat task-local executability review or invent new requirements.
-
-D5 also owns projection completeness, grouping materiality, semantic task
-membership, and tier validation; tier-local facts remain in task contracts. It
-rejects stale or unresolvable Entry IDs, missing authority, omitted
-execution-relevant participants, missing task membership, and uncovered hard
-requirements, but not an equivalent inverse relationship or duplicate proof
-allocation absent from a secondary structure.
-
-When the assembled execution context is semantically complete, a
-representation-only wording or ordering difference is non-blocking. D5 does not
-require repeated singular prose selectors, duplication of facts exclusively
-and correctly carried by an applicable boundary record, or `FULL` treatment
-solely because bounded recoverable output persists or uses the filesystem.
-Missing owners, participants, implementation membership, proof ownership, or
-execution facts remain blocking.
-
-### Implementer Executability Review
-
-Validate whether a competent non-senior implementer can begin after reading the
-task and named sources without choosing missing product, policy, ownership,
-side-effect, error, rollback, or guardrail semantics.
-
-Do not require the plan to pre-resolve normal implementation choices, private
-helper structure, concrete tests, fixtures, commands, or individual-reference
-discovery inside already named in-scope consumers or boundaries when a named
-authority or explicit discovery criterion governs that discovery. Determining
-the in-scope consumers or boundary participants is not normal call-site
-discovery. Ordinary omitted or missing consumer or boundary mapping coverage
-and mapping-authority findings are D5-owned. D6 may report the shared fact only
-by naming a concrete task-local startability defect caused in D6's own remit;
-the shared fact alone does not transfer ordinary finding ownership. Do not
-broaden the Scope Envelope or proof obligations. Apply minimum-sufficient
-proof, and classify useful hardening as FOLLOW-UP or OPTIONAL. D6 owns ordinary
-defects in task-local startability: named source and path validity, executable
-dependency order, required I/O and failure behavior, mutation ownership,
-cleanup safety, and implementer-visible acceptance proof. It does not reopen
-D5's approved-scope or proportionality judgment.
-
-D6 reports projection facts only for concrete task-local startability defects;
-it does not reopen D5's plan-wide judgment or request an equivalent inverse
-relationship or duplicate proof allocation.
-
-The remits are orthogonal rather than successive approval levels. D5 may PASS
-while D6 reports a material task-local execution gap, such as an invalid named
-path that prevents the implementer from starting. Conversely, D6 must not block
-on optional whole-plan infrastructure, a generalized harness, or other
-hardening that lacks approved authority; classify it FOLLOW-UP or OPTIONAL.
-Both reviewers still report genuine omissions in their own remits, and neither
-PASS cures the other's material gap.
-
-Both reviewers may inspect shared plan and source facts, but only the remit
-owner originates an ordinary finding. A reviewer that discovers an ordinary
-defect owned by the other remit leaves origination to that owner rather than
-duplicating or reclassifying it. When shared facts create a cross-remit
-contradiction, a reviewer may report only after explaining the concrete defect
-the contradiction causes in that reporting reviewer's own remit; shared facts
-alone do not transfer ordinary defect ownership.
-
-### Orthogonal-review examples
-
-- **Valid orthogonal result:** D5 returns PASS because approved scope,
-  consumers, requirements, documentation impact, and proportional proof are
-  complete. D6 returns a material `EXECUTION` gap because one task names an
-  invalid source path and a competent implementer cannot start from the named
-  inputs. The D6 gap states its own task-local blocker; D5 PASS does not cure it.
-- **Invalid optional-hardening mutation:** relative to the valid orthogonal
-  result, change only D6's gap from the invalid source path to a request for an
-  optional whole-plan validation service. D6 must not block because that
-  hardening has no approved authority.
-- **Valid cross-remit contradiction:** D6 may inspect a shared requirement and
-  report that its contradiction with a task-local write owner leaves mutation
-  authority ambiguous for the implementer. The report explains that concrete
-  D6 defect; it does not originate an ordinary D5 coverage finding.
+The one independent D5 reviewer applies these authoring and self-review
+criteria to both correctness and implementer executability. It reports all
+concrete in-remit gaps with the active combined contract's coverage and result
+shape, preserves `CURRENT`/`BLOCKER` precedence, and never turns normal
+implementation choices into missing authority. Exact-byte identity, correction,
+materiality, late-blocker admission, carry-forward, reopening, and the two-pass
+limit are exclusively defined by the combined review contract.

@@ -25,6 +25,14 @@ freshness, per-finding fix eligibility, and bounded post-fix reassessment.
 
 Use the adjacent [review-artifacts usage](references/review-artifacts-usage.md), [shared-review-context usage](references/shared-review-context-usage.md), and [source-immutability usage](references/source-immutability-usage.md) for reusable invocation, I/O, and refusal mechanics. This workflow owns review ordering, the D18 semantic-context route, and D7/D10 continuation.
 
+Before D18 or reviewer dispatch, validate every shared-context artifact path
+and its declared head, base, worktree, authority, and content identity with the
+existing shared-context helper. Missing or malformed paths stop before semantic
+dispatch. Refresh context when source, head, policy, authority, or a dirty
+worktree changes; uncertain semantic impact is owned by this review stage and
+requires broader preparation. The helper remains structural only and does not
+decide semantic relevance.
+
 Internal multi-agent code review pipeline. Wrappers gather inputs, select the
 working directory and active diff, and dispose of findings; this skill reviews and emits a local findings envelope.
 

@@ -120,6 +120,18 @@ boundary. Do not copy issue bodies, comment evidence, research briefs, designs,
 plans, review envelopes, or passing verification logs into controller
 conversation once a durable path exists.
 
+## Preparation Provenance
+
+Preparation reuses the existing issue, research, design, and plan artifacts as
+navigation only. Before research, planning, review, or execution consumes a
+reused claim, validate its readable path, required fields, exact content
+identity, base/head/worktree state, authority, scope, and limitations. Changed
+source, head, policy, authority, or dirty working tree refreshes dependent
+preparation; uncertain impact broadens the refresh. A reused summary never
+becomes fresh semantic judgment or approval, and a missing path stops dispatch.
+The stage owner decides semantic relevance; helpers only enforce structural
+path and artifact guards.
+
 When using agent-local artifacts to draft PR, issue, tracker, or review
 comments, apply the `Agent-Local Evidence Reuse Boundary` in
 `docs/specs/afds-workflow-routing.md`: shared comments get sanitized
@@ -784,7 +796,7 @@ Include the literal `Comment evidence: <repo-relative-path>` line only when
 ```
 Write an implementation plan for <source-noun> issue <ID>: <TITLE>.
 
-`--auto` flow active (invoked by `issue-priming-workflow`). Do NOT prompt for execution mode at the end — return after saving the plan and only after both Plan Review and Implementer Executability Review pass so the parent skill can invoke `play-subagent-execution`. Failed, missing, or unreadable executability review stops before `play-subagent-execution`.
+`--auto` flow active (invoked by `issue-priming-workflow`). Do NOT prompt for execution mode at the end — return after saving the plan and only after complete combined D5 review passes both remits so the parent skill can invoke `play-subagent-execution`. Invalid combined review stops before `play-subagent-execution`.
 
 Design: <repo-relative-path captured above>
 
@@ -796,11 +808,12 @@ Do not wait for user review of the plan — proceed directly to implementation a
 ### Phase 6: Implement
 
 After `play-planning` returns, capture its literal
-`Plan written to <path>.` and `Reviewed digest: <sha256>` lines. That return
-means both planning review gates passed. Preserve the reviewed digest in
-controller-local state, validate it as lowercase 64-hex, and stop if either
-line is missing or malformed. Failed, missing, or unreadable executability
-review must stop inside `play-planning` and must not reach this phase. Validate
+`Plan written to <path>.`, `Reviewed digest: <sha256>`, and
+`Planning review contract: planning-review/combined-v1` lines. That return
+means one complete combined D5 review passed. Preserve the reviewed digest and
+combined producer provenance in controller-local state, validate them, and stop
+if any value is missing or malformed. Invalid planning provenance must stop
+inside `play-planning` and must not reach this phase. Validate
 the captured path:
 
 ```bash
@@ -885,6 +898,7 @@ Parent-owned review contract: this invocation comes from `issue-priming-workflow
 
 Plan: <PLAN_PATH captured above>
 Expected digest: <reviewed lowercase 64-hex digest captured above>
+Planning review contract: planning-review/combined-v1
 Auto handoff: <repo-relative-path>
 Verified auto-route attestation: <controller-validated exact-route attestation>
 ```
@@ -897,7 +911,7 @@ Phase 7 final-review guarantee, both defined in
 [`references/phase-6-auto-handoff.md`](references/phase-6-auto-handoff.md)
 §§ "Single-Task Final-Review Carve-Out" and "Phase 7 Final-Review Guarantee".
 
-`play-subagent-execution` may execute trivial single-task plans inline (skip-dispatch path; see its [skip-dispatch policy](../play-subagent-execution/references/skip-dispatch-policy.md)). Phase 6 itself remains "invoke `play-subagent-execution`" — the inline optimization is internal to that skill. Four runtime guardrails (single-task, `**Mode:** mechanical`, structural task-contract gate satisfied, no TDD expectations or legacy TDD step-pair markers) plus one upstream precondition (the two-gate `play-planning` return from Phase 5) gate the path; the runtime guardrails are checked by the skill's controller after plan extraction. A missing or invalid required contract checklist stops before implementation rather than falling back to mechanical dispatch.
+`play-subagent-execution` may execute trivial single-task plans inline (skip-dispatch path; see its [skip-dispatch policy](../play-subagent-execution/references/skip-dispatch-policy.md)). Phase 6 itself remains "invoke `play-subagent-execution`" — the inline optimization is internal to that skill. Four runtime guardrails (single-task, `**Mode:** mechanical`, structural task-contract gate satisfied, no TDD expectations or legacy TDD step-pair markers) plus one upstream precondition (current combined D5 provenance from Phase 5) gate the path; the runtime guardrails are checked by the skill's controller after plan extraction. A missing or invalid required contract checklist stops before implementation rather than falling back to mechanical dispatch.
 
 Successful `play-subagent-execution` completion returns control to this owning
 workflow. Phase 6 completion is not terminal; it enters Candidate Closure and
