@@ -357,7 +357,7 @@ describe("shipped skill rendering", () => {
     }
   });
 
-  it("renders D10 through reviewer frontier/high without changing deep-reviewer routes", async () => {
+  it("renders ordinary reviewer routes at Astra/medium and preserves D10 high", async () => {
     const config = await loadConfig(
       path.join(process.cwd(), "devcanon.config.yaml"),
     );
@@ -372,6 +372,47 @@ describe("shipped skill rendering", () => {
       "  message: D10_CRITIC_PROMPT,",
       "})",
     ].join("\n");
+    const ordinarySpawns = [
+      [
+        "play-planning",
+        [
+          "Codex.spawn_agent({",
+          "  task_name: d5_<instance_ordinal>,",
+          '  agent_type: "reviewer",',
+          "  model: D5_MODEL,",
+          '  reasoning_effort: "medium",',
+          '  fork_turns: "none",',
+          "  message: D5_PLAN_REVIEW_PROMPT,",
+          "})",
+        ].join("\n"),
+      ],
+      [
+        "play-planning",
+        [
+          "Codex.spawn_agent({",
+          "  task_name: d6_<instance_ordinal>,",
+          '  agent_type: "reviewer",',
+          "  model: D6_MODEL,",
+          '  reasoning_effort: "medium",',
+          '  fork_turns: "none",',
+          "  message: D6_EXECUTABILITY_REVIEW_PROMPT,",
+          "})",
+        ].join("\n"),
+      ],
+      [
+        "play-review",
+        [
+          "Codex.spawn_agent({",
+          "  task_name: d7_<instance_ordinal>,",
+          '  agent_type: "reviewer",',
+          "  model: D7_MODEL,",
+          '  reasoning_effort: "medium",',
+          '  fork_turns: "none",',
+          "  message: D7_PROMPT,",
+          "})",
+        ].join("\n"),
+      ],
+    ] as const;
 
     for (const target of TARGETS) {
       const { body: playReview } = parseFrontmatter(
@@ -389,6 +430,14 @@ describe("shipped skill rendering", () => {
       expect(playReview).not.toContain(
         "`semantic_role: deep-reviewer`; `capability: frontier`",
       );
+
+      for (const [skill, spawn] of ordinarySpawns) {
+        const { body } = parseFrontmatter(
+          getSkillOutput(outputs, skill, target).content,
+        );
+        expect(body).toContain(spawn);
+        expect(body).toContain(config.capabilityProfiles.frontier.codex);
+      }
 
       const { body: execution } = parseFrontmatter(
         getSkillOutput(outputs, "play-subagent-execution", target).content,

@@ -80,13 +80,15 @@ provider models, effort levels, or workflow phases.
 | `investigator`  | balanced   | high          | high         | `source-immutable` | `none`           | Repository, document, or external evidence collection |
 | `executor`      | efficient  | omitted       | medium       | `source-mutable`   | `none`           | Exact validated no-policy operations                  |
 | `implementer`   | balanced   | high          | high         | `source-mutable`   | `none`           | Judgment-bearing scoped implementation                |
-| `reviewer`      | frontier   | high          | high         | `source-immutable` | `none`           | Ordinary synthesis and adversarial review             |
+| `reviewer`      | frontier   | high          | medium       | `source-immutable` | `none`           | Ordinary synthesis and adversarial review             |
 | `deep-reviewer` | frontier   | xhigh         | xhigh        | `source-immutable` | `none`           | Existing high-assurance review gates                  |
 
 Capability and route effort are explicit for all six semantic roles and remain
-independent. The route effort is selected by a direct-child route; it is not a
-source `codex.model_reasoning_effort` default. Neither setting implies tools,
-sandbox, network, mutation, or escalation behavior.
+independent. The ordinary reviewer source defaults to literal
+`gpt-6-astra`/`medium`, and its ordinary direct-child routes mirror that effort.
+D10 retains its explicit `high` targeted-verifier exception. Neither source
+defaults nor route effort imply tools, sandbox, network, mutation, or escalation
+behavior.
 
 The executor uses Haiku 4.5 on Claude, which does not support named effort.
 Omit Claude executor effort in both source and dispatch; the recorded `medium`
@@ -290,10 +292,12 @@ Codex `model` selection has three source states:
 Explicit `codex.model: null` is known agent-source schema, not passthrough or a
 warning. Claude `model` accepts only a literal string or absence; Claude null is
 rejected. The agent spec owns this target distinction.
-The six current semantic source roles retain their top-level capability and
-Claude envelope specified above, set `codex.model: null`, and omit
+Five current semantic source roles retain their top-level capability and Claude
+envelope specified above, set `codex.model: null`, and omit
 `codex.model_reasoning_effort`; their Codex render therefore omits both fields.
-The Claude executor omits effort; other Claude role envelopes remain unchanged.
+The ordinary reviewer instead sets literal `codex.model: gpt-6-astra` and
+`codex.model_reasoning_effort: medium`. The Claude executor omits effort; other
+Claude role envelopes remain unchanged.
 Literal target model fields must not
 contain `{{model:*}}`; validation and both render paths reject those former
 agent placeholders with guidance to use top-level capability or a literal model.
@@ -301,9 +305,11 @@ agent placeholders with guidance to use top-level capability or a literal model.
 Effort is independent. An explicit `claude.effort` or
 `codex.model_reasoning_effort` is emitted as written; when absent it remains
 omitted and ambient target behavior applies. Capability never supplies or
-inherits effort. The six semantic-role Codex efforts instead come from the
-selected route from the active route set in the Agent Routing and Mutation Policy; source agent
-Codex fields never override that route selection.
+inherits effort. The ordinary reviewer Codex default is `medium`; D5, D6, D7,
+and D4 reviewer selection use that same route effort, while D10 explicitly uses
+`high` for targeted verification. The remaining semantic-role Codex efforts
+come from the selected route in the active route set in the Agent Routing and
+Mutation Policy; source agent Codex fields never override a direct route.
 
 Effort validation is local and syntactic. Accepting an effort such as `max`
 does not prove that a particular Codex client, model, or account can run it;

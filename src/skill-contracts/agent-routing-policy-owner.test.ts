@@ -53,7 +53,7 @@ const FRESH_SPAWNS = [
     "reviewer",
     "frontier",
     "D5_MODEL",
-    "high",
+    "medium",
     "source-immutable",
     "D5_PLAN_REVIEW_PROMPT",
   ],
@@ -63,7 +63,7 @@ const FRESH_SPAWNS = [
     "reviewer",
     "frontier",
     "D6_MODEL",
-    "high",
+    "medium",
     "source-immutable",
     "D6_EXECUTABILITY_REVIEW_PROMPT",
   ],
@@ -73,7 +73,7 @@ const FRESH_SPAWNS = [
     "reviewer",
     "frontier",
     "D7_MODEL",
-    "high",
+    "medium",
     "source-immutable",
     "D7_PROMPT",
   ],
@@ -241,13 +241,33 @@ describe("agent routing and mutation policy owner", () => {
         const role = rolesByName.get(clause.role);
         expect(role, `${route.id} has a known semantic role`).toBeDefined();
         expect(clause.capability).toBe(role?.capability);
-        expect(clause.effort).toBe(role?.routeEffort);
+        const expectedEffort =
+          route.id === "D10" && clause.role === "reviewer"
+            ? "high"
+            : role?.routeEffort;
+        expect(clause.effort).toBe(expectedEffort);
         expect(clause.sourceAuthority).toBe(role?.sourceAuthority);
         expect(config.capabilityProfiles[clause.capability].codex).toMatch(
           /\S/,
         );
       }
     }
+  });
+
+  it("keeps D10 as the sole high-effort reviewer exception", async () => {
+    const owner = await readAgentRoutingPolicyOwner(OWNER_PATH);
+    const reviewerRoutes = owner.directChildRoutes
+      .filter((route) =>
+        route.clauses.some((clause) => clause.role === "reviewer"),
+      )
+      .map((route) => [route.id, route.clauses[0]?.effort]);
+
+    expect(reviewerRoutes).toEqual([
+      ["D5", "medium"],
+      ["D6", "medium"],
+      ["D7", "medium"],
+      ["D10", "high"],
+    ]);
   });
 
   it("correlates every fixed active route set policy clause to its exact fresh Codex tuple", async () => {
