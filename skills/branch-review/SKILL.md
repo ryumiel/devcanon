@@ -584,14 +584,14 @@ the threshold unmet. This grants no new implementation authority.
 
 ## Quick Reference
 
-| Situation                                                 | Action                                |
-| --------------------------------------------------------- | ------------------------------------- |
-| Empty diff                                                | Report "no changes", stop             |
-| All clean                                                 | Report "no issues found"              |
-| Proportionality-qualified blocking findings + `--fix`     | Auto-fix eligible, commit, report     |
-| Blocking finding needs design change or out-of-diff edits | Stop, report to caller                |
-| Hard-rule judgment-required blocker                       | Stop, preserve in findings file       |
-| Nit findings + `--fix`                                    | Report-only handoff; no automatic fix |
+| Situation                                                 | Action                                                          |
+| --------------------------------------------------------- | --------------------------------------------------------------- |
+| Empty diff                                                | Report "no changes", stop                                       |
+| All clean                                                 | Report "no issues found"                                        |
+| Blocking findings + `--fix`                               | Apply the canonical **With `--fix`** eligibility criteria above |
+| Blocking finding needs design change or out-of-diff edits | Stop, report to caller                                          |
+| Hard-rule judgment-required blocker                       | Stop, preserve in findings file                                 |
+| Nit findings + `--fix`                                    | Report-only handoff; no automatic fix                           |
 
 ## Common Mistakes
 

@@ -3452,6 +3452,15 @@ export function validateTargetedReviewEvidence(envelope: JsonObject): void {
   )
     reject();
   const d10Failed = routes.some((route) => route.route === "D10");
+  if (
+    routes.some((route) => route.route === "D7") &&
+    (byId.size > 0 ||
+      arrayField(envelope, "prior_dispositions").length > 0 ||
+      verification.state !== "not-required" ||
+      selected.length > 0 ||
+      d10Failed)
+  )
+    reject();
   if (selected.length === 0) {
     if (verification.state !== "not-required" || d10Failed) reject();
   } else if (verification.state === "completed") {

@@ -127,6 +127,42 @@ export function targetedEvidenceCases(head: string) {
   record("empty skipped verification", true);
   value.findings = [claim];
   record("ordinary unselected blocker", true);
+  for (const disposition of [
+    "FAILED",
+    "NEEDS_CONTEXT",
+    "CONTROLLER_OBSERVED_FAILURE",
+  ]) {
+    const failed = targetedEnvelope(head);
+    failed.incomplete_review_routes = [{ route: "D7", disposition }];
+    cases.push({
+      name: `D7 ${disposition} without accepted evidence`,
+      accepted: true,
+      value: failed,
+    });
+    for (const field of ["findings", "carry_forward", "prior_dispositions"]) {
+      const contradictory = structuredClone(failed);
+      if (field === "prior_dispositions")
+        contradictory.prior_dispositions = [
+          {
+            id: "old",
+            origin_head_sha: prior,
+            assessed_head_sha: head,
+            status: "resolved",
+            reason: "Assessed resolved",
+          },
+        ];
+      else
+        contradictory[field as "findings" | "carry_forward"] = [
+          targetedFinding(head),
+        ];
+      cases.push({
+        name: `D7 ${disposition} cannot admit ${field}`,
+        accepted: false,
+        value: contradictory,
+      });
+    }
+  }
+
   claim.critic = "VALID";
   record("borrowed verdict", false);
   claim.critic = null;
@@ -140,6 +176,17 @@ export function targetedEvidenceCases(head: string) {
   record("required verifier failure missing D10", false);
   value.incomplete_review_routes = [{ route: "D10", disposition: "FAILED" }];
   record("required verifier failure with D10", true);
+  const prematureD10 = structuredClone(value);
+  prematureD10.incomplete_review_routes.push({
+    route: "D7",
+    disposition: "FAILED",
+  });
+  cases.push({
+    name: "D7 failure cannot dispatch D10",
+    accepted: false,
+    value: prematureD10,
+  });
+
   claim.severity = "Nit";
   claim.body = claim.body.replace("**Blocking", "**Nit");
   record("selected nit", false);

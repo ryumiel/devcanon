@@ -292,7 +292,10 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       ];
       for (const keys of cases) {
         for (const kind of ["array", "object", "number", "boolean", "null"]) {
-          const value = structuredClone(baseline);
+          const value =
+            keys[0] === "incomplete_review_routes"
+              ? (targetedEnvelope(reviewHeadSha) as Record<string, unknown>)
+              : structuredClone(baseline);
           if (keys[0] === "incomplete_review_routes")
             value.incomplete_review_routes = [
               { route: "D7", disposition: "FAILED" },
@@ -672,7 +675,11 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     },
   );
 
-  it.each(["validate-findings", "render-review-preview"])(
+  it.each([
+    "validate-findings",
+    "render-review-preview",
+    "prepare-judgment-nits",
+  ])(
     "%s binds to the supplied review head without requiring checkout HEAD",
     async (command) => {
       const cwd = await makeTopicGitWorkspace();
@@ -684,23 +691,34 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           ["commit", "--allow-empty", "-m", "Later candidate"],
           { cwd },
         );
-        const value = currentReviewEnvelope(priorHead, []) as Record<
-          string,
-          unknown
-        >;
+        const claims = [
+          sourceFinding({ path: "README.md", line: 1, critic: "DOWNGRADE" }),
+        ];
+        const value = currentReviewEnvelope(priorHead, claims);
         await writeFile(path.join(cwd, file), JSON.stringify(value));
         await expect(
           runHelper(cwd, command, {
             REVIEW_SURFACE: "branch-review",
+            JUDGMENT_REQUIRED_FINDING_INDEXES: "0",
             HEAD_SHA: priorHead,
             FINDINGS_FILE: file,
           }),
         ).resolves.toMatchObject({ stderr: "" });
-        value.review_head_sha = await currentHeadSha(cwd);
-        await writeFile(path.join(cwd, file), JSON.stringify(value));
+        const derived = file.replace("-findings.json", "-nits-pending.json");
+        const before =
+          command === "prepare-judgment-nits"
+            ? await readFile(path.join(cwd, derived), "utf8")
+            : null;
+        await writeFile(
+          path.join(cwd, file),
+          JSON.stringify(
+            currentReviewEnvelope(await currentHeadSha(cwd), claims),
+          ),
+        );
         await expect(
           runHelper(cwd, command, {
             REVIEW_SURFACE: "branch-review",
+            JUDGMENT_REQUIRED_FINDING_INDEXES: "0",
             HEAD_SHA: priorHead,
             FINDINGS_FILE: file,
           }),
@@ -708,6 +726,8 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           stdout: "",
           stderr: expect.stringContaining("head-bound"),
         });
+        if (before !== null)
+          expect(await readFile(path.join(cwd, derived), "utf8")).toBe(before);
       } finally {
         await cleanupTempDir(cwd);
       }
@@ -937,9 +957,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           }),
         ],
         carry_forward: [],
-        incomplete_review_routes: [
-          { route: "D7", disposition: "NEEDS_CONTEXT" },
-        ],
+        incomplete_review_routes: [],
       });
 
       const preview = await runHelper(cwd, "render-review-preview", {
@@ -998,9 +1016,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           }),
         ],
         carry_forward: [],
-        incomplete_review_routes: [
-          { route: "D7", disposition: "NEEDS_CONTEXT" },
-        ],
+        incomplete_review_routes: [],
       });
 
       await expect(
@@ -1578,9 +1594,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           }),
         ],
         carry_forward: [],
-        incomplete_review_routes: [
-          { route: "D7", disposition: "NEEDS_CONTEXT" },
-        ],
+        incomplete_review_routes: [],
       });
 
       const { stdout } = await runHelper(cwd, "prepare-judgment-nits", {
@@ -1595,9 +1609,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       expect(written).toMatchObject({
         schema: "play-review/findings/v3",
         carry_forward: [],
-        incomplete_review_routes: [
-          { route: "D7", disposition: "NEEDS_CONTEXT" },
-        ],
+        incomplete_review_routes: [],
       });
       expect(written.findings).toHaveLength(2);
       expect(written.findings[0]).toMatchObject({

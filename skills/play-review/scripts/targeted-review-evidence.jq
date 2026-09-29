@@ -29,6 +29,11 @@ and (.incomplete_review_routes | all(.[];
   and (.route == "D7" or .route == "D10")
   and (.disposition == "FAILED" or .disposition == "NEEDS_CONTEXT" or .disposition == "CONTROLLER_OBSERVED_FAILURE")))
 and ((.incomplete_review_routes | map(.route) | unique | length) == (.incomplete_review_routes | length))
+and (if (.incomplete_review_routes | any(.[]; .route == "D7")) then
+  .findings == [] and .carry_forward == [] and .prior_dispositions == []
+  and .verification.state == "not-required" and .verification.selected_ids == []
+  and (.incomplete_review_routes | all(.[]; .route != "D10"))
+  else true end)
 and (.verification | keys == ["reason", "selected_ids", "state"])
 and (.verification.reason | nonblank)
 and (.verification.selected_ids | type == "array")

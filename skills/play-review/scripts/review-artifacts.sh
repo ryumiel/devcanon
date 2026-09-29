@@ -704,6 +704,7 @@ prepare_judgment_nits() {
   require_env JUDGMENT_REQUIRED_FINDING_INDEXES
   validate_findings_path_shape "$FINDINGS_FILE"
   assert_readable_envelope "findings file" "$FINDINGS_FILE"
+  require_current_envelope "$FINDINGS_FILE"
 
   case "$JUDGMENT_REQUIRED_FINDING_INDEXES" in
     *[[:space:]]* | "" | *, | ,* | *,,*)
