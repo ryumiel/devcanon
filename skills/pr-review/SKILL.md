@@ -613,9 +613,11 @@ Hand off to `play-review` with these manifest-backed inputs:
 - `last_reviewed_sha` = set in Phase 1 (follow-up only)
 - `is_followup_narrow` = computed in Phase 3
 
-Follow `skills/play-review/SKILL.md` end-to-end. The shared review context is
-internal `play-review` phase scaffolding, not a `pr-review` consumer hook. Do
-not parse, validate, render, post, or snapshot the Phase 2.5 shared
+Follow `skills/play-review/SKILL.md` end-to-end. Before that semantic stage,
+validate prepared paths and their current base/head/worktree bindings; changed
+source, policy, authority, or dirty worktree state refreshes preparation. The
+shared review context is internal `play-review` phase scaffolding, not a
+`pr-review` consumer hook. Do not parse, validate, render, post, or snapshot the Phase 2.5 shared
 review-context file in this wrapper. `pr-review` remains compatible when
 `play-review` changes only its bounded shared-context prose or helper internals
 and preserves the findings notice, findings envelope, and Phase 4 output

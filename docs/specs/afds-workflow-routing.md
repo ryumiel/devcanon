@@ -594,6 +594,145 @@ Generated previews and installed managed outputs are derived artifacts. They may
 provide drift evidence, but they are not durable product, behavior, policy, or
 contract authority.
 
+## Planning Review and Preparation Behavior
+
+Status: active. The combined producer and all named consumers activate
+together; legacy paired planning results are not compatible. Detailed result,
+correction and compatibility authority belongs to the
+[planning contract](../../skills/play-planning/references/combined-review-contract.md);
+route identity belongs to the
+[routing policy](../guidelines/agent-routing-and-mutation-policy.md#active-combined-planning-route).
+This section specifies observable guarantees, not an additional result schema.
+
+### PLAN-001: Complete independent planning judgment
+
+One independent reviewer covers correctness and executability for the entire
+accepted plan, including complex multi-boundary work. Missing either dimension
+prevents approval. Complexity may increase depth and source inspection, but
+does not by itself create another reviewer or route. Existing readiness,
+proportionality, traceability and independent source verification remain.
+
+### PLAN-002: Bounded correction and honest failure
+
+The accepted scope receives one comprehensive initial pass and at most one
+further pass. Nonblocking feedback alone does not require another session.
+Focused correction checks prior blockers, the complete plan diff and affected
+dependencies. Material change requires comprehensive review within the same
+budget or explicit owner reassessment. Every genuine blocker prevents PASS,
+including an inspectable defect missed initially. Exhaustion, unavailable
+review, incomplete coverage or renamed work never grants approval or another
+automatic round. The planning owner defines materiality and reopening authority.
+
+### PLAN-003: Current approval and compatible consumers
+
+Approval names the current exact plan bytes and both covered remits. Corrections
+distinguish rechecked coverage from applicable carried evidence. Invalid,
+missing or mixed-version provenance cannot authorize execution. Auto execution,
+mechanical execution and parent-owned review-response consumers migrate with
+the producer. Review-response user approval remains separate, explicit and
+bound to the reviewed digest; changed bytes require renewed review and approval.
+Legacy paired results are never silently upgraded.
+
+### PREP-001: Reuse navigation, verify authority
+
+Use existing issue, research, design, plan and shared-review-context artifacts
+to reference accepted scope, unresolved questions, authority, affected sources
+and available proof once. No new cache, database, general framework or approval
+store is introduced. Each reused claim retains its source path/reference,
+checked content identity, applicable repository/base/head and working-tree
+state, evidence scope and limitations. Evidence time is preserved, not relabeled
+as a fresh review. For fetched issue authority, compare current substantive
+scope/constraints, not merely the issue identifier or local snapshot timestamp.
+
+The controlling stage validates readable paths, required fields and mechanically
+decidable structure before semantic dispatch. Research receives bounded
+unresolved questions and the existing source map; the controller avoids
+concurrent duplicate discovery. Reviewers independently inspect relevant
+primary authority and form their own judgment. Reuse of a summary never
+establishes authorization, approval, semantic completeness or current results.
+
+### PREP-002: Refresh affected inputs before use
+
+Before reuse and immediately before applying a result, the consuming controller
+compares current inputs with retained provenance. Content identity can be an
+existing artifact digest, Git object or exact-byte comparison; a timestamp or
+unchanged path alone is insufficient. Working-tree changes must be considered
+even when HEAD is unchanged. The existing stage owner decides semantic impact;
+mechanical helpers cannot approve uncertain relevance.
+
+| Changed or missing input                            | Required observable outcome                                                                                                                                                                                    |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Plan bytes                                          | Invalidate prior approval; inspect full diff and refresh affected decisions/dependencies/proof. Reuse only justified unaffected source evidence under the planning coverage contract.                          |
+| Source, base, head or working tree                  | Refresh candidate/diff and affected interfaces; invalidate dependent validation and review evidence. Apply existing head-bound review rules even if some references remain reusable.                           |
+| Policy, ADR or issue authority                      | Re-read changed authority; invalidate dependent scope, route and approval claims. An authority expansion requires its owner's decision.                                                                        |
+| Missing/unreadable path or malformed required field | Stop before semantic dispatch, repair inputs from actual repository evidence, then rerun structural preflight. Never substitute a guessed ADR or source path.                                                  |
+| Missing provenance or uncertain impact              | Rebuild affected preparation from current sources; broaden to full relevant-context refresh when affected scope cannot be proven. Rebuilding preparation does not replenish review budget or restore approval. |
+| No relevant input changes                           | Reuse validated references and scoped evidence with their original provenance; reviewer source verification remains required.                                                                                  |
+
+D18 remains the semantic review-context owner on every invocation that currently
+requires it. Research does not replace D18 and this proposal does not authorize
+cross-invocation reuse of D18 results. `play-review` owns context preparation and
+refresh; `branch-review` and `pr-review` retain fix-scope decisions and broaden
+review whenever impact cannot be bounded. D7 remains comprehensive and D10
+retains its existing triggers and failure rules.
+
+### PLAN-004: Preserved boundaries
+
+Model/effort bindings, D14–D16, source protection, lifecycle cleanup, exact-digest
+approval, execution authority, publication, CI and merge gates remain unchanged.
+No global one-agent rule, simple/complex router, model comparison claim,
+automatic budget-limit approval or user-home installation is introduced.
+
+### Acceptance scenarios for the active contract
+
+| Scenario                                            | Required result                                                                                                               |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Complex plan spans multiple producers and consumers | One reviewer proves both remits for every applicable task/boundary; omitted coverage fails.                                   |
+| Initial PASS                                        | Current digest and complete coverage permit the appropriate handoff; separate external/user gates still apply.                |
+| Corrected blockers                                  | The one remaining pass checks full diff and dependencies; new digest, rechecked rows and justified carried rows are explicit. |
+| Nit-only feedback                                   | Defer without mandatory review; editing bytes invalidates approval and uses remaining budget.                                 |
+| Initially missed inspectable defect found late      | Genuine blocker prevents PASS even on comprehensive re-review; no third automatic pass.                                       |
+| Material redesign                                   | Obtain owning decision and comprehensive review within remaining budget, otherwise reassess.                                  |
+| Repeated blocker or unavailable reviewer            | No handoff; report unresolved condition and owning reassessment route.                                                        |
+| Invalid ADR path                                    | Controller preflight rejects it before D18 or another semantic child is dispatched.                                           |
+| Unchanged references                                | No duplicate discovery required; relevant authoritative claims are still independently verified.                              |
+| Policy drift or changed uncommitted source          | Dependent coverage/evidence is invalidated despite unchanged plan digest or HEAD.                                             |
+| Legacy handoff mismatch or lost provenance          | Migrated reviewed consumer refuses; no synthetic second PASS or downgrade to unreviewed execution.                            |
+| Review-response approval followed by plan edit      | Previous user approval cannot authorize new bytes; renewed review and user approval required.                                 |
+| Mechanical task with invalid planning provenance    | Mechanical eligibility is not granted by the tag; retain all independent eligibility checks.                                  |
+
+### Verification and evaluation expectations
+
+Use existing planning/route/render/helper and consumer tests
+to exercise these scenarios on Claude and Codex projections. Include changed
+bytes after final PASS, failed cleanup, incomplete dimension coverage,
+unsupported contract tags, valid legacy isolation, and invalid planning
+provenance versus merely invalid auto-route evidence. Supplement structural
+checks with scenario review: token matching alone does not prove semantics.
+
+Future real-task evaluation is deferred. This activation makes no performance,
+quality, recall, speedup, or model/effort equivalence claim and adds no monitor,
+telemetry platform, or generalized benchmark.
+
+### Evidence pointers for shaping
+
+- GitHub [issue 748](https://github.com/ryumiel/devcanon/issues/748): accepted
+  combined-review and preparation outcomes.
+- Source [combined planning contract](../../skills/play-planning/references/combined-review-contract.md)
+  and [ADR-0039](../adr/adr-0039-combined-planning-review.md): active combined
+  review and preparation contract.
+- Source [review-response](../../skills/play-review-response/SKILL.md),
+  [execution](../../skills/play-subagent-execution/SKILL.md) and
+  [auto handoff](../../skills/issue-priming-workflow/references/phase-6-auto-handoff.md):
+  coupled consumer obligations activate with the combined producer.
+- Source [single-reviewer contract](../../skills/play-review/references/single-reviewer-contract.md):
+  preserved D18/D7/D10 freshness and ownership verified. Performance and quality
+  equivalence are unmeasured; evaluation belongs to the workflow owners.
+
+After explicit contract acceptance, route this owner set through
+`spec-readiness-review` before `issue-slicing`. Neither authoring nor readiness
+review grants implementation approval or tracker mutation authority.
+
 ## Behavior Scenarios
 
 ### Scenario A: Already-Sliced Issue With No Durable Change

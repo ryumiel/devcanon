@@ -269,14 +269,18 @@ dispositions, follow-up commit continuity, GitHub thread replies/refetching,
 resolution eligibility, and final PR closeout. It also owns the verified
 review-response planning input.
 
-After `play-planning` emits `Plan written to <path>.` and
-`Reviewed digest: <sha256>`, capture the path and exact reviewed digest in
-controller-local state, present the generated plan for user approval, and
+After `play-planning` emits `Plan written to <path>.`,
+`Reviewed digest: <sha256>`, and
+`Planning review contract: planning-review/combined-v1`, capture the path,
+exact reviewed digest, and complete combined producer provenance in
+controller-local state. Present the generated plan for explicit user approval,
+and
 invoke `play-subagent-execution` only after approval with:
 
 ```text
 Plan: <path>
 Expected digest: <sha256>
+Planning review contract: planning-review/combined-v1
 ```
 
 Immediately before that executor handoff, compute SHA-256 over the exact saved
@@ -293,9 +297,9 @@ rely on issue-priming `--auto` reduced-route behavior, because direct/manual
 review-response plans do not carry parent-owned issue-priming state, validated
 auto-handoff evidence, or a guaranteed downstream `branch-review --fix` loop.
 For `Route: review-response-parent-owned`, `play-planning` emits the plan path
-only after both Plan Review and Implementer Executability Review pass. A failed,
-missing, or unreadable executability review remains inside `play-planning` and
-stops before this approval gate or any execution handoff.
+only after one complete combined D5 review passes both remits. User approval is
+separate, binds the exact reviewed digest, and cannot repair missing, mixed,
+stale, or legacy planning provenance.
 
 `play-subagent-execution` owns executor-owned mechanics after the handoff:
 task-contract validation, dispatch/skip-dispatch, review routing, snapshot
@@ -313,9 +317,9 @@ coverage.
 For planned review-response work, create and self-review the written
 `.ephemeral/*-design.md` planning input, invoke `play-planning` with
 `Route: review-response-parent-owned` and `Design: <path>`, and capture the
-emitted `Plan written to <path>.` and `Reviewed digest: <sha256>` lines before
-implementation, only after `play-planning` has completed both Plan Review and
-Implementer Executability Review. This gate borrows the approval-gate shape from `play-brainstorm`
+emitted `Plan written to <path>.`, `Reviewed digest: <sha256>`, and combined
+contract notice before implementation, only after `play-planning` has completed
+one D5 review covering both remits. This gate borrows the approval-gate shape from `play-brainstorm`
 without invoking `play-brainstorm` and without making it a dependency of
 `play-review-response`.
 
@@ -338,23 +342,29 @@ The plan approval gate is explicit:
   `.ephemeral/`; they are not durable product, architecture, or workflow
   documentation.
 - Run planning input self-review before invoking `play-planning`;
-  `play-planning` owns plan self-review, Plan Review, and Implementer
-  Executability Review before it emits `Plan written to <path>.`.
+  `play-planning` owns plan self-review and combined D5 review before it emits
+  `Plan written to <path>.`.
 - Wait for user approval before implementation begins.
 - Approval happens after `Plan written to <path>.` and before
   `play-subagent-execution`.
 - `play-planning` returns `Plan written to <path>.` for this route only after
-  both Plan Review and Implementer Executability Review pass; failed, missing,
-  or unreadable executability review remains inside `play-planning` and stops
-  before this approval gate.
-- If the user requests any generated-plan change, route every generated-plan
-  revision back through `play-planning`, including plan self-review, Plan
-  Review, and Implementer Executability Review, before renewed approval.
+  combined D5 review passes both remits; invalid planning provenance remains
+  inside `play-planning` and stops before this approval gate.
+- If the user requests a generated-plan change, retain the accepted scope and
+  complete D5 pass history, then derive the remaining budget from that history.
+  A PASS from the initial first pass leaves one correction pass; route that edit
+  through `play-planning`, including plan self-review and combined D5 review,
+  before renewed approval. A PASS reached on correction pass two leaves no pass,
+  even when this is the user's first requested edit.
+- When no pass remains, pause the approval loop for the explicit owning
+  reassessment and cycle-reopening decision required by the combined-review
+  contract. Present the exhausted budget and retained scope/pass history; do
+  not dispatch another review until that owner decision explicitly authorizes a
+  new bounded cycle. A user request for another edit is not an implicit reset
+  or reopening.
 - Repeat the user approval loop until the user approves or stops the work.
-  There is no fixed maximum for this human approval loop.
-- Keep the separate `play-planning` agent-review cap out of the user approval
-  gate; that cap governs planning-agent review rounds, not how many times the
-  user may request plan changes before approval.
+  User approval may continue indefinitely, but every edited plan remains
+  subject to the current cycle's D5 pass budget and any required reopening.
 
 ### Planning Input Self-Review
 
@@ -465,12 +475,16 @@ Classification: in-scope product blocker (Writing Skills).
 Mode: Planned execution.
 Action: Apply the canonical `.ephemeral` write guard, write
 `.ephemeral/<date>-review-response-design.md`, invoke `play-planning` with
-`Route: review-response-parent-owned` and `Design: <path>`, wait for both
-planning review gates to pass, capture `Plan written to <path>.` and
-`Reviewed digest: <sha256>`, ask for approval using `{captured-plan-path}`
-replaced with the captured path, wait for approval, rehash the exact saved plan
-bytes, then invoke `play-subagent-execution` with `Plan: <path>` and
-`Expected digest: <sha256>` only when the digest still matches.
+`Route: review-response-parent-owned` and `Design: <path>`. Follow the Plan
+Approval Gate: wait for current combined D5 approval, capture
+`Plan written to <path>.`, `Reviewed digest: <sha256>`, and
+`Planning review contract: planning-review/combined-v1`, and retain validated
+producer provenance. Ask for approval using `{captured-plan-path}` replaced
+with the captured path. After approval and the required exact-byte rehash,
+invoke `play-subagent-execution` with:
+Plan: <path>
+Expected digest: <sha256>
+Planning review contract: planning-review/combined-v1
 ```
 
 Worked inline, no-code, and GitHub-closeout-exclusion scenarios:

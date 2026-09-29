@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR-0039](adr-0039-combined-planning-review.md) for the
+planning-review consolidation. Its readiness, exact-byte identity, and
+fail-closed lifecycle safeguards remain active where ADR-0039 retains them.
 
 ## Context
 

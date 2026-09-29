@@ -25,6 +25,39 @@ freshness, per-finding fix eligibility, and bounded post-fix reassessment.
 
 Use the adjacent [review-artifacts usage](references/review-artifacts-usage.md), [shared-review-context usage](references/shared-review-context-usage.md), and [source-immutability usage](references/source-immutability-usage.md) for reusable invocation, I/O, and refusal mechanics. This workflow owns review ordering, the D18 semantic-context route, and D7/D10 continuation.
 
+Before D18, run controller preflight over only the frozen source inputs and
+supplied prior artifacts that already exist: the review identity and scope
+records, changed-file records, discovered guideline and supplied candidate-ADR
+references, and any supplied prior-review references. Validate required record
+fields; require readable regular-file identities for selected current-source
+and artifact references. Changed-file paths are diff records: validate their
+status and path against the frozen Git range, and validate deleted-side
+evidence against the frozen base and diff without requiring the deleted path
+to exist at the review head or in the worktree. This does not exempt a supplied
+candidate ADR or other selected current-source reference from readability
+checks. Compare declared head, base, worktree, authority, and content identity
+with the frozen review identity, applicable source side, and policy. A missing,
+malformed, or mismatched supplied candidate ADR or source reference stops before
+semantic dispatch. Absent optional or unselected inputs do not fail preflight.
+The `*-review-context-input.json` manifest and `*-review-context.md` are future
+Phase 2.5 outputs, so they are not pre-D18 inputs. The required order is:
+preflight existing supplied inputs; verify, validate, and clean D18; use the
+shared-context helper to write the manifest and build the context; validate the
+resulting artifacts; then dispatch D7.
+
+Freeze resolved base/head identities and both active and full diff ranges with
+D18's inputs, not merely mutable ref names. After D18 cleanup, compare the
+current wrapper-supplied scope and source identities with that frozen tuple
+before constructing the manifest. Once the context is built and immediately
+before D7 dispatch, confirm those identities and both generated artifacts still
+match the same tuple. Refresh preparation when
+source, head, base, either range, policy, authority, or dirty-worktree state
+changes. Scope drift returns to the wrapper for authoritative scope selection;
+do not reselect ranges here. Invalidate affected D18/context evidence and rerun
+preflight and preparation against the newly frozen inputs before D7. Uncertain
+semantic impact requires broader preparation. The helper remains structural
+only and does not decide semantic relevance.
+
 Internal multi-agent code review pipeline. Wrappers gather inputs, select the
 working directory and active diff, and dispose of findings; this skill reviews and emits a local findings envelope.
 

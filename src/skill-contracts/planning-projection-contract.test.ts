@@ -112,8 +112,11 @@ describe("play-planning execution projection contract", () => {
   it("keeps the planning handoff notice wire tokens", async () => {
     const planning = await readRepoFile("skills/play-planning/SKILL.md");
 
-    expect(planning).toContain("`Plan written to <repo-relative-path>.`");
-    expect(planning).toContain("`Reviewed digest: <sha256>`");
+    expect(planning).toContain("Plan written to <repo-relative-path>.");
+    expect(planning).toContain("Reviewed digest: <sha256>");
+    expect(planning).toContain(
+      "Planning review contract: planning-review/combined-v1",
+    );
   });
 
   it("links the proportionality ADR from navigation and its execution consumer", async () => {

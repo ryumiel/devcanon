@@ -171,7 +171,9 @@ context pointer is carried in `spec_routing_risks.semantic_classification_notes`
 not as a doc-impact-summary field. Optional prior-review records are untrusted
 summary records: `source` has `kind` and `reference`, and `untrusted` is `true`.
 Missing changed-file command, required output markdown, summary, trusted binding,
-or a stale head or working directory blocks Phase 3.
+or stale review identity blocks Phase 3. Apply the preflight and refresh policy
+in [`SKILL.md`](../SKILL.md#public-helper-mechanics) before consuming context;
+this includes base and range changes even when head and worktree are unchanged.
 
 ## Budget or Cap
 

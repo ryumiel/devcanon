@@ -23,8 +23,10 @@ authorize mutation of claims that no verifier examined.
 Only findings/v3 and approval-summary/v2 are accepted by artifact consumers.
 Older artifacts require fresh review, with no legacy reads or conversion.
 Current-schema earlier-candidate evidence remains subject to existing freshness
-and head-binding rules. The routing policy names the active route set,
-D1–D7 and D10–D18; no retired-route tombstones are maintained.
+and head-binding rules. ADR-0039 supersedes this record's active route inventory
+only: the routing policy now names D1–D5, D7, and D10–D18, with D6 retired.
+This record's review-selection and targeted-verification decision remains
+authoritative; no retired-route tombstones are maintained.
 
 Use one independent reviewer covering baseline quality/data safety and all
 applicable architecture, specification, documentation, example, platform, and

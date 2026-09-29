@@ -189,7 +189,8 @@ executor checks the selected entries, resolved IDs, curated records, and
 task-local fields structurally against them and does not restate them. The
 executor must not promote, demote, infer, or otherwise
 reclassify the tier from task prose, diff size, path spelling, or runtime risk
-routing. D5 owns semantic coverage for reviewed plans, including whether the
+routing. D5 owns correctness and executability coverage for reviewed plans,
+including whether the
 selected entries cover every actual participant and independently necessary
 execution relationship; the controller must not treat prompt-mediated
 consumers as the only consumers or omit guarded-inline D13 as an actual
@@ -203,10 +204,11 @@ an equivalent clearly labeled section/obligation, apply the shared consumer
 rule in
 [`references/contract-example-discipline-consumer-rule.md`](references/contract-example-discipline-consumer-rule.md).
 Both `LIGHTWEIGHT` and `NO-TRIGGER` are trusted only when this controller can
-identify the upstream two-gate `play-planning` return for the plan being
-executed, meaning both Plan Review and Implementer Executability Review passed
-before `Plan written to <path>.` was emitted. Direct, hand-written, copied,
-older, or otherwise unreviewed plans without that upstream two-gate return must
+identify current combined D5 producer provenance for the plan being executed:
+complete coverage, successful cleanup, matching path and digest, and
+`planning-review/combined-v1` before `Plan written to <path>.` was emitted.
+Direct, hand-written, copied, older, legacy-paired, or otherwise unreviewed
+plans without that combined return must
 use a structurally complete `FULL` contract. That direct `FULL` route is
 caller-authorized and receives structural validation only; the executor does
 not claim, infer, or synthesize D5-equivalent semantic completeness for it. A
@@ -231,12 +233,23 @@ reference wins.
 
 ### Path reference (preferred for controllers)
 
-A pair of literal lines of the form:
+Every path reference requires these two literal lines:
 
 ```
 Plan: <repo-relative-path>
 Expected digest: <sha256>
 ```
+
+A reviewed route additionally requires:
+
+```text
+Planning review contract: planning-review/combined-v1
+```
+
+Caller-authorized direct unreviewed `FULL` input uses the two-line form without
+claiming planning-review assurance. A route requiring or claiming reviewed
+provenance cannot become direct unreviewed input by omitting the tag; missing
+or invalid reviewed provenance stops that route.
 
 For example: `Plan: .ephemeral/2026-05-06-167-plan.md`.
 
@@ -261,6 +274,14 @@ digest, unavailable hasher, hashing failure, or mismatch stops before plan
 extraction and must return to the owning planning workflow; never replace the
 expected digest with the current file digest. Keep both values controller-local
 and do not create a digest artifact, helper, parser, or registry.
+
+For a reviewed route, validate the matching controller-held D5 producer
+identity, successful cleanup, complete coverage, and
+`planning-review/combined-v1` before mechanical eligibility or dispatch.
+Missing, mixed, stale, legacy paired, or summary-only evidence stops a reviewed
+route; direct unreviewed FULL input remains structurally eligible but cannot
+claim combined assurance. Auto evidence validates separately and cannot cure
+invalid planning provenance.
 
 Only after the digest comparison passes does the controller invoke
 `inspect-plan-projection.sh --path <repo-relative-plan-path>` before reading or
@@ -768,10 +789,10 @@ Write/Edit, verification, and commit inline or dispatch D13's `executor`. This
 path sits on top of the single-task per-task-review skip.
 
 All five guardrails must hold: the plan is single-task, the task is explicitly
-mechanical, no clarifying questions could plausibly arise under the upstream
-two-gate `play-planning` return, the structural task-contract gate is
+mechanical, no clarifying questions could plausibly arise under current
+combined D5 planning provenance, the structural task-contract gate is
 satisfied, and no tests need to be authored. Direct, hand-written, copied, or
-older plans without the upstream two-gate return fail the clarifying-question
+older plans without current combined provenance fail the clarifying-question
 guardrail and fall back to dispatched implementation. A task-contract failure
 stops before implementation; other guardrail misses fall back to dispatched
 implementation. After all five guardrails pass, keep the chosen branch

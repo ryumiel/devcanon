@@ -63,7 +63,7 @@ Return exactly one of these outcomes:
 `NOT_READY` stops before drafting or writing a plan and returns every stable
 missing-decision record to its named owner. `READY_WITH_RECORDED_ASSUMPTIONS`
 requires the complete assumption records to be included in the saved plan so
-self-review, D5, and D6 consume the same facts. `READY` records the outcome but
+self-review and combined D5 consume the same facts. `READY` records the outcome but
 does not fabricate an empty assumptions table.
 
 ## Recorded assumptions
