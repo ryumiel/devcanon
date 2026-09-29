@@ -668,7 +668,13 @@ invocation's complete `## Design` payload. Freeze one digest-bound tuple
 containing the exact plan path, the selected design path or preserved inline
 design payload, criteria and readiness paths and results, optional supplied
 comment evidence, `review_wave` (one or two), prior validated gaps, and
-producer provenance. Require only the selected design form: a selected path
+producer provenance. For a correction pass, also supply the retained original
+plan bytes, complete exact-byte revision diff, relevant input changes, and
+validated prior result with its coverage and evidence identities, as owned by
+[the combined contract](references/combined-review-contract.md#budget-and-correction-coverage).
+If original bytes or provenance are unavailable, apply that contract's
+comprehensive-review-or-reassessment fallback rather than focused carry.
+Require only the selected design form: a selected path
 must remain readable and a selected inline payload must remain present. The
 unselected form may be absent. Pass the selected form explicitly to D5 and
 instruct it to read the plan, selected design input, criteria, and readiness

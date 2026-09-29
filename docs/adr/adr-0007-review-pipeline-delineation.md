@@ -11,6 +11,11 @@ below are historical. Under ADR-0038 all nits remain report-only and every
 remaining nit reaches the existing handoff. This does not change this ADR’s
 implementation-review ownership or per-task-review decisions.
 
+[ADR-0039](adr-0039-combined-planning-review.md) supersedes only the upstream
+paired planning-review precondition below with combined D5 assurance. The
+implementation-review ownership, per-task routes, mechanical guardrails, and
+final-review carve-outs remain governed by their existing decisions.
+
 ## Note
 
 ADR-0016 later refines the `issue-priming-workflow --auto` single-task path
@@ -142,8 +147,9 @@ and re-review evidence.
 - ADR-0015 introduces a further optimization within the single-task path: when
   four runtime guardrails (single-task plan, `**Mode:** mechanical`, structural
   task-contract gate satisfied, no TDD expectations or legacy TDD step-pair
-  markers) plus one upstream precondition (the two-gate `play-planning` return
-  introduced by ADR-0023) all hold, the implementer dispatch itself is also
+  markers) plus one upstream precondition (the current combined D5
+  `play-planning` return under ADR-0039, replacing the historical two-gate
+  return introduced by ADR-0023) all hold, the implementer dispatch itself is also
   skipped — the controller executes Write/Edit + verify + commit inline. ADR-0016
   later narrows the `issue-priming-workflow --auto` single-task subset of
   that path further by skipping the final whole-implementation reviewer when

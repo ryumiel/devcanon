@@ -28,10 +28,15 @@ Use the adjacent [review-artifacts usage](references/review-artifacts-usage.md),
 Before D18, run controller preflight over only the frozen source inputs and
 supplied prior artifacts that already exist: the review identity and scope
 records, changed-file records, discovered guideline and supplied candidate-ADR
-references, and any supplied prior-review references. Require their required
-fields and readable regular-file identities where the selected input is a path;
-compare declared head, base, worktree, authority, and content identity with the
-frozen review identity, current source, and applicable policy. A missing,
+references, and any supplied prior-review references. Validate required record
+fields; require readable regular-file identities for selected current-source
+and artifact references. Changed-file paths are diff records: validate their
+status and path against the frozen Git range, and validate deleted-side
+evidence against the frozen base and diff without requiring the deleted path
+to exist at the review head or in the worktree. This does not exempt a supplied
+candidate ADR or other selected current-source reference from readability
+checks. Compare declared head, base, worktree, authority, and content identity
+with the frozen review identity, applicable source side, and policy. A missing,
 malformed, or mismatched supplied candidate ADR or source reference stops before
 semantic dispatch. Absent optional or unselected inputs do not fail preflight.
 The `*-review-context-input.json` manifest and `*-review-context.md` are future

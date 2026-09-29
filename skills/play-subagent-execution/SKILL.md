@@ -233,13 +233,23 @@ reference wins.
 
 ### Path reference (preferred for controllers)
 
-A pair of literal lines of the form:
+Every path reference requires these two literal lines:
 
 ```
 Plan: <repo-relative-path>
 Expected digest: <sha256>
+```
+
+A reviewed route additionally requires:
+
+```text
 Planning review contract: planning-review/combined-v1
 ```
+
+Caller-authorized direct unreviewed `FULL` input uses the two-line form without
+claiming planning-review assurance. A route requiring or claiming reviewed
+provenance cannot become direct unreviewed input by omitting the tag; missing
+or invalid reviewed provenance stops that route.
 
 For example: `Plan: .ephemeral/2026-05-06-167-plan.md`.
 
