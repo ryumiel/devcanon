@@ -21,6 +21,8 @@ import {
 import {
   createReviewEnvelope,
   currentReviewEnvelope,
+  targetedEnvelope,
+  targetedEvidenceCases,
 } from "../__test-helpers__/review-evidence.js";
 import {
   buildApprovedReviewPayload,
@@ -100,6 +102,21 @@ async function makeReviewSourceWorkspace(): Promise<{
     cwd,
     reviewHeadSha,
     findingsFile: `.ephemeral/topic-${reviewHeadSha}-findings.json`,
+  };
+}
+
+async function makePayloadWorkspace() {
+  const workspace = await makeReviewSourceWorkspace();
+  const bodyFile = ".ephemeral/review-body.md";
+  await writeFile(path.join(workspace.cwd, bodyFile), "Summary");
+  return {
+    ...workspace,
+    env: {
+      HEAD_SHA: workspace.reviewHeadSha,
+      FINDINGS_FILE: workspace.findingsFile,
+      REVIEW_SURFACE: "pr-review",
+      REVIEW_BODY_FILE: bodyFile,
+    },
   };
 }
 
@@ -260,25 +277,6 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           reason: "Disproved",
         },
       ];
-      const newlineId = structuredClone(baseline);
-      (newlineId.findings as Record<string, unknown>[])[0].id = "F1\n";
-      (newlineId.verification as Record<string, unknown>).selected_ids = [
-        "F1\n",
-      ];
-      expect(() => validateTargetedReviewEvidence(newlineId)).toThrow(
-        "targeted review evidence",
-      );
-      await expect(
-        runHelperWithStdin(cwd, "publish-findings", JSON.stringify(newlineId), {
-          HEAD_SHA: reviewHeadSha,
-          FINDINGS_FILE: findingsFile,
-        }),
-      ).rejects.toMatchObject({
-        stdout: "",
-        stderr: expect.stringContaining(
-          "targeted review evidence validation failed",
-        ),
-      });
       const cases = [
         ["findings", 0, "assessment", "state"],
         ["findings", 0, "assessment", "selection"],
@@ -333,16 +331,14 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
   });
 
   it("projects mirrors and presentation edits once without weakening raw approval", async () => {
-    const { cwd, reviewHeadSha, findingsFile } =
-      await makeReviewSourceWorkspace();
+    const { cwd, reviewHeadSha, findingsFile, env } =
+      await makePayloadWorkspace();
     try {
       const claim = sourceFinding({ anchor: "out-of-diff" });
       const value = currentReviewEnvelope(reviewHeadSha, [claim], {
         carry_forward: [claim],
       });
       const id = (value.findings as Record<string, unknown>[])[0].id;
-      const bodyFile = ".ephemeral/review-body.md";
-      await writeFile(path.join(cwd, bodyFile), "Summary");
       for (const overrides of [
         [],
         [
@@ -364,10 +360,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           findings: value,
         });
         const result = await runHelper(cwd, "build-github-review-payload", {
-          HEAD_SHA: reviewHeadSha,
-          FINDINGS_FILE: findingsFile,
-          REVIEW_SURFACE: "pr-review",
-          REVIEW_BODY_FILE: bodyFile,
+          ...env,
           REVIEW_EVENT: "COMMENT",
         });
         expect(JSON.parse(result.stdout)).toEqual(expected);
@@ -386,18 +379,12 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         ).toThrow();
         await expect(
           runHelper(cwd, "build-github-review-payload", {
-            HEAD_SHA: reviewHeadSha,
-            FINDINGS_FILE: findingsFile,
-            REVIEW_SURFACE: "pr-review",
-            REVIEW_BODY_FILE: bodyFile,
+            ...env,
             REVIEW_EVENT: "APPROVE",
           }),
         ).rejects.toThrow();
         const preview = await runHelper(cwd, "render-review-preview", {
-          HEAD_SHA: reviewHeadSha,
-          FINDINGS_FILE: findingsFile,
-          REVIEW_SURFACE: "pr-review",
-          REVIEW_BODY_FILE: bodyFile,
+          ...env,
         });
         expect(preview.stdout).toContain("**Severity:** Blocking");
         if (overrides.length)
@@ -411,8 +398,8 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
   it.each(["natural", "missing-file", "out-of-diff"])(
     "projects DOWNGRADE reclassification consistently for %s without granting APPROVE",
     async (anchor) => {
-      const { cwd, reviewHeadSha, findingsFile } =
-        await makeReviewSourceWorkspace();
+      const { cwd, reviewHeadSha, findingsFile, env } =
+        await makePayloadWorkspace();
       try {
         const value = currentReviewEnvelope(reviewHeadSha, [
           sourceFinding({ critic: "DOWNGRADE", anchor }),
@@ -425,15 +412,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
             category: "Documentation",
           },
         ];
-        const bodyFile = ".ephemeral/body.md";
-        await writeFile(path.join(cwd, bodyFile), "Summary");
         await writeRawEnvelope(cwd, findingsFile, value);
-        const env = {
-          HEAD_SHA: reviewHeadSha,
-          FINDINGS_FILE: findingsFile,
-          REVIEW_SURFACE: "pr-review",
-          REVIEW_BODY_FILE: bodyFile,
-        };
         const expected = buildApprovedReviewPayload({
           headSha: reviewHeadSha,
           reviewEvent: "COMMENT",
@@ -608,8 +587,8 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
   });
 
   it("keeps INVALID audit evidence out of runtime and shell public payloads", async () => {
-    const { cwd, reviewHeadSha, findingsFile } =
-      await makeReviewSourceWorkspace();
+    const { cwd, reviewHeadSha, findingsFile, env } =
+      await makePayloadWorkspace();
     try {
       const value = currentReviewEnvelope(
         reviewHeadSha,
@@ -627,8 +606,6 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           ],
         },
       );
-      const bodyFile = ".ephemeral/review-body.md";
-      await writeFile(path.join(cwd, bodyFile), "Summary");
       await writeRawEnvelope(cwd, findingsFile, value);
       const expected = {
         commit_id: reviewHeadSha,
@@ -645,10 +622,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         }),
       ).toEqual(expected);
       const { stdout } = await runHelper(cwd, "build-github-review-payload", {
-        HEAD_SHA: reviewHeadSha,
-        FINDINGS_FILE: findingsFile,
-        REVIEW_SURFACE: "pr-review",
-        REVIEW_BODY_FILE: bodyFile,
+        ...env,
         REVIEW_EVENT: "APPROVE",
       });
       expect(JSON.parse(stdout)).toEqual(expected);
@@ -666,27 +640,16 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       const { cwd, reviewHeadSha, findingsFile } =
         await makeReviewSourceWorkspace();
       try {
-        const value = {
-          schema: "play-review/findings/v3",
-          review_head_sha: reviewHeadSha,
-          findings: [],
-          carry_forward: [],
-          incomplete_review_routes: [],
-          verification: {
-            state: "not-required",
-            selected_ids: [],
-            reason: "No unresolved blocking claims",
+        const value = targetedEnvelope(reviewHeadSha);
+        value.prior_dispositions = [
+          {
+            id: "prior-1",
+            origin_head_sha: "b".repeat(40),
+            status,
+            assessed_head_sha: reviewHeadSha,
+            reason: "Current source disproves the prior claim",
           },
-          prior_dispositions: [
-            {
-              id: "prior-1",
-              origin_head_sha: "b".repeat(40),
-              status,
-              assessed_head_sha: reviewHeadSha,
-              reason: "Current source disproves the prior claim",
-            },
-          ],
-        };
+        ];
         expect(() => validateTargetedReviewEvidence(value)).not.toThrow();
         await expect(
           runHelperWithStdin(cwd, "publish-findings", JSON.stringify(value), {
@@ -703,24 +666,6 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         expect(
           JSON.parse(await readFile(path.join(cwd, findingsFile), "utf8")),
         ).toEqual(value);
-        for (const id of ["F1 ", "Ｆ1", "F1\n"]) {
-          value.prior_dispositions[0].id = id;
-          expect(() => validateTargetedReviewEvidence(value), id).toThrow(
-            "findings envelope validation failed: targeted review evidence",
-          );
-          await expect(
-            runHelperWithStdin(cwd, "publish-findings", JSON.stringify(value), {
-              HEAD_SHA: reviewHeadSha,
-              FINDINGS_FILE: findingsFile,
-            }),
-            id,
-          ).rejects.toMatchObject({
-            stdout: "",
-            stderr: expect.stringContaining(
-              "targeted review evidence validation failed",
-            ),
-          });
-        }
       } finally {
         await cleanupTempDir(cwd);
       }
@@ -802,62 +747,39 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     }
   });
 
-  it("validates targeted skip, failure, freshness and per-finding verification in v3", async () => {
+  it("validates shared targeted evidence cases through the shell boundary", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      for (const { name, accepted, value } of targetedEvidenceCases(headSha)) {
+        await writeFile(path.join(cwd, findingsFile), JSON.stringify(value));
+        const result = runHelper(cwd, "validate-findings", {
+          FINDINGS_FILE: findingsFile,
+        });
+        if (accepted)
+          await expect(result, name).resolves.toMatchObject({ stderr: "" });
+        else
+          await expect(result, name).rejects.toMatchObject({
+            stdout: "",
+            stderr: expect.stringContaining("envelope"),
+          });
+      }
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("refuses public approval after required verifier failure", async () => {
     const { cwd, reviewHeadSha, findingsFile } =
       await makeReviewSourceWorkspace();
     try {
-      const value = {
-        schema: "play-review/findings/v3",
-        review_head_sha: reviewHeadSha,
-        findings: [] as Record<string, unknown>[],
-        carry_forward: [],
-        prior_dispositions: [],
-        incomplete_review_routes: [] as Record<string, string>[],
-        verification: {
-          state: "not-required",
-          selected_ids: [] as string[],
-          reason: "No selected blockers",
-        },
-      };
-      const validate = async () => {
-        await writeRawEnvelope(cwd, findingsFile, value);
-        return runHelper(cwd, "validate-findings", {
-          HEAD_SHA: reviewHeadSha,
-          FINDINGS_FILE: findingsFile,
-        });
-      };
-      await expect(validate()).resolves.toMatchObject({ stderr: "" });
-      const claim = {
-        ...sourceFinding(),
-        id: "F1",
-        origin_head_sha: reviewHeadSha,
-        critic: null,
-        assessment: {
-          state: "fresh",
-          assessed_head_sha: reviewHeadSha,
-          reuse_checked_head_sha: null,
-          basis: "Source, dependency, contract and anchor checked",
-          selection: "none",
-          verification: "not-required",
-        },
-      };
-      value.findings.push(claim);
-      await expect(validate()).resolves.toMatchObject({ stderr: "" });
-      value.findings[0] = { ...claim, critic: "VALID" };
-      await expect(validate()).rejects.toThrow();
-      value.findings[0] = claim;
-      claim.assessment.selection = "consequential";
-      claim.assessment.verification = "incomplete";
-      value.verification = {
-        state: "incomplete",
-        selected_ids: ["F1"],
-        reason: "Verifier unavailable",
-      };
-      await expect(validate()).rejects.toThrow();
-      value.incomplete_review_routes = [
-        { route: "D10", disposition: "FAILED" },
-      ];
-      await expect(validate()).resolves.toMatchObject({ stderr: "" });
+      const failed = targetedEvidenceCases(reviewHeadSha).find(
+        ({ name }) => name === "required verifier failure with D10",
+      );
+      expect(failed).toBeDefined();
+      await writeFile(
+        path.join(cwd, findingsFile),
+        JSON.stringify(failed?.value),
+      );
       await writeFile(
         path.join(cwd, ".ephemeral/review-body.md"),
         "Unverified review",
@@ -875,8 +797,6 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           "incomplete or blocking review cannot approve",
         ),
       });
-      claim.assessment.assessed_head_sha = "b".repeat(40);
-      await expect(validate()).rejects.toThrow();
     } finally {
       await cleanupTempDir(cwd);
     }

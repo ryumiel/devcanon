@@ -1,134 +1,27 @@
 import { describe, expect, it } from "vitest";
 import {
+  targetedEnvelope,
+  targetedEvidenceCases,
+  targetedFinding,
+} from "../__test-helpers__/review-evidence.js";
+import {
   buildApprovedReviewPayload,
   validateTargetedReviewEvidence,
 } from "./review-artifacts.js";
 
 const head = "a".repeat(40);
 const prior = "b".repeat(40);
-function envelope() {
-  return {
-    schema: "play-review/findings/v3",
-    review_head_sha: head,
-    findings: [] as Record<string, unknown>[],
-    carry_forward: [] as Record<string, unknown>[],
-    prior_dispositions: [],
-    incomplete_review_routes: [] as Record<string, string>[],
-    verification: {
-      state: "not-required",
-      reason: "No blocking triggers",
-      selected_ids: [] as string[],
-    },
-  };
-}
-function finding() {
-  return {
-    id: "F1",
-    origin_head_sha: head,
-    path: "src/a.ts",
-    line: 1,
-    start_line: null,
-    severity: "Blocking",
-    category: "Logic",
-    critic: null,
-    anchor: "natural",
-    why: "A supported consequence",
-    recommendation: "Restore the invariant",
-    body: "**Blocking | Logic** — A supported consequence\n\n**Recommendation:** Restore the invariant",
-    assessment: {
-      state: "fresh",
-      assessed_head_sha: head,
-      reuse_checked_head_sha: null,
-      basis: "Inspected source, dependencies, contract and anchor",
-      selection: "none",
-      verification: "not-required",
-    },
-  };
-}
+const envelope = () => targetedEnvelope(head);
+const finding = () => targetedFinding(head);
 describe("targeted review evidence", () => {
-  it("accepts a legitimately skipped verifier and an ordinary blocker", () => {
-    const value = envelope();
-    value.findings.push(finding());
-    expect(() => validateTargetedReviewEvidence(value)).not.toThrow();
-  });
-  it("rejects missing explicit verifier evidence", () => {
-    const value = envelope();
-    (value as Partial<typeof value>).verification = undefined;
-    expect(() => validateTargetedReviewEvidence(value)).toThrow();
-  });
-  it("requires D10 incompleteness when required verification failed", () => {
-    const value = envelope();
-    const claim = finding();
-    claim.assessment.selection = "consequential";
-    claim.assessment.verification = "incomplete";
-    value.findings.push(claim);
-    value.verification = {
-      state: "incomplete",
-      selected_ids: ["F1"],
-      reason: "Unavailable",
-    };
-    expect(() => validateTargetedReviewEvidence(value)).toThrow();
-    value.incomplete_review_routes.push({
-      route: "D10",
-      disposition: "FAILED",
-    });
-    expect(() => validateTargetedReviewEvidence(value)).not.toThrow();
-  });
-  it("rejects borrowed verification and selected nits", () => {
-    const value = envelope();
-    const claim = finding();
-    value.findings.push({ ...claim, critic: "VALID" });
-    expect(() => validateTargetedReviewEvidence(value)).toThrow();
-    claim.assessment.selection = "disputed";
-    claim.assessment.verification = "incomplete";
-    value.verification = {
-      state: "incomplete",
-      selected_ids: ["F1"],
-      reason: "Verifier unavailable",
-    };
-    value.incomplete_review_routes = [{ route: "D10", disposition: "FAILED" }];
-    value.findings = [claim];
-    expect(() => validateTargetedReviewEvidence(value)).not.toThrow();
-    claim.severity = "Nit";
-    claim.body = claim.body.replace("**Blocking", "**Nit");
-    expect(() => validateTargetedReviewEvidence(value)).toThrow();
-  });
-  it("requires current reuse checks while preserving original nit assessment", () => {
-    const value = envelope();
-    const claim = finding();
-    claim.severity = "Nit";
-    claim.body = claim.body.replace("**Blocking", "**Nit");
-    claim.origin_head_sha = prior;
-    value.findings.push({
-      ...claim,
-      assessment: {
-        ...claim.assessment,
-        state: "reused",
-        assessed_head_sha: prior,
-        reuse_checked_head_sha: head,
-      },
-    });
-    expect(() => validateTargetedReviewEvidence(value)).not.toThrow();
-    (
-      value.findings[0].assessment as Record<string, unknown>
-    ).reuse_checked_head_sha = prior;
-    expect(() => validateTargetedReviewEvidence(value)).toThrow();
-  });
-  it("rejects duplicate identities but permits exact post-fix mirrors", () => {
-    const value = envelope();
-    value.findings.push(finding());
-    value.carry_forward.push(finding());
-    expect(() => validateTargetedReviewEvidence(value)).not.toThrow();
-    value.carry_forward[0].why = "Different claim";
-    value.carry_forward[0].body = finding().body.replace(
-      "A supported consequence",
-      "Different claim",
-    );
-    expect(() => validateTargetedReviewEvidence(value)).toThrow();
-    value.carry_forward = [];
-    value.findings.push(finding());
-    expect(() => validateTargetedReviewEvidence(value)).toThrow();
-  });
+  it.each(targetedEvidenceCases(head))(
+    "$name (accepted=$accepted)",
+    ({ value, accepted }) => {
+      const validate = () => validateTargetedReviewEvidence(value);
+      if (accepted) expect(validate).not.toThrow();
+      else expect(validate).toThrow();
+    },
+  );
   it("fails approval after required verifier failure even with no surviving blocker", () => {
     const value = envelope();
     const claim = finding();

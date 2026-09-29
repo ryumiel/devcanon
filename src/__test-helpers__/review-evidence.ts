@@ -71,3 +71,131 @@ export function currentReviewEnvelope(
     headSha,
   ) as Record<string, unknown>;
 }
+
+export function targetedEnvelope(head: string) {
+  return {
+    schema: "play-review/findings/v3",
+    review_head_sha: head,
+    findings: [] as Record<string, unknown>[],
+    carry_forward: [] as Record<string, unknown>[],
+    prior_dispositions: [] as Record<string, unknown>[],
+    incomplete_review_routes: [] as Record<string, string>[],
+    verification: {
+      state: "not-required",
+      reason: "No blocking triggers",
+      selected_ids: [] as string[],
+    },
+  };
+}
+export function targetedFinding(head: string) {
+  return {
+    id: "F1",
+    origin_head_sha: head,
+    path: "src/a.ts",
+    line: 1,
+    start_line: null,
+    severity: "Blocking",
+    category: "Logic",
+    critic: null as string | null,
+    anchor: "natural",
+    why: "A supported consequence",
+    recommendation: "Restore the invariant",
+    body: "**Blocking | Logic** — A supported consequence\n\n**Recommendation:** Restore the invariant",
+    assessment: {
+      state: "fresh",
+      assessed_head_sha: head,
+      reuse_checked_head_sha: null as string | null,
+      basis: "Inspected source, dependencies, contract and anchor",
+      selection: "none",
+      verification: "not-required",
+    },
+  };
+}
+
+/** Concrete validator scenarios. Each snapshot is complete; rejection cases are never normalized. */
+export function targetedEvidenceCases(head: string) {
+  const prior = "b".repeat(40);
+  const value = targetedEnvelope(head);
+  const claim = targetedFinding(head);
+  const cases: {
+    name: string;
+    accepted: boolean;
+    value: Record<string, unknown>;
+  }[] = [];
+  const record = (name: string, accepted: boolean) =>
+    cases.push({ name, accepted, value: structuredClone(value) });
+  record("empty skipped verification", true);
+  value.findings = [claim];
+  record("ordinary unselected blocker", true);
+  claim.critic = "VALID";
+  record("borrowed verdict", false);
+  claim.critic = null;
+  claim.assessment.selection = "disputed";
+  claim.assessment.verification = "incomplete";
+  value.verification = {
+    state: "incomplete",
+    selected_ids: ["F1"],
+    reason: "Verifier unavailable",
+  };
+  record("required verifier failure missing D10", false);
+  value.incomplete_review_routes = [{ route: "D10", disposition: "FAILED" }];
+  record("required verifier failure with D10", true);
+  claim.severity = "Nit";
+  claim.body = claim.body.replace("**Blocking", "**Nit");
+  record("selected nit", false);
+  claim.assessment.selection = "none";
+  claim.assessment.verification = "not-required";
+  value.verification = targetedEnvelope(head).verification;
+  value.incomplete_review_routes = [];
+  claim.origin_head_sha = prior;
+  claim.assessment.state = "reused";
+  claim.assessment.assessed_head_sha = prior;
+  claim.assessment.reuse_checked_head_sha = head;
+  record("nit reused after current evidence check", true);
+  claim.assessment.reuse_checked_head_sha = prior;
+  record("nit reuse check is stale", false);
+  value.findings = [targetedFinding(head)];
+  value.carry_forward = [targetedFinding(head)];
+  record("exact current and carried mirror", true);
+  value.carry_forward[0].why = "Different claim";
+  value.carry_forward[0].body = targetedFinding(head).body.replace(
+    "A supported consequence",
+    "Different claim",
+  );
+  record("conflicting mirror", false);
+  value.carry_forward = [];
+  value.findings.push(targetedFinding(head));
+  record("duplicate current identity", false);
+  value.findings = [targetedFinding(head)];
+  value.prior_dispositions = [
+    {
+      id: "prior-1",
+      origin_head_sha: prior,
+      assessed_head_sha: head,
+      status: "resolved",
+      reason: "Current source disproves claim",
+    },
+  ];
+  record("resolved independent prior claim", true);
+  value.prior_dispositions[0].id = "F1";
+  record("resolved prior contradicts unresolved claim", false);
+  for (const id of ["F1 ", "Ｆ1", "F1\n"]) {
+    value.prior_dispositions[0].id = id;
+    record(`invalid prior identity ${JSON.stringify(id)}`, false);
+  }
+  value.prior_dispositions = [];
+  value.findings[0].id = "F1\n";
+  record("newline finding identity", false);
+  value.findings = [targetedFinding(head)];
+  (value.findings[0].assessment as Record<string, unknown>).assessed_head_sha =
+    prior;
+  record("fresh assessment has prior head", false);
+  value.findings = [];
+  const { verification: _verification, ...missing } = structuredClone(value);
+  cases.push({
+    name: "missing verifier evidence",
+    accepted: false,
+    value: missing,
+  });
+  return cases;
+}
