@@ -2,7 +2,7 @@
 
 ## Role
 
-Validates, prepares, publishes, and renders `play-review/findings/v2` artifacts.
+Validates, prepares, publishes, and renders `play-review/findings/v3` artifacts.
 
 ## Invocation
 
@@ -26,14 +26,14 @@ $env:JUDGMENT_REQUIRED_FINDING_INDEXES = "0,2"
 if ($LASTEXITCODE -ne 0) { throw "prepare-judgment-nits failed" }
 ```
 
-`<operation>` is exactly one of: `validate-findings`, `validate-nits-file`,
+`<operation>` is exactly one of: `validate-findings`, `validate-nits-file`, `project-nits`,
 `derive-nits-pending`, `prepare-judgment-nits`, `prepare-findings-write`,
 `publish-findings`, `render-review-preview`, or
 `build-github-review-payload`.
 
 ## Inputs
 
-`validate-findings` requires `HEAD_SHA` and `FINDINGS_FILE`. `validate-nits-file` requires `NITS_FILE`. `derive-nits-pending` requires `HEAD_SHA` and `FINDINGS_FILE`. `prepare-judgment-nits` requires `HEAD_SHA`, `FINDINGS_FILE`, and comma-separated zero-based `JUDGMENT_REQUIRED_FINDING_INDEXES`. `prepare-findings-write` requires `HEAD_SHA`; `FINDINGS_FILE` is optional and otherwise derives from the current branch and head. `publish-findings` requires `HEAD_SHA` and `FINDINGS_FILE`, accepts no extra arguments, and reads exactly one UTF-8 JSON findings envelope from stdin.
+`validate-findings` requires `HEAD_SHA` and `FINDINGS_FILE`. `validate-nits-file` and `project-nits` require `HEAD_SHA` and `NITS_FILE`, binding the embedded review head to the checked posting head. `project-nits` emits the validated current findings presentation array, applying overrides and DOWNGRADE bodies without changing evidence. `derive-nits-pending` requires `HEAD_SHA` and `FINDINGS_FILE`. `prepare-judgment-nits` requires `HEAD_SHA`, `FINDINGS_FILE`, and comma-separated zero-based `JUDGMENT_REQUIRED_FINDING_INDEXES`. `prepare-findings-write` requires `HEAD_SHA`; `FINDINGS_FILE` is optional and otherwise derives from the current branch and head. `publish-findings` requires `HEAD_SHA` and `FINDINGS_FILE`, accepts no extra arguments, and reads exactly one UTF-8 JSON findings envelope from stdin.
 
 `render-review-preview` requires `HEAD_SHA`, `FINDINGS_FILE`, and `REVIEW_SURFACE`; it additionally requires `REVIEW_BODY_FILE` when `REVIEW_SURFACE=pr-review`. `build-github-review-payload` requires `HEAD_SHA`, `FINDINGS_FILE`, `REVIEW_SURFACE=pr-review`, `REVIEW_BODY_FILE`, and `REVIEW_EVENT` (`APPROVE`, `REQUEST_CHANGES`, or `COMMENT`). No other operation reads stdin.
 
@@ -56,3 +56,17 @@ Preparation creates `.ephemeral` and validates targets; `derive-nits-pending`, `
 ## Workflow boundary
 
 [Play review workflow context](../SKILL.md) owns command selection, interpretation, and continuation.
+
+## Targeted evidence compatibility
+
+New publication and GitHub payload creation require current-head
+`play-review/findings/v3`. Older artifacts are rejected and require fresh review.
+`validate-findings` binds `review_head_sha` to supplied `HEAD_SHA`; these may
+both identify a historical candidate without matching the checkout head.
+`validate-nits-file` accepts only head-bound v3.
+The v3 envelope records selected verification separately from legitimate skip
+and required failure. APPROVE rejects any incomplete route or remaining
+blocker. Derived nit subsets preserve provenance and DOWNGRADE transport;
+presentation renders downgraded blockers as Nits without rewriting evidence.
+
+For `prepare-judgment-nits`, v3 selection indexes address `findings` in original order followed by `carry_forward` entries whose IDs are not already present. Exact mirrors count once. Select every remaining report-only nit for the issue-priming handoff, including carried-only nits; the derived artifact preserves original assessment provenance.

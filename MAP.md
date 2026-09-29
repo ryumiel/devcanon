@@ -57,7 +57,7 @@ Quick navigation index for the DevCanon repository.
 - Where is the agent schema spec? -> [`docs/specs/agents.md`](docs/specs/agents.md)
 - Where is the exact six-role semantic catalog and role envelope defined? ->
   [`docs/specs/agents.md`](docs/specs/agents.md#semantic-role-catalog)
-- Where are the mutation vocabulary, 33-skill inventory, and D1-D18
+- Where are the mutation vocabulary, 33-skill inventory, and active
   direct-child routes defined? ->
   [`docs/guidelines/agent-routing-and-mutation-policy.md`](docs/guidelines/agent-routing-and-mutation-policy.md)
 - Where is the target mapping spec? -> [`docs/specs/target-mapping.md`](docs/specs/target-mapping.md)
@@ -110,7 +110,7 @@ Quick navigation index for the DevCanon repository.
   [`docs/adr/adr-0021-render-loaded-boundary.md`](docs/adr/adr-0021-render-loaded-boundary.md)
 - Where is the internal skill-context analysis boundary decision recorded? ->
   [`docs/adr/adr-0036-internal-skill-context-analysis.md`](docs/adr/adr-0036-internal-skill-context-analysis.md)
-- Where is the three-topical play-review fanout decision recorded? ->
+- Where is the historical, superseded three-topical play-review fanout decision recorded? ->
   [`docs/adr/adr-0022-three-topical-play-review-fanout.md`](docs/adr/adr-0022-three-topical-play-review-fanout.md)
 - Where is the current play-planning readiness and parallel digest-gate
   decision recorded? ->
@@ -311,6 +311,10 @@ Quick navigation index for the DevCanon repository.
 - Where is the shared issue priming workflow? -> [`skills/issue-priming-workflow/SKILL.md`](skills/issue-priming-workflow/SKILL.md)
 - Where is shared PR title/body authoring policy? -> [`skills/pr-authoring/SKILL.md`](skills/pr-authoring/SKILL.md)
 - Where is the shared review pipeline? -> [`skills/play-review/SKILL.md`](skills/play-review/SKILL.md)
+- Where is the single-reviewer contract? ->
+  [`skills/play-review/references/single-reviewer-contract.md`](skills/play-review/references/single-reviewer-contract.md)
+  (decision in
+  [`ADR-0038`](docs/adr/adr-0038-single-reviewer-targeted-verification.md)).
 - Where is the GitHub PR review wrapper? ->
   [`skills/pr-review/SKILL.md`](skills/pr-review/SKILL.md)
 - Where is the PR review handoff/result manifest helper? ->

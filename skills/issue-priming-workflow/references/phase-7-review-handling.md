@@ -46,11 +46,15 @@ stops auto mode. Only then may Phase 7 classify remaining Nits.
 
 ## Remaining Nit Classification
 
-`branch-review --fix` owns fixable review feedback. Phase 7 passes only subjective
-or otherwise judgment-required Nits, plus every `DOWNGRADE`, to Phase 8. A
-fixable nit withheld by a proportionality gate remains a non-mutating
-judgment-required handoff. Use `nit-classification.md` and
-`auto-mode-discipline.md` for the taxonomy and conservative tie-breaker.
+Under findings/v3, `branch-review --fix` may fix only individually eligible,
+separately verified valid blockers. Every remaining Nit is report-only,
+including typos, unambiguous broken links, and other apparently mechanical
+corrections; every `DOWNGRADE` is also nonblocking handoff feedback. Phase 7
+passes all of them through the existing `nits_file` handoff to Phase 8, not only
+subjective findings. Verification-based exclusion and proportionality
+withholding never make a nit disappear or authorize a caller-owned fix.
+Use `nit-classification.md` and `auto-mode-discipline.md` to describe the
+feedback, not to grant mutation eligibility or filter ordinary nits out.
 
 ## Branch-Review-Owned Fix Commits
 
@@ -69,8 +73,14 @@ Continue until the final run has no true Blocking finding, no new auto-fixed
 blocker, and fresh final approval-summary evidence after branch-review-owned fix
 commits.
 
-## Judgment-Required Nits Envelope
+## Remaining Nits Envelope
 
+Select every remaining Nit and DOWNGRADE for the existing handoff; exclude
+INVALID findings and stop on true blockers first. The helper’s historical
+`prepare-judgment-nits` name does not narrow that selection to subjective nits.
+Use its v3 selection pool: current findings followed by carried entries with
+previously unseen IDs. Include carried-only nits once and preserve their original
+assessment provenance.
 When selected items remain, reuse the installed `play-review` bundle and the
 verified Bash executable established before validation. Then use
 `prepare-judgment-nits` through the owning usage contract with that executable.

@@ -28,6 +28,7 @@ import {
   validatePrReviewResultCommandAuthorityForFindingsPublication,
   validatePrReviewResultCommandAuthorityForReviewBodyRecovery,
 } from "./pr-review-result-validation.js";
+import { validateTargetedReviewEvidence } from "./review-artifacts.js";
 import { extractPreFindingsMarkdown } from "./review-artifacts.js";
 
 const execFileAsync = promisify(execFile);
@@ -498,12 +499,37 @@ async function replaceFindings(): Promise<string> {
     const publishedFindingsSha256 = createHash("sha256")
       .update(input)
       .digest("hex");
-    const { result } =
-      await validatePrReviewResultCommandAuthorityForFindingsPublication(
-        { ...readResultValidationInput(resultFile), validationContext },
-        publishedFindingsSha256,
-      );
+    const { result } = await validatePrReviewResultCommandAuthority({
+      ...readResultValidationInput(resultFile),
+      validationContext,
+    });
     const findingsFile = stringField(result, "findings_file");
+    const currentBytes = await readFile(findingsFile);
+    if (
+      createHash("sha256").update(currentBytes).digest("hex") !==
+      stringField(objectField(result, "digests"), "findings_sha256")
+    )
+      fail(`findings digest mismatch: ${findingsFile}`);
+    const current = JSON.parse(
+      new TextDecoder("utf-8", { fatal: true }).decode(currentBytes),
+    ) as JsonObject;
+    let replacement: Record<string, unknown>;
+    try {
+      replacement = JSON.parse(
+        new TextDecoder("utf-8", { fatal: true }).decode(input),
+      );
+    } catch {
+      fail("findings stdin must be one JSON envelope");
+    }
+    if (!replacement || replacement.schema !== "play-review/findings/v3")
+      fail("presentation edit requires findings/v3");
+    validateTargetedReviewEvidence(replacement);
+    const { presentation_overrides: _currentPresentation, ...currentEvidence } =
+      current;
+    const { presentation_overrides: _nextPresentation, ...nextEvidence } =
+      replacement;
+    if (!jsonEqual(currentEvidence, nextEvidence))
+      fail("presentation edit must preserve canonical review evidence");
     publisherInvoked = true;
     await runBashHelperWithStdin(
       requiredEnv("PLAY_REVIEW_HELPER"),

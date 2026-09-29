@@ -780,10 +780,10 @@ function assertInventoryCoverage(
 function assertDirectRouteCoverage(
   routes: readonly AgentRoutingDirectChildRouteRow[],
 ): void {
-  const expected: readonly `D${number}`[] = Array.from(
-    { length: 18 },
-    (_, index) => `D${index + 1}` as const,
-  );
+  const expected: readonly `D${number}`[] = [
+    ...Array.from({ length: 7 }, (_, index) => `D${index + 1}` as const),
+    ...Array.from({ length: 9 }, (_, index) => `D${index + 10}` as const),
+  ];
   const actual = new Set(routes.map((row) => row.id));
   const missing = expected.filter((id) => !actual.has(id));
   const unexpected = routes
@@ -791,7 +791,7 @@ function assertDirectRouteCoverage(
     .filter((id) => !expected.includes(id));
   if (missing.length > 0 || unexpected.length > 0) {
     throw new Error(
-      `Agent routing policy owner direct-route ID coverage must be exactly D1-D18; missing: ${missing.join(", ") || "none"}; unexpected: ${unexpected.join(", ") || "none"}`,
+      `Agent routing policy owner direct-route ID coverage must be the active route set (D1–D7, D10–D18); missing: ${missing.join(", ") || "none"}; unexpected: ${unexpected.join(", ") || "none"}`,
     );
   }
 }
@@ -799,10 +799,10 @@ function assertDirectRouteCoverage(
 function assertEscalationAdoptionCoverage(
   rows: readonly AgentRoutingEscalationAdoptionRow[],
 ): void {
-  const expected: readonly `D${number}`[] = Array.from(
-    { length: 18 },
-    (_, index) => `D${index + 1}` as const,
-  );
+  const expected: readonly `D${number}`[] = [
+    ...Array.from({ length: 7 }, (_, index) => `D${index + 1}` as const),
+    ...Array.from({ length: 9 }, (_, index) => `D${index + 10}` as const),
+  ];
   const actual = new Set(rows.map((row) => row.id));
   const missing = expected.filter((id) => !actual.has(id));
   const unexpected = rows
@@ -810,7 +810,7 @@ function assertEscalationAdoptionCoverage(
     .filter((id) => !expected.includes(id));
   if (missing.length > 0 || unexpected.length > 0) {
     throw new Error(
-      `Agent routing policy owner escalation-adoption ID coverage must be exactly D1-D18; missing: ${missing.join(", ") || "none"}; unexpected: ${unexpected.join(", ") || "none"}`,
+      `Agent routing policy owner escalation-adoption ID coverage must be the active route set (D1–D7, D10–D18); missing: ${missing.join(", ") || "none"}; unexpected: ${unexpected.join(", ") || "none"}`,
     );
   }
 }

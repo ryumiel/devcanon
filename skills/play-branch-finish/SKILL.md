@@ -123,9 +123,14 @@ Then: Cleanup worktree (Step 5) on the green path only.
 
 #### Option 2: Push and Create PR
 
-**Optional input — review nits.** Callers (e.g., `issue-priming-workflow` Phase 8, invoked via `github-issue-priming` or `linear-issue-priming`) may pass a `nits_file` argument: a repo-relative path to a file containing a `play-review/findings/v2` envelope. The detailed envelope, transport, and derived nits-file contract lives in `skills/play-review/references/findings-envelope-contract.md`; `skills/play-review/SKILL.md` owns the workflow and `Findings written to <path>.` notice. When `nits_file` is set, this skill reads the envelope, iterates `findings[]`, partitions anchorable from unanchorable, and posts them as PR review comments after `{{tool:github-cli}} pr create` succeeds — they MUST NOT be embedded in the PR description body.
+**Optional input — review nits.** Callers (e.g., `issue-priming-workflow` Phase 8, invoked via `github-issue-priming` or `linear-issue-priming`) may pass a `nits_file` argument: a repo-relative path to a file containing a `play-review/findings/v3` envelope. The detailed envelope, transport, and derived nits-file contract lives in `skills/play-review/references/findings-envelope-contract.md`; `skills/play-review/SKILL.md` owns the workflow and `Findings written to <path>.` notice. When `nits_file` is set, this skill consumes the validated presentation projection, partitions anchorable from unanchorable, and posts them as PR review comments after `{{tool:github-cli}} pr create` succeeds — they MUST NOT be embedded in the PR description body.
 
-The file is a `play-review/findings/v2` envelope. This skill iterates every entry of `findings[]` and posts them — anchorable items (path + line inside the PR diff's HEAD-side ranges) as inline review comments and the rest as a top-level review comment — applying the `"side": "RIGHT"` default, adding `start_side: "RIGHT"` only for ranged inline comments, and dropping `start_line: null` along the way. The partition / `jq` / API logic is unchanged from earlier versions of this skill; only the input form (a file path vs. an inline JSON array) is new. The fields this skill ignores but tolerates (`severity`, `category`, `critic`, `anchor`, `why`, `recommendation`) are harmless to leave in the file. **No filtering inside this skill** — callers that want to post only a subset write a derived envelope with that subset to a file of their choosing (e.g., `issue-priming-workflow` Phase 7 writes `.ephemeral/<branch_slug>-<head_sha>-nits-pending.json` containing only judgment-required nits) and pass that path. (Note: `schema` is the top-level envelope field, not per-finding; consumers iterating `findings[]` will not see it.)
+The shared `project-nits` helper validates the checked PR head and projects
+`findings[]`, applying presentation overrides and DOWNGRADE bodies while
+preserving canonical evidence. Partition that projection into inline and
+top-level comments; omit both posting surfaces when it is empty. Callers that
+need a subset supply a derived envelope, such as Phase 7’s remaining-nits file.
+Recheck the PR head immediately before each posting surface and stop on drift.
 
 `branch-review` remains owned outside this skill. Option 2 does not invoke
 `branch-review`, produce branch-review artifacts, judge branch-review findings,
@@ -370,16 +375,19 @@ external side effect; preserve the branch and worktree for follow-up.
    PR_NUMBER=$(gh pr view --json number --jq .number)
    ```
 
-2. Validate `$NITS_FILE` and read the envelope. With `$NITS_FILE` set to the caller-supplied `nits_file` path, run the canonical `play-review` helper command `validate-nits-file` before partitioning. `PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle, not the repository under review; bind `PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"` and invoke it from the target repository root. The helper enforces that the path MUST be a direct child of `.ephemeral/`, MUST NOT contain `..`, MUST end in `-findings.json` or `-nits-pending.json`, MUST NOT be a symlink, MUST be a readable regular file, and MUST carry schema `play-review/findings/v2`. Treat any nonzero exit as a contract failure and stop before posting:
+2. Validate `$NITS_FILE` and read the envelope. With `$NITS_FILE` set to the caller-supplied `nits_file` path, run the canonical `play-review` helper command `validate-nits-file` before partitioning. `PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle, not the repository under review; bind `PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"` and invoke it from the target repository root. The helper enforces that the path MUST be a direct child of `.ephemeral/`, MUST NOT contain `..`, MUST end in `-findings.json` or `-nits-pending.json`, MUST NOT be a symlink, MUST be a readable regular file, and MUST carry schema `play-review/findings/v3` with `review_head_sha` equal to the checked PR head. Treat any nonzero exit as a contract failure and stop before posting:
 
    ```bash
    PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
    PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
-   NITS_FILE="$NITS_FILE" \
-     bash "$PLAY_REVIEW_HELPER" validate-nits-file
+   NITS_HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid) || exit 1
+   HEAD_SHA="$NITS_HEAD_SHA" NITS_FILE="$NITS_FILE" \
+     bash "$PLAY_REVIEW_HELPER" validate-nits-file || exit 1
+   NITS=$(HEAD_SHA="$NITS_HEAD_SHA" NITS_FILE="$NITS_FILE" \
+     bash "$PLAY_REVIEW_HELPER" project-nits) || exit 1
    ```
 
-   Then extract `findings[]` (e.g., `jq -c '.findings' "$NITS_FILE"`) and partition the entries against the PR diff's HEAD-side line ranges (derivable from `{{tool:github-cli}} pr diff "$PR_NUMBER"`). "Anchorable" here means `path` + `line` falls inside the PR diff — re-derived now against the current diff, not taken from the schema's `anchor` field, which was determined at review time and may be stale. Hold the anchorable subset as a JSON array in `$ANCHORABLE_NITS` and the unanchorable subset as a JSON array in `$UNANCHORABLE_NITS` (step 4 streams `$UNANCHORABLE_NITS` directly to `{{tool:github-cli}} pr review --comment --body-file -`). The agent running this skill implements the partition; the prose does not prescribe one mechanism because `{{tool:github-cli}} pr diff` parsing varies by environment (awk, python, jq, {{tool:github-cli}} built-ins). Before serialization, validate the anchorable entries expose only the field types needed by GitHub review comments, then build each API comment from an allowlist (`path`, `line`, optional `start_line`, `body`) and force `"side": "RIGHT"` on every comment; only ranged anchorable nit comments add `start_side: "RIGHT"` when `start_line` is present. Never pass through unexpected envelope fields such as `side`, `start_side`, or GitHub API keys. Drop any `start_line` key whose value is `null` (the GitHub Reviews API rejects `start_line: null`; the schema permits the field to be `null` for shape uniformity, but consumers MUST omit the key entirely when there is no range). Serialize into `$ANCHORABLE_NITS_JSON`:
+   Use the helper’s `$NITS` presentation projection (including validated overrides and DOWNGRADE bodies) and partition the entries against the PR diff's HEAD-side line ranges (derivable from `{{tool:github-cli}} pr diff "$PR_NUMBER"`). "Anchorable" here means `path` + `line` falls inside the PR diff — re-derived now against the current diff, not taken from the schema's `anchor` field, which was determined at review time and may be stale. Hold the anchorable subset as a JSON array in `$ANCHORABLE_NITS` and the unanchorable subset as a JSON array in `$UNANCHORABLE_NITS` (step 4 streams `$UNANCHORABLE_NITS` directly to `{{tool:github-cli}} pr review --comment --body-file -`). The agent running this skill implements the partition; the prose does not prescribe one mechanism because `{{tool:github-cli}} pr diff` parsing varies by environment (awk, python, jq, {{tool:github-cli}} built-ins). Before serialization, validate the anchorable entries expose only the field types needed by GitHub review comments, then build each API comment from an allowlist (`path`, `line`, optional `start_line`, `body`) and force `"side": "RIGHT"` on every comment; only ranged anchorable nit comments add `start_side: "RIGHT"` when `start_line` is present. Never pass through unexpected envelope fields such as `side`, `start_side`, or GitHub API keys. Drop any `start_line` key whose value is `null` (the GitHub Reviews API rejects `start_line: null`; the schema permits the field to be `null` for shape uniformity, but consumers MUST omit the key entirely when there is no range). Serialize into `$ANCHORABLE_NITS_JSON`:
 
    ```bash
    jq -e 'all(.[]; (.path | type == "string") and (.body | type == "string") and (.line | type == "number") and ((has("start_line") | not) or .start_line == null or (.start_line | type == "number")))' <<<"$ANCHORABLE_NITS" >/dev/null || { echo "invalid nits payload fields" >&2; exit 1; }
@@ -393,11 +401,12 @@ external side effect; preserve the branch and worktree for follow-up.
    `{{tool:github-cli}} api` reads the request body from `--input`; sibling `-f` flags become URL query parameters in that mode, not body fields. Build the entire review payload inside `jq` so `commit_id`, `event`, `body`, and `comments` all land in the JSON body:
 
    ```bash
+   [ "$(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)" = "$NITS_HEAD_SHA" ] || { echo "PR head changed; stop before posting nits" >&2; exit 1; }
    gh api repos/{owner}/{repo}/pulls/"$PR_NUMBER"/reviews \
      --method POST \
      --silent \
      --input <(jq -n \
-       --arg commit_id "$(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)" \
+       --arg commit_id "$NITS_HEAD_SHA" \
        --argjson comments "$ANCHORABLE_NITS_JSON" \
        '{commit_id: $commit_id, event: "COMMENT", body: "branch-review nits — see inline comments", comments: $comments}')
    ```
@@ -409,6 +418,7 @@ external side effect; preserve the branch and worktree for follow-up.
    Render `$UNANCHORABLE_NITS` directly into a single review-comment body and pipe it to `{{tool:github-cli}} pr review --comment --body-file -`. Each entry produces a `- path:line` header followed by its rendered `body` field, separated by blank lines. The schema's `body` field is multi-line markdown (`**<severity> | <category>** — <why>\n\n**Recommendation:** <recommendation>`), so going through a bash array would split each entry across multiple elements at the embedded `\n\n`; piping `jq -r` directly to `{{tool:github-cli}}` keeps the bytes intact:
 
    ```bash
+   [ "$(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)" = "$NITS_HEAD_SHA" ] || { echo "PR head changed; stop before posting nits" >&2; exit 1; }
    jq -r '.[] | "- \(.path):\(.line)\n\n\(.body)\n"' <<<"$UNANCHORABLE_NITS" \
      | gh pr review "$PR_NUMBER" --comment --body-file -
    ```

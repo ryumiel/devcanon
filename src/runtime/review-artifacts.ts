@@ -2595,6 +2595,7 @@ async function validateDiffAnchors(
   await assertReadableFile("--findings-file", options.findingsFile);
   validateSuffix("--findings-file", options.findingsFile, "-findings.json");
   const findings = await assertFindingsEnvelope(options.findingsFile);
+  validateFindingsHead(findings, options.headSha);
   await validateSelectedDiffAnchors(scope, findings, options.headSha);
 }
 
@@ -2625,6 +2626,9 @@ async function compareApprovedPayload(
   );
 
   const findings = await assertFindingsEnvelope(options.findingsFile);
+  if (findings.schema !== "play-review/findings/v3")
+    fail("new publication requires findings/v3 evidence");
+  validateFindingsHead(findings, options.headSha);
   await validateSelectedDiffAnchors(scope, findings, options.headSha);
   const actualPayload = await readSingleJsonObject(
     options.reviewPayloadFile,
@@ -2754,6 +2758,11 @@ async function validateApprovalSummary(
   validateApprovalScopeLink(summary, scope);
 
   const findings = await assertFindingsEnvelope(findingsFile);
+  validateFindingsHead(findings, options.headSha);
+  if (
+    summary.verification_state !== objectField(findings, "verification").state
+  )
+    fail("approval verification state mismatch");
   await validateApprovalDigest(
     "approval summary findings digest mismatch",
     findingsFile,
@@ -3060,8 +3069,9 @@ function validateApprovalSummarySchema(summary: JsonObject): void {
         "nit_count",
         "carry_forward_count",
         "incomplete_topical_count",
+        "verification_state",
       ]) ||
-      stringField(summary, "schema") !== "branch-review/approval-summary/v1" ||
+      stringField(summary, "schema") !== "branch-review/approval-summary/v2" ||
       stringField(summary, "surface") !== "branch-review" ||
       !isSha(stringField(summary, "review_head_sha")) ||
       stringField(summary, "base_ref").length === 0 ||
@@ -3317,52 +3327,233 @@ async function assertFindingsEnvelope(file: string): Promise<JsonObject> {
   return envelope;
 }
 
+function validateFindingsHead(findings: JsonObject, headSha: string): void {
+  if (findings.review_head_sha !== headSha)
+    fail("findings review head mismatch");
+}
+
+export function validateTargetedReviewEvidence(envelope: JsonObject): void {
+  const reject = () =>
+    fail("findings envelope validation failed: targeted review evidence");
+  const text = (value: unknown): value is string =>
+    typeof value === "string" && value.trim().length > 0;
+  const head = stringField(envelope, "review_head_sha");
+  if (!isSha(head)) reject();
+  const verification = objectField(envelope, "verification");
+  if (
+    !hasExactKeys(verification, ["state", "selected_ids", "reason"]) ||
+    !text(verification.reason)
+  )
+    reject();
+  const selected = stringArrayField(verification, "selected_ids");
+  if (new Set(selected).size !== selected.length) reject();
+  const byId = new Map<string, JsonObject>();
+  const selectedClaims: string[] = [];
+  for (const key of ["findings", "carry_forward"]) {
+    const local = new Set<string>();
+    for (const item of arrayField(envelope, key)) {
+      const finding = item as JsonObject;
+      if (
+        !isFinding(finding) ||
+        !["severity", "category", "anchor"].every(
+          (key) => typeof finding[key] === "string",
+        ) ||
+        !text(finding.why) ||
+        !text(finding.recommendation) ||
+        finding.body !==
+          `**${finding.severity} | ${finding.category}** — ${finding.why}\n\n**Recommendation:** ${finding.recommendation}`
+      )
+        reject();
+      const id = stringField(finding, "id");
+      if (
+        !/^[A-Za-z0-9_-]+$/u.test(id) ||
+        local.has(id) ||
+        !isSha(stringField(finding, "origin_head_sha"))
+      )
+        reject();
+      local.add(id);
+      const previous = byId.get(id);
+      if (previous) {
+        if (!jsonEqual(previous, finding)) reject();
+        continue;
+      }
+      byId.set(id, finding);
+      const assessment = objectField(finding, "assessment");
+      if (
+        !hasExactKeys(assessment, [
+          "state",
+          "assessed_head_sha",
+          "reuse_checked_head_sha",
+          "basis",
+          "selection",
+          "verification",
+        ]) ||
+        !text(assessment.basis)
+      )
+        reject();
+      if (!isSha(stringField(assessment, "assessed_head_sha"))) reject();
+      if (assessment.state === "fresh") {
+        if (
+          assessment.assessed_head_sha !== head ||
+          assessment.reuse_checked_head_sha !== null
+        )
+          reject();
+      } else if (assessment.state === "reused") {
+        if (
+          finding.severity !== "Nit" ||
+          assessment.selection !== "none" ||
+          assessment.reuse_checked_head_sha !== head
+        )
+          reject();
+      } else reject();
+      if (assessment.selection === "none") {
+        if (
+          finding.critic !== null ||
+          assessment.verification !== "not-required"
+        )
+          reject();
+      } else {
+        if (
+          !["consequential", "disputed", "uncertain"].includes(
+            stringField(assessment, "selection"),
+          ) ||
+          finding.severity !== "Blocking"
+        )
+          reject();
+        selectedClaims.push(id);
+        if (assessment.verification === "completed") {
+          if (
+            !["VALID", "INVALID", "DOWNGRADE"].includes(
+              stringField(finding, "critic"),
+            )
+          )
+            reject();
+        } else if (assessment.verification === "incomplete") {
+          if (finding.critic !== null) reject();
+        } else reject();
+      }
+    }
+  }
+  if (!jsonEqual([...selected].sort(), selectedClaims.sort())) reject();
+  const routes = arrayField(
+    envelope,
+    "incomplete_review_routes",
+  ) as JsonObject[];
+  if (
+    new Set(routes.map((route) => route.route)).size !== routes.length ||
+    routes.some(
+      (route) =>
+        !hasExactKeys(route, ["route", "disposition"]) ||
+        !["D7", "D10"].includes(stringField(route, "route")) ||
+        !["NEEDS_CONTEXT", "FAILED", "CONTROLLER_OBSERVED_FAILURE"].includes(
+          stringField(route, "disposition"),
+        ),
+    )
+  )
+    reject();
+  const d10Failed = routes.some((route) => route.route === "D10");
+  if (
+    routes.some((route) => route.route === "D7") &&
+    (byId.size > 0 ||
+      arrayField(envelope, "prior_dispositions").length > 0 ||
+      verification.state !== "not-required" ||
+      selected.length > 0 ||
+      d10Failed)
+  )
+    reject();
+  if (selected.length === 0) {
+    if (verification.state !== "not-required" || d10Failed) reject();
+  } else if (verification.state === "completed") {
+    if (
+      d10Failed ||
+      selected.some(
+        (id) =>
+          objectField(byId.get(id) as JsonObject, "assessment").verification !==
+          "completed",
+      )
+    )
+      reject();
+  } else if (verification.state === "incomplete") {
+    if (
+      !d10Failed ||
+      selected.some(
+        (id) =>
+          objectField(byId.get(id) as JsonObject, "assessment").verification !==
+          "incomplete",
+      )
+    )
+      reject();
+  } else reject();
+  if (envelope.presentation_overrides !== undefined) {
+    const overrides = arrayField(
+      envelope,
+      "presentation_overrides",
+    ) as JsonObject[];
+    const seen = new Set<string>();
+    for (const override of overrides) {
+      const id = stringField(override, "id");
+      const finding = byId.get(id);
+      if (!finding || finding.critic === "INVALID" || seen.has(id)) reject();
+      seen.add(id);
+      if (override.action === "drop") {
+        if (!hasExactKeys(override, ["id", "action"])) reject();
+      } else if (override.action === "reclassify") {
+        if (
+          !hasExactKeys(override, ["id", "action", "severity", "category"]) ||
+          !["Blocking", "Nit"].includes(stringField(override, "severity")) ||
+          ![
+            "Logic",
+            "Safety",
+            "Architecture",
+            "Tests",
+            "Maintainability",
+            "Documentation",
+            "Contracts",
+          ].includes(stringField(override, "category"))
+        )
+          reject();
+      } else reject();
+    }
+  }
+  const resolved = new Set<string>();
+  for (const item of arrayField(envelope, "prior_dispositions")) {
+    const record = item as JsonObject;
+    const id = stringField(record, "id");
+    if (
+      !hasExactKeys(record, [
+        "id",
+        "origin_head_sha",
+        "status",
+        "assessed_head_sha",
+        "reason",
+      ]) ||
+      !/^[A-Za-z0-9_-]+$/u.test(id) ||
+      resolved.has(id) ||
+      byId.has(id) ||
+      !isSha(stringField(record, "origin_head_sha")) ||
+      record.assessed_head_sha !== head ||
+      !["resolved", "invalid"].includes(stringField(record, "status")) ||
+      !text(record.reason)
+    )
+      reject();
+    resolved.add(id);
+  }
+}
+
 function validateFindingsEnvelopeSchema(envelope: JsonObject): void {
   if (
-    stringField(envelope, "schema") !== "play-review/findings/v2" ||
+    envelope.schema !== "play-review/findings/v3" ||
     !Array.isArray(envelope.findings) ||
     !Array.isArray(envelope.carry_forward) ||
-    !Array.isArray(envelope.incomplete_topical_routes)
-  ) {
+    !Array.isArray(envelope.incomplete_review_routes)
+  )
     fail("findings envelope validation failed");
-  }
-  for (const finding of allFindings(envelope)) {
-    if (!isFinding(finding)) {
-      fail("findings envelope validation failed");
-    }
-  }
-  for (const incompleteRoute of incompleteTopicalRoutes(envelope)) {
-    if (!isIncompleteTopicalRoute(incompleteRoute)) {
-      fail("findings envelope validation failed");
-    }
-  }
+  validateTargetedReviewEvidence(envelope);
 }
 
 function incompleteTopicalRoutes(envelope: JsonObject): JsonObject[] {
-  if (!Array.isArray(envelope.incomplete_topical_routes)) {
-    fail("findings envelope validation failed");
-  }
-  const routes = envelope.incomplete_topical_routes.map(
+  return arrayField(envelope, "incomplete_review_routes").map(
     (item) => item as JsonObject,
-  );
-  if (
-    new Set(routes.map((route) => String(route.route))).size !== routes.length
-  ) {
-    fail("findings envelope validation failed");
-  }
-  return routes;
-}
-
-function isIncompleteTopicalRoute(value: unknown): value is JsonObject {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    !Array.isArray(value) &&
-    hasExactKeys(value as JsonObject, ["route", "disposition"]) &&
-    ["D7", "D8", "D9"].includes(String((value as JsonObject).route)) &&
-    ["NEEDS_CONTEXT", "FAILED", "CONTROLLER_OBSERVED_FAILURE"].includes(
-      String((value as JsonObject).disposition),
-    )
   );
 }
 
@@ -3914,15 +4105,69 @@ function languageHints(files: readonly string[]): string[] {
   );
 }
 
+function projectedFindings(
+  envelope: JsonObject,
+  currentOnly = false,
+): JsonObject[] {
+  const overrides = new Map(
+    ((envelope.presentation_overrides ?? []) as JsonObject[]).map((item) => [
+      item.id,
+      item,
+    ]),
+  );
+  const seen = new Set<unknown>();
+  const findings = currentOnly
+    ? (arrayField(envelope, "findings") as JsonObject[])
+    : allFindings(envelope);
+  return findings.flatMap((finding) => {
+    if (seen.has(finding.id)) return [];
+    seen.add(finding.id);
+    const override = overrides.get(finding.id);
+    if (finding.critic === "INVALID" || override?.action === "drop") return [];
+    const severity =
+      override?.severity ??
+      (finding.critic === "DOWNGRADE" ? "Nit" : finding.severity);
+    const category = override?.category ?? finding.category;
+    return [
+      {
+        ...finding,
+        severity,
+        category,
+        body: `**${severity} | ${category}** — ${finding.why}\n\n**Recommendation:** ${finding.recommendation}`,
+      },
+    ];
+  });
+}
+
 export function buildApprovedReviewPayload(input: {
   headSha: string;
   reviewEvent: string;
   reviewBody: string;
   findings: JsonObject;
 }): JsonObject {
+  validateFindingsEnvelopeSchema(input.findings);
+  validateFindingsHead(input.findings, input.headSha);
+  const counts = findingsCounts(input.findings);
+  if (
+    input.reviewEvent === "APPROVE" &&
+    (counts.incompleteTopicalCount > 0 ||
+      counts.blockerCount > 0 ||
+      projectedFindings(input.findings, true).some(
+        (finding) => finding.severity === "Blocking",
+      ) ||
+      projectedFindings(input.findings).some(
+        (finding) =>
+          finding.anchor === "out-of-diff" && finding.severity === "Blocking",
+      ))
+  )
+    fail("incomplete or blocking review cannot approve");
   let reviewBody = stripTrailingNewlines(input.reviewBody);
-  const outOfDiffBodies = allFindings(input.findings)
-    .filter((finding) => stringField(finding, "anchor") === "out-of-diff")
+  const outOfDiffBodies = projectedFindings(input.findings)
+    .filter(
+      (finding) =>
+        finding.critic !== "INVALID" &&
+        stringField(finding, "anchor") === "out-of-diff",
+    )
     .map((finding) => stringField(finding, "body"));
   if (outOfDiffBodies.length > 0) {
     const outOfDiff = `## Out-of-diff Findings\n\n${outOfDiffBodies.join(
@@ -3936,10 +4181,11 @@ export function buildApprovedReviewPayload(input: {
     commit_id: input.headSha,
     event: input.reviewEvent,
     body: reviewBody,
-    comments: arrayField(input.findings, "findings")
-      .map((item) => item as JsonObject)
-      .filter((finding) =>
-        ["natural", "missing-file"].includes(stringField(finding, "anchor")),
+    comments: projectedFindings(input.findings, true)
+      .filter(
+        (finding) =>
+          finding.critic !== "INVALID" &&
+          ["natural", "missing-file"].includes(stringField(finding, "anchor")),
       )
       .map((finding) => {
         const anchor = stringField(finding, "anchor");
@@ -3949,10 +4195,7 @@ export function buildApprovedReviewPayload(input: {
           side: "RIGHT",
           body:
             anchor === "missing-file"
-              ? `Missing-file finding (no natural anchor — see body):\n\n${stringField(
-                  finding,
-                  "body",
-                )}`
+              ? `Missing-file finding (no natural anchor — see body):\n\n${stringField(finding, "body")}`
               : stringField(finding, "body"),
         };
         const startLine = nullableNumberField(finding, "start_line");

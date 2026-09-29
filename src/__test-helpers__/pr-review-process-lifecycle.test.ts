@@ -1,4 +1,5 @@
 import { ChildProcess } from "node:child_process";
+import { once } from "node:events";
 import { realpath as realpathCallback } from "node:fs";
 import * as fsPromises from "node:fs/promises";
 import {
@@ -78,41 +79,6 @@ function errorCode(error: unknown): unknown {
   return typeof error === "object" && error !== null && "code" in error
     ? error.code
     : undefined;
-}
-
-async function waitForRootPid(
-  pidFile: string,
-  timeoutMs: number,
-): Promise<number> {
-  const deadline = performance.now() + timeoutMs;
-  while (performance.now() < deadline) {
-    try {
-      const pid = Number.parseInt(await readFile(pidFile, "utf8"), 10);
-      if (Number.isSafeInteger(pid) && pid > 0) return pid;
-      throw new Error("root PID evidence is invalid");
-    } catch (error) {
-      if (errorCode(error) !== "ENOENT") throw error;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 5));
-  }
-  throw new Error("root PID evidence was not published before the deadline");
-}
-
-async function waitForRootPidAbsent(
-  pid: number,
-  timeoutMs: number,
-): Promise<void> {
-  const deadline = performance.now() + timeoutMs;
-  while (performance.now() < deadline) {
-    try {
-      process.kill(pid, 0);
-    } catch (error) {
-      if (errorCode(error) === "ESRCH") return;
-      throw error;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 5));
-  }
-  throw new Error(`root PID ${pid} remained live after its deadline`);
 }
 
 afterEach(async () => {
@@ -366,41 +332,40 @@ describe("pr-review process lifecycle", () => {
 
   it("records protocol failure and a false root kill without overstating cleanup", async () => {
     const root = await generatedRoot();
-    const stateDirectory = await mkdtemp(
-      path.join(os.tmpdir(), "dc-process-lifecycle-state-"),
-    );
-    roots.push(stateDirectory);
-    const pidFile = path.join(stateDirectory, "root.pid");
-    const source = [
-      'require("node:fs").writeFileSync(process.argv[1], String(process.pid));',
-      'require("node:child_process").spawn(process.execPath, ["-e", "setTimeout(() => {}, 500)"], { cwd: require("node:os").tmpdir(), stdio: ["ignore", "inherit", "inherit"] });',
-      'process.stdout.write("ready");',
-      'require("node:fs").writeSync(3, Buffer.from([0, 0, 0, 1, 0xff]));',
-      "process.exit(0);",
-    ].join("\n");
-    const processLifecycle = await lifecycle(root, source, {
-      args: ["-e", source, pidFile],
-      deadlineMs: 200,
-    });
-    const rootPid = await waitForRootPid(pidFile, 1_000);
-    await waitForRootPidAbsent(rootPid, 1_000);
-
-    const result = await processLifecycle.finish({
-      cancel: true,
-      cooperativeGraceMs: 1,
-    });
-
-    const killReturnedFalse = result.evidence.includes("kill:false");
-    if (killReturnedFalse) {
+    // Simulate the control event at the false-kill seam, independent of child startup.
+    const originalKill = ChildProcess.prototype.kill;
+    let child: ChildProcess | undefined;
+    let closed: Promise<unknown> | undefined;
+    const now = vi.spyOn(performance, "now").mockReturnValue(0);
+    const falseKill = vi
+      .spyOn(ChildProcess.prototype, "kill")
+      .mockImplementation(function (this: ChildProcess) {
+        child = this;
+        closed = once(this, "close", { signal: AbortSignal.timeout(1_000) });
+        this.stdio[3]?.emit("data", Buffer.from([0, 0, 0, 1, 0xff]));
+        return false;
+      });
+    try {
+      const processLifecycle = await lifecycle(root, "process.exit(0);", {
+        deadlineMs: 200,
+      });
+      const result = await processLifecycle.finish({
+        cancel: true,
+        cooperativeGraceMs: 0,
+      });
+      expect(falseKill).toHaveBeenCalledOnce();
       expect(result.cleanup.forceTermination).toBe("failed");
-    } else {
-      expect(result.cleanup.forceTermination).toBe("not-needed");
-      expect(result.rootProcess.closeObserved).toBe(true);
+      expect(result.evidence).toContain("kill:false");
+      expect(
+        result.evidence.some((entry) => entry.startsWith("protocol:")),
+      ).toBe(true);
+    } finally {
+      falseKill.mockRestore();
+      now.mockRestore();
+      if (child && child.exitCode === null && child.signalCode === null)
+        originalKill.call(child, "SIGKILL");
+      await closed;
     }
-    expect(result.evidence.some((entry) => entry.startsWith("protocol:"))).toBe(
-      true,
-    );
-    await new Promise((resolve) => setTimeout(resolve, 600));
     const failureRoot = await generatedRoot();
     const secret = "PRIVATE_FAILURE";
     const errorName = `${secret}${"é".repeat(100)}`;

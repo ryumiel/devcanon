@@ -2,7 +2,12 @@
 
 ## Status
 
-Accepted
+Accepted; partially superseded by
+[ADR-0038](adr-0038-single-reviewer-targeted-verification.md). The historical
+all-candidate critic, unchanged-v2 transport, and private run-outcome mutation
+gate below are replaced by targeted verification and per-finding v3 evidence.
+Admission, unchanged-claim judgment, severity and duplicate-retention principles
+remain effective.
 
 ## Context
 

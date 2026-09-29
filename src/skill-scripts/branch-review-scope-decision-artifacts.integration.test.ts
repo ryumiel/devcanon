@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   chmod,
   copyFile,
@@ -12,6 +13,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { cleanupTempDir } from "../__test-helpers__/fixtures.js";
+import { createReviewEnvelope } from "../__test-helpers__/review-evidence.js";
 
 const execFileAsync = promisify(execFile);
 const helperScript = path.join(
@@ -129,6 +131,28 @@ function initialScope(baseSha: string, headSha: string, overrides = {}) {
   };
 }
 
+async function writeInitialApprovalScope(cwd: string, headSha: string) {
+  await writeJson(
+    cwd,
+    scopePath(headSha),
+    initialScope("main", headSha, {
+      selection_reason: "not-followup",
+    }),
+  );
+}
+
+function approvalEnv(headSha: string) {
+  return {
+    HEAD_SHA: headSha,
+    BASE: "main",
+    FULL_DIFF_RANGE: "main...HEAD",
+    ACTIVE_DIFF_RANGE: "main...HEAD",
+    SCOPE_DECISION_FILE: scopePath(headSha),
+    FINDINGS_FILE: findingsPath(headSha),
+    APPROVAL_SUMMARY_FILE: approvalSummaryPath(headSha),
+  };
+}
+
 function riskSignals(baseSha: string, headSha: string, overrides = {}) {
   return {
     schema: "branch-review/risk-signals/v1",
@@ -170,16 +194,26 @@ function parseKeyValues(stdout: string) {
 
 async function writeJson(cwd: string, relPath: string, value: unknown) {
   await mkdir(path.dirname(path.join(cwd, relPath)), { recursive: true });
-  await writeFile(path.join(cwd, relPath), JSON.stringify(value, null, 2));
+  await writeFile(
+    path.join(cwd, relPath),
+    JSON.stringify(
+      createReviewEnvelope(
+        value,
+        /([a-f0-9]{40})/.exec(relPath)?.[1] ?? "a".repeat(40),
+      ),
+      null,
+      2,
+    ),
+  );
 }
 
 async function writeEmptyFindings(cwd: string, headSha: string) {
   const file = findingsPath(headSha);
   await writeJson(cwd, file, {
-    schema: "play-review/findings/v2",
+    schema: "play-review/findings/v3",
     findings: [],
     carry_forward: [],
-    incomplete_topical_routes: [],
+    incomplete_review_routes: [],
   });
   return file;
 }
@@ -195,7 +229,7 @@ function reviewFinding(overrides: Record<string, unknown> = {}) {
     anchor: "natural",
     why: "The value is wrong.",
     recommendation: "Use the correct value.",
-    body: "**Blocking | Logic** - The value is wrong.\n\n**Recommendation:** Use the correct value.",
+    body: "**Blocking | Logic** — The value is wrong.\n\n**Recommendation:** Use the correct value.",
     ...overrides,
   };
 }
@@ -604,22 +638,197 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
     }
   });
 
+  it("rejects legacy inspection and its otherwise bound current gate", async () => {
+    const { cwd, headSha } = await makeGitWorkspace();
+    const validator = path.resolve(
+      "skills/play-validate-review-artifacts/scripts/review-artifacts.sh",
+    );
+    try {
+      const summaryPath = approvalSummaryPath(headSha);
+      const findingsFile = await writeEmptyFindings(cwd, headSha);
+      await writeInitialApprovalScope(cwd, headSha);
+      await runHelper(
+        cwd,
+        helperScript,
+        "write-approval-summary",
+        approvalEnv(headSha),
+      );
+      const args = [
+        "validate-approval-summary",
+        "--surface",
+        "branch-review",
+        "--head-sha",
+        headSha,
+        "--approval-summary-file",
+        summaryPath,
+      ];
+      await expect(
+        execFileAsync("bash", [validator, ...args, "--emit-gate-result"], {
+          cwd,
+        }),
+      ).resolves.toMatchObject({
+        stdout: expect.stringContaining('"gate_result":"passing"'),
+      });
+      const legacyFindings = JSON.stringify({
+        schema: "play-review/findings/v2",
+        findings: [],
+        carry_forward: [],
+        incomplete_topical_routes: [],
+      });
+      await writeFile(path.join(cwd, findingsFile), legacyFindings);
+      const { verification_state: _verification, ...summary } = await readJson(
+        cwd,
+        summaryPath,
+      );
+      await writeFile(
+        path.join(cwd, summaryPath),
+        JSON.stringify({
+          ...summary,
+          schema: "branch-review/approval-summary/v1",
+          findings_sha256: createHash("sha256")
+            .update(legacyFindings)
+            .digest("hex"),
+        }),
+      );
+      await expect(
+        execFileAsync("bash", [validator, ...args], { cwd }),
+      ).rejects.toThrow();
+      await expect(
+        execFileAsync("bash", [validator, ...args, "--emit-gate-result"], {
+          cwd,
+        }),
+      ).rejects.toMatchObject({
+        stdout: "",
+        stderr: expect.stringContaining("approval summary schema mismatch"),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it.each(["selection", "status"])(
+    "rejects malformed %s at summary creation and correctly bound gate",
+    async (field) => {
+      const { cwd, headSha } = await makeGitWorkspace();
+      try {
+        const summaryPath = approvalSummaryPath(headSha);
+        const findingsFile = findingsPath(headSha);
+        await writeInitialApprovalScope(cwd, headSha);
+        const value = createReviewEnvelope(
+          {
+            schema: "play-review/findings/v3",
+            findings: [reviewFinding({ critic: "INVALID" })],
+            carry_forward: [],
+            incomplete_review_routes: [],
+          },
+          headSha,
+        ) as Record<string, unknown>;
+        value.prior_dispositions = [
+          {
+            id: "old",
+            origin_head_sha: headSha,
+            assessed_head_sha: headSha,
+            status: "resolved",
+            reason: "Disproved",
+          },
+        ];
+        await writeJson(cwd, findingsFile, value);
+        const env = approvalEnv(headSha);
+        await runHelper(cwd, helperScript, "write-approval-summary", env);
+        const summary = await readJson(cwd, summaryPath);
+        if (field === "status")
+          (value.prior_dispositions as Record<string, unknown>[])[0].status = [
+            "resolved",
+          ];
+        else
+          (
+            (value.findings as Record<string, unknown>[])[0]
+              .assessment as Record<string, unknown>
+          ).selection = ["consequential"];
+        const serialized = JSON.stringify(value);
+        await writeFile(path.join(cwd, findingsFile), serialized);
+        await writeJson(cwd, summaryPath, {
+          ...summary,
+          findings_sha256: createHash("sha256")
+            .update(serialized)
+            .digest("hex"),
+        });
+        await expect(
+          execFileAsync(
+            "bash",
+            [
+              path.resolve(
+                "skills/play-validate-review-artifacts/scripts/review-artifacts.sh",
+              ),
+              "validate-approval-summary",
+              "--surface",
+              "branch-review",
+              "--head-sha",
+              headSha,
+              "--approval-summary-file",
+              summaryPath,
+              "--emit-gate-result",
+            ],
+            { cwd },
+          ),
+        ).rejects.toMatchObject({ stdout: "" });
+        await expect(
+          runHelper(cwd, helperScript, "write-approval-summary", env),
+        ).rejects.toThrow();
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+
+  it.each([false, true])(
+    "binds v3 skipped verification and incomplete review to approval v2: %s",
+    async (incomplete) => {
+      const { cwd, headSha } = await makeGitWorkspace();
+      try {
+        const summaryPath = approvalSummaryPath(headSha);
+        const findingsFile = findingsPath(headSha);
+        await writeInitialApprovalScope(cwd, headSha);
+        await writeJson(cwd, findingsFile, {
+          schema: "play-review/findings/v3",
+          review_head_sha: headSha,
+          findings: [],
+          carry_forward: [],
+          prior_dispositions: [],
+          incomplete_review_routes: incomplete
+            ? [{ route: "D7", disposition: "NEEDS_CONTEXT" }]
+            : [],
+          verification: {
+            state: "not-required",
+            selected_ids: [],
+            reason: "No blocking triggers",
+          },
+        });
+        await runHelper(
+          cwd,
+          helperScript,
+          "write-approval-summary",
+          approvalEnv(headSha),
+        );
+        await expect(readJson(cwd, summaryPath)).resolves.toMatchObject({
+          schema: "branch-review/approval-summary/v2",
+          verification_state: "not-required",
+          terminal_state: incomplete ? "blocked" : "approved",
+          incomplete_topical_count: incomplete ? 1 : 0,
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+
   it("prepares, writes, validates, and announces an approval summary after linked evidence is available", async () => {
     const { cwd, headSha } = await makeGitWorkspace();
     try {
       const decisionPath = scopePath(headSha);
       const summaryPath = approvalSummaryPath(headSha);
       const findingsFile = await writeEmptyFindings(cwd, headSha);
-      await writeJson(
-        cwd,
-        decisionPath,
-        initialScope("main", headSha, {
-          full_range: "main...HEAD",
-          selected_range: "main...HEAD",
-          candidate_narrow_range: "main...HEAD",
-          selection_reason: "not-followup",
-        }),
-      );
+      await writeInitialApprovalScope(cwd, headSha);
 
       await expect(
         runHelper(cwd, helperScript, "prepare-approval-summary-write", {
@@ -628,21 +837,18 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
       ).resolves.toMatchObject({ stdout: `${summaryPath}\n` });
 
       await expect(
-        runHelper(cwd, helperScript, "write-approval-summary", {
-          HEAD_SHA: headSha,
-          BASE: "main",
-          FULL_DIFF_RANGE: "main...HEAD",
-          ACTIVE_DIFF_RANGE: "main...HEAD",
-          SCOPE_DECISION_FILE: decisionPath,
-          FINDINGS_FILE: findingsFile,
-          APPROVAL_SUMMARY_FILE: summaryPath,
-        }),
+        runHelper(
+          cwd,
+          helperScript,
+          "write-approval-summary",
+          approvalEnv(headSha),
+        ),
       ).resolves.toMatchObject({
         stdout: `Approval summary written to ${summaryPath}.\n`,
       });
 
       await expect(readJson(cwd, summaryPath)).resolves.toMatchObject({
-        schema: "branch-review/approval-summary/v1",
+        schema: "branch-review/approval-summary/v2",
         surface: "branch-review",
         review_head_sha: headSha,
         base_ref: "main",
@@ -665,127 +871,75 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
     }
   });
 
-  it("derives blocked approval summaries from final findings evidence", async () => {
-    const { cwd, headSha } = await makeGitWorkspace();
-    try {
-      const decisionPath = scopePath(headSha);
-      const summaryPath = approvalSummaryPath(headSha);
-      const findingsFile = findingsPath(headSha);
-      await writeJson(
-        cwd,
-        decisionPath,
-        initialScope("main", headSha, {
-          full_range: "main...HEAD",
-          selected_range: "main...HEAD",
-          candidate_narrow_range: "main...HEAD",
-          selection_reason: "not-followup",
-        }),
-      );
-      await writeJson(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
-        findings: [reviewFinding()],
-        carry_forward: [],
-        incomplete_topical_routes: [],
-      });
+  it.each(["none", "drop", "reclassify"])(
+    "derives blocked approval summaries from raw evidence despite %s presentation",
+    async (action) => {
+      const { cwd, headSha } = await makeGitWorkspace();
+      try {
+        const summaryPath = approvalSummaryPath(headSha);
+        const findingsFile = findingsPath(headSha);
+        await writeInitialApprovalScope(cwd, headSha);
+        await writeJson(cwd, findingsFile, {
+          schema: "play-review/findings/v3",
+          presentation_overrides:
+            action === "none"
+              ? []
+              : [
+                  {
+                    id: "F1",
+                    action,
+                    ...(action === "reclassify"
+                      ? { severity: "Nit", category: "Documentation" }
+                      : {}),
+                  },
+                ],
+          findings: [reviewFinding()],
+          carry_forward: [],
+          incomplete_review_routes: [],
+        });
 
-      await expect(
-        runHelper(cwd, helperScript, "write-approval-summary", {
-          HEAD_SHA: headSha,
-          BASE: "main",
-          FULL_DIFF_RANGE: "main...HEAD",
-          ACTIVE_DIFF_RANGE: "main...HEAD",
-          SCOPE_DECISION_FILE: decisionPath,
-          FINDINGS_FILE: findingsFile,
-          APPROVAL_SUMMARY_FILE: summaryPath,
-        }),
-      ).resolves.toMatchObject({
-        stdout: `Approval summary written to ${summaryPath}.\n`,
-      });
+        await expect(
+          runHelper(
+            cwd,
+            helperScript,
+            "write-approval-summary",
+            approvalEnv(headSha),
+          ),
+        ).resolves.toMatchObject({
+          stdout: `Approval summary written to ${summaryPath}.\n`,
+        });
 
-      await expect(readJson(cwd, summaryPath)).resolves.toMatchObject({
-        terminal_state: "blocked",
-        blocker_count: 1,
-        nit_count: 0,
-      });
-    } finally {
-      await cleanupTempDir(cwd);
-    }
-  });
-
-  it("blocks approval when a selected topical route is incomplete", async () => {
-    const { cwd, headSha } = await makeGitWorkspace();
-    try {
-      const decisionPath = scopePath(headSha);
-      const summaryPath = approvalSummaryPath(headSha);
-      const findingsFile = findingsPath(headSha);
-      await writeJson(
-        cwd,
-        decisionPath,
-        initialScope("main", headSha, {
-          full_range: "main...HEAD",
-          selected_range: "main...HEAD",
-          candidate_narrow_range: "main...HEAD",
-          selection_reason: "not-followup",
-        }),
-      );
-      await writeJson(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
-        findings: [],
-        carry_forward: [],
-        incomplete_topical_routes: [
-          { route: "D8", disposition: "NEEDS_CONTEXT" },
-        ],
-      });
-
-      await runHelper(cwd, helperScript, "write-approval-summary", {
-        HEAD_SHA: headSha,
-        BASE: "main",
-        FULL_DIFF_RANGE: "main...HEAD",
-        ACTIVE_DIFF_RANGE: "main...HEAD",
-        SCOPE_DECISION_FILE: decisionPath,
-        FINDINGS_FILE: findingsFile,
-        APPROVAL_SUMMARY_FILE: summaryPath,
-      });
-
-      await expect(readJson(cwd, summaryPath)).resolves.toMatchObject({
-        terminal_state: "blocked",
-        blocker_count: 0,
-        nit_count: 0,
-        carry_forward_count: 0,
-        incomplete_topical_count: 1,
-      });
-    } finally {
-      await cleanupTempDir(cwd);
-    }
-  });
+        await expect(readJson(cwd, summaryPath)).resolves.toMatchObject({
+          schema: "branch-review/approval-summary/v2",
+          verification_state: "completed",
+          terminal_state: "blocked",
+          blocker_count: 1,
+          nit_count: 0,
+          carry_forward_count: 0,
+          incomplete_topical_count: 0,
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
 
   it("fails closed when approval evidence omits or repeats topical routes", async () => {
     const { cwd, headSha } = await makeGitWorkspace();
     try {
-      const decisionPath = scopePath(headSha);
-      const summaryPath = approvalSummaryPath(headSha);
       const findingsFile = findingsPath(headSha);
-      await writeJson(
-        cwd,
-        decisionPath,
-        initialScope("main", headSha, {
-          full_range: "main...HEAD",
-          selected_range: "main...HEAD",
-          candidate_narrow_range: "main...HEAD",
-          selection_reason: "not-followup",
-        }),
-      );
+      await writeInitialApprovalScope(cwd, headSha);
       for (const findings of [
         {
-          schema: "play-review/findings/v2",
+          schema: "play-review/findings/v3",
           findings: [],
           carry_forward: [],
         },
         {
-          schema: "play-review/findings/v2",
+          schema: "play-review/findings/v3",
           findings: [],
           carry_forward: [],
-          incomplete_topical_routes: [
+          incomplete_review_routes: [
             { route: "D7", disposition: "FAILED" },
             { route: "D7", disposition: "NEEDS_CONTEXT" },
           ],
@@ -793,15 +947,12 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
       ]) {
         await writeJson(cwd, findingsFile, findings);
         await expect(
-          runHelper(cwd, helperScript, "write-approval-summary", {
-            HEAD_SHA: headSha,
-            BASE: "main",
-            FULL_DIFF_RANGE: "main...HEAD",
-            ACTIVE_DIFF_RANGE: "main...HEAD",
-            SCOPE_DECISION_FILE: decisionPath,
-            FINDINGS_FILE: findingsFile,
-            APPROVAL_SUMMARY_FILE: summaryPath,
-          }),
+          runHelper(
+            cwd,
+            helperScript,
+            "write-approval-summary",
+            approvalEnv(headSha),
+          ),
         ).rejects.toThrow();
       }
     } finally {
@@ -812,41 +963,33 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
   it("blocks every incomplete topical disposition", async () => {
     const { cwd, headSha } = await makeGitWorkspace();
     try {
-      const decisionPath = scopePath(headSha);
       const summaryPath = approvalSummaryPath(headSha);
       const findingsFile = findingsPath(headSha);
-      await writeJson(
-        cwd,
-        decisionPath,
-        initialScope("main", headSha, {
-          full_range: "main...HEAD",
-          selected_range: "main...HEAD",
-          candidate_narrow_range: "main...HEAD",
-          selection_reason: "not-followup",
-        }),
-      );
+      await writeInitialApprovalScope(cwd, headSha);
       for (const incompleteRoute of [
         { route: "D7", disposition: "FAILED" },
-        { route: "D8", disposition: "NEEDS_CONTEXT" },
-        { route: "D9", disposition: "CONTROLLER_OBSERVED_FAILURE" },
+        { route: "D7", disposition: "NEEDS_CONTEXT" },
+        { route: "D7", disposition: "CONTROLLER_OBSERVED_FAILURE" },
       ]) {
         await writeJson(cwd, findingsFile, {
-          schema: "play-review/findings/v2",
+          schema: "play-review/findings/v3",
           findings: [],
           carry_forward: [],
-          incomplete_topical_routes: [incompleteRoute],
+          incomplete_review_routes: [incompleteRoute],
         });
-        await runHelper(cwd, helperScript, "write-approval-summary", {
-          HEAD_SHA: headSha,
-          BASE: "main",
-          FULL_DIFF_RANGE: "main...HEAD",
-          ACTIVE_DIFF_RANGE: "main...HEAD",
-          SCOPE_DECISION_FILE: decisionPath,
-          FINDINGS_FILE: findingsFile,
-          APPROVAL_SUMMARY_FILE: summaryPath,
-        });
+        await runHelper(
+          cwd,
+          helperScript,
+          "write-approval-summary",
+          approvalEnv(headSha),
+        );
         await expect(readJson(cwd, summaryPath)).resolves.toMatchObject({
+          schema: "branch-review/approval-summary/v2",
+          verification_state: "not-required",
           terminal_state: "blocked",
+          blocker_count: 0,
+          nit_count: 0,
+          carry_forward_count: 0,
           incomplete_topical_count: 1,
         });
       }
@@ -855,152 +998,70 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
     }
   });
 
-  it("derives approved-with-nits summaries from downgraded blocking findings", async () => {
-    const { cwd, headSha } = await makeGitWorkspace();
-    try {
-      const decisionPath = scopePath(headSha);
-      const summaryPath = approvalSummaryPath(headSha);
-      const findingsFile = findingsPath(headSha);
-      await writeJson(
-        cwd,
-        decisionPath,
-        initialScope("main", headSha, {
-          full_range: "main...HEAD",
-          selected_range: "main...HEAD",
-          candidate_narrow_range: "main...HEAD",
-          selection_reason: "not-followup",
-        }),
-      );
-      await writeJson(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
-        findings: [reviewFinding({ critic: "DOWNGRADE" })],
-        carry_forward: [],
-        incomplete_topical_routes: [],
-      });
-
-      await expect(
-        runHelper(cwd, helperScript, "write-approval-summary", {
-          HEAD_SHA: headSha,
-          BASE: "main",
-          FULL_DIFF_RANGE: "main...HEAD",
-          ACTIVE_DIFF_RANGE: "main...HEAD",
-          SCOPE_DECISION_FILE: decisionPath,
-          FINDINGS_FILE: findingsFile,
-          APPROVAL_SUMMARY_FILE: summaryPath,
-        }),
-      ).resolves.toMatchObject({
-        stdout: `Approval summary written to ${summaryPath}.\n`,
-      });
-
-      await expect(readJson(cwd, summaryPath)).resolves.toMatchObject({
-        terminal_state: "approved_with_nits",
-        blocker_count: 0,
-        nit_count: 1,
-      });
-    } finally {
-      await cleanupTempDir(cwd);
-    }
-  });
-
-  it("derives approved summaries from invalidated blocking findings", async () => {
-    const { cwd, headSha } = await makeGitWorkspace();
-    try {
-      const decisionPath = scopePath(headSha);
-      const summaryPath = approvalSummaryPath(headSha);
-      const findingsFile = findingsPath(headSha);
-      await writeJson(
-        cwd,
-        decisionPath,
-        initialScope("main", headSha, {
-          full_range: "main...HEAD",
-          selected_range: "main...HEAD",
-          candidate_narrow_range: "main...HEAD",
-          selection_reason: "not-followup",
-        }),
-      );
-      await writeJson(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
-        findings: [reviewFinding({ critic: "INVALID" })],
-        carry_forward: [],
-        incomplete_topical_routes: [],
-      });
-
-      await expect(
-        runHelper(cwd, helperScript, "write-approval-summary", {
-          HEAD_SHA: headSha,
-          BASE: "main",
-          FULL_DIFF_RANGE: "main...HEAD",
-          ACTIVE_DIFF_RANGE: "main...HEAD",
-          SCOPE_DECISION_FILE: decisionPath,
-          FINDINGS_FILE: findingsFile,
-          APPROVAL_SUMMARY_FILE: summaryPath,
-        }),
-      ).resolves.toMatchObject({
-        stdout: `Approval summary written to ${summaryPath}.\n`,
-      });
-
-      await expect(readJson(cwd, summaryPath)).resolves.toMatchObject({
-        terminal_state: "approved",
-        blocker_count: 0,
-        nit_count: 0,
-      });
-    } finally {
-      await cleanupTempDir(cwd);
-    }
-  });
-
-  it("derives approved summaries from invalidated carry-forward findings", async () => {
-    const { cwd, headSha } = await makeGitWorkspace();
-    try {
-      const decisionPath = scopePath(headSha);
-      const summaryPath = approvalSummaryPath(headSha);
-      const findingsFile = findingsPath(headSha);
-      await writeJson(
-        cwd,
-        decisionPath,
-        initialScope("main", headSha, {
-          full_range: "main...HEAD",
-          selected_range: "main...HEAD",
-          candidate_narrow_range: "main...HEAD",
-          selection_reason: "not-followup",
-        }),
-      );
-      await writeJson(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
-        findings: [],
-        carry_forward: [
-          reviewFinding({
-            anchor: "out-of-diff",
-            critic: "INVALID",
-          }),
-        ],
-        incomplete_topical_routes: [],
-      });
-
-      await expect(
-        runHelper(cwd, helperScript, "write-approval-summary", {
-          HEAD_SHA: headSha,
-          BASE: "main",
-          FULL_DIFF_RANGE: "main...HEAD",
-          ACTIVE_DIFF_RANGE: "main...HEAD",
-          SCOPE_DECISION_FILE: decisionPath,
-          FINDINGS_FILE: findingsFile,
-          APPROVAL_SUMMARY_FILE: summaryPath,
-        }),
-      ).resolves.toMatchObject({
-        stdout: `Approval summary written to ${summaryPath}.\n`,
-      });
-
-      await expect(readJson(cwd, summaryPath)).resolves.toMatchObject({
-        terminal_state: "approved",
-        blocker_count: 0,
-        nit_count: 0,
-        carry_forward_count: 0,
-      });
-    } finally {
-      await cleanupTempDir(cwd);
-    }
-  });
+  it.each([
+    {
+      name: "downgraded current blocker",
+      critic: "DOWNGRADE",
+      carried: false,
+      terminal: "approved_with_nits",
+      nits: 1,
+    },
+    {
+      name: "invalid current blocker",
+      critic: "INVALID",
+      carried: false,
+      terminal: "approved",
+      nits: 0,
+    },
+    {
+      name: "invalid carried blocker",
+      critic: "INVALID",
+      carried: true,
+      terminal: "approved",
+      nits: 0,
+    },
+  ])(
+    "derives approval from $name",
+    async ({ critic, carried, terminal, nits }) => {
+      const { cwd, headSha } = await makeGitWorkspace();
+      try {
+        await writeInitialApprovalScope(cwd, headSha);
+        const claim = reviewFinding({
+          critic,
+          ...(carried ? { anchor: "out-of-diff" } : {}),
+        });
+        await writeJson(cwd, findingsPath(headSha), {
+          schema: "play-review/findings/v3",
+          findings: carried ? [] : [claim],
+          carry_forward: carried ? [claim] : [],
+          incomplete_review_routes: [],
+        });
+        await expect(
+          runHelper(
+            cwd,
+            helperScript,
+            "write-approval-summary",
+            approvalEnv(headSha),
+          ),
+        ).resolves.toMatchObject({
+          stdout: `Approval summary written to ${approvalSummaryPath(headSha)}.\n`,
+        });
+        await expect(
+          readJson(cwd, approvalSummaryPath(headSha)),
+        ).resolves.toMatchObject({
+          schema: "branch-review/approval-summary/v2",
+          verification_state: "completed",
+          terminal_state: terminal,
+          blocker_count: 0,
+          nit_count: nits,
+          carry_forward_count: 0,
+          incomplete_topical_count: 0,
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
 
   it("stops before writing an approval summary when linked scope evidence is mismatched", async () => {
     const { cwd, headSha } = await makeGitWorkspace();
@@ -1020,15 +1081,12 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
       );
 
       await expect(
-        runHelper(cwd, helperScript, "write-approval-summary", {
-          HEAD_SHA: headSha,
-          BASE: "main",
-          FULL_DIFF_RANGE: "main...HEAD",
-          ACTIVE_DIFF_RANGE: "main...HEAD",
-          SCOPE_DECISION_FILE: decisionPath,
-          FINDINGS_FILE: findingsFile,
-          APPROVAL_SUMMARY_FILE: summaryPath,
-        }),
+        runHelper(
+          cwd,
+          helperScript,
+          "write-approval-summary",
+          approvalEnv(headSha),
+        ),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining(
           "scope decision evidence validation failed",
@@ -1045,40 +1103,27 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
   it("stops before writing the final approval summary when full findings validation fails", async () => {
     const { cwd, headSha } = await makeGitWorkspace();
     try {
-      const decisionPath = scopePath(headSha);
       const summaryPath = approvalSummaryPath(headSha);
       const findingsFile = findingsPath(headSha);
-      await writeJson(
-        cwd,
-        decisionPath,
-        initialScope("main", headSha, {
-          full_range: "main...HEAD",
-          selected_range: "main...HEAD",
-          candidate_narrow_range: "main...HEAD",
-          selection_reason: "not-followup",
-        }),
-      );
+      await writeInitialApprovalScope(cwd, headSha);
       await writeJson(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [
           {
             severity: "Blocking",
           },
         ],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       });
 
       await expect(
-        runHelper(cwd, helperScript, "write-approval-summary", {
-          HEAD_SHA: headSha,
-          BASE: "main",
-          FULL_DIFF_RANGE: "main...HEAD",
-          ACTIVE_DIFF_RANGE: "main...HEAD",
-          SCOPE_DECISION_FILE: decisionPath,
-          FINDINGS_FILE: findingsFile,
-          APPROVAL_SUMMARY_FILE: summaryPath,
-        }),
+        runHelper(
+          cwd,
+          helperScript,
+          "write-approval-summary",
+          approvalEnv(headSha),
+        ),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("approval summary validation failed"),
       });
@@ -1103,16 +1148,7 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         temp,
         "support validator rejected approval summary",
       );
-      await writeJson(
-        cwd,
-        decisionPath,
-        initialScope("main", headSha, {
-          full_range: "main...HEAD",
-          selected_range: "main...HEAD",
-          candidate_narrow_range: "main...HEAD",
-          selection_reason: "not-followup",
-        }),
-      );
+      await writeInitialApprovalScope(cwd, headSha);
       await writeFile(
         path.join(cwd, summaryPath),
         JSON.stringify({ stale: true }),
@@ -1152,16 +1188,7 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
       const findingsFile = await writeEmptyFindings(cwd, headSha);
       const markerArgs = path.join(temp, "args.txt");
       const validator = await writeMarkerValidator(temp, "approval-validator");
-      await writeJson(
-        cwd,
-        decisionPath,
-        initialScope("main", headSha, {
-          full_range: "main...HEAD",
-          selected_range: "main...HEAD",
-          candidate_narrow_range: "main...HEAD",
-          selection_reason: "not-followup",
-        }),
-      );
+      await writeInitialApprovalScope(cwd, headSha);
 
       await expect(
         runHelper(cwd, helperScript, "write-approval-summary", {

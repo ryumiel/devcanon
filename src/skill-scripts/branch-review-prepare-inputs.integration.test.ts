@@ -58,10 +58,17 @@ async function writeFindingsEnvelope(cwd: string, headSha: string) {
   await writeFile(
     path.join(cwd, findingsFile),
     JSON.stringify({
-      schema: "play-review/findings/v2",
+      schema: "play-review/findings/v3",
+      review_head_sha: headSha,
+      prior_dispositions: [],
+      verification: {
+        state: "not-required",
+        selected_ids: [],
+        reason: "No blockers",
+      },
       findings: [],
       carry_forward: [],
-      incomplete_topical_routes: [],
+      incomplete_review_routes: [],
     }),
   );
   return findingsFile;

@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR-0038](adr-0038-single-reviewer-targeted-verification.md).
+The historical decision below is retained for rationale; its fanout and
+all-input critic requirements are no longer execution authority.
 
 ## Context
 

@@ -17,13 +17,14 @@ reasoning.
 
 ### Conservative tie-breaker
 
-**Conservative tie-breaker.** When in doubt, treat a remaining finding as
-judgment-required. False fixable classifications produce subtly wrong
-branch-review fix attempts; false judgment classifications produce one extra PR
-comment. Prefer the latter.
+**Conservative tie-breaker.** Every remaining Nit is report-only under v3,
+including seemingly mechanical feedback. When its description is uncertain,
+label it judgment-required, but include it in the same Phase 8 `nits_file`
+either way. Neither classification grants fix authority or permits omission.
 
 ### Reclassification escape
 
 **Reclassification escape.** If a remaining finding has multiple plausible
-fixes, classify it as judgment-required and route it to PR comments. Do not
+fixes, describe it as judgment-required and retain it for PR comments. A
+single obvious fix is also report-only and remains in that same handoff. Do not
 guess in issue priming, and do not create caller-owned fix commits.

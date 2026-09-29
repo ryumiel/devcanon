@@ -195,7 +195,7 @@ describe("PR-review result validation context", () => {
 
       await writeFile(
         path.join(workspace.root, workspace.findingsFile),
-        '{"schema":"play-review/findings/v2","findings":[],"carry_forward":[],"incomplete_topical_routes":[{"route":"D7","disposition":"NEEDS_CONTEXT"}]}\n',
+        '{"schema":"play-review/findings/v3","findings":[],"carry_forward":[],"incomplete_review_routes":[{"route":"D7","disposition":"NEEDS_CONTEXT"}]}\n',
       );
       const publishedDigest = await sha256File(
         path.join(workspace.root, workspace.findingsFile),
@@ -660,10 +660,10 @@ async function makeWorkspace(
   );
   const evidenceDigest = await sha256File(path.join(root, evidenceFile));
   await writeJson(root, findingsFile, {
-    schema: "play-review/findings/v2",
+    schema: "play-review/findings/v3",
     findings: [],
     carry_forward: [],
-    incomplete_topical_routes: [],
+    incomplete_review_routes: [],
   });
   if (priorThreadsFile !== null) {
     await writeJson(root, priorThreadsFile, {

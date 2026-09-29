@@ -36,10 +36,10 @@ digraph branch_review {
 | Arg                                   | Effect                                                                                                                                                                                                                                              |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `<base>`                              | Base branch to diff against (default: the repository's default branch, resolved via `origin/HEAD`, falling back to `main` then `master`)                                                                                                            |
-| `--fix`                               | Auto-fix eligible blocking findings and objectively fixable nit findings instead of presenting them. Used by `issue-priming-workflow --auto` for GitHub and Linear entrypoints.                                                                     |
+| `--fix`                               | Auto-fix only eligible separately verified valid blocking findings instead of presenting them. Used by `issue-priming-workflow --auto` for GitHub and Linear entrypoints.                                                                           |
 | `--risk-signals <repo-relative-path>` | Optional, non-authoritative repo-relative `.ephemeral/*-risk-signals.json` handoff from `play-subagent-execution`. Valid signals can only preserve or escalate scrutiny; invalid supplied signals fail closed.                                      |
 | `--last-reviewed <sha>`               | Enter follow-up mode using the immutable 40-character lowercase hex commit SHA from the previous branch-review run. Must be supplied together with `--prior-findings`; supplying only one follow-up argument is invalid and stops before reviewing. |
-| `--prior-findings <path>`             | Repo-relative `.ephemeral/*-findings.json` file from the prior `play-review/findings/v2` run. Must be supplied together with `--last-reviewed`; validate it with the installed `play-review` helper before reading or passing it onward.            |
+| `--prior-findings <path>`             | Repo-relative `.ephemeral/*-findings.json` file from the prior `play-review/findings/v3` run. Must be supplied together with `--last-reviewed`; validate it with the installed `play-review` helper before reading or passing it onward.            |
 
 `--fix` without follow-up arguments keeps the existing full-diff default used
 by `issue-priming-workflow --auto`. Do not silently convert that Phase 7 gate
@@ -278,19 +278,19 @@ write the final artifact earlier.
 
 ## Approval Summary
 
-Branch review produces a compact `branch-review/approval-summary/v1` artifact
+Branch review produces a compact `branch-review/approval-summary/v2` artifact
 after the final findings envelope for the run is known. The summary is
 wrapper-level terminal evidence for the reviewed head and links to the detailed
 findings and scope-decision artifacts by path and digest; it does not duplicate
 finding bodies and must not contain `gate_passed`.
-Approval-summary counts are derived from the true remaining findings after any
-`--fix` removals. Blocker counts use true-blocking semantics: a
+Approval-summary counts are derived from the final independently reviewed
+candidate after any fixes. Blocker counts use true-blocking semantics: a
 `severity: "Blocking"` finding or carry-forward entry blocks only when its
 `critic` verdict is neither `INVALID` nor `DOWNGRADE`. Downgraded blocking
 findings remain non-blocking feedback for the `approved_with_nits` path, while
 invalid findings are non-feedback: they are neither blockers, postable nits, nor
 carry-forward feedback for approval counts. A non-empty
-`incomplete_topical_routes[]` list in the linked findings envelope is separate
+`incomplete_review_routes[]` list in the linked findings envelope is separate
 approval evidence: it produces `incomplete_topical_count` and forces the
 terminal state to `blocked`, even when finding, nit, and carry-forward counts
 are zero.
@@ -336,19 +336,19 @@ Hand off to `play-review` with these inputs (compose them into the briefing pros
 Follow `skills/play-review/SKILL.md` end-to-end. The output is a markdown
 document with optional pre-findings presentation such as
 `## Root-Cause Synthesis`, followed by a `## Findings` section, plus a
-side-channel `play-review/findings/v2` envelope file at
+side-channel `play-review/findings/v3` envelope file at
 `.ephemeral/<branch_slug>-<head_sha>-findings.json` and a one-line
 `Findings written to <path>.` notice. The detailed envelope and transport
 contract lives in `skills/play-review/references/findings-envelope-contract.md`;
 `skills/play-review/SKILL.md` owns the workflow and notice-line hook.
-Preserve the private controller-local `critic_verification_run_outcome` from
-this exact `play-review` invocation in wrapper-local state. It is a closed
-run-level fact, not a findings-envelope field or public output; do not infer it
-from rendered prose or a Nit's `critic: null` value.
+Require v3 evidence for this invocation and preserve its per-finding assessment,
+identity, verification selection/state, and incomplete routes. Older artifact
+schemas require fresh review; never infer verification
+from prose or `critic: null`.
 
-In `--fix` mode, `branch-review --fix` owns fixable review feedback, including
-objectively fixable nit-severity findings. Capture the Phase 2 `head_sha` and
-`Findings written to <path>.` notice path before applying any auto-fix commits:
+In `--fix` mode only currently separately verified valid blockers may qualify.
+All nits and unverified ordinary blockers are report-only. Capture the review
+head and findings path before any fix:
 
 ```bash
 REVIEW_HEAD_SHA="$(git rev-parse HEAD)"
@@ -406,7 +406,7 @@ use the helper-rendered preview for findings and evidence snippets; do not
 manually reshape finding entries.
 Findings tagged `Anchor: out-of-diff` remain report-only and require human judgment.
 
-After the human-readable findings, surface `play-review`'s `Findings written to <path>.` notice line in the wrapper's output (echo it as-is; do not reword). The `play-review/findings/v2` envelope (defined in `skills/play-review/references/findings-envelope-contract.md`) is on disk at the cited path; downstream tools that wrap `branch-review`'s output read the file directly. No JSON fence is appended to conversation — the file is the consumer contract.
+After the human-readable findings, surface `play-review`'s `Findings written to <path>.` notice line in the wrapper's output (echo it as-is; do not reword). The `play-review/findings/v3` envelope (defined in `skills/play-review/references/findings-envelope-contract.md`) is on disk at the cited path; downstream tools that wrap `branch-review`'s output read the file directly. No JSON fence is appended to conversation — the file is the consumer contract.
 
 Then write and validate the approval summary using the finalized scope-decision
 artifact and this original present-mode findings envelope:
@@ -441,23 +441,15 @@ Branch review is a local surface: no GitHub posting, no `{{tool:github-cli}}` co
 
 **With `--fix` (autonomous mode, used by `issue-priming-workflow --auto`):**
 
-Before any current Nit enters the existing qualification, proportionality,
-fixable-nit grouping, or fix-unit construction sequence, require the preserved
-`critic_verification_run_outcome` to be exactly `completed-verification`.
-`unavailable-fallback`, missing, or ambiguous state withholds every current Nit
-from autonomous mutation: retain each in the existing non-mutating,
-judgment-required caller handoff and identify it as unverified. Do not infer a
-completed outcome from `critic: null`, and do not let this withholding alter
-blocker handling, carry-forward, approval summaries, duplicate retention, or
-the existing stop-rule sequence. The zero-input `not-required-zero-input`
-outcome has no current Nit to authorize; if one is nevertheless present, fail
-closed and keep it in that same unverified non-mutating handoff.
-
-Before the per-fix-unit auto-fix loop, filter findings tagged
-`Critic: INVALID` out of auto-fix eligibility; note them in the report but do
-not group, iterate, auto-fix, or halt on them. Also filter blocking findings
-tagged `DOWNGRADE` out of blocking auto-fix eligibility; preserve them as
-non-blocking feedback.
+For each candidate independently require current `assessment.state: fresh`,
+current assessed head, a selected consequential/disputed/uncertain trigger,
+`assessment.verification: completed`, and `critic: VALID`. Also require the
+whole review complete. A skipped verifier or verification of another claim
+never authorizes this finding. Nits, INVALID, DOWNGRADE, reused findings, and
+unverified ordinary blockers remain in the non-mutating handoff. Do not spawn
+a verifier merely to enable a fix. All proportionality, judgment-required,
+substitution-audit, documented-behavior, and design/scope exclusions below
+still apply; their references to fixable nits confer no eligibility under v3.
 
 **Follow-up evidence qualification:** When the existing paired follow-up inputs
 are present, compare each current candidate's concrete evidence with the
@@ -473,7 +465,7 @@ unrelated review dimensions. An existing bounded proof-owner repair may proceed
 only when its own qualifying evidence meets that same freshness condition, as
 may genuinely qualifying behavior, authority, or executable-contract evidence.
 
-**Proportionality gate (Writing Skills):** Before any blocker or fixable-nit
+**Proportionality gate (Writing Skills):** Before any eligible blocker
 grouping or fix-unit construction,
 classify every remaining mutation-capable candidate under
 the installed sibling
@@ -488,7 +480,7 @@ guideline routes to existing bounded remediation may continue; every other
 candidate remains on the existing non-mutating report and caller-handoff route.
 
 Severity, critic validity, and technical fixability alone never authorize
-mutation. Apply this gate independently to every blocker and fixable-nit
+mutation. Apply this gate independently to every eligible blocker
 candidate, including each candidate proposed for a group; grouping cannot
 bypass it. Then classify the candidates permitted by that gate for existing
 bounded handling:
@@ -507,13 +499,7 @@ authority.
 
 - Eligible blocking units are the remaining critic-verified blockers permitted
   by the proportionality gate.
-- Eligible fixable-nit units are proportionality-qualified proof-owner nits
-  with one obvious correct fix that requires only a 1-3 line source change at
-  the flagged line or immediately adjacent lines, stays inside the active diff,
-  does not change behavior beyond the stated nit, and requires no naming,
-  design, style, product, or reviewer judgment. `Anchor: out-of-diff`,
-  ambiguous, subjective, documentation-policy, broad cleanup, and cross-file
-  nits are judgment-required nits, not fixable nit units.
+- Nits are report-only and cannot form automatic fix units.
 
 The existing stop rule fires when a fix needs `Anchor: out-of-diff`; a unit
 contains a `play-review` hard-rule judgment-required `Blocking | Safety`
@@ -547,20 +533,10 @@ If it is missing or unreadable, stop the dependent `--fix` action, report the
 withheld candidates for caller handoff, and do not rely on remembered or partial
 guidance. The reference supplies execution detail only; this workflow retains
 eligibility, grouping bounds, stops, reporting, remaining-set, and summary
-authority. After any commit, the prior review evidence cannot approve the new
-HEAD. It still qualifies the remaining units independently qualified in the
-same current Phase 3 run against the immutable review head; each remains
-subject to the existing per-unit rechecks and hard stops. It never qualifies a
-later workflow invocation, whose review or follow-up mutation requires fresh
-evidence.
-
-The reference applies the existing grouping limits: each member remains
-independently authorized; fixable-nit groups are one file and local scope with
-an obvious 1-3 line fix for every member; and grouped blocker edits stay within
-the included classifications, active diff, and same-invariant surfaces. A
-grouped member is never processed again individually. Non-mutating candidates
-and judgment-required nits remain for caller handoff, including
-`Anchor: out-of-diff` findings.
+authority. After each committed unit, validate and independently review the
+new candidate before qualifying another unit. No prior-head qualification
+survives automatically. The reference’s historical nit grouping mechanics are
+not active under v3; only separately qualified blockers enter its fix flow.
 
 After processing — whether the loop completes or halts on the stop rule — emit
 this exact standalone notice line, expanding `$REVIEW_HEAD_SHA` to its
@@ -573,8 +549,7 @@ Review head: $REVIEW_HEAD_SHA.
 Then report:
 
 - Number of blocking findings auto-fixed
-- Number of fixable nit findings auto-fixed
-- Remaining non-mutating candidates and judgment-required nits (left for the
+- Remaining non-mutating candidates and all report-only nits (left for the
   user), including `Anchor: out-of-diff` nits
 - The finding that triggered the halt, if any (cite file:line, severity,
   category, and which stop-rule branch fired)
@@ -583,109 +558,40 @@ Then report:
   1 Safety or Sub-check 2 Contracts)
 - Follow-up `carry_forward[]` entries preserved from `play-review`, if any
 
-Then **overwrite the side-channel findings file in place** with the remaining-set envelope. The file path is the same one `play-review` wrote in Phase 2 — `.ephemeral/<branch_slug>-<head_sha>-findings.json`, as specified by `skills/play-review/references/findings-envelope-contract.md`. Before opening `$FINDINGS_FILE`, run the canonical `play-review` helper with `validate-findings`; that command fails closed on unsafe paths, symlinks, non-files, unreadable files, schema mismatch, and a notice path that does not match the immutable Phase 2 review head. Immediately before overwriting, run the same helper with `prepare-findings-write`; that command prepares the write target but is not a substitute for read/schema validation. `PLAY_REVIEW_DIR` must resolve to the installed `play-review` skill bundle, not the repository under review; bind `PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"` and invoke it from the target repository root.
+Preserve the old findings artifact as historical evidence. Do not overwrite it
+with a subtraction claiming a fix resolved the original finding. Invoke the
+review workflow on the changed candidate; it writes the new deterministic
+head-bound findings and records prior resolutions only with current evidence.
+Use the new review head, scope decision, findings path, and approval-summary
+path for final output. Re-emit its exact findings and approval-summary notices.
+A halted or failed re-review cannot return approval. If no fix occurred, use
+the unchanged validated review artifact and ordinary summary path.
 
-```bash
-PLAY_REVIEW_DIR="<installed-play-review-skill-bundle>"
-PLAY_REVIEW_HELPER="$PLAY_REVIEW_DIR/scripts/review-artifacts.sh"
-HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 2 review head; current HEAD may include auto-fix commits
-FINDINGS_FILE="$REVIEW_FINDINGS_FILE"
-HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \
-  bash "$PLAY_REVIEW_HELPER" validate-findings || exit 1
-```
+**Changed-candidate contract.** Any fix invalidates the candidate’s approval.
+After each fix, run applicable validation, freeze the new candidate, and invoke
+independent review again with the existing full/narrow scope rules. Do not
+approve the changed tree using a remaining-set subtraction from old evidence.
+The earlier remaining-set presentation is historical only; the final findings,
+head, scope, digest and summary must come from the new review, before returning
+a passing gate. Preserve assessment/identity fields in any historical mirror.
 
-After computing the remaining-set envelope from the validated file, and
-immediately before replacing it with the `Write` tool, re-run the helper's
-write-target preparation for the same immutable review head and same file:
-
-```bash
-HEAD_SHA="$HEAD_SHA" FINDINGS_FILE="$FINDINGS_FILE" \
-  bash "$PLAY_REVIEW_HELPER" prepare-findings-write || exit 1
-```
-
-The remaining-set `findings[]` contains all pre-fix findings except blockers
-and fixable nits that were successfully auto-fixed and committed. For a
-committed grouped fix, that exception covers every included finding in the
-grouped blocker set or grouped fixable-nit set, not only the lead anchor or
-first finding processed. The remaining set includes every candidate withheld by
-the proportionality gate, every judgment-required nit (regardless of anchor),
-invalid findings, blockers skipped because the critic
-flagged `DOWNGRADE`, hard-rule judgment-required blockers preserved in the
-remaining set (Sub-check 1 Safety or Sub-check 2 Contracts), the blocker or nit
-that triggered the halt (if any), any later blockers or fixable nits left
-unprocessed because an earlier stop-rule finding halted the loop, and unresolved
-eligible `carry_forward[]` entries from follow-up review. Auto-fixed blockers
-and fixed nits do NOT appear — they're already committed in the worktree. In follow-up runs, also preserve
-`carry_forward[]` from the validated `play-review` envelope unchanged for audit
-continuity; unresolved blocking carry-forward entries and eligible unresolved
-nonblocking carry-forward entries must additionally be copied into the
-post-`--fix` remaining `findings[]` exactly once when absent so downstream
-consumers can gate and hand them off. If the remaining set is
-empty, `carry_forward[]` is also empty, and no selected topical route is
-incomplete, still write the canonical empty envelope
-(`{"schema":"play-review/findings/v2","findings":[],"carry_forward":[],"incomplete_topical_routes":[]}`) —
-never leave the file from `play-review`'s pre-fix run unchanged, and never
-delete it. If current-run findings are empty but `carry_forward[]` is
-non-empty, the post-`--fix` envelope must keep those carry-forward entries and
-mirror eligible unresolved carry-forward entries into `findings[]` exactly once
-when absent. Re-emit the
-(unchanged) `Findings written to <path>.` notice line in conversation so
-callers see the path. `issue-priming-workflow` Phase 7 reads from this file to
-detect remaining blockers, classify nits, and produce `play-branch-finish`'s
-`nits_file`.
-
-Only after that post-fix remaining-set overwrite and findings notice, write the
-approval summary using the immutable Phase 2 review head and the same final
-findings path:
-
-```bash
-SCOPE_DECISION_HELPER="$BRANCH_REVIEW_DIR/scripts/scope-decision-artifacts.sh"
-: "${REVIEW_HEAD_SHA:?trusted review head missing}"
-: "${REVIEW_FINDINGS_FILE:?final findings path missing}"
-: "${SCOPE_DECISION_FILE:?scope decision path missing}"
-: "${APPROVAL_SUMMARY_FILE:?approval summary path missing}"
-
-HEAD_SHA="$REVIEW_HEAD_SHA" \
-BASE="$BASE" \
-FULL_DIFF_RANGE="$FULL_DIFF_RANGE" \
-ACTIVE_DIFF_RANGE="$ACTIVE_DIFF_RANGE" \
-SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE" \
-FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
-APPROVAL_SUMMARY_FILE="$APPROVAL_SUMMARY_FILE" \
-  bash "$SCOPE_DECISION_HELPER" write-approval-summary || exit 1
-```
-
-This ordering is required: in present mode the final findings envelope is the
-original `play-review` envelope, while in `--fix` mode it is the post-fix
-remaining-set envelope overwritten in place. Never write the summary from the
-pre-fix findings after auto-fix commits have changed the remaining set.
-
-**Overwrite contract (strict subset).** The post-`--fix` envelope is a strict
-subset of the pre-fix findings plus carry-forward set: this skill only removes
-auto-fixed blockers and fixed nits from `findings[]`; it preserves `carry_forward[]` unchanged,
-mirrors eligible unresolved carry-forward entries into `findings[]` exactly
-once when absent for downstream gates and handoffs, never invents new entries,
-never re-anchors lines, and never edits `body` / `why` / `recommendation`
-text. It preserves
-`incomplete_topical_routes[]` unchanged; those entries are approval evidence,
-not auto-fix candidates.
-Downstream consumers (`pr-review` Phase 6, `issue-priming-workflow` Phase 7)
-cannot tell from the file alone whether they are reading the pre-fix or
-post-`--fix` version — the order is workflow-determined (Phase 7 always runs
-after `branch-review --fix`). The schema does not carry a `source`
-discriminator; the contract above is what guarantees consumers do not need one.
+Within the existing issue/design owner state, a second completed post-fix review
+showing the same blocking defect family (same invariant or failure mechanism
+and remediation boundary) pauses automatic repetition for bounded scope/design
+reassessment. Cite both candidates; duplicated reports, unchanged carry-forward,
+and interrupted runs count once or not at all. Unknown history does not prove
+the threshold unmet. This grants no new implementation authority.
 
 ## Quick Reference
 
-| Situation                                                 | Action                                                 |
-| --------------------------------------------------------- | ------------------------------------------------------ |
-| Empty diff                                                | Report "no changes", stop                              |
-| All clean                                                 | Report "no issues found"                               |
-| Proportionality-qualified blocking findings + `--fix`     | Auto-fix eligible, commit, report                      |
-| Blocking finding needs design change or out-of-diff edits | Stop, report to caller                                 |
-| Hard-rule judgment-required blocker                       | Stop, preserve in findings file                        |
-| Proportionality-qualified fixable nits + `--fix`          | Auto-fix eligible one-obvious-fix nits, commit, report |
-| Non-qualified or judgment-required nits + `--fix`         | Leave for user, list in report                         |
+| Situation                                                 | Action                                                          |
+| --------------------------------------------------------- | --------------------------------------------------------------- |
+| Empty diff                                                | Report "no changes", stop                                       |
+| All clean                                                 | Report "no issues found"                                        |
+| Blocking findings + `--fix`                               | Apply the canonical **With `--fix`** eligibility criteria above |
+| Blocking finding needs design change or out-of-diff edits | Stop, report to caller                                          |
+| Hard-rule judgment-required blocker                       | Stop, preserve in findings file                                 |
+| Nit findings + `--fix`                                    | Report-only handoff; no automatic fix                           |
 
 ## Common Mistakes
 

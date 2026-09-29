@@ -7,7 +7,7 @@ reference as a literal claim" rule in `SKILL.md`. The rule itself stays in
 **Treat every concrete reference as a literal claim, not as illustrative
 rhetoric.** When a finding cites a specific `file:line`, identifier,
 function name, command, commit SHA, or PR number, verify it by opening
-the cited file (or running `git log` / `git show` / `gh pr view <N>`).
+the cited file (or running `git log` / `git show`).
 Tag the finding INVALID if the cited artifact does not exist or does not
 contain the cited text. **Internal consistency is not evidence of
 literal intent.** Do not apply the inference "every occurrence of
@@ -21,14 +21,14 @@ that a blocker is automatically valid. The critic first tries to falsify the
 unchanged finding `why` at the captured reviewed head. It then determines
 whether a blocker has a reachable consequence or actual breach of an applicable
 repository-owned obligation and independently crosses the merge gate. A blocker
-that remains a real concern below that gate receives `DOWNGRADE`. A candidate
-originally emitted as a Nit receives `RETAIN` or `INVALID`, is never promoted,
-and keeps `severity: "Nit", critic: null` when retained.
+that remains a real concern below that gate receives `DOWNGRADE`. D7 admits Nits independently; they are not inputs to D10. A dispute claiming
+a blocking consequence is represented as a disputed Blocking candidate with
+its original claim preserved.
 
 Duplicate retention comes only after those individual outcomes. Only candidates
 with the same supported reachable consequence or violated obligation,
 remediation, effective anchor, and compatible severity/outcome class share a
 group. A group never mixes Nits with blockers or blocker verdicts; duplicate
-`RETAIN` Nits may collapse, while a `VALID` blocker retains a `VALID`
+Nits admitted by D7 may collapse, while a `VALID` blocker retains a `VALID`
 representative. Ambiguity, different anchors, and carry-forward items also stay
 separate.

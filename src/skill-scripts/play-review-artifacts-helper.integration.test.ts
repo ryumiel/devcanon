@@ -18,6 +18,16 @@ import {
   canCreateSymlinks,
   cleanupTempDir,
 } from "../__test-helpers__/fixtures.js";
+import {
+  createReviewEnvelope,
+  currentReviewEnvelope,
+  targetedEnvelope,
+  targetedEvidenceCases,
+} from "../__test-helpers__/review-evidence.js";
+import {
+  buildApprovedReviewPayload,
+  validateTargetedReviewEvidence,
+} from "../runtime/review-artifacts.js";
 
 const execFileAsync = promisify(execFile);
 const symlinkAvailable = await canCreateSymlinks();
@@ -95,16 +105,28 @@ async function makeReviewSourceWorkspace(): Promise<{
   };
 }
 
+async function makePayloadWorkspace() {
+  const workspace = await makeReviewSourceWorkspace();
+  const bodyFile = ".ephemeral/review-body.md";
+  await writeFile(path.join(workspace.cwd, bodyFile), "Summary");
+  return {
+    ...workspace,
+    env: {
+      HEAD_SHA: workspace.reviewHeadSha,
+      FINDINGS_FILE: workspace.findingsFile,
+      REVIEW_SURFACE: "pr-review",
+      REVIEW_BODY_FILE: bodyFile,
+    },
+  };
+}
+
 async function writeEnvelope(cwd: string, relPath: string): Promise<void> {
-  await writeFile(
-    path.join(cwd, relPath),
-    JSON.stringify({
-      schema: "play-review/findings/v2",
-      findings: [],
-      carry_forward: [],
-      incomplete_topical_routes: [],
-    }),
-  );
+  await writeRawEnvelope(cwd, relPath, {
+    schema: "play-review/findings/v3",
+    findings: [],
+    carry_forward: [],
+    incomplete_review_routes: [],
+  });
 }
 
 async function writeRawEnvelope(
@@ -112,7 +134,15 @@ async function writeRawEnvelope(
   relPath: string,
   envelope: unknown,
 ): Promise<void> {
-  await writeFile(path.join(cwd, relPath), JSON.stringify(envelope));
+  await writeFile(
+    path.join(cwd, relPath),
+    JSON.stringify(
+      createReviewEnvelope(
+        envelope,
+        /([a-f0-9]{40})/.exec(relPath)?.[1] ?? headSha,
+      ),
+    ),
+  );
 }
 
 function finding(overrides: Record<string, unknown> = {}) {
@@ -231,6 +261,567 @@ async function commandAvailable(command: string): Promise<boolean> {
 }
 
 describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
+  it("rejects every malformed enum type in independent runtime and shell validators", async () => {
+    const { cwd, reviewHeadSha, findingsFile } =
+      await makeReviewSourceWorkspace();
+    try {
+      const baseline = currentReviewEnvelope(reviewHeadSha, [
+        sourceFinding({ critic: "INVALID" }),
+      ]);
+      baseline.prior_dispositions = [
+        {
+          id: "old",
+          origin_head_sha: reviewHeadSha,
+          assessed_head_sha: reviewHeadSha,
+          status: "resolved",
+          reason: "Disproved",
+        },
+      ];
+      const cases = [
+        ["findings", 0, "assessment", "state"],
+        ["findings", 0, "assessment", "selection"],
+        ["findings", 0, "assessment", "verification"],
+        ["verification", "state"],
+        ["findings", 0, "critic"],
+        ["findings", 0, "severity"],
+        ["findings", 0, "category"],
+        ["findings", 0, "anchor"],
+        ["prior_dispositions", 0, "status"],
+        ["incomplete_review_routes", 0, "route"],
+        ["incomplete_review_routes", 0, "disposition"],
+      ];
+      for (const keys of cases) {
+        for (const kind of ["array", "object", "number", "boolean", "null"]) {
+          const value =
+            keys[0] === "incomplete_review_routes"
+              ? (targetedEnvelope(reviewHeadSha) as Record<string, unknown>)
+              : structuredClone(baseline);
+          if (keys[0] === "incomplete_review_routes")
+            value.incomplete_review_routes = [
+              { route: "D7", disposition: "FAILED" },
+            ];
+          let target = value;
+          for (const key of keys.slice(0, -1))
+            target = target[key] as Record<string, unknown>;
+          const key = keys.at(-1);
+          if (key === undefined) throw new Error("Empty enum path");
+          const original = target[key];
+          target[key] =
+            kind === "array"
+              ? [original]
+              : kind === "object"
+                ? { value: original }
+                : kind === "number"
+                  ? 1
+                  : kind === "boolean"
+                    ? true
+                    : null;
+          expect(
+            () => validateTargetedReviewEvidence(value),
+            `${keys.join(".")} ${kind}`,
+          ).toThrow();
+          await expect(
+            runHelperWithStdin(cwd, "publish-findings", JSON.stringify(value), {
+              HEAD_SHA: reviewHeadSha,
+              FINDINGS_FILE: findingsFile,
+            }),
+          ).rejects.toThrow();
+        }
+      }
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("projects mirrors and presentation edits once without weakening raw approval", async () => {
+    const { cwd, reviewHeadSha, findingsFile, env } =
+      await makePayloadWorkspace();
+    try {
+      const claim = sourceFinding({ anchor: "out-of-diff" });
+      const value = currentReviewEnvelope(reviewHeadSha, [claim], {
+        carry_forward: [claim],
+      });
+      const id = (value.findings as Record<string, unknown>[])[0].id;
+      for (const overrides of [
+        [],
+        [
+          {
+            id,
+            action: "reclassify",
+            severity: "Nit",
+            category: "Documentation",
+          },
+        ],
+        [{ id, action: "drop" }],
+      ]) {
+        value.presentation_overrides = overrides;
+        await writeRawEnvelope(cwd, findingsFile, value);
+        const expected = buildApprovedReviewPayload({
+          headSha: reviewHeadSha,
+          reviewEvent: "COMMENT",
+          reviewBody: "Summary",
+          findings: value,
+        });
+        const result = await runHelper(cwd, "build-github-review-payload", {
+          ...env,
+          REVIEW_EVENT: "COMMENT",
+        });
+        expect(JSON.parse(result.stdout)).toEqual(expected);
+        expect(
+          (String(expected.body).match(/Recommendation:/gu) ?? []).length,
+        ).toBe(overrides[0]?.action === "drop" ? 0 : 1);
+        if (overrides[0]?.action === "reclassify")
+          expect(expected.body).toContain("**Nit | Documentation**");
+        expect(() =>
+          buildApprovedReviewPayload({
+            headSha: reviewHeadSha,
+            reviewEvent: "APPROVE",
+            reviewBody: "Summary",
+            findings: value,
+          }),
+        ).toThrow();
+        await expect(
+          runHelper(cwd, "build-github-review-payload", {
+            ...env,
+            REVIEW_EVENT: "APPROVE",
+          }),
+        ).rejects.toThrow();
+        const preview = await runHelper(cwd, "render-review-preview", {
+          ...env,
+        });
+        expect(preview.stdout).toContain("**Severity:** Blocking");
+        if (overrides.length)
+          expect(preview.stdout).toContain("**Presentation override:**");
+      }
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it.each(["natural", "missing-file", "out-of-diff"])(
+    "projects DOWNGRADE reclassification consistently for %s without granting APPROVE",
+    async (anchor) => {
+      const { cwd, reviewHeadSha, findingsFile, env } =
+        await makePayloadWorkspace();
+      try {
+        const value = currentReviewEnvelope(reviewHeadSha, [
+          sourceFinding({ critic: "DOWNGRADE", anchor }),
+        ]);
+        value.presentation_overrides = [
+          {
+            id: "F1",
+            action: "reclassify",
+            severity: "Blocking",
+            category: "Documentation",
+          },
+        ];
+        await writeRawEnvelope(cwd, findingsFile, value);
+        const expected = buildApprovedReviewPayload({
+          headSha: reviewHeadSha,
+          reviewEvent: "COMMENT",
+          reviewBody: "Summary",
+          findings: value,
+        });
+        expect(
+          JSON.parse(
+            (
+              await runHelper(cwd, "build-github-review-payload", {
+                ...env,
+                REVIEW_EVENT: "COMMENT",
+              })
+            ).stdout,
+          ),
+        ).toEqual(expected);
+        expect(JSON.stringify(expected)).toContain(
+          "**Blocking | Documentation**",
+        );
+        expect(
+          (await runHelper(cwd, "render-review-preview", env)).stdout,
+        ).toContain("**Blocking | Documentation**");
+        expect(() =>
+          buildApprovedReviewPayload({
+            headSha: reviewHeadSha,
+            reviewEvent: "APPROVE",
+            reviewBody: "Summary",
+            findings: value,
+          }),
+        ).toThrow();
+        await expect(
+          runHelper(cwd, "build-github-review-payload", {
+            ...env,
+            REVIEW_EVENT: "APPROVE",
+          }),
+        ).rejects.toThrow();
+        const nits = (
+          await runHelper(cwd, "prepare-judgment-nits", {
+            ...env,
+            JUDGMENT_REQUIRED_FINDING_INDEXES: "0",
+          })
+        ).stdout.trim();
+        const projection = JSON.parse(
+          (
+            await runHelper(cwd, "project-nits", {
+              HEAD_SHA: reviewHeadSha,
+              NITS_FILE: nits,
+            })
+          ).stdout,
+        );
+        expect(projection[0].body).toContain("**Blocking | Documentation**");
+        const evidence = JSON.parse(
+          await readFile(path.join(cwd, nits), "utf8"),
+        );
+        expect(evidence.findings).toEqual(value.findings);
+        expect(evidence.verification).toEqual(value.verification);
+        expect(evidence.presentation_overrides).toEqual(
+          value.presentation_overrides,
+        );
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+
+  it("rejects malformed presentation overrides in both validators and retains failed verification after a drop", async () => {
+    const { cwd, reviewHeadSha, findingsFile } =
+      await makeReviewSourceWorkspace();
+    try {
+      const value = currentReviewEnvelope(reviewHeadSha, [sourceFinding()]);
+      for (const { name, overrides, critic = "VALID" } of [
+        { name: "non-array metadata", overrides: null },
+        {
+          name: "unknown identity",
+          overrides: [{ id: "unknown", action: "drop" }],
+        },
+        {
+          name: "forbidden evidence key",
+          overrides: [{ id: "F1", action: "drop", critic: null }],
+        },
+        {
+          name: "duplicate identity",
+          overrides: [
+            { id: "F1", action: "drop" },
+            { id: "F1", action: "drop" },
+          ],
+        },
+        {
+          name: "array severity",
+          overrides: [
+            {
+              id: "F1",
+              action: "reclassify",
+              severity: ["Nit"],
+              category: "Logic",
+            },
+          ],
+        },
+        {
+          name: "unknown action",
+          overrides: [{ id: "F1", action: "resolve" }],
+        },
+        {
+          name: "invalidated evidence",
+          critic: "INVALID",
+          overrides: [{ id: "F1", action: "drop" }],
+        },
+      ]) {
+        value.presentation_overrides = overrides;
+        (value.findings as Record<string, unknown>[])[0].critic = critic;
+        expect(() => validateTargetedReviewEvidence(value), name).toThrow();
+        await expect(
+          runHelperWithStdin(cwd, "publish-findings", JSON.stringify(value), {
+            HEAD_SHA: reviewHeadSha,
+            FINDINGS_FILE: findingsFile,
+          }),
+          name,
+        ).rejects.toThrow();
+      }
+      const claims = value.findings as Record<string, unknown>[];
+      claims[0].critic = null;
+      (claims[0].assessment as Record<string, unknown>).verification =
+        "incomplete";
+      value.verification = {
+        state: "incomplete",
+        selected_ids: ["F1"],
+        reason: "Verifier failed",
+      };
+      value.incomplete_review_routes = [
+        { route: "D10", disposition: "FAILED" },
+      ];
+      value.presentation_overrides = [{ id: "F1", action: "drop" }];
+      await runHelperWithStdin(cwd, "publish-findings", JSON.stringify(value), {
+        HEAD_SHA: reviewHeadSha,
+        FINDINGS_FILE: findingsFile,
+      });
+      expect(() =>
+        buildApprovedReviewPayload({
+          headSha: reviewHeadSha,
+          reviewEvent: "APPROVE",
+          reviewBody: "Summary",
+          findings: value,
+        }),
+      ).toThrow();
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("requires the checked head for nits and rejects stale evidence", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      await writeEnvelope(cwd, nitsFile);
+      await expect(
+        runHelper(cwd, "validate-nits-file", {
+          NITS_FILE: nitsFile,
+          HEAD_SHA: "",
+        }),
+      ).rejects.toThrow();
+      await expect(
+        runHelper(cwd, "validate-nits-file", {
+          NITS_FILE: nitsFile,
+          HEAD_SHA: "b".repeat(40),
+        }),
+      ).rejects.toThrow();
+      await expect(
+        runHelper(cwd, "validate-nits-file", { NITS_FILE: nitsFile }),
+      ).resolves.toMatchObject({ stdout: "" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("keeps INVALID audit evidence out of runtime and shell public payloads", async () => {
+    const { cwd, reviewHeadSha, findingsFile, env } =
+      await makePayloadWorkspace();
+    try {
+      const value = currentReviewEnvelope(
+        reviewHeadSha,
+        [
+          sourceFinding({ critic: "INVALID" }),
+          sourceFinding({ critic: "INVALID", anchor: "out-of-diff" }),
+        ],
+        {
+          carry_forward: [
+            sourceFinding({
+              critic: "INVALID",
+              anchor: "out-of-diff",
+              line: 3,
+            }),
+          ],
+        },
+      );
+      await writeRawEnvelope(cwd, findingsFile, value);
+      const expected = {
+        commit_id: reviewHeadSha,
+        event: "APPROVE",
+        body: "Summary",
+        comments: [],
+      };
+      expect(
+        buildApprovedReviewPayload({
+          headSha: reviewHeadSha,
+          reviewEvent: "APPROVE",
+          reviewBody: "Summary",
+          findings: value,
+        }),
+      ).toEqual(expected);
+      const { stdout } = await runHelper(cwd, "build-github-review-payload", {
+        ...env,
+        REVIEW_EVENT: "APPROVE",
+      });
+      expect(JSON.parse(stdout)).toEqual(expected);
+      expect(
+        JSON.parse(await readFile(path.join(cwd, findingsFile), "utf8")),
+      ).toEqual(value);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it.each(["resolved", "invalid"])(
+    "publishes a prior %s disposition with runtime/shell parity",
+    async (status) => {
+      const { cwd, reviewHeadSha, findingsFile } =
+        await makeReviewSourceWorkspace();
+      try {
+        const value = targetedEnvelope(reviewHeadSha);
+        value.prior_dispositions = [
+          {
+            id: "prior-1",
+            origin_head_sha: "b".repeat(40),
+            status,
+            assessed_head_sha: reviewHeadSha,
+            reason: "Current source disproves the prior claim",
+          },
+        ];
+        expect(() => validateTargetedReviewEvidence(value)).not.toThrow();
+        await expect(
+          runHelperWithStdin(cwd, "publish-findings", JSON.stringify(value), {
+            HEAD_SHA: reviewHeadSha,
+            FINDINGS_FILE: findingsFile,
+          }),
+        ).resolves.toMatchObject({ stdout: `${findingsFile}\n` });
+        await expect(
+          runHelper(cwd, "validate-findings", {
+            HEAD_SHA: reviewHeadSha,
+            FINDINGS_FILE: findingsFile,
+          }),
+        ).resolves.toMatchObject({ stderr: "" });
+        expect(
+          JSON.parse(await readFile(path.join(cwd, findingsFile), "utf8")),
+        ).toEqual(value);
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+
+  it.each([
+    "validate-findings",
+    "render-review-preview",
+    "prepare-judgment-nits",
+  ])(
+    "%s binds to the supplied review head without requiring checkout HEAD",
+    async (command) => {
+      const cwd = await makeTopicGitWorkspace();
+      try {
+        const priorHead = await currentHeadSha(cwd);
+        const file = `.ephemeral/topic-${priorHead}-findings.json`;
+        await execFileAsync(
+          "git",
+          ["commit", "--allow-empty", "-m", "Later candidate"],
+          { cwd },
+        );
+        const claims = [
+          sourceFinding({ path: "README.md", line: 1, critic: "DOWNGRADE" }),
+        ];
+        const value = currentReviewEnvelope(priorHead, claims);
+        await writeFile(path.join(cwd, file), JSON.stringify(value));
+        await expect(
+          runHelper(cwd, command, {
+            REVIEW_SURFACE: "branch-review",
+            JUDGMENT_REQUIRED_FINDING_INDEXES: "0",
+            HEAD_SHA: priorHead,
+            FINDINGS_FILE: file,
+          }),
+        ).resolves.toMatchObject({ stderr: "" });
+        const derived = file.replace("-findings.json", "-nits-pending.json");
+        const before =
+          command === "prepare-judgment-nits"
+            ? await readFile(path.join(cwd, derived), "utf8")
+            : null;
+        await writeFile(
+          path.join(cwd, file),
+          JSON.stringify(
+            currentReviewEnvelope(await currentHeadSha(cwd), claims),
+          ),
+        );
+        await expect(
+          runHelper(cwd, command, {
+            REVIEW_SURFACE: "branch-review",
+            JUDGMENT_REQUIRED_FINDING_INDEXES: "0",
+            HEAD_SHA: priorHead,
+            FINDINGS_FILE: file,
+          }),
+        ).rejects.toMatchObject({
+          stdout: "",
+          stderr: expect.stringContaining("head-bound"),
+        });
+        if (before !== null)
+          expect(await readFile(path.join(cwd, derived), "utf8")).toBe(before);
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+
+  it("rejects legacy evidence for reads, nits and publication", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      const reviewHeadSha = await currentHeadSha(cwd);
+      const file = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
+      const historical = JSON.stringify({
+        schema: "play-review/findings/v2",
+        findings: [],
+        carry_forward: [],
+        incomplete_topical_routes: [],
+      });
+      await writeFile(path.join(cwd, file), historical);
+      await expect(
+        runHelper(cwd, "validate-findings", {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: file,
+        }),
+      ).rejects.toThrow();
+      await expect(
+        runHelperWithStdin(cwd, "publish-findings", historical, {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: file,
+        }),
+      ).rejects.toThrow();
+      await expect(
+        runHelper(cwd, "validate-nits-file", { NITS_FILE: file }),
+      ).rejects.toThrow();
+      expect(await readFile(path.join(cwd, file), "utf8")).toBe(historical);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("validates shared targeted evidence cases through the shell boundary", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      for (const { name, accepted, value } of targetedEvidenceCases(headSha)) {
+        await writeFile(path.join(cwd, findingsFile), JSON.stringify(value));
+        const result = runHelper(cwd, "validate-findings", {
+          FINDINGS_FILE: findingsFile,
+        });
+        if (accepted)
+          await expect(result, name).resolves.toMatchObject({ stderr: "" });
+        else
+          await expect(result, name).rejects.toMatchObject({
+            stdout: "",
+            stderr: expect.stringContaining("envelope"),
+          });
+      }
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("refuses public approval after required verifier failure", async () => {
+    const { cwd, reviewHeadSha, findingsFile } =
+      await makeReviewSourceWorkspace();
+    try {
+      const failed = targetedEvidenceCases(reviewHeadSha).find(
+        ({ name }) => name === "required verifier failure with D10",
+      );
+      expect(failed).toBeDefined();
+      await writeFile(
+        path.join(cwd, findingsFile),
+        JSON.stringify(failed?.value),
+      );
+      await writeFile(
+        path.join(cwd, ".ephemeral/review-body.md"),
+        "Unverified review",
+      );
+      await expect(
+        runHelper(cwd, "build-github-review-payload", {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: findingsFile,
+          REVIEW_SURFACE: "pr-review",
+          REVIEW_BODY_FILE: ".ephemeral/review-body.md",
+          REVIEW_EVENT: "APPROVE",
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "incomplete or blocking review cannot approve",
+        ),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("renders a pr-review preview from review-head source with findings, carry-forward, and payload-equivalent body", async () => {
     const { cwd, reviewHeadSha, findingsFile } =
       await makeReviewSourceWorkspace();
@@ -238,7 +829,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       const reviewBodyFile = ".ephemeral/review-body.md";
       await writeFile(path.join(cwd, reviewBodyFile), "Draft summary\n");
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [
           sourceFinding({
             line: 4,
@@ -275,7 +866,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
             body: "**Blocking | Contracts** — Carry-forward out-of-diff entries also belong in the body.\n\n**Recommendation:** Keep them out of inline comments.",
           }),
         ],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       });
       await writeFile(
         path.join(cwd, "src/review-target.ts"),
@@ -304,7 +895,9 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       expect(preview.stdout).toContain(`Findings file: ${findingsFile}`);
       expect(preview.stdout).toContain("## Findings");
       expect(preview.stdout).toContain("## Carry-forward");
-      expect(preview.stdout).toContain("- **Critic:** (not recorded)");
+      expect(preview.stdout).toContain(
+        "- **Critic:** (not required — unverified)",
+      );
       expect(preview.stdout).toContain("// src/review-target.ts:3-5");
       expect(preview.stdout).toContain("  const second = 2;");
       expect(preview.stdout).not.toContain("working tree content");
@@ -353,7 +946,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
 
       await writeFile(path.join(cwd, reviewBodyFile), "Summary\n");
       await writeRawEnvelope(cwd, reviewFindingsFile, {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [
           sourceFinding({
             path: "src/trailing.ts",
@@ -364,9 +957,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           }),
         ],
         carry_forward: [],
-        incomplete_topical_routes: [
-          { route: "D8", disposition: "NEEDS_CONTEXT" },
-        ],
+        incomplete_review_routes: [],
       });
 
       const preview = await runHelper(cwd, "render-review-preview", {
@@ -414,7 +1005,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
 
       await writeFile(path.join(cwd, reviewBodyFile), "Summary\n");
       await writeRawEnvelope(cwd, reviewFindingsFile, {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [
           sourceFinding({
             path: "src/empty.ts",
@@ -425,9 +1016,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           }),
         ],
         carry_forward: [],
-        incomplete_topical_routes: [
-          { route: "D8", disposition: "NEEDS_CONTEXT" },
-        ],
+        incomplete_review_routes: [],
       });
 
       await expect(
@@ -471,7 +1060,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         "**Nit | Tests** — Posted missing-file body from the frozen artifact.\n\n**Recommendation:** Post this missing-file recommendation.";
       await writeFile(path.join(cwd, reviewBodyFile), "Draft summary\n");
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [
           sourceFinding({
             line: 4,
@@ -492,7 +1081,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           }),
         ],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       });
 
       const preview = await runHelper(cwd, "render-review-preview", {
@@ -535,7 +1124,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       await makeReviewSourceWorkspace();
     try {
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [
           sourceFinding({
             line: 4,
@@ -545,7 +1134,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           }),
         ],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       });
 
       await expect(
@@ -565,7 +1154,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     const cwd = await makeTopicGitWorkspace();
     try {
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [
           finding({
             critic: "DOWNGRADE",
@@ -575,7 +1164,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           }),
         ],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       });
 
       await expect(
@@ -599,7 +1188,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       await makeReviewSourceWorkspace();
     try {
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [
           sourceFinding({
             severity: "Nit",
@@ -610,13 +1199,13 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           sourceFinding({
             line: 5,
             critic: null,
-            why: "The critic phase failed before verdicts were available.",
+            why: "The ordinary blocker does not require separate verification.",
             recommendation: "Preserve the unverified blocking finding.",
-            body: "**Blocking | Contracts** — The critic phase failed before verdicts were available.\n\n**Recommendation:** Preserve the unverified blocking finding.",
+            body: "**Blocking | Contracts** — The ordinary blocker does not require separate verification.\n\n**Recommendation:** Preserve the unverified blocking finding.",
           }),
         ],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       });
 
       const { stdout } = await runHelper(cwd, "render-review-preview", {
@@ -627,10 +1216,8 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
 
       expect(stdout).toContain("## Findings");
       expect(stdout).toContain("src/review-target.ts");
-      expect(stdout).toContain("- **Critic:** (not recorded)");
-      expect(stdout).toContain(
-        "- **Critic:** (unverified — critic unavailable)",
-      );
+      expect(stdout).toContain("- **Critic:** (not required — unverified)");
+      expect(stdout).toContain("- **Critic:** (not required — unverified)");
       expect(stdout).not.toContain("GitHub Review Body");
       expect(stdout).not.toContain("posting");
     } finally {
@@ -645,7 +1232,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       const reviewBodyFile = ".ephemeral/review-body.md";
       await writeFile(path.join(cwd, reviewBodyFile), "Top-level summary\n");
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [
           sourceFinding({
             anchor: "natural",
@@ -688,7 +1275,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
             body: "**Blocking | Contracts** — Carry forward out of diff.\n\n**Recommendation:** Put in body too.",
           }),
         ],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       });
 
       const { stdout } = await runHelper(cwd, "build-github-review-payload", {
@@ -736,10 +1323,10 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       await writeFile(path.join(cwd, reviewBodyFile), "Summary\n");
 
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [sourceFinding({ anchor: "out-of-diff" })],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       });
       const outOfDiffOnly = await runHelper(
         cwd,
@@ -749,16 +1336,16 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           FINDINGS_FILE: findingsFile,
           REVIEW_SURFACE: "pr-review",
           REVIEW_BODY_FILE: reviewBodyFile,
-          REVIEW_EVENT: "APPROVE",
+          REVIEW_EVENT: "COMMENT",
         },
       );
       expect(JSON.parse(outOfDiffOnly.stdout).comments).toEqual([]);
 
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       });
       const empty = await runHelper(cwd, "build-github-review-payload", {
         HEAD_SHA: reviewHeadSha,
@@ -780,10 +1367,10 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       const reviewBodyFile = ".ephemeral/review-body.md";
       await writeFile(path.join(cwd, reviewBodyFile), "Summary\n");
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [sourceFinding({ path: "src/missing.ts" })],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       });
 
       await expect(
@@ -857,10 +1444,10 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       const outside = path.join(cwd, "outside-body");
       try {
         await writeRawEnvelope(cwd, findingsFile, {
-          schema: "play-review/findings/v2",
+          schema: "play-review/findings/v3",
           findings: [sourceFinding()],
           carry_forward: [],
-          incomplete_topical_routes: [],
+          incomplete_review_routes: [],
         });
         await mkdir(outside);
         await writeFile(path.join(outside, "review.md"), "unsafe body\n");
@@ -898,15 +1485,15 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     const cwd = await makeTopicGitWorkspace();
     try {
       const nonEmptyEnvelope = {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [
           finding(),
           finding({
             line: 43,
             critic: null,
-            why: "The critic phase failed before verdicts were available.",
+            why: "The ordinary blocker does not require separate verification.",
             recommendation: "Preserve the unverified blocking finding.",
-            body: "**Blocking | Contracts** — The critic phase failed before verdicts were available.\n\n**Recommendation:** Preserve the unverified blocking finding.",
+            body: "**Blocking | Contracts** — The ordinary blocker does not require separate verification.\n\n**Recommendation:** Preserve the unverified blocking finding.",
           }),
         ],
         carry_forward: [
@@ -921,7 +1508,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
             body: "**Nit | Tests** — The coverage should prove non-empty carry-forward entries.\n\n**Recommendation:** Keep this positive fixture.",
           }),
         ],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       };
       await writeRawEnvelope(cwd, findingsFile, nonEmptyEnvelope);
       await writeRawEnvelope(cwd, nitsFile, nonEmptyEnvelope);
@@ -944,14 +1531,14 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     const cwd = await makeTopicGitWorkspace();
     try {
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [
           finding({
             body: "**Blocking | Contracts** - The contract would otherwise be ambiguous.\n\n**Recommendation:** Keep the helper contract explicit.",
           }),
         ],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       });
 
       await expect(
@@ -981,7 +1568,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     const cwd = await makeTopicGitWorkspace();
     try {
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [
           finding({
             severity: "Nit",
@@ -1007,9 +1594,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           }),
         ],
         carry_forward: [],
-        incomplete_topical_routes: [
-          { route: "D8", disposition: "NEEDS_CONTEXT" },
-        ],
+        incomplete_review_routes: [],
       });
 
       const { stdout } = await runHelper(cwd, "prepare-judgment-nits", {
@@ -1022,18 +1607,16 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         await readFile(path.join(cwd, nitsFile), "utf-8"),
       );
       expect(written).toMatchObject({
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         carry_forward: [],
-        incomplete_topical_routes: [
-          { route: "D8", disposition: "NEEDS_CONTEXT" },
-        ],
+        incomplete_review_routes: [],
       });
       expect(written.findings).toHaveLength(2);
       expect(written.findings[0]).toMatchObject({
         line: 43,
-        severity: "Nit",
-        critic: null,
-        body: "**Nit | Contracts** — The feedback is valid but not blocking.\n\n**Recommendation:** Mention it as non-blocking review feedback.",
+        severity: "Blocking",
+        critic: "DOWNGRADE",
+        body: "**Blocking | Contracts** — The feedback is valid but not blocking.\n\n**Recommendation:** Mention it as non-blocking review feedback.",
       });
       expect(written.findings[1]).toMatchObject({
         line: 42,
@@ -1049,11 +1632,54 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     }
   });
 
-  it("rejects v2 envelopes that omit incomplete-route evidence", async () => {
+  it("hands off carried-only nits with unchanged provenance and deduplicates mirrors", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      const nit = finding({
+        severity: "Nit",
+        critic: null,
+        body: `**Nit | Contracts** — ${finding().why}\n\n**Recommendation:** ${finding().recommendation}`,
+      });
+      await writeRawEnvelope(cwd, findingsFile, {
+        schema: "play-review/findings/v3",
+        findings: [nit],
+        carry_forward: [nit, { ...nit, line: 43 }],
+        incomplete_review_routes: [],
+      });
+      const original = JSON.parse(
+        await readFile(path.join(cwd, findingsFile), "utf-8"),
+      );
+      const carried = original.carry_forward[1];
+      carried.origin_head_sha = "b".repeat(40);
+      carried.assessment.state = "reused";
+      carried.assessment.assessed_head_sha = "b".repeat(40);
+      carried.assessment.reuse_checked_head_sha = original.review_head_sha;
+      await writeFile(path.join(cwd, findingsFile), JSON.stringify(original));
+      await runHelper(cwd, "prepare-judgment-nits", {
+        FINDINGS_FILE: findingsFile,
+        JUDGMENT_REQUIRED_FINDING_INDEXES: "1,0",
+      });
+      const written = JSON.parse(
+        await readFile(path.join(cwd, nitsFile), "utf-8"),
+      );
+      expect(written.findings).toEqual([carried, original.findings[0]]);
+      expect(written.carry_forward).toEqual([]);
+      await expect(
+        runHelper(cwd, "validate-nits-file", { NITS_FILE: nitsFile }),
+      ).resolves.toMatchObject({ stdout: "" });
+      expect(
+        JSON.parse(await readFile(path.join(cwd, findingsFile), "utf-8")),
+      ).toEqual(original);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects current envelopes that omit incomplete-route evidence", async () => {
     const cwd = await makeTopicGitWorkspace();
     try {
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [
           finding({
             severity: "Nit",
@@ -1094,7 +1720,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     const cwd = await makeTopicGitWorkspace();
     try {
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [
           finding({
             severity: "Nit",
@@ -1113,7 +1739,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           }),
         ],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       });
 
       for (const selectedIndexes of ["", "0,0", "2", "a", "0, 1"]) {
@@ -1147,7 +1773,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     const cwd = await makeTopicGitWorkspace();
     try {
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [
           finding({
             severity: "Nit",
@@ -1166,7 +1792,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           }),
         ],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       });
 
       await expect(
@@ -1189,7 +1815,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     const cwd = await makeTopicGitWorkspace();
     try {
       await writeRawEnvelope(cwd, findingsFile, {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [
           finding({
             severity: "Nit",
@@ -1209,7 +1835,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
             body: "**Blocking | Contracts** — This carry-forward finding is still blocking.\n\n**Recommendation:** Stop before Phase 8.",
           }),
         ],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       });
 
       await expect(
@@ -1234,10 +1860,10 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       const reviewHeadSha = await currentHeadSha(cwd);
       const canonicalFile = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
       const priorEnvelope = {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       };
       const replacementEnvelope = {
         ...priorEnvelope,
@@ -1249,14 +1875,16 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         runHelperWithStdin(
           cwd,
           "publish-findings",
-          JSON.stringify(replacementEnvelope),
+          JSON.stringify(
+            createReviewEnvelope(replacementEnvelope, reviewHeadSha),
+          ),
           { HEAD_SHA: reviewHeadSha, FINDINGS_FILE: canonicalFile },
         ),
       ).resolves.toMatchObject({ stdout: `${canonicalFile}\n` });
 
       expect(
         JSON.parse(await readFile(path.join(cwd, canonicalFile), "utf-8")),
-      ).toEqual(replacementEnvelope);
+      ).toEqual(createReviewEnvelope(replacementEnvelope, reviewHeadSha));
       expect((await lstat(path.join(cwd, canonicalFile))).isFile()).toBe(true);
       await expectNoPublishStaging(cwd);
     } finally {
@@ -1270,16 +1898,16 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       const reviewHeadSha = await currentHeadSha(cwd);
       const canonicalFile = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
       const priorEnvelope = {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       };
       const priorContents = `${JSON.stringify(priorEnvelope)}\n`;
       await writeFile(path.join(cwd, canonicalFile), priorContents);
 
       for (const input of [
-        '{"schema":"play-review/findings/v2"',
+        '{"schema":"play-review/findings/v3"',
         `${JSON.stringify(priorEnvelope)} trailing`,
       ]) {
         await expect(
@@ -1323,10 +1951,10 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       const reviewHeadSha = await currentHeadSha(cwd);
       const canonicalFile = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
       const priorEnvelope = {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       };
       const priorContents = `${JSON.stringify(priorEnvelope)}\n`;
       const input = Buffer.from(
@@ -1366,10 +1994,10 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       const reviewHeadSha = await currentHeadSha(cwd);
       const canonicalFile = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
       const priorEnvelope = {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       };
       const replacementEnvelope = {
         ...priorEnvelope,
@@ -1399,7 +2027,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         runHelperWithStdin(
           cwd,
           "publish-findings",
-          `${JSON.stringify(replacementEnvelope)}\n \t\n`,
+          `${JSON.stringify(createReviewEnvelope(replacementEnvelope, reviewHeadSha))}\n \t\n`,
           {
             HEAD_SHA: reviewHeadSha,
             FINDINGS_FILE: canonicalFile,
@@ -1408,7 +2036,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         ),
       ).resolves.toMatchObject({ stdout: `${canonicalFile}\n` });
       expect(await readFile(path.join(cwd, canonicalFile), "utf-8")).toBe(
-        `${JSON.stringify(replacementEnvelope)}\n \t\n`,
+        `${JSON.stringify(createReviewEnvelope(replacementEnvelope, reviewHeadSha))}\n \t\n`,
       );
       await expectNoPublishStaging(cwd);
     } finally {
@@ -1422,10 +2050,10 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       const reviewHeadSha = await currentHeadSha(cwd);
       const canonicalFile = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
       const priorEnvelope = {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       };
       const priorContents = JSON.stringify(priorEnvelope);
       await writeFile(path.join(cwd, canonicalFile), priorContents);
@@ -1469,17 +2097,14 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       const reviewHeadSha = await currentHeadSha(cwd);
       const canonicalFile = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
       const priorContents = JSON.stringify({
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       });
-      const replacement = JSON.stringify({
-        schema: "play-review/findings/v2",
-        findings: [finding()],
-        carry_forward: [],
-        incomplete_topical_routes: [],
-      });
+      const replacement = JSON.stringify(
+        currentReviewEnvelope(reviewHeadSha, [finding()]),
+      );
       await writeFile(path.join(cwd, canonicalFile), priorContents);
 
       const child = spawn("bash", [helperScript, "publish-findings"], {
@@ -1537,10 +2162,10 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         const reviewHeadSha = await currentHeadSha(cwd);
         const canonicalFile = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
         const envelope = {
-          schema: "play-review/findings/v2",
+          schema: "play-review/findings/v3",
           findings: [],
           carry_forward: [],
-          incomplete_topical_routes: [],
+          incomplete_review_routes: [],
         };
         const input = JSON.stringify(envelope);
         await writeFile(outside, "do not overwrite\n");
@@ -1701,7 +2326,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           schema: "wrong/v1",
           findings: [],
           carry_forward: [],
-          incomplete_topical_routes: [],
+          incomplete_review_routes: [],
         }),
       );
 
@@ -1755,38 +2380,38 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     const cwd = await makeTopicGitWorkspace();
     const malformedEnvelopes = [
       {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [],
         carry_forward: [],
       },
       {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [],
         carry_forward: [],
-        incomplete_topical_routes: "missing",
+        incomplete_review_routes: "missing",
       },
       {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [],
         carry_forward: [],
-        incomplete_topical_routes: [
+        incomplete_review_routes: [
           { route: "D7", disposition: "FAILED" },
           { route: "D7", disposition: "NEEDS_CONTEXT" },
         ],
       },
       {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: "not-array",
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       },
       {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [],
         carry_forward: {},
       },
       {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [
           {
             ...finding(),
@@ -1794,41 +2419,41 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           },
         ],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       },
       {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [finding({ body: 42 })],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       },
       {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [
           finding({
             body: "**Blocking | Contracts** — Missing the recommendation label.",
           }),
         ],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       },
       {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [finding({ path: "../../outside" })],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       },
       {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [finding({ severity: "Nit", critic: "VALID" })],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       },
       {
-        schema: "play-review/findings/v2",
+        schema: "play-review/findings/v3",
         findings: [finding({ path: "/absolute/path" })],
         carry_forward: [],
-        incomplete_topical_routes: [],
+        incomplete_review_routes: [],
       },
     ];
 

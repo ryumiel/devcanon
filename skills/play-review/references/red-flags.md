@@ -9,17 +9,19 @@ Rules in `SKILL.md` from a "what does the failure look like" angle.
 - You skipped the always-on `Code-quality` reviewer or omitted its baseline data-safety, language, tests, or external-invocation coverage
 - You treated line count alone as enough to suppress risk-triggered `Architecture` or `Spec` review
 - You treated a skill-local topical label as its own source-agent identity
-  instead of routing D7-D9 through the configured semantic `reviewer`
-- You routed D7-D9 through anything other than `reviewer` frontier/high, or
+  instead of routing D7 through the configured semantic `reviewer`
+- You routed D7 through anything other than `reviewer` frontier/high, or
   routed D10 through anything other than `reviewer` frontier/high
-- You spawned any D7-D10 child without its own no-handoff source-immutability
+- You spawned any D7/D10 child without its own no-handoff source-immutability
   capture, or consumed a response before verify, retain, and exact cleanup
 - You let a failed, invalid, malformed, or verification-rejected child contribute
   findings or critic verdicts
 - You let the D10 critic spawn another critic or reviewer
 - You showed findings as a table with file:line but no code snippets
 - You used a generic agent prompt without diff-specific file references
-- You skipped the critic pass because "findings were straightforward"
+- You skipped required consequential, disputed, or uncertain blocking verification
+- You dispatched D8/D9 or invoked D10 merely for nits
+- You treated skipped verification or another finding’s verdict as fix authority
 - You proceeded with default values when a required input was missing — escalate to the wrapper instead
 
 **All of these mean: STOP. Go back to the workflow.**

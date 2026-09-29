@@ -479,52 +479,9 @@ compare_payload_with_support() {
 
 assert_findings_envelope() {
   local file="$1"
-  require_jq
-  jq -e '
-    def one_of($values; $value): ($values | index($value)) != null;
-    def positive_integer:
-      type == "number" and . == floor and . >= 1;
-    def repo_relative_path:
-      type == "string"
-      and length > 0
-      and (startswith("/") | not)
-      and (split("/") | all(. != "" and . != "." and . != ".."));
-    def valid_critic:
-      if .severity == "Nit" then
-        .critic == null
-      else
-        .critic == null or one_of(["VALID", "INVALID", "DOWNGRADE"]; .critic)
-      end;
-    def valid_finding:
-      type == "object"
-      and has("path")
-      and has("line")
-      and has("start_line")
-      and has("severity")
-      and has("category")
-      and has("critic")
-      and has("anchor")
-      and has("why")
-      and has("recommendation")
-      and has("body")
-      and (.path | repo_relative_path)
-      and (.line | positive_integer)
-      and (.start_line == null or (.start_line | positive_integer))
-      and one_of(["Blocking", "Nit"]; .severity)
-      and one_of(["Logic", "Safety", "Architecture", "Tests", "Maintainability", "Documentation", "Contracts"]; .category)
-      and valid_critic
-      and one_of(["natural", "missing-file", "out-of-diff"]; .anchor)
-      and (.why | type == "string")
-      and (.recommendation | type == "string")
-      and (.body | type == "string");
-    .schema == "play-review/findings/v2"
-    and (.findings | type == "array")
-    and (.carry_forward | type == "array")
-    and ((.findings + .carry_forward) | all(.[]; valid_finding))
-  ' "$file" >/dev/null || {
-    echo "findings schema mismatch or envelope shape mismatch: $file" >&2
-    exit 1
-  }
+  local helper
+  helper="$(resolve_play_review_helper)"
+  FINDINGS_FILE="$file" bash "$helper" validate-findings
 }
 
 assert_single_json_object() {

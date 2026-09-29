@@ -2,7 +2,14 @@
 
 ## Status
 
-Accepted
+Accepted; partially superseded by
+[ADR-0038](adr-0038-single-reviewer-targeted-verification.md) for branch-review
+reviewer/verifier and findings/approval-summary evidence versions, automatic
+nit-fix eligibility, and the restriction
+of the remaining-nit handoff to judgment-required feedback. Those provisions
+below are historical. Under ADR-0038 all nits remain report-only and every
+remaining nit reaches the existing handoff. This does not change this ADR’s
+implementation-review ownership or per-task-review decisions.
 
 ## Note
 

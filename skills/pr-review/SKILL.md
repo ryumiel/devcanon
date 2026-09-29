@@ -948,12 +948,23 @@ the latest exact preview before Phase 6.
 | ------------------------------------ | ----------------------------------------------------------------------------------- |
 | `post`                               | Post review + resolve approved threads                                              |
 | `post as comment`                    | Comment only, no verdict                                                            |
-| `drop #N`                            | Remove finding                                                                      |
-| `change #N severity to Blocking/Nit` | Reclassify severity                                                                 |
-| `change #N category to Logic/...`    | Reclassify category                                                                 |
+| `drop #N`                            | Omit from publication; retain evidence                                              |
+| `change #N severity to Blocking/Nit` | Change published severity; retain evidence                                          |
+| `change #N category to Logic/...`    | Change published category; retain evidence                                          |
 | `edit`                               | Revise draft text                                                                   |
 | `skip threads`                       | Post but don't resolve                                                              |
 | `abort`                              | Record `aborted` with `FINISHED_AT` and `TERMINAL_REASON`, then lease-gated cleanup |
+
+## Targeted review evidence gate
+
+For each new `play-review` invocation require `play-review/findings/v3`, exact
+current head/scope bindings, and complete D7 plus any required D10. Do not
+accept legacy artifacts as new-run approval. A legitimately `not-required`
+verifier differs from `incomplete`; any required verifier failure blocks
+APPROVE even without surviving blockers. Preserve assessment freshness and
+per-finding selection through previews and payload approval. Nits are
+report-only; any fix handoff uses branch-review’s per-finding qualification and
+requires validation plus independent review of the changed candidate.
 
 ## Phase 6: Post
 

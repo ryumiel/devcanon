@@ -22,7 +22,7 @@ require_env() {
 
 require_jq() {
   command -v jq >/dev/null 2>&1 || {
-    echo "jq is required to validate play-review/findings/v2" >&2
+    echo "jq is required to validate play-review/findings/v3" >&2
     exit 1
   }
 }
@@ -122,7 +122,7 @@ assert_readable_envelope() {
     exit 1
   }
   jq -e '
-    def one_of($values; $value): ($values | index($value)) != null;
+    def one_of($values; $value): ($value | type == "string") and ($values | index($value)) != null;
     def positive_integer:
       type == "number" and . == floor and . >= 1;
     def repo_relative_path:
@@ -162,25 +162,26 @@ assert_readable_envelope() {
       and (.why | type == "string")
       and (.recommendation | type == "string")
       and valid_body;
-    def valid_incomplete_topical_route:
-      type == "object"
-      and (keys == ["disposition", "route"])
-      and one_of(["D7", "D8", "D9"]; .route)
-      and one_of(["NEEDS_CONTEXT", "FAILED", "CONTROLLER_OBSERVED_FAILURE"]; .disposition);
-    def valid_incomplete_topical_routes:
-      (.incomplete_topical_routes | type == "array")
-      and (.incomplete_topical_routes | all(.[]; valid_incomplete_topical_route))
-      and (
-        .incomplete_topical_routes as $routes
-        | ($routes | map(.route) | unique | length) == ($routes | length)
-      );
-    .schema == "play-review/findings/v2"
+    .schema == "play-review/findings/v3"
     and (.findings | type == "array")
     and (.carry_forward | type == "array")
-    and valid_incomplete_topical_routes
     and ((.findings + .carry_forward) | all(.[]; valid_finding))
   ' "$file" >/dev/null || {
     echo "envelope schema mismatch or envelope shape mismatch: $file" >&2
+    exit 1
+  }
+  local helper_dir
+  helper_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+  jq -e -f "$helper_dir/targeted-review-evidence.jq" "$file" >/dev/null || {
+    echo "envelope schema mismatch or envelope shape mismatch: targeted review evidence validation failed: $file" >&2
+    exit 1
+  }
+
+}
+
+require_current_envelope() {
+  jq -e --arg head "$HEAD_SHA" '.schema == "play-review/findings/v3" and .review_head_sha == $head' "$1" >/dev/null || {
+    echo "current publication requires head-bound play-review/findings/v3 evidence" >&2
     exit 1
   }
 }
@@ -358,6 +359,7 @@ publish_findings() {
     exit 1
   }
   assert_readable_envelope "staged findings file" "$staging_file"
+  require_current_envelope "$staging_file"
 
   [ -L .ephemeral ] && {
     echo ".ephemeral must be a directory, not a symlink" >&2
@@ -503,9 +505,9 @@ render_entry() {
   start_line="$(jq -r '.start_line' <<<"$entry_json")"
   severity="$(jq -r '.severity' <<<"$entry_json")"
   category="$(jq -r '.category' <<<"$entry_json")"
-  critic="$(jq -r 'if .critic != null then .critic elif .severity == "Nit" then "(not recorded)" else "(unverified — critic unavailable)" end' <<<"$entry_json")"
+  critic="$(jq -r 'if .critic != null then .critic elif .assessment.verification == "not-required" then "(not required — unverified)" elif .severity == "Nit" then "(not recorded)" else "(unverified — critic unavailable)" end' <<<"$entry_json")"
   anchor="$(jq -r '.anchor' <<<"$entry_json")"
-  body="$(jq -r '.body' <<<"$entry_json")"
+  body="$(jq -r 'if .critic == "DOWNGRADE" then "**Nit | " + .category + "** — " + .why + "\n\n**Recommendation:** " + .recommendation else .body end' <<<"$entry_json")"
   if [ "${REVIEW_SURFACE:-}" = "pr-review" ] && [ "$anchor" = "missing-file" ]; then
     body="$(printf 'Missing-file finding (no natural anchor — see body):\n\n%s' "$body")"
   fi
@@ -521,10 +523,31 @@ render_entry() {
   printf -- '- **Severity:** %s\n' "$severity"
   printf -- '- **Category:** %s\n' "$category"
   printf -- '- **Critic:** %s\n' "$critic"
-  printf -- '- **Anchor:** %s\n\n' "$anchor"
+  printf -- '- **Anchor:** %s\n' "$anchor"
+  if jq -e '.assessment != null' <<<"$entry_json" >/dev/null; then
+    jq -r '"- **Evidence:** " + .assessment.state + "; assessed " + .assessment.assessed_head_sha + (if .assessment.reuse_checked_head_sha != null then "; reuse checked " + .assessment.reuse_checked_head_sha else "" end)' <<<"$entry_json"
+  fi
+  local override
+  override="$(jq -c --arg id "$(jq -r .id <<<"$entry_json")" '.presentation_overrides[]? | select(.id == $id)' "$FINDINGS_FILE")"
+  if [ -n "$override" ]; then
+    printf -- '- **Presentation override:** %s (raw evidence and approval gates unchanged)\n' "$override"
+    body="$(project_findings all "$FINDINGS_FILE" | jq -r --arg id "$(jq -r .id <<<"$entry_json")" '[.[] | select(.id == $id) | .body][0] // "Omitted from publication; retained evidence above remains authoritative."')"
+    if [ "${REVIEW_SURFACE:-}" = "pr-review" ] && [ "$anchor" = "missing-file" ] && [ "$(jq -r .action <<<"$override")" != "drop" ]; then
+      body="$(printf 'Missing-file finding (no natural anchor — see body):\n\n%s' "$body")"
+    fi
+  fi
+  printf '\n'
   render_source_snippet "$entry_path" "$line" "$start_line"
   printf '\n#### Rendered Finding Body\n\n'
   printf '%s\n\n' "$body"
+}
+
+project_findings() {
+  local scope="$1"
+  local file="$2"
+  local helper_dir
+  helper_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+  jq -L "$helper_dir" --arg scope "$scope" 'include "review-presentation"; project($scope)' "$file"
 }
 
 build_review_body() {
@@ -533,13 +556,12 @@ build_review_body() {
   if [ "${REVIEW_SURFACE:-}" = "pr-review" ]; then
     base_body="$(cat "$REVIEW_BODY_FILE")"
   fi
-  out_of_diff="$(jq -r '
-    (.findings + .carry_forward)
-    | map(select(.anchor == "out-of-diff") | .body)
+  out_of_diff="$(project_findings all "$FINDINGS_FILE" | jq -r '
+    map(select(.anchor == "out-of-diff") | .body)
     | if length == 0 then empty
       else "## Out-of-diff Findings\n\n" + join("\n\n")
       end
-  ' "$FINDINGS_FILE")"
+  ')"
   if [ -n "$base_body" ] && [ -n "$out_of_diff" ]; then
     printf '%s\n\n%s\n' "$base_body" "$out_of_diff"
   elif [ -n "$base_body" ]; then
@@ -577,6 +599,7 @@ render_review_preview() {
   require_env FINDINGS_FILE
   validate_findings_path_shape "$FINDINGS_FILE"
   assert_readable_envelope "findings file" "$FINDINGS_FILE"
+  require_current_envelope "$FINDINGS_FILE"
   validate_review_surface
   if [ "$REVIEW_SURFACE" = "pr-review" ]; then
     validate_review_body_file
@@ -623,6 +646,7 @@ build_github_review_payload() {
   require_env FINDINGS_FILE
   validate_findings_path_shape "$FINDINGS_FILE"
   assert_readable_envelope "findings file" "$FINDINGS_FILE"
+  require_current_envelope "$FINDINGS_FILE"
   validate_review_surface
   [ "$REVIEW_SURFACE" = "pr-review" ] || {
     echo "build-github-review-payload requires REVIEW_SURFACE=pr-review" >&2
@@ -630,20 +654,32 @@ build_github_review_payload() {
   }
   validate_review_body_file
   validate_review_event
+  if [ "$REVIEW_EVENT" = "APPROVE" ] && [ "$(jq -r '.schema' "$FINDINGS_FILE")" = "play-review/findings/v3" ]; then
+    jq -e '(.incomplete_review_routes | length) == 0 and ((.findings + .carry_forward) | all(.[]; .severity != "Blocking" or .critic == "INVALID" or .critic == "DOWNGRADE"))' "$FINDINGS_FILE" >/dev/null || {
+      echo "incomplete or blocking review cannot approve" >&2
+      exit 1
+    }
+  fi
+  if [ "$REVIEW_EVENT" = "APPROVE" ]; then
+    project_findings posted "$FINDINGS_FILE" | jq -e 'all(.[]; .severity != "Blocking")' >/dev/null || {
+      echo "visible blocking presentation cannot approve" >&2
+      exit 1
+    }
+  fi
   validate_inline_source_anchors
   review_body="$(build_review_body)"
   jq -n \
     --arg commit_id "$HEAD_SHA" \
     --arg event "$REVIEW_EVENT" \
     --arg body "$review_body" \
-    --slurpfile envelope "$FINDINGS_FILE" \
+    --argjson findings "$(project_findings current "$FINDINGS_FILE")" \
     '{
       commit_id: $commit_id,
       event: $event,
       body: $body,
       comments: (
-        $envelope[0].findings
-        | map(select(.anchor == "natural" or .anchor == "missing-file"))
+        $findings
+        | map(select(.critic != "INVALID" and (.anchor == "natural" or .anchor == "missing-file")))
         | map({
             path,
             line,
@@ -668,6 +704,7 @@ prepare_judgment_nits() {
   require_env JUDGMENT_REQUIRED_FINDING_INDEXES
   validate_findings_path_shape "$FINDINGS_FILE"
   assert_readable_envelope "findings file" "$FINDINGS_FILE"
+  require_current_envelope "$FINDINGS_FILE"
 
   case "$JUDGMENT_REQUIRED_FINDING_INDEXES" in
     *[[:space:]]* | "" | *, | ,* | *,,*)
@@ -680,6 +717,9 @@ prepare_judgment_nits() {
     def fail($message): error($message);
     def valid_index_string:
       test("^[0-9]+(,[0-9]+)*$");
+    def selection_pool:
+      reduce (.findings + .carry_forward)[] as $finding
+        ([]; if any(.id == $finding.id) then . else . + [$finding] end);
     def selected_indexes:
       $indexes
       | if valid_index_string then split(",") | map(tonumber)
@@ -689,14 +729,14 @@ prepare_judgment_nits() {
       selected_indexes as $xs
       | ($xs | unique | length) != ($xs | length);
     def selected:
-      . as $envelope
+      selection_pool as $pool
       | selected_indexes as $xs
       | if duplicate_indexes then
           fail("JUDGMENT_REQUIRED_FINDING_INDEXES must not contain duplicate indexes")
-        elif ($xs | any(. < 0 or . >= ($envelope.findings | length))) then
+        elif ($xs | any(. < 0 or . >= ($pool | length))) then
           fail("JUDGMENT_REQUIRED_FINDING_INDEXES contains out-of-range index")
         else
-          $xs | map(. as $index | $envelope.findings[$index])
+          $xs | map(. as $index | $pool[$index])
         end;
     def true_blocking:
       .severity == "Blocking" and (.critic != "INVALID" and .critic != "DOWNGRADE");
@@ -723,22 +763,16 @@ prepare_judgment_nits() {
   rm -f "$tmp_file"
   trap 'rm -f "$tmp_file"' EXIT
   jq --arg indexes "$JUDGMENT_REQUIRED_FINDING_INDEXES" '
+    def selection_pool:
+      reduce (.findings + .carry_forward)[] as $finding
+        ([]; if any(.id == $finding.id) then . else . + [$finding] end);
     def selected_indexes: $indexes | split(",") | map(tonumber);
-    def normalize_downgrade:
-      if .critic == "DOWNGRADE" then
-        .severity = "Nit"
-        | .critic = null
-        | .body = ("**Nit | " + .category + "** — " + .why + "\n\n**Recommendation:** " + .recommendation)
-      else
-        .
-      end;
-    . as $envelope
-    | {
-      schema: "play-review/findings/v2",
-      findings: (selected_indexes | map(. as $index | $envelope.findings[$index] | normalize_downgrade)),
-      carry_forward: [],
-      incomplete_topical_routes: $envelope.incomplete_topical_routes
-    }
+    selection_pool as $pool
+    | .findings = (selected_indexes | map(. as $index | $pool[$index]))
+      | .carry_forward = []
+      | if has("presentation_overrides") then .findings as $fs | .presentation_overrides |= map(select(.id as $id | $fs | any(.id == $id))) else . end
+      | .verification.selected_ids = [.findings[] | select(.assessment.selection != "none") | .id]
+      | if (.verification.selected_ids | length) == 0 then .verification = {state: "not-required", selected_ids: [], reason: "Report-only nit selection"} else . end
   ' "$FINDINGS_FILE" >"$tmp_file"
   mv "$tmp_file" "$nits_pending_file"
   trap - EXIT
@@ -752,12 +786,16 @@ case "$command_name" in
     require_env FINDINGS_FILE
     validate_findings_path_shape "$FINDINGS_FILE"
     assert_readable_envelope "findings file" "$FINDINGS_FILE"
+    require_current_envelope "$FINDINGS_FILE"
     ;;
-  validate-nits-file)
+  validate-nits-file | project-nits)
     require_repo_root
+    validate_head_sha
     require_env NITS_FILE
     validate_nits_path_shape "$NITS_FILE"
     assert_readable_envelope "nits_file" "$NITS_FILE"
+    require_current_envelope "$NITS_FILE"
+    if [ "$command_name" = "project-nits" ]; then project_findings current "$NITS_FILE"; fi
     ;;
   derive-nits-pending)
     require_repo_root
@@ -797,7 +835,7 @@ case "$command_name" in
     build_github_review_payload
     ;;
   *)
-    echo "usage: review-artifacts.sh validate-findings|validate-nits-file|derive-nits-pending|prepare-judgment-nits|prepare-findings-write|publish-findings|render-review-preview|build-github-review-payload" >&2
+    echo "usage: review-artifacts.sh validate-findings|validate-nits-file|project-nits|derive-nits-pending|prepare-judgment-nits|prepare-findings-write|publish-findings|render-review-preview|build-github-review-payload" >&2
     exit 1
     ;;
 esac
