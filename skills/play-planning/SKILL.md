@@ -707,8 +707,8 @@ owns its D5/D6 route values, prompt inputs, and paired-wave disposition.
 
 | Route | `agent_type` | Capability | Model marker                            | `reasoning_effort` | `source_authority` | Prompt                           |
 | ----- | ------------ | ---------- | --------------------------------------- | ------------------ | ------------------ | -------------------------------- |
-| D5    | `reviewer`   | `frontier` | `D5_MODEL` = `{{model-codex:frontier}}` | `high`             | `source-immutable` | `D5_PLAN_REVIEW_PROMPT`          |
-| D6    | `reviewer`   | `frontier` | `D6_MODEL` = `{{model-codex:frontier}}` | `high`             | `source-immutable` | `D6_EXECUTABILITY_REVIEW_PROMPT` |
+| D5    | `reviewer`   | `frontier` | `D5_MODEL` = `{{model-codex:frontier}}` | `medium`           | `source-immutable` | `D5_PLAN_REVIEW_PROMPT`          |
+| D6    | `reviewer`   | `frontier` | `D6_MODEL` = `{{model-codex:frontier}}` | `medium`           | `source-immutable` | `D6_EXECUTABILITY_REVIEW_PROMPT` |
 
 Both routes have `external_authority: none` and zero handoffs. A missing, blank,
 unresolved, or mismatched marker blocks before capture or spawn. Do not search a
@@ -730,7 +730,7 @@ Codex.spawn_agent({
   task_name: d5_<instance_ordinal>,
   agent_type: "reviewer",
   model: D5_MODEL,
-  reasoning_effort: "high",
+  reasoning_effort: "medium",
   fork_turns: "none",
   message: D5_PLAN_REVIEW_PROMPT,
 })
@@ -739,7 +739,7 @@ Codex.spawn_agent({
   task_name: d6_<instance_ordinal>,
   agent_type: "reviewer",
   model: D6_MODEL,
-  reasoning_effort: "high",
+  reasoning_effort: "medium",
   fork_turns: "none",
   message: D6_EXECUTABILITY_REVIEW_PROMPT,
 })
@@ -776,7 +776,7 @@ target-honest cleanup, slot-limit, and recovery rules. Resolve
 `PLAY_PLANNING_DIR` to the loaded or installed skill bundle and
 `SOURCE_IMMUTABILITY_HELPER` to
 `$PLAY_PLANNING_DIR/scripts/source-immutability.sh`. D5 and D6 are distinct
-fresh response-only `reviewer`, frontier/high and source-immutable sessions,
+fresh response-only `reviewer`, frontier/medium and source-immutable sessions,
 with zero handoffs and external authority `none`. Do not reuse or collapse
 their sessions, questions, responses, baselines, or lifecycle state.
 Before the first guarded review, run
@@ -907,12 +907,12 @@ and stop; there is no third wave.
 ## Plan Review
 
 Within each paired wave, D5 is the dedicated Plan Review remit. Use the
-configured response-only `reviewer`, frontier/high and source-immutable, with
+configured response-only `reviewer`, frontier/medium and source-immutable, with
 zero handoffs; do not substitute an ambient role, model, or effort. D5 remains
 independent from the concurrently started D6 session even though both use the
 same semantic role.
 
-D5 uses only the prevalidated `D5_MODEL`, independent `high` effort, and
+D5 uses only the prevalidated `D5_MODEL`, independent `medium` effort, and
 history-free `D5_PLAN_REVIEW_PROMPT` defined for this paired wave; it never
 inherits D6 or controller conversation context.
 
@@ -1028,7 +1028,7 @@ is executable by a competent non-senior developer from the task and named
 authoritative sources. It does not repeat plan alignment or own executor review
 routing.
 
-Use a fresh response-only `reviewer`, frontier/high and source-immutable, with
+Use a fresh response-only `reviewer`, frontier/medium and source-immutable, with
 zero handoffs, for this D6 Implementer Executability Review. Start the fresh D6
 session independently alongside D5 after both baselines exist; it must not
 reuse or collapse the D5 session, review question, PASS/FAIL result, or
@@ -1036,7 +1036,7 @@ lifecycle state.
 The `frontier` capability resolves to the prevalidated full configured
 `D6_MODEL`; it is not an ambient, alias, or per-call substitute.
 
-D6 uses only the prevalidated `D6_MODEL`, independent `high` effort, and
+D6 uses only the prevalidated `D6_MODEL`, independent `medium` effort, and
 history-free `D6_EXECUTABILITY_REVIEW_PROMPT` defined for this paired wave; it
 never inherits D5 or controller conversation context.
 

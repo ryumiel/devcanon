@@ -127,8 +127,13 @@ describe("shipped semantic agents", () => {
       expect(source.claude).not.toHaveProperty("model");
       expect(source.claude.effort).toBe(role.claudeEffort);
       expect(source.claude.tools).toEqual(role.claudeTools);
-      expect(source.codex.model).toBeNull();
-      expect(source.codex).not.toHaveProperty("model_reasoning_effort");
+      if (role.name === "reviewer") {
+        expect(source.codex.model).toBe("gpt-6-astra");
+        expect(source.codex.model_reasoning_effort).toBe("medium");
+      } else {
+        expect(source.codex.model).toBeNull();
+        expect(source.codex).not.toHaveProperty("model_reasoning_effort");
+      }
       expect(source.codex.sandbox_mode).toBe(role.codexSandbox);
     }
   });
@@ -172,13 +177,21 @@ describe("shipped semantic agents", () => {
       expect(codexToml).toEqual({
         name: role.name,
         description: source.description,
+        ...(role.name === "reviewer"
+          ? {
+              model: "gpt-6-astra",
+              model_reasoning_effort: "medium",
+            }
+          : {}),
         sandbox_mode: role.codexSandbox,
         developer_instructions: expect.stringContaining(
           source.instructions.trim(),
         ),
       });
-      expect(codexToml).not.toHaveProperty("model");
-      expect(codexToml).not.toHaveProperty("model_reasoning_effort");
+      if (role.name !== "reviewer") {
+        expect(codexToml).not.toHaveProperty("model");
+        expect(codexToml).not.toHaveProperty("model_reasoning_effort");
+      }
       expect(sha256(claudeOutput.content)).toBe(
         EXPECTED_CLAUDE_CONTENT_HASHES[role.name],
       );

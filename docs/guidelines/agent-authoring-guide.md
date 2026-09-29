@@ -163,13 +163,14 @@ the YAML into this guide; keeping one exact example prevents the authoring
 procedure from becoming a competing role-envelope owner.
 
 Use target-local `codex.model: null` when an agent source must intentionally
-suppress Codex model resolution and emission. This is appropriate for the six
-thin semantic roles because fresh controller routes supply their configured full
-model and independent route effort. Do not add source
-`codex.model_reasoning_effort` to recreate precedence over the route. Literal
-models remain for a stable target-local source constraint; absent models permit
-ordinary capability resolution. The agent spec owns these three Codex source
-states and Claude's literal-or-absent rule.
+suppress Codex model resolution and emission. This remains appropriate for five
+thin semantic roles whose fresh controller routes supply their configured full
+model and independent route effort. The ordinary reviewer instead has the
+stable target-local `gpt-6-astra`/`medium` default documented in the agent spec;
+its ordinary routes use medium, while D10 explicitly selects high for targeted
+verification. Literal models remain for a stable target-local source constraint;
+absent models permit ordinary capability resolution. The agent spec owns these
+three Codex source states and Claude's literal-or-absent rule.
 
 Reusable methods still stay in skills. The owning workflow must guard a
 source-immutable dispatch before consuming the result; the spec-owned

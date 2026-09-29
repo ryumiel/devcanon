@@ -214,7 +214,7 @@ ritual or unresolved bindings block before capture. D7 has zero handoffs,
 
 | Route | `agent_type` | Capability | Model marker                            | `reasoning_effort` | `source_authority` | Prompt      |
 | ----- | ------------ | ---------- | --------------------------------------- | ------------------ | ------------------ | ----------- |
-| D7    | `reviewer`   | `frontier` | `D7_MODEL` = `{{model-codex:frontier}}` | `high`             | `source-immutable` | `D7_PROMPT` |
+| D7    | `reviewer`   | `frontier` | `D7_MODEL` = `{{model-codex:frontier}}` | `medium`           | `source-immutable` | `D7_PROMPT` |
 
 Build one self-contained prompt using `references/agent-briefing-template.md`.
 Include exact scope/head, working directory, shared-context path, applicable
@@ -227,7 +227,7 @@ Codex.spawn_agent({
   task_name: d7_<instance_ordinal>,
   agent_type: "reviewer",
   model: D7_MODEL,
-  reasoning_effort: "high",
+  reasoning_effort: "medium",
   fork_turns: "none",
   message: D7_PROMPT,
 })

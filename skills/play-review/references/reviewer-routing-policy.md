@@ -5,7 +5,7 @@ keeps the hard rules and fail-closed defaults eager.
 
 ## One independent review route
 
-D7 is the only review child: `reviewer`, frontier/high, source-immutable,
+D7 is the only review child: `reviewer`, frontier/medium, source-immutable,
 response-only, zero handoffs, fresh `fork_turns: "none"`. D8 and D9 are
 retired identifiers and must not dispatch. Their full checks below are D7
 coverage obligations. Risk selects checks, never more topical agents.
