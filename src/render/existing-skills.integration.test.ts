@@ -296,7 +296,7 @@ describe("shipped skill rendering", () => {
     ] as const;
 
     try {
-      await renderAll(
+      const { outputs } = await renderAll(
         {
           ...config,
           library: { ...config.library, generatedDir },
@@ -569,6 +569,66 @@ describe("shipped skill rendering", () => {
       expect(body).toContain(
         "[`references/fix-disposition.md`](references/fix-disposition.md)",
       );
+    }
+  });
+
+  it("packages the authorized ordinary blocker repair policy for both targets", async () => {
+    const config = await loadConfig(
+      path.join(process.cwd(), "devcanon.config.yaml"),
+    );
+    const generatedDir = await mkdtemp(
+      path.join(tmpdir(), "devcanon-authorized-repairs-"),
+    );
+
+    try {
+      const { outputs } = await renderAll(
+        {
+          ...config,
+          library: { ...config.library, generatedDir },
+        },
+        true,
+        true,
+      );
+
+      for (const target of TARGETS) {
+        const contract = normalizeContractText(
+          await readFile(
+            path.join(
+              generatedDir,
+              target,
+              "skills",
+              "play-review",
+              "references",
+              "single-reviewer-contract.md",
+            ),
+            "utf8",
+          ),
+        );
+        const branchReview = normalizeContractText(
+          getSkillOutput(outputs, "branch-review", target).content,
+        );
+        const phaseSeven = normalizeContractText(
+          getSkillOutput(outputs, "issue-priming-workflow", target).content,
+        );
+
+        expect(contract).toContain(
+          "current fresh supported ordinary blocker with selection none",
+        );
+        expect(contract).toContain(
+          "current implementation authority covering the exact bounded repair",
+        );
+        expect(branchReview).toContain(
+          "ordinary undisputed supported blocker with selection `none`",
+        );
+        expect(branchReview).toContain(
+          "current implementation authority covers the exact bounded repair",
+        );
+        expect(phaseSeven).toContain(
+          "ordinary blockers may qualify under the shared review contract",
+        );
+      }
+    } finally {
+      await rm(generatedDir, { recursive: true, force: true });
     }
   });
 

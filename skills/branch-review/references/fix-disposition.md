@@ -8,12 +8,13 @@ reclassify a withheld candidate, select a route, or continue after a stop.
 
 ## Group and execute selected units
 
-Make one same-invariant grouping pass over eligible critic-verified blockers.
-Use only the existing finding text, evidence, anchors, classifications, and
-active-diff context. When blockers share a root invariant, name it in the
-report, inspect adjacent same-invariant active-diff surfaces, and form one
-cohesive bounded group only when every included finding remains independently
-eligible under the main workflow.
+Make one same-invariant grouping pass over eligible blockers. Use only the
+existing finding text, evidence, anchors, classifications, and active-diff
+context. A selected claim retains its required critic verdict; an ordinary
+claim retains `critic: null` and `not-required` verification. When blockers
+share a root invariant, name it in the report, inspect adjacent same-invariant
+active-diff surfaces, and form one cohesive bounded group only when every
+included finding remains independently eligible under the main workflow.
 
 Nits are report-only under v3 and do not enter this execution flow.
 

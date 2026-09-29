@@ -991,10 +991,12 @@ anchors after the commit.
 This runs the full multi-agent review on `git diff <base>...HEAD` where
 `<base>` is branch-review's selected base: normally the repository's default
 branch, or the supplied full base SHA for detached issue-base risk signals that
-use that same base side. With `--fix`, `branch-review` attempts
-eligible separately verified valid `Blocking` auto-fixes, and commits
-branch-review-owned fixes. Apply the loaded reference's evidence validation and
-stop rules to every result, including its remaining-nit handoff. Before Phase 8,
+use that same base side. With `--fix`, `branch-review` attempts eligible bounded
+`Blocking` auto-fixes. Selected claims require verified VALID evidence; ordinary
+blockers may qualify under the shared review contract only with current explicit
+implementation authority for the exact correction. Branch Review commits its
+own fixes. Apply the loaded reference's evidence validation and stop rules to
+every result, including its remaining-nit handoff. Before Phase 8,
 capture the final run's exact `Approval summary written to <path>.` notice
 path; a missing final notice is a hard stop. Every branch-review-owned fix
 commit makes earlier implementer snapshots stale; per
