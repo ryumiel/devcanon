@@ -1,9 +1,10 @@
+def finding_id: type == "string" and length > 0 and (test("[^A-Za-z0-9_-]") | not);
 def nonblank: type == "string" and test("\\S");
 def sha: type == "string" and test("^[0-9a-f]{40}$");
 def unique_ids: map(.id) as $ids | ($ids | unique | length) == ($ids | length);
 def assessment($head):
   . as $f | .assessment as $a
-  | (.id | type == "string" and test("^[A-Za-z0-9_-]+$"))
+  | (.id | finding_id)
   and (.origin_head_sha | sha)
   and (.why | nonblank) and (.recommendation | nonblank)
   and ($a | keys == ["assessed_head_sha", "basis", "reuse_checked_head_sha", "selection", "state", "verification"])
@@ -45,7 +46,7 @@ and (if (.verification.selected_ids | length) == 0 then
 and (.prior_dispositions | type == "array" and unique_ids)
 and (.prior_dispositions | all(.[];
   keys == ["assessed_head_sha", "id", "origin_head_sha", "reason", "status"]
-  and (.id | nonblank) and (.origin_head_sha | sha)
+  and (.id | finding_id) and (.origin_head_sha | sha)
   and .assessed_head_sha == $e.review_head_sha
   and (.reason | nonblank) and (.status == "resolved" or .status == "invalid")
   and (.id as $id | ($e.findings + $e.carry_forward) | all(.[]; .id != $id))))

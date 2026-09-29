@@ -260,6 +260,25 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           reason: "Disproved",
         },
       ];
+      const newlineId = structuredClone(baseline);
+      (newlineId.findings as Record<string, unknown>[])[0].id = "F1\n";
+      (newlineId.verification as Record<string, unknown>).selected_ids = [
+        "F1\n",
+      ];
+      expect(() => validateTargetedReviewEvidence(newlineId)).toThrow(
+        "targeted review evidence",
+      );
+      await expect(
+        runHelperWithStdin(cwd, "publish-findings", JSON.stringify(newlineId), {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: findingsFile,
+        }),
+      ).rejects.toMatchObject({
+        stdout: "",
+        stderr: expect.stringContaining(
+          "targeted review evidence validation failed",
+        ),
+      });
       const cases = [
         ["findings", 0, "assessment", "state"],
         ["findings", 0, "assessment", "selection"],
@@ -684,45 +703,71 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         expect(
           JSON.parse(await readFile(path.join(cwd, findingsFile), "utf8")),
         ).toEqual(value);
+        for (const id of ["F1 ", "Ｆ1", "F1\n"]) {
+          value.prior_dispositions[0].id = id;
+          expect(() => validateTargetedReviewEvidence(value), id).toThrow(
+            "findings envelope validation failed: targeted review evidence",
+          );
+          await expect(
+            runHelperWithStdin(cwd, "publish-findings", JSON.stringify(value), {
+              HEAD_SHA: reviewHeadSha,
+              FINDINGS_FILE: findingsFile,
+            }),
+            id,
+          ).rejects.toMatchObject({
+            stdout: "",
+            stderr: expect.stringContaining(
+              "targeted review evidence validation failed",
+            ),
+          });
+        }
       } finally {
         await cleanupTempDir(cwd);
       }
     },
   );
 
-  it("binds validation to the supplied review head without requiring checkout HEAD", async () => {
-    const cwd = await makeTopicGitWorkspace();
-    try {
-      const priorHead = await currentHeadSha(cwd);
-      const file = `.ephemeral/topic-${priorHead}-findings.json`;
-      await execFileAsync(
-        "git",
-        ["commit", "--allow-empty", "-m", "Later candidate"],
-        { cwd },
-      );
-      const value = currentReviewEnvelope(priorHead, []) as Record<
-        string,
-        unknown
-      >;
-      await writeFile(path.join(cwd, file), JSON.stringify(value));
-      await expect(
-        runHelper(cwd, "validate-findings", {
-          HEAD_SHA: priorHead,
-          FINDINGS_FILE: file,
-        }),
-      ).resolves.toMatchObject({ stderr: "" });
-      value.review_head_sha = await currentHeadSha(cwd);
-      await writeFile(path.join(cwd, file), JSON.stringify(value));
-      await expect(
-        runHelper(cwd, "validate-findings", {
-          HEAD_SHA: priorHead,
-          FINDINGS_FILE: file,
-        }),
-      ).rejects.toThrow();
-    } finally {
-      await cleanupTempDir(cwd);
-    }
-  });
+  it.each(["validate-findings", "render-review-preview"])(
+    "%s binds to the supplied review head without requiring checkout HEAD",
+    async (command) => {
+      const cwd = await makeTopicGitWorkspace();
+      try {
+        const priorHead = await currentHeadSha(cwd);
+        const file = `.ephemeral/topic-${priorHead}-findings.json`;
+        await execFileAsync(
+          "git",
+          ["commit", "--allow-empty", "-m", "Later candidate"],
+          { cwd },
+        );
+        const value = currentReviewEnvelope(priorHead, []) as Record<
+          string,
+          unknown
+        >;
+        await writeFile(path.join(cwd, file), JSON.stringify(value));
+        await expect(
+          runHelper(cwd, command, {
+            REVIEW_SURFACE: "branch-review",
+            HEAD_SHA: priorHead,
+            FINDINGS_FILE: file,
+          }),
+        ).resolves.toMatchObject({ stderr: "" });
+        value.review_head_sha = await currentHeadSha(cwd);
+        await writeFile(path.join(cwd, file), JSON.stringify(value));
+        await expect(
+          runHelper(cwd, command, {
+            REVIEW_SURFACE: "branch-review",
+            HEAD_SHA: priorHead,
+            FINDINGS_FILE: file,
+          }),
+        ).rejects.toMatchObject({
+          stdout: "",
+          stderr: expect.stringContaining("head-bound"),
+        });
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
 
   it("rejects legacy evidence for reads, nits and publication", async () => {
     const cwd = await makeTopicGitWorkspace();

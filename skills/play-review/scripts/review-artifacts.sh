@@ -599,6 +599,7 @@ render_review_preview() {
   require_env FINDINGS_FILE
   validate_findings_path_shape "$FINDINGS_FILE"
   assert_readable_envelope "findings file" "$FINDINGS_FILE"
+  require_current_envelope "$FINDINGS_FILE"
   validate_review_surface
   if [ "$REVIEW_SURFACE" = "pr-review" ]; then
     validate_review_body_file

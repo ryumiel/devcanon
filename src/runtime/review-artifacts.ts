@@ -3518,7 +3518,7 @@ export function validateTargetedReviewEvidence(envelope: JsonObject): void {
         "assessed_head_sha",
         "reason",
       ]) ||
-      !text(id) ||
+      !/^[A-Za-z0-9_-]+$/u.test(id) ||
       resolved.has(id) ||
       byId.has(id) ||
       !isSha(stringField(record, "origin_head_sha")) ||
