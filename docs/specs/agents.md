@@ -305,8 +305,8 @@ agent placeholders with guidance to use top-level capability or a literal model.
 Effort is independent. An explicit `claude.effort` or
 `codex.model_reasoning_effort` is emitted as written; when absent it remains
 omitted and ambient target behavior applies. Capability never supplies or
-inherits effort. The ordinary reviewer Codex default is `medium`; D5, D6, D7,
-and D4 reviewer selection use that same route effort, while D10 explicitly uses
+inherits effort. The ordinary reviewer Codex default is `medium`; D5, D7, and
+D4 reviewer selection use that same route effort, while D10 explicitly uses
 `high` for targeted verification. The remaining semantic-role Codex efforts
 come from the selected route in the active route set in the Agent Routing and
 Mutation Policy; source agent Codex fields never override a direct route.

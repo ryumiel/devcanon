@@ -19,7 +19,7 @@ reviewer prompt.
 - [Task contract criteria](#task-contract-criteria)
 - [Minimum-sufficient proof](#minimum-sufficient-proof)
 - [Finding classifications](#finding-classifications)
-- [Gate remits](#gate-remits)
+- [Combined D5 remit](#combined-d5-remit)
 
 ## Governing invariant
 
@@ -470,8 +470,8 @@ extra, or conflicting task membership; stale or unresolvable Entry ID; missing
 authoritative owner; omitted execution-relevant participant; or absent
 independently necessary execution relationship is a `CURRENT` planning gap.
 D5 must not block solely because an equivalent inverse relationship or duplicate
-proof allocation is absent. D6 may report the shared fact only when it
-identifies the concrete task-local startability defect it causes.
+proof allocation is absent. D5 evaluates a concrete task-local startability
+defect under its executability remit.
 
 The execution consumer performs structural resolution only. A missing or
 duplicate canonical section, missing `## Tasks` terminator, task heading before

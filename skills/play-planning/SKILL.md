@@ -175,15 +175,15 @@ Before file mapping or task drafting, resolve both
 from the loaded or installed `play-planning` skill bundle, not from the target
 repository or current working directory. The controller must resolve both
 bundled references to concrete readable regular-file paths and retain the
-validated paths in controller-local state for readiness, self-review, and both
-reviewer gates. A missing or unreadable reference blocks planning.
+validated paths in controller-local state for readiness, self-review, and the
+combined D5 review. A missing or unreadable reference blocks planning.
 
 The readiness reference owns the exhaustive pre-drafting audit triggers,
 dimensions, outcomes, assumption bounds, and missing-decision records. The
 criteria reference owns scope, planning authority, contract and traceability
 coverage, task contracts, proof proportionality, shared result and gap
-classification, and all three planning review surfaces. Do not copy either
-reference's detailed contract into reviewer prompts.
+classification, and the combined D5 correctness and executability remits. Do
+not copy either reference's detailed contract into reviewer prompts.
 
 Apply the readiness audit before file mapping or task drafting. Evaluate all
 six named triggers and either run the exhaustive audit when any trigger is true
