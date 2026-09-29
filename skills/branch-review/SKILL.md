@@ -459,9 +459,9 @@ the current assessed head, and the whole review complete. A selected
 consequential/disputed/uncertain candidate additionally requires
 `assessment.verification: completed` and `critic: VALID`. An ordinary
 undisputed supported blocker must instead have selection `none`,
-`assessment.verification: not-required`, `critic: null`, and current
-implementation authority covering the exact bounded repair. Recheck D10
-triggers before mutation; a conflict or uncertainty stops that ordinary path.
+`assessment.verification: not-required`, and `critic: null`. Both paths require
+current implementation authority covering the exact bounded repair. Recheck D10
+triggers before mutation; a conflict or uncertainty stops the ordinary path.
 A skipped verifier or verification of another claim never authorizes a selected
 finding. Findings and `--fix` alone never establish authority. Nits, INVALID,
 DOWNGRADE, reused findings, incomplete review, and ordinary candidates missing
@@ -509,9 +509,10 @@ qualification and proportionality gates already permit to an existing bounded
 remediation route, evaluate it under the existing stop-rule contract below. If
 it fires, halt `--fix` immediately under that contract; do not skip or
 reclassify that mutation-capable candidate and continue with later fixes.
-Critic-verified `Blocking | Safety` Sub-check 1 or `Blocking | Contracts`
-Sub-check 2 candidates remain subject to that existing hard stop even when the
-proportionality disposition is non-mutating, so their judgment-required caller
+Supported current `Blocking | Safety` Sub-check 1 or `Blocking | Contracts`
+Sub-check 2 candidates, whether ordinary with `critic: null` or selected with
+its required critic verdict, remain subject to that existing hard stop even when
+the proportionality disposition is non-mutating. Their judgment-required caller
 handoff occurs before later auto-fix commits. Other nonblocking report and
 handoff feedback remains exempt. This check does not add a stop predicate or
 authority.

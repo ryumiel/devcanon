@@ -623,6 +623,12 @@ describe("shipped skill rendering", () => {
         expect(branchReview).toContain(
           "current implementation authority covers the exact bounded repair",
         );
+        expect(branchReview).toContain(
+          "Both paths require current implementation authority covering the exact bounded repair",
+        );
+        expect(branchReview).toContain(
+          "whether ordinary with `critic: null` or selected with its required critic verdict",
+        );
         expect(phaseSeven).toContain(
           "ordinary blockers may qualify under the shared review contract",
         );
