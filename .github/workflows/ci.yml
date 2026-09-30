@@ -69,7 +69,8 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version-file: .nvmrc
+          node-version: '24'
+          check-latest: false
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
@@ -95,7 +96,8 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version-file: .nvmrc
+          node-version: '24'
+          check-latest: false
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
@@ -121,7 +123,8 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version-file: .nvmrc
+          node-version: '24'
+          check-latest: false
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
@@ -183,7 +186,8 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version-file: .nvmrc
+          node-version: '24'
+          check-latest: false
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
