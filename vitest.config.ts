@@ -1,4 +1,5 @@
 import { defineConfig } from "vitest/config";
+import { UnitCriticalPathSequencer } from "./src/__test-helpers__/ci-sequencer.js";
 
 const unitTestTimeout = 10000;
 const integrationTestTimeout = process.platform === "win32" ? 60000 : 30000;
@@ -48,6 +49,9 @@ export default defineConfig({
     slowTestThreshold,
     // Adds stack traces only when Vitest cannot terminate; normal output stays default.
     reporters: ["default", "hanging-process"],
+    sequence: {
+      sequencer: UnitCriticalPathSequencer,
+    },
     projects: [
       {
         test: {

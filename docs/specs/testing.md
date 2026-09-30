@@ -39,6 +39,13 @@ registration, copy and symlink sync where supported, runtime bootstrap and
 termination, source-immutability capture/verify/cleanup plus mutation failure,
 and PR-review success with a failure or cleanup path.
 
+For the ordinary unit-only two-shard selection, the runtime build checker runs
+in shard two. Vitest's built-in hash partitioning assigns every other unit file.
+The current discovered selection contains 32 files in shard one and 34 in shard
+two.
+Unsharded runs, other shard counts, other projects, mixed-project selections,
+and selections that omit that checker retain Vitest's default behavior.
+
 ---
 
 ## Runtime Preparation
