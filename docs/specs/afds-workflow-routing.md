@@ -669,6 +669,20 @@ mechanical helpers cannot approve uncertain relevance.
 | Missing provenance or uncertain impact              | Rebuild affected preparation from current sources; broaden to full relevant-context refresh when affected scope cannot be proven. Rebuilding preparation does not replenish review budget or restore approval. |
 | No relevant input changes                           | Reuse validated references and scoped evidence with their original provenance; reviewer source verification remains required.                                                                                  |
 
+### PREP-003: Construct mechanical inputs from their owners
+
+Preparation retains each helper-returned artifact path exactly through its
+required verify and cleanup lifecycle; a reconstructed or mistyped path fails
+at the existing helper boundary and the original retained value remains the
+only recovery input. Selected current-source references use their exact tracked
+spelling from frozen Git evidence. Deleted-side diff evidence remains resolved
+from its frozen base and range without requiring a head/worktree file, while
+absent optional or unselected inputs remain valid. Before focused tests,
+implementers inspect and complete target-owned test prerequisites. A missing
+prerequisite is setup failure, not product evidence. These requirements use
+existing validators and owners; they add no path guessing, fixture convention,
+approval gate, review budget, or semantic-review substitute.
+
 D18 remains the semantic review-context owner on every invocation that currently
 requires it. Research does not replace D18 and this proposal does not authorize
 cross-invocation reuse of D18 results. `play-review` owns context preparation and

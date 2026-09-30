@@ -10,7 +10,7 @@ Run `capture [--handoff .ephemeral/<file>]`, `verify --baseline .ephemeral/.devc
 
 ## Inputs
 
-`capture` takes no positional input and optionally takes `--handoff .ephemeral/<file>` for an absent, ignored, untracked direct child; without it, the baseline records no handoff. `verify` requires the baseline path printed by `capture`; when its baseline declares a handoff, it also requires that identical `--handoff` path, which must now be a nonempty, readable, nonsymlinked regular file. `cleanup` requires a baseline path and accepts the matching handoff when a retained regular baseline exists; it also accepts already-missing baseline or handoff leaves for idempotent cleanup. Baseline and handoff paths must differ. `DEVCANON_RUNTIME_DIR` is optional. No operation reads stdin.
+`capture` takes no positional input and optionally takes `--handoff .ephemeral/<file>` for an absent, ignored, untracked direct child; without it, the baseline records no handoff. `verify` requires the exact baseline path printed by `capture`; retain that stdout value as custody data and pass it unchanged rather than reconstructing a path. When its baseline declares a handoff, it also requires that identical `--handoff` path, which must now be a nonempty, readable, nonsymlinked regular file. `cleanup` requires that same retained baseline path and accepts the matching handoff when a retained regular baseline exists; it also accepts already-missing baseline or handoff leaves for idempotent cleanup. Baseline and handoff paths must differ. `DEVCANON_RUNTIME_DIR` is optional. No operation reads stdin.
 
 ## Working directory
 

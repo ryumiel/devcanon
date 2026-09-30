@@ -30,15 +30,18 @@ supplied prior artifacts that already exist: the review identity and scope
 records, changed-file records, discovered guideline and supplied candidate-ADR
 references, and any supplied prior-review references. Validate required record
 fields; require readable regular-file identities for selected current-source
-and artifact references. Changed-file paths are diff records: validate their
-status and path against the frozen Git range, and validate deleted-side
-evidence against the frozen base and diff without requiring the deleted path
-to exist at the review head or in the worktree. This does not exempt a supplied
-candidate ADR or other selected current-source reference from readability
-checks. Compare declared head, base, worktree, authority, and content identity
-with the frozen review identity, applicable source side, and policy. A missing,
-malformed, or mismatched supplied candidate ADR or source reference stops before
-semantic dispatch. Absent optional or unselected inputs do not fail preflight.
+and artifact references. Resolve each selected current-source path's spelling
+from frozen Git evidence on its applicable source side and retain that exact
+tracked spelling through D18 preparation; a case-mismatched supplied path is
+not a substitute. Changed-file paths are diff records: validate their status
+and path against the frozen Git range, and validate deleted-side evidence
+against the frozen base and diff without requiring the deleted path to exist at
+the review head or in the worktree. This does not exempt a supplied candidate
+ADR or other selected current-source reference from readability checks. Compare
+declared head, base, worktree, authority, and content identity with the frozen
+review identity, applicable source side, and policy. A missing, malformed, or
+mismatched supplied candidate ADR or source reference stops before semantic
+dispatch. Absent optional or unselected inputs do not fail preflight.
 The `*-review-context-input.json` manifest and `*-review-context.md` are future
 Phase 2.5 outputs, so they are not pre-D18 inputs. The required order is:
 preflight existing supplied inputs; verify, validate, and clean D18; use the

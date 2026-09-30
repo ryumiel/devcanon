@@ -155,12 +155,17 @@ Task tool (general-purpose):
        code, tests, docs, or verification commands.
     3. Implement exactly what the task specifies within those source-owned
        constraints.
-    4. Write tests (following TDD if task says to)
-    5. Verify implementation works
-    6. Commit your work (see Committing section below)
-    7. Self-review (see below)
-    8. Follow the controller's snapshot request state (see Snapshot Manifest section below)
-    9. Report back
+    4. Before focused tests, inspect the target repository's applicable test
+       documentation and package scripts and run required preparation. Treat a
+       missing prerequisite as setup failure, not product evidence; do not
+       infer repository-specific fixtures or wrappers from shared workflow
+       guidance.
+    5. Write tests (following TDD if task says to)
+    6. Verify implementation works
+    7. Commit your work (see Committing section below)
+    8. Self-review (see below)
+    9. Follow the controller's snapshot request state (see Snapshot Manifest section below)
+    10. Report back
 
     Work from: [directory]
 

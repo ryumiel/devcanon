@@ -434,11 +434,13 @@ an existing responsibility; no form can invent an actor, route, dependency, or
 lifecycle. Task-set display order has no semantic meaning. Multiple checks owned
 by the same proof actor belong in its one concrete boundary. Independently owned
 proof responsibilities for different surfaces in one approved relationship use
-separate entries with the same authority locator. A second independently owned
-proof responsibility for the same relationship and semantic surface requires a
-distinct approved relationship; planning must not invent one merely to
-serialize another proof owner. A physical surface may occur in different
-entries when it participates in different approved relationships,
+separate entries with the same authority locator. These projection references
+use inline-code Task IDs; the required task-record `**Task ID:**` field uses
+the same bare `UPPER-ASCII-KEBAB` token form as the planning task grammar. A
+second independently owned proof responsibility for the same relationship and
+semantic surface requires a distinct approved relationship; planning must not
+invent one merely to serialize another proof owner. A physical surface may occur
+in different entries when it participates in different approved relationships,
 distinguished by their exact authority locators.
 Implementation disposition and task-valued proof ownership are the canonical
 plan-local membership facts; they do not establish project authority or an

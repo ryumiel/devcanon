@@ -18,7 +18,7 @@ Run from the target repository root.
 
 ## Outputs
 
-It prints the resulting repo-relative context path on stdout and diagnostics on stderr.
+It prints the resulting repo-relative context path on stdout and diagnostics on stderr. Retain each returned path unchanged for the next ordered operation; do not reconstruct the paired input or context path from a filename convention.
 
 ## Refusal and failures
 

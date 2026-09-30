@@ -1,9 +1,21 @@
 # Mechanical task example
 
-Worked example for the optional `**Mode:** mechanical` field described in `../SKILL.md` (the enclosing projection assigns `EP-RENAME-EXAMPLE-TOKEN` to this task):
+This complete authored example demonstrates the optional `**Mode:** mechanical`
+field described in `../SKILL.md`. It uses the planning projection's required
+Task ID spelling and can be inspected by the existing projection validator.
 
-```markdown
-### Task N: Rename Example Token
+## Execution Projection
+
+- **Entry ID:** `EP-RENAME-EXAMPLE-TOKEN`
+  - **Affected surface or equivalent set:** ["examples/demo-note.md"]
+  - **Owner/source:** `skills/play-planning/SKILL.md` — mechanical task example
+  - **Mode:** `reference`
+  - **Implementation disposition:** Tasks [`RENAME-EXAMPLE-TOKEN`]
+  - **Proof:** Task `RENAME-EXAMPLE-TOKEN` — focused token replacement check
+
+## Tasks
+
+### Task 1: Rename Example Token
 
 **Task ID:** RENAME-EXAMPLE-TOKEN
 
@@ -52,4 +64,3 @@ replacement; no generalized harness or broader matrix is required.
 
 **Replace:** `OldExampleToken`
 **With:** `NewExampleToken`
-```

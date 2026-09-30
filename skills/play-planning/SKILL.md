@@ -469,6 +469,9 @@ reference-field value is a JSON array of zero or more unique, non-empty string
 identifiers. The Task ID is semantic, unique within the plan, and assigned once.
 It is independent of the task number, order, and display title and must remain
 unchanged across task insertions, reordering, title edits, and review revisions.
+Write the Task ID as a bare `UPPER-ASCII-KEBAB` token after the bold field label;
+the field value is not inline code. Inline-code Task IDs are reserved for the
+projection's task-valued references.
 Missing, duplicate, positional, or changed task IDs block review. `Task N`
 remains a display and ordering label only.
 
