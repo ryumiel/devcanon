@@ -59,6 +59,9 @@ Neither composite rebuilds unchanged output between phases. CI project lanes
 remain independently prepared; sharing artifacts across hosted jobs is not
 required.
 
+Public CLI tests invoke the prepared compiled CLI directly, except for the
+explicit TSX source-launcher smoke test.
+
 ---
 
 ## Unit tests

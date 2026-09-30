@@ -5,7 +5,6 @@ import spawn from "cross-spawn";
 
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
 const isWindows = process.platform === "win32";
-run(isWindows ? "npm" : "pnpm", ["run", "build"], repositoryRoot);
 run(isWindows ? "npm" : "pnpm", ["run", "build:runtime"], repositoryRoot);
 const globalBin = run(
   isWindows ? "npm" : "pnpm",

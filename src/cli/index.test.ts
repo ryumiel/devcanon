@@ -47,17 +47,8 @@ function terminalLines(stderr: string): string[] {
   return stderr.split(/\r?\n/).filter((line) => line.length > 0);
 }
 
-function cliEntrypoint(): string {
-  return path.join(process.cwd(), "src", "cli", "source.ts");
-}
-
-function tsxEntrypoint(): string {
-  return path.join(
-    process.cwd(),
-    "node_modules",
-    ".bin",
-    process.platform === "win32" ? "tsx.cmd" : "tsx",
-  );
+function compiledCliEntrypoint(): string {
+  return path.join(process.cwd(), "dist", "cli", "source.js");
 }
 
 describe("CLI entrypoint", () => {
@@ -374,9 +365,9 @@ describe("CLI entrypoint", () => {
 
   it("exposes the config command group in public help", async () => {
     const result = await execFileAsync(
-      "pnpm",
-      ["exec", "tsx", "src/cli/source.ts", "--help"],
-      { cwd: process.cwd(), shell: process.platform === "win32" },
+      process.execPath,
+      [compiledCliEntrypoint(), "--help"],
+      { cwd: process.cwd() },
     );
 
     expect(result.stdout).toMatch(/^\s+config\s/m);
@@ -385,18 +376,16 @@ describe("CLI entrypoint", () => {
   it("returns the selected configuration path through the public JSON CLI", async () => {
     const configPath = path.join(process.cwd(), "devcanon.config.yaml");
     const result = await execFileAsync(
-      "pnpm",
+      process.execPath,
       [
-        "exec",
-        "tsx",
-        "src/cli/source.ts",
+        compiledCliEntrypoint(),
         "--config",
         configPath,
         "--json",
         "config",
         "path",
       ],
-      { cwd: process.cwd(), shell: process.platform === "win32" },
+      { cwd: process.cwd() },
     );
 
     expect(JSON.parse(result.stdout)).toEqual({
@@ -411,9 +400,9 @@ describe("CLI entrypoint", () => {
       | undefined;
     try {
       await execFileAsync(
-        tsxEntrypoint(),
-        [cliEntrypoint(), "--config", "", "--json", "config", "path"],
-        { cwd: process.cwd(), shell: process.platform === "win32" },
+        process.execPath,
+        [compiledCliEntrypoint(), "--config", "", "--json", "config", "path"],
+        { cwd: process.cwd() },
       );
     } catch (error) {
       failure = error as { code?: number; stderr?: string; stdout?: string };
@@ -432,9 +421,9 @@ describe("CLI entrypoint", () => {
       | undefined;
     try {
       await execFileAsync(
-        tsxEntrypoint(),
-        [cliEntrypoint(), "--config", "", "--json", "list"],
-        { cwd: process.cwd(), shell: process.platform === "win32" },
+        process.execPath,
+        [compiledCliEntrypoint(), "--config", "", "--json", "list"],
+        { cwd: process.cwd() },
       );
     } catch (error) {
       failure = error as { code?: number; stderr?: string; stdout?: string };
@@ -454,9 +443,9 @@ describe("CLI entrypoint", () => {
       | undefined;
     try {
       await execFileAsync(
-        tsxEntrypoint(),
+        process.execPath,
         [
-          cliEntrypoint(),
+          compiledCliEntrypoint(),
           "--config",
           configPath,
           "--json",
@@ -464,7 +453,7 @@ describe("CLI entrypoint", () => {
           "--target",
           "",
         ],
-        { cwd: process.cwd(), shell: process.platform === "win32" },
+        { cwd: process.cwd() },
       );
     } catch (error) {
       failure = error as { code?: number; stderr?: string; stdout?: string };
@@ -482,25 +471,21 @@ describe("CLI entrypoint", () => {
   it("returns source-schema version through registered plain and JSON config get", async () => {
     const configPath = path.join(process.cwd(), "devcanon.config.yaml");
     const plain = await execFileAsync(
-      "pnpm",
+      process.execPath,
       [
-        "exec",
-        "tsx",
-        "src/cli/source.ts",
+        compiledCliEntrypoint(),
         "--config",
         configPath,
         "config",
         "get",
         "version",
       ],
-      { cwd: process.cwd(), shell: process.platform === "win32" },
+      { cwd: process.cwd() },
     );
     const json = await execFileAsync(
-      "pnpm",
+      process.execPath,
       [
-        "exec",
-        "tsx",
-        "src/cli/source.ts",
+        compiledCliEntrypoint(),
         "--config",
         configPath,
         "--json",
@@ -508,7 +493,7 @@ describe("CLI entrypoint", () => {
         "get",
         "version",
       ],
-      { cwd: process.cwd(), shell: process.platform === "win32" },
+      { cwd: process.cwd() },
     );
 
     expect(plain.stdout).toBe("2\n");
@@ -527,11 +512,9 @@ describe("CLI entrypoint", () => {
       | undefined;
     try {
       await execFileAsync(
-        "pnpm",
+        process.execPath,
         [
-          "exec",
-          "tsx",
-          "src/cli/source.ts",
+          compiledCliEntrypoint(),
           "--config",
           configPath,
           "--json",
@@ -539,7 +522,7 @@ describe("CLI entrypoint", () => {
           "get",
           "configDir",
         ],
-        { cwd: process.cwd(), shell: process.platform === "win32" },
+        { cwd: process.cwd() },
       );
     } catch (error) {
       failure = error as { code?: number; stderr?: string; stdout?: string };
@@ -566,21 +549,19 @@ describe("CLI entrypoint", () => {
 
     try {
       const environmentResult = await execFileAsync(
-        tsxEntrypoint(),
-        [cliEntrypoint(), "--json", "config", "path"],
+        process.execPath,
+        [compiledCliEntrypoint(), "--json", "config", "path"],
         {
           cwd: cwdDir,
           env: { ...process.env, DEVCANON_CONFIG: environmentPath },
-          shell: process.platform === "win32",
         },
       );
       const cwdResult = await execFileAsync(
-        tsxEntrypoint(),
-        [cliEntrypoint(), "--json", "config", "path"],
+        process.execPath,
+        [compiledCliEntrypoint(), "--json", "config", "path"],
         {
           cwd: cwdDir,
           env: { ...process.env, DEVCANON_CONFIG: "" },
-          shell: process.platform === "win32",
         },
       );
 
@@ -601,12 +582,11 @@ describe("CLI entrypoint", () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-cli-"));
     try {
       const result = await execFileAsync(
-        tsxEntrypoint(),
-        [cliEntrypoint(), "--json", "config", "path"],
+        process.execPath,
+        [compiledCliEntrypoint(), "--json", "config", "path"],
         {
           cwd: tempDir,
           env: { ...process.env, DEVCANON_CONFIG: "" },
-          shell: process.platform === "win32",
         },
       );
 
@@ -623,9 +603,9 @@ describe("CLI entrypoint", () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-cli-"));
     try {
       const result = await execFileAsync(
-        tsxEntrypoint(),
+        process.execPath,
         [
-          cliEntrypoint(),
+          compiledCliEntrypoint(),
           "--json",
           "config",
           "get",
@@ -634,7 +614,6 @@ describe("CLI entrypoint", () => {
         {
           cwd: tempDir,
           env: { ...process.env, DEVCANON_CONFIG: "" },
-          shell: process.platform === "win32",
         },
       );
 
@@ -652,10 +631,9 @@ describe("CLI entrypoint", () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "devcanon-cli-"));
     try {
       await expect(
-        execFileAsync(tsxEntrypoint(), [cliEntrypoint(), "list"], {
+        execFileAsync(process.execPath, [compiledCliEntrypoint(), "list"], {
           cwd: tempDir,
           env: { ...process.env, DEVCANON_CONFIG: "" },
-          shell: process.platform === "win32",
         }),
       ).rejects.toMatchObject({
         code: 1,
@@ -744,17 +722,15 @@ describe("CLI entrypoint", () => {
       await writeFile(manifestPath, legacyManifest, "utf-8");
 
       const summary = await execFileAsync(
-        "pnpm",
+        process.execPath,
         [
-          "exec",
-          "tsx",
-          "src/cli/source.ts",
+          compiledCliEntrypoint(),
           "--config",
           configPath,
           "sync",
           "--reconcile-manifest",
         ],
-        { cwd: process.cwd(), shell: process.platform === "win32" },
+        { cwd: process.cwd() },
       );
       expect(summary.stdout).toContain(
         "Manifest reconciliation: 1 retained, 1 removed.",
@@ -763,18 +739,16 @@ describe("CLI entrypoint", () => {
       await writeFile(manifestPath, legacyManifest, "utf-8");
 
       const reconciled = await execFileAsync(
-        "pnpm",
+        process.execPath,
         [
-          "exec",
-          "tsx",
-          "src/cli/source.ts",
+          compiledCliEntrypoint(),
           "--config",
           configPath,
           "--json",
           "sync",
           "--reconcile-manifest",
         ],
-        { cwd: process.cwd(), shell: process.platform === "win32" },
+        { cwd: process.cwd() },
       );
       const json = JSON.parse(reconciled.stdout) as {
         reconciliation: { retained: unknown[]; removed: unknown[] };
@@ -793,17 +767,15 @@ describe("CLI entrypoint", () => {
       let failure: { code?: number; stderr?: string } | undefined;
       try {
         await execFileAsync(
-          "pnpm",
+          process.execPath,
           [
-            "exec",
-            "tsx",
-            "src/cli/source.ts",
+            compiledCliEntrypoint(),
             "--config",
             configPath,
             "sync",
             "--reconcile-manifest",
           ],
-          { cwd: process.cwd(), shell: process.platform === "win32" },
+          { cwd: process.cwd() },
         );
       } catch (error) {
         failure = error as { code?: number; stderr?: string };
@@ -875,16 +847,9 @@ describe("CLI entrypoint", () => {
           | undefined;
         try {
           await execFileAsync(
-            "pnpm",
-            [
-              "exec",
-              "tsx",
-              "src/cli/source.ts",
-              "--config",
-              configPath,
-              command,
-            ],
-            { cwd: process.cwd(), shell: process.platform === "win32" },
+            process.execPath,
+            [compiledCliEntrypoint(), "--config", configPath, command],
+            { cwd: process.cwd() },
           );
         } catch (error) {
           failure = error as {
