@@ -20,6 +20,14 @@ Run `capture [--handoff .ephemeral/<file>]`, `verify --baseline .ephemeral/.devc
 
 `capture` prints the retained `.ephemeral/.devcanon-source-immutability-<hex>.json` path. Successful `verify` prints `unchanged`; successful `cleanup` prints `cleaned`. Diagnostics use stderr.
 
+## Custody limitation
+
+The helper does not bind a baseline to a route identity. Another valid baseline
+from the same worktree with matching state and handoff can pass verification
+and be removed by cleanup. Exact custody of the returned path prevents this
+swap; path validation and source fingerprints do not detect every wrong-route
+baseline. Never substitute another route's baseline during recovery or cleanup.
+
 ## Refusal and failures
 
 Unknown commands or flags, invalid paths, a handoff that differs from a retained baseline declaration, source drift, or a missing, empty, unreadable, nonregular, or symlinked declared handoff make `verify` exit nonzero. `cleanup` rejects unsafe paths and non-file, non-symlink cleanup leaves; it accepts missing leaves and unlinks either regular-file or symlink baseline and handoff leaves.
