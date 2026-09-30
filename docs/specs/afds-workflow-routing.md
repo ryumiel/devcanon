@@ -285,6 +285,12 @@ creation, or re-priming; restored compatible facts continue through the existing
 gate. Missing authority or host support stops before creation; task creation
 never grants publication or merge authority.
 
+The controller retains delivery evidence after that one release, then refreshes
+or waits for the owner's existing initial-handoff or gate report before it
+reports readiness. Creation, worktree setup, a queued task, or a sent binding
+does not establish readiness. Missing or unknown delivery or response evidence
+waits or reports for reconciliation without a blind resend.
+
 The confirmed owner/host binding retains its independently proven expected
 repository with the canonical issue and original complete route key. Before
 keyed-route retention, current approved-route derivation, receipt acceptance, or

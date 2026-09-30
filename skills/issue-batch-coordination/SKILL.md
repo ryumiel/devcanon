@@ -34,35 +34,29 @@ available; otherwise explicitly read and apply the linked router in the same
 controller. Do not require the user to type its name. Respect a host denial;
 report an unavailable handoff rather than reproducing a denied workflow.
 
-Start with provider-native issue identities, accepted scope and acceptance,
-known owner tasks, dependency evidence, user decisions, and the router's
-existing controller-local ledger. Read the router before the first routing
-pass. Resolve missing context from the tracker and owner reports; request only
-the missing decision when evidence cannot settle it. A request to coordinate
-does not independently authorize new tasks, owner messages, publication, or
-scheduling: honor the current host and user authorization for each effect.
+Before a create or release route, read the router and establish or recover its
+existing controller ledger. Start with provider identities, scope and
+acceptance, owners, dependencies, and decisions. A fresh accepted batch may
+initialize current facts from supported evidence; a resumed historical attempt
+with missing ledger or replay facts waits or reports, never reconstructing
+keys, digests, approvals, or bindings. The controller owns recovery, creation
+reconciliation, binding delivery, and readiness observation; the provider owner
+owns priming and later work. Resolve missing context from tracker and owner
+reports; request only the missing decision when evidence cannot settle it. A
+coordination request does not authorize new tasks, messages, publication, or
+scheduling: honor current host and user authorization for each effect.
 
-Keep one current view for each provider-native item alongside the existing
-ledger: actual dependency edges, combined acceptance and its existing owner,
-validation revision evidence, current gate, blocker and next action, controller
-location and any acknowledged successor, the loaded policy's source revision or
-content fingerprint, and router-required replay facts. On a newer report for
-the same item, reconcile its current facts and batch summary, then replace
-superseded current state and the prior monitor summary rather than append report
-history. A retained snapshot, digest and observation time must identify the
-same observation; approval provenance is not a refreshed source snapshot.
-Hold an affected action with evidence references when required evidence is
-missing, unavailable, stale or conflicting; do not restamp stale facts, erase
-the last usable evidence, or clear a field whose outcome is unknown. Clear only
-facts positively known to be obsolete or inapplicable, preserve unrelated items
-and the router's existing fact contracts. Prefer pointers to needed evidence;
-embed details only when necessary for the current decision or recovery.
-Do not retain superseded waits, diagnoses, snapshots, actions or monitor
-narrative merely as audit history.
-These are local recovery facts, not a new schema, event store, tracker
-substitute, or source of approval. Use a stable location accessible after owner
-checkout cleanup. Do not store the only copy inside an owner worktree scheduled
-for removal.
+Keep one current view beside the ledger: dependencies, acceptance/owner,
+validation, gate/blocker/next action, controller/successor, policy
+revision/fingerprint, and router-required replay facts. Reconcile a newer
+report with its batch summary rather than append history; snapshot, digest, and
+time identify one observation, while approval provenance does not refresh
+source state. Missing, unavailable, stale, or conflicting evidence holds only
+its action. Preserve unknown, unrelated, and router-required facts; clear only
+positive obsolete or inapplicable facts. Prefer needed-evidence pointers over
+detail. These local recovery facts are not a schema, event store, tracker
+substitute, or approval source. Store them stably, never only in a removable
+owner worktree.
 
 ## Coordination cycle
 
@@ -78,13 +72,14 @@ for removal.
    unfinished or complete. Let running owners work; use the router's receipt
    procedure for eligible unfinished continuation and its gate path for real
    decisions. Preserve dependency and readiness distinctions below.
-3. **Route once.** Explicitly invoke `issue-batch-routing` with the affected
-   provider-tagged items, current owner evidence, scope, relevant policy, and
-   existing approval facts. The router validates and deduplicates each route;
-   do not create a second key, owner-dispatch procedure, or approval mechanism
-   here. Forward accepted scope and applicable authority unchanged; the router
-   alone decides whether a compatible top-level owner is reused, host creation
-   is allowed, or the item waits. Advance eligible
+3. **Route once.** After that ledger bootstrap or recovery, explicitly
+   invoke `issue-batch-routing` with the affected provider-tagged items,
+   current owner evidence, scope, relevant policy, and existing approval facts.
+   The router validates and deduplicates each route; do not create a second key,
+   owner-dispatch procedure, or approval mechanism here. Forward accepted scope
+   and applicable authority unchanged; the router alone decides whether a
+   compatible top-level owner is reused, host creation is allowed, or the item
+   waits. Advance eligible
    queued work within authorization without a generic “proceed” request. A
    blocked item need not stop independent eligible siblings.
 4. **Record and yield.** Reconcile the router's outcome into the affected
@@ -102,9 +97,11 @@ for removal.
    already-authorized cleanup, replace location and availability claims with
    the observed result; an unknown result remains unresolved. Give the user a
    concise delta with meaningful progress, completion, failure, or the concrete
-   decision needed. Suppress repeated unchanged waits. Owner gate reports are
-   the primary continuation signal; use supported waits or the optional
-   watchdog, not repeated messages asking running owners to continue.
+   decision needed. Creation or a sent binding is not readiness: first observe
+   the owner's existing response or gate report through supported host evidence.
+   Suppress repeated unchanged waits. Owner gate reports are the
+   primary continuation signal; use supported waits or the optional watchdog,
+   not repeated messages asking running owners to continue.
 
 When refreshed policy differs, assess its effect before using it. Editorial
 changes do not invalidate approvals by themselves. A changed authority or
@@ -161,12 +158,10 @@ Assess these readiness questions separately:
 
 ## Recovery and watchdog
 
-On resume, validate both the controller's own checkout and owner locations.
-Use the host's existing recovery or worktree workflow for a stale or deleted
-checkout; do not silently operate from a different repository. Restore the
-ledger from its stable location, then revalidate its hints against live state.
-If authority or replay evidence was lost, report that missing evidence; a
-receipt or an archived transcript cannot reconstruct approval.
+On resume, validate controller and owner locations. Use existing host recovery
+for a stale or deleted checkout; never silently use another repository. Restore
+the stable ledger and revalidate its hints. Report lost authority or replay
+evidence; a receipt or archived transcript cannot reconstruct approval.
 
 For an authorized successor, transfer the existing context and require its
 acknowledgement before it dispatches. When a watchdog exists, also reconcile
