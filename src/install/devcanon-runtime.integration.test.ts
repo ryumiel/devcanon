@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import {
   chmod,
   cp,
@@ -11,7 +12,16 @@ import {
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { promisify } from "node:util";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "vitest";
 import {
   canCreateSymlinks,
   canMutateExecutableMode,
@@ -35,7 +45,9 @@ import { uninstall } from "./uninstall.js";
 
 const symlinkAvailable = await canCreateSymlinks();
 const executableModeMutable = await canMutateExecutableMode();
+const execFileAsync = promisify(execFile);
 let provider: AcceptedProvider;
+let runtimeFixtureTemplate: string;
 
 async function sync(
   config: ResolvedConfig,
@@ -45,11 +57,9 @@ async function sync(
 }
 
 async function copyRuntimeFixture(skillsDir: string): Promise<void> {
-  await cp(
-    path.resolve("skills/devcanon-runtime"),
-    path.join(skillsDir, "devcanon-runtime"),
-    { recursive: true },
-  );
+  await cp(runtimeFixtureTemplate, path.join(skillsDir, "devcanon-runtime"), {
+    recursive: true,
+  });
 }
 
 async function prepareRuntimeSyncFixture(
@@ -59,15 +69,22 @@ async function prepareRuntimeSyncFixture(
   await mkdir(config.library.agentsDir, { recursive: true });
   await copyRuntimeFixture(config.library.skillsDir);
   await createSkillFixture(config.library.skillsDir, "consumer-skill");
-  provider = await providerFromRuntimeFixture(
-    path.join(config.library.skillsDir, "devcanon-runtime"),
-  );
 }
 
 describe("devcanon-runtime sync", () => {
+  let templateRoot: string;
   let tempDir: string;
   let testLogger: TestLoggerResult;
   let restoreLogger: () => void;
+
+  beforeAll(async () => {
+    templateRoot = await createTempDir();
+    runtimeFixtureTemplate = path.join(templateRoot, "devcanon-runtime");
+    await cp(path.resolve("skills/devcanon-runtime"), runtimeFixtureTemplate, {
+      recursive: true,
+    });
+    provider = await providerFromRuntimeFixture(runtimeFixtureTemplate);
+  });
 
   beforeEach(async () => {
     tempDir = await createTempDir();
@@ -81,8 +98,16 @@ describe("devcanon-runtime sync", () => {
     await cleanupTempDir(tempDir);
   });
 
+  afterAll(async () => {
+    await cleanupTempDir(templateRoot);
+  });
+
   it("publishes the support runtime skill with packaged installs", async () => {
-    await runPackageManager("pnpm", ["run", "prepack"], { cwd: process.cwd() });
+    await execFileAsync(
+      process.execPath,
+      ["scripts/check-runtime-build.mjs", "--build-package"],
+      { cwd: process.cwd(), windowsHide: true },
+    );
     const packed = parseNpmPackInventory(
       (
         await runPackageManager("npm", ["pack", "--json", "--ignore-scripts"], {
