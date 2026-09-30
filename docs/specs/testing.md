@@ -8,9 +8,10 @@
 every retained test remains required; documentation-only changes run their
 applicable documentation checks. There is no separate exhaustive, scheduled,
 manual, or main-only test lane. Hosted Ubuntu CI runs the four existing Vitest
-projects as parallel required legs, with the unit project split into two
-disjoint Vitest shards. Both shards are required; together they run every unit
-file once. Each Ubuntu leg has a 75-second runtime budget. The
+projects as parallel required legs, with the unit and POSIX integration
+projects each split into two disjoint Vitest shards. Both shards of each project
+are required; together they run every project file once. Each Ubuntu leg has a
+75-second runtime budget. The
 focused Windows PR-review lane runs its 54 actual lifecycle, lease, manifest,
 and source-immutability behaviors; its Ubuntu unit contract proves that exact
 lane selection. A separate focused Windows setup lane proves native CLI
