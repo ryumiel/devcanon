@@ -669,6 +669,25 @@ mechanical helpers cannot approve uncertain relevance.
 | Missing provenance or uncertain impact              | Rebuild affected preparation from current sources; broaden to full relevant-context refresh when affected scope cannot be proven. Rebuilding preparation does not replenish review budget or restore approval. |
 | No relevant input changes                           | Reuse validated references and scoped evidence with their original provenance; reviewer source verification remains required.                                                                                  |
 
+### PREP-003: Construct mechanical inputs from their owners
+
+Preparation retains each helper-returned artifact path exactly through its
+required verify and cleanup lifecycle. Exact custody is required because the
+helper does not bind a baseline to a route identity: another valid baseline
+from the same worktree with matching state and handoff can pass verification
+and be removed by cleanup. Invalid paths or mismatched state still fail under
+the existing checks; those checks cannot detect every baseline swap. Use the
+original retained path for the owning route's verification, recovery and cleanup. Selected current-source references use their exact tracked
+spelling from frozen Git evidence. Deleted-side diff evidence remains resolved
+from its frozen base and range without requiring a head/worktree file, while
+absent optional or unselected inputs remain valid. Immediately before each
+focused test execution, including TDD runs after test authoring, implementers
+complete target-owned test prerequisites against current inputs and repeat
+preparation when relevant inputs change. A missing or stale prerequisite is
+setup failure, not product evidence. These requirements use
+existing validators and owners; they add no path guessing, fixture convention,
+approval gate, review budget, or semantic-review substitute.
+
 D18 remains the semantic review-context owner on every invocation that currently
 requires it. Research does not replace D18 and this proposal does not authorize
 cross-invocation reuse of D18 results. `play-review` owns context preparation and

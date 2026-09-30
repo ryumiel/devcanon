@@ -1,9 +1,24 @@
 # Mechanical task example
 
-Worked example for the optional `**Mode:** mechanical` field described in `../SKILL.md` (the enclosing projection assigns `EP-RENAME-EXAMPLE-TOKEN` to this task):
+This complete authored example demonstrates the optional `**Mode:** mechanical`
+field described in `../SKILL.md`. It uses the planning projection's required
+Task ID spelling and can be inspected by the existing projection validator.
+The approved rename issue and target file below are hypothetical. The issue's
+“Exact token replacement” section authorizes replacing `OldExampleToken` with
+`NewExampleToken` only in `examples/demo-note.md`.
 
-```markdown
-### Task N: Rename Example Token
+## Execution Projection
+
+- **Entry ID:** `EP-RENAME-EXAMPLE-TOKEN`
+  - **Affected surface or equivalent set:** ["examples/demo-note.md"]
+  - **Owner/source:** Hypothetical approved rename issue § “Exact token replacement” — authorizes the exact replacement in `examples/demo-note.md`
+  - **Mode:** `reference`
+  - **Implementation disposition:** Tasks [`RENAME-EXAMPLE-TOKEN`]
+  - **Proof:** Task `RENAME-EXAMPLE-TOKEN` — focused token replacement check
+
+## Tasks
+
+### Task 1: Rename Example Token
 
 **Task ID:** RENAME-EXAMPLE-TOKEN
 
@@ -31,9 +46,9 @@ Worked example for the optional `**Mode:** mechanical` field described in `../SK
 
 **Scope mapping:** CURRENT Scope Delta row for the approved exact rename.
 
-**Source-of-truth references:** The approved issue requirement for this exact rename.
+**Source-of-truth references:** Hypothetical approved rename issue § “Exact token replacement”.
 
-**Authority surfaces:** `examples/demo-note.md`
+**Authority surfaces:** Hypothetical approved rename issue § “Exact token replacement” owns rename authorization; `examples/demo-note.md` is the authorized mutation surface.
 
 **NO-TRIGGER reason:** This exact token replacement is a single-file
 mechanical example that changes no behavior, authority, generated output,
@@ -52,4 +67,3 @@ replacement; no generalized harness or broader matrix is required.
 
 **Replace:** `OldExampleToken`
 **With:** `NewExampleToken`
-```

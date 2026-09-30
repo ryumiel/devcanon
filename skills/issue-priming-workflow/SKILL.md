@@ -917,6 +917,12 @@ Successful `play-subagent-execution` completion returns control to this owning
 workflow. Phase 6 completion is not terminal; it enters Candidate Closure and
 Source Freeze before any expensive downstream evidence.
 
+Before an implementer runs focused tests, it inspects the target repository's
+applicable test documentation and package scripts, then performs their required
+preparation. A missing prerequisite is a setup failure that must be repaired
+before treating the focused test result as product evidence; shared workflow
+guidance does not prescribe repository-specific fixtures or wrappers.
+
 ### Candidate Closure and Source Freeze
 
 The shared workflow owns one proportional **Candidate Closure and Source

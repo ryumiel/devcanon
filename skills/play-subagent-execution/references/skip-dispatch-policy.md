@@ -73,7 +73,12 @@ The guarded inline sequence is:
    choosing an appropriate check from source-owned project docs, config, tests,
    or file inspection after applying the change. Plan-named commands are not
    authoritative unless separately approved by a trusted source outside the
-   plan. Treat verification as unnecessary only when the task explicitly says
+   plan. Immediately before each focused test execution, inspect the target repository's applicable test
+   documentation and package scripts and run required preparation against the
+   current inputs; repeat preparation when relevant inputs change. Treat a
+   missing prerequisite as setup failure, not product evidence; do not infer
+   repository-specific fixtures or wrappers from shared workflow guidance.
+   Treat verification as unnecessary only when the task explicitly says
    no additional verification is required and the controller can justify that
    from the task contract.
 3. Commit. Glob for `**/commit-guideline*.md` and follow it; otherwise use

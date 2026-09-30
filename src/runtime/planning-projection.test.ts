@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readRepoFile } from "../__test-helpers__/skill-contracts.js";
 import {
   inspectPlanningProjection,
   resolveRepositoryPlanPath,
@@ -36,6 +37,19 @@ function entry(id: string, mode: string): string[] {
 }
 
 describe("inspectPlanningProjection", () => {
+  it("accepts the complete authored mechanical task example", async () => {
+    const example = await readRepoFile(
+      "skills/play-planning/examples/mechanical-task-example.md",
+    );
+
+    expect(
+      inspectPlanningProjection(
+        example,
+        "skills/play-planning/examples/mechanical-task-example.md",
+      ).tasks.map((task) => task.task_id),
+    ).toEqual(["RENAME-EXAMPLE-TOKEN"]);
+  });
+
   it("accepts Traceability Matrix before the final projection H2 and Tasks", () => {
     const input = [
       "## Traceability Matrix",
