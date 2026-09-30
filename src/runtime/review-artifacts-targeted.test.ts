@@ -64,6 +64,19 @@ describe("targeted review evidence", () => {
       }),
     ).toThrow("head mismatch");
   });
+  it("refuses approval while an ordinary unverified blocker remains", () => {
+    const value = envelope();
+    value.findings.push(finding());
+
+    expect(() =>
+      buildApprovedReviewPayload({
+        headSha: head,
+        reviewEvent: "APPROVE",
+        reviewBody: "Done",
+        findings: value,
+      }),
+    ).toThrow("incomplete or blocking review cannot approve");
+  });
   it("renders a verified downgrade as nonblocking without rewriting its evidence", () => {
     const value = envelope();
     const claim = finding();

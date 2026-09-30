@@ -2,8 +2,9 @@
 
 ## Status
 
-Accepted as the coordinated source and consumer contract; the introducing PR
-requires independent review under the pre-change policy.
+Accepted as the coordinated source and consumer contract. ADR-0040 supersedes
+only this record's universal autonomous-fix verification prerequisite; all
+other decisions in this record remain accepted.
 
 ## Context
 
@@ -46,10 +47,11 @@ own merge obligations. This record does not create a second procedure owner.
 Use versioned findings and approval evidence to distinguish completed,
 unnecessary, and incomplete verification. Preserve unchanged nit identity and
 original evidence provenance after a current reuse check; do not describe
-carried evidence as fresh verification. Unverified findings remain outside
-automatic fix qualification. Every changed candidate requires fresh validation
-and review. Repeated blocking failures in the same family require bounded
-scope/design reassessment rather than indefinite identical fix waves.
+carried evidence as fresh verification. ADR-0040 owns the narrow
+ordinary-blocker exception to the automatic-fix prerequisite. Every changed
+candidate requires fresh validation and review. Repeated blocking failures in
+the same family require bounded scope/design reassessment rather than
+indefinite identical fix waves.
 
 This decision supersedes only ADR-0007’s branch-review reviewer/verifier and
 findings/approval-summary evidence versions, automatic nit-fix eligibility, and

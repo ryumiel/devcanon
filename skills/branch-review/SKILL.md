@@ -42,7 +42,7 @@ digraph branch_review {
 | Arg                                   | Effect                                                                                                                                                                                                                                              |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `<base>`                              | Base branch to diff against (default: the repository's default branch, resolved via `origin/HEAD`, falling back to `main` then `master`)                                                                                                            |
-| `--fix`                               | Auto-fix only eligible separately verified valid blocking findings instead of presenting them. Used by `issue-priming-workflow --auto` for GitHub and Linear entrypoints.                                                                           |
+| `--fix`                               | Auto-fix only eligible current bounded blocking findings instead of presenting them. Used by `issue-priming-workflow --auto` for GitHub and Linear entrypoints.                                                                                     |
 | `--risk-signals <repo-relative-path>` | Optional, non-authoritative repo-relative `.ephemeral/*-risk-signals.json` handoff from `play-subagent-execution`. Valid signals can only preserve or escalate scrutiny; invalid supplied signals fail closed.                                      |
 | `--last-reviewed <sha>`               | Enter follow-up mode using the immutable 40-character lowercase hex commit SHA from the previous branch-review run. Must be supplied together with `--prior-findings`; supplying only one follow-up argument is invalid and stops before reviewing. |
 | `--prior-findings <path>`             | Repo-relative `.ephemeral/*-findings.json` file from the prior `play-review/findings/v3` run. Must be supplied together with `--last-reviewed`; validate it with the installed `play-review` helper before reading or passing it onward.            |
@@ -352,9 +352,16 @@ identity, verification selection/state, and incomplete routes. Older artifact
 schemas require fresh review; never infer verification
 from prose or `critic: null`.
 
-In `--fix` mode only currently separately verified valid blockers may qualify.
-All nits and unverified ordinary blockers are report-only. Capture the review
-head and findings path before any fix:
+In `--fix` mode, a current fresh candidate at the current assessed head may
+qualify only through one of the shared contract's two paths: a selected
+consequential, disputed, or uncertain claim with completed verification and
+`critic: VALID`; or an ordinary undisputed supported blocker with selection `none`,
+`assessment.verification: not-required`, `critic: null`, and current
+implementation authority covers the exact bounded repair. Both require the
+whole review complete. Recheck D10 triggers against current evidence before
+mutation; conflicting or uncertain evidence is not ordinary. Findings and
+`--fix` do not establish authority. Capture the review head and findings path
+before any fix:
 
 ```bash
 REVIEW_HEAD_SHA="$(git rev-parse HEAD)"
@@ -448,14 +455,20 @@ Branch review is a local surface: no GitHub posting, no `{{tool:github-cli}}` co
 **With `--fix` (autonomous mode, used by `issue-priming-workflow --auto`):**
 
 For each candidate independently require current `assessment.state: fresh`,
-current assessed head, a selected consequential/disputed/uncertain trigger,
-`assessment.verification: completed`, and `critic: VALID`. Also require the
-whole review complete. A skipped verifier or verification of another claim
-never authorizes this finding. Nits, INVALID, DOWNGRADE, reused findings, and
-unverified ordinary blockers remain in the non-mutating handoff. Do not spawn
-a verifier merely to enable a fix. All proportionality, judgment-required,
-substitution-audit, documented-behavior, and design/scope exclusions below
-still apply; their references to fixable nits confer no eligibility under v3.
+the current assessed head, and the whole review complete. A selected
+consequential/disputed/uncertain candidate additionally requires
+`assessment.verification: completed` and `critic: VALID`. An ordinary
+undisputed supported blocker must instead have selection `none`,
+`assessment.verification: not-required`, and `critic: null`. Both paths require
+current implementation authority covering the exact bounded repair. Recheck D10
+triggers before mutation; a conflict or uncertainty stops the ordinary path.
+A skipped verifier or verification of another claim never authorizes a selected
+finding. Findings and `--fix` alone never establish authority. Nits, INVALID,
+DOWNGRADE, reused findings, incomplete review, and ordinary candidates missing
+any predicate remain in the non-mutating handoff. Do not spawn a verifier merely
+to enable a fix. All proportionality, judgment-required, substitution-audit,
+documented-behavior, and design/scope exclusions below still apply; their
+references to fixable nits confer no eligibility under v3.
 
 **Follow-up evidence qualification:** When the existing paired follow-up inputs
 are present, compare each current candidate's concrete evidence with the
@@ -496,15 +509,18 @@ qualification and proportionality gates already permit to an existing bounded
 remediation route, evaluate it under the existing stop-rule contract below. If
 it fires, halt `--fix` immediately under that contract; do not skip or
 reclassify that mutation-capable candidate and continue with later fixes.
-Critic-verified `Blocking | Safety` Sub-check 1 or `Blocking | Contracts`
-Sub-check 2 candidates remain subject to that existing hard stop even when the
-proportionality disposition is non-mutating, so their judgment-required caller
+Supported current `Blocking | Safety` Sub-check 1 or `Blocking | Contracts`
+Sub-check 2 candidates, whether ordinary with `critic: null` or selected with
+its required critic verdict, remain subject to that existing hard stop even when
+the proportionality disposition is non-mutating. Their judgment-required caller
 handoff occurs before later auto-fix commits. Other nonblocking report and
 handoff feedback remains exempt. This check does not add a stop predicate or
 authority.
 
-- Eligible blocking units are the remaining critic-verified blockers permitted
-  by the proportionality gate.
+- Eligible blocking units are the remaining independently qualified blockers
+  permitted by the proportionality gate. Selected claims retain their required
+  critic verdict; ordinary claims retain `critic: null` and `not-required`
+  verification.
 - Nits are report-only and cannot form automatic fix units.
 
 The existing stop rule fires when a fix needs `Anchor: out-of-diff`; a unit
@@ -542,7 +558,7 @@ eligibility, grouping bounds, stops, reporting, remaining-set, and summary
 authority. After each committed unit, validate and independently review the
 new candidate before qualifying another unit. No prior-head qualification
 survives automatically. The reference’s historical nit grouping mechanics are
-not active under v3; only separately qualified blockers enter its fix flow.
+not active under v3; only independently qualified blockers enter its fix flow.
 
 After processing — whether the loop completes or halts on the stop rule — emit
 this exact standalone notice line, expanding `$REVIEW_HEAD_SHA` to its

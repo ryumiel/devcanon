@@ -46,13 +46,16 @@ stops auto mode. Only then may Phase 7 classify remaining Nits.
 
 ## Remaining Nit Classification
 
-Under findings/v3, `branch-review --fix` may fix only individually eligible,
-separately verified valid blockers. Every remaining Nit is report-only,
-including typos, unambiguous broken links, and other apparently mechanical
-corrections; every `DOWNGRADE` is also nonblocking handoff feedback. Phase 7
-passes all of them through the existing `nits_file` handoff to Phase 8, not only
-subjective findings. Verification-based exclusion and proportionality
-withholding never make a nit disappear or authorize a caller-owned fix.
+Under findings/v3, `branch-review --fix` may fix only individually eligible
+blockers under the shared review contract. Selected claims require verified
+VALID evidence; ordinary claims may qualify only with the contract's current,
+fresh, complete-review, exact-authority, and trigger-recheck predicates. Every
+remaining Nit is report-only, including typos, unambiguous broken links, and
+other apparently mechanical corrections; every `DOWNGRADE` is also nonblocking
+handoff feedback. Phase 7 passes all of them through the existing `nits_file`
+handoff to Phase 8, not only subjective findings. Verification-based exclusion
+and proportionality withholding never make a nit disappear or authorize a
+caller-owned fix. Findings and `--fix` do not establish authority.
 Use `nit-classification.md` and `auto-mode-discipline.md` to describe the
 feedback, not to grant mutation eligibility or filter ordinary nits out.
 

@@ -216,11 +216,21 @@ machine paths.
 
 ## Fixes and bounded reassessment
 
-Only current, separately verified valid blockers may enter existing autonomous
-fix qualification; existing proportionality and judgment-required exclusions
-still apply. Unverified ordinary blockers and all nits stay in the non-mutating
-handoff. A completed targeted verification run does not authorize unrelated
-findings. An explicit user fix request uses its owning mutation workflow and
+Existing autonomous fix qualification has two closed evidence paths. The
+ordinary path requires a current fresh supported ordinary blocker with selection
+none, `assessment.verification: not-required`, and `critic: null`. The selected
+path requires a current fresh consequential, disputed, or uncertain blocker
+with completed verification and `critic: VALID`. Both paths require the whole
+review to be complete, current implementation authority covering the exact
+bounded repair, and a recheck of D10 triggers against current evidence before
+mutation. Conflicting or uncertain evidence cannot remain ordinary. Findings,
+`--fix`, and a completed targeted verification run do not create authority or
+authorize unrelated findings.
+
+Existing proportionality and judgment-required exclusions still apply. Nits,
+reused evidence, INVALID and DOWNGRADE findings, incomplete review, and an
+ordinary candidate missing any required predicate stay in the non-mutating
+handoff. An explicit user fix request uses its owning mutation workflow and
 fresh validation, not invented verification. No additional verifier is selected
 merely to enable mutation.
 
@@ -252,7 +262,8 @@ the reassessment grants no wider scope or new implementation authority.
 | Unchanged prior Nit                                                        | Same identity and original assessment head; new reuse-check head; no D10.                      |
 | Changed contract or relevant dependency                                    | No reuse; current reassessment or incomplete review.                                           |
 | Resolved prior claim                                                       | Current evidence and explicit disposition; no unresolved count or automatic thread resolution. |
-| Ordinary undisputed blocker                                                | Remains blocking with no D10; no autonomous fix qualification.                                 |
+| Ordinary undisputed blocker with current bounded implementation authority  | May enter existing bounded remediation without D10; it remains blocking until fresh review.    |
+| Ordinary blocker missing authority, freshness, completeness, or scope      | Non-mutating handoff; findings and `--fix` never supply the missing authority.                 |
 | Consequential, disputed, or uncertain blocker                              | One targeted D10; no approval until all selected dispositions complete.                        |
 | Required verifier fails while findings are downgraded elsewhere            | Review remains incomplete; other classifications cannot hide failure.                          |
 | Missing D7 context, malformed output, source mutation, stale head/range    | No approval; source-integrity failures terminate visibly.                                      |

@@ -817,6 +817,23 @@ If diagnosis fails or is rejected, retry count remains unchanged, no fix,
 push, or merge occurs, and the workflow reports the failed check plus a manual
 resolution recommendation.
 
+### Scenario I: Authorized Ordinary Blocker Repair
+
+A complete current review identifies a supported ordinary blocker within the
+active diff. Its assessment has selection `none`, verification `not-required`,
+and a null critic because no consequential, disputed, or uncertain trigger
+applies. Existing current implementation authority covers the exact one-module
+correction, and proportionality, hard-stop, scope, and recurrence checks pass.
+The existing bounded repair route may correct it without targeted verification.
+
+Before mutation, the repair owner rechecks current trigger evidence. Missing or
+ambiguous authority, a trigger conflict, stale or reused evidence, incomplete
+review, a nit, exhausted same-family recurrence, or a Safety or Contracts
+hard-rule claim stops or hands off under its existing owner. The changed
+candidate requires validation, a frozen current head, and independent review
+before another repair qualification or approval. Findings and `--fix` never
+create implementation authority.
+
 ## Acceptance Criteria
 
 - Natural-language batch management selects coordination; explicit router calls
@@ -861,6 +878,10 @@ resolution recommendation.
 - D14-D18 use the named fail-closed dispositions without inventing a passing
   verdict, retry increment, fix, push, merge, or branch-finish transition; D18
   stops before shared-context construction and D7 review.
+- A fresh ordinary blocker with current exact implementation authority may use
+  the existing bounded repair route without D10 only after its owner rechecks
+  the closed trigger set; all existing stops, proportionality, independent
+  review, and final approval gates remain in force.
 
 ## Verification Expectations
 
@@ -907,3 +928,4 @@ or source-owned contracts.
 - [AI-assisted product workflow guideline](../guidelines/ai-assisted-product-workflow-guideline.md)
 - [Agent routing and mutation policy](../guidelines/agent-routing-and-mutation-policy.md)
 - [Semantic agent routing decision](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md)
+- [Authorized ordinary blocker repairs](../adr/adr-0040-authorized-ordinary-blocker-repairs.md)
