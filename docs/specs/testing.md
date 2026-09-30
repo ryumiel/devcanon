@@ -62,6 +62,13 @@ required.
 Public CLI tests invoke the prepared compiled CLI directly, except for the
 explicit TSX source-launcher smoke test.
 
+Installed-runtime tests accept one full source-backed provider from an
+immutable source snapshot and copy fresh writable runtime trees for each case.
+Every sync still validates its actual source. Their package-inventory case
+builds the package runtime from prepared compiler outputs before a real
+`npm pack --ignore-scripts`; the isolated packed-CLI flow separately exercises
+the `prepack` lifecycle from a clean source checkout.
+
 ---
 
 ## Unit tests
