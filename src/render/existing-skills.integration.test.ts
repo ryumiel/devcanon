@@ -60,6 +60,11 @@ async function renderAll(
   );
 }
 
+const shippedSkillsConfig = await loadConfig(
+  path.join(process.cwd(), "devcanon.config.yaml"),
+);
+const shippedSkillsRender = await renderAll(shippedSkillsConfig, false, true);
+
 function normalizeContractText(content: string): string {
   return content.replace(/\s+/gu, " ").trim();
 }
@@ -162,10 +167,8 @@ function expectSidecarParity(
 
 describe("shipped skill rendering", () => {
   it("renders Node-first issue-priming helper calls for both targets", async () => {
-    const config = await loadConfig(
-      path.join(process.cwd(), "devcanon.config.yaml"),
-    );
-    const { outputs } = await renderAll(config, false, true);
+    const config = shippedSkillsConfig;
+    const { outputs } = shippedSkillsRender;
     const helpers = [
       "phase-artifacts",
       "source-immutability",
@@ -186,10 +189,8 @@ describe("shipped skill rendering", () => {
   });
 
   it("materializes every active route model binding from the configured capability", async () => {
-    const config = await loadConfig(
-      path.join(process.cwd(), "devcanon.config.yaml"),
-    );
-    const { outputs } = await renderAll(config, false, true);
+    const config = shippedSkillsConfig;
+    const { outputs } = shippedSkillsRender;
     const bindings = [
       ["issue-priming-workflow", "D1_MODEL", "balanced"],
       ["issue-priming-workflow", "D2_MODEL", "balanced"],
@@ -356,10 +357,8 @@ describe("shipped skill rendering", () => {
   });
 
   it("renders ordinary reviewer routes at Astra/medium and preserves D10 high", async () => {
-    const config = await loadConfig(
-      path.join(process.cwd(), "devcanon.config.yaml"),
-    );
-    const { outputs } = await renderAll(config, false, true);
+    const config = shippedSkillsConfig;
+    const { outputs } = shippedSkillsRender;
     const d10Spawn = [
       "Codex.spawn_agent({",
       "  task_name: d10_<instance_ordinal>,",
@@ -457,10 +456,8 @@ describe("shipped skill rendering", () => {
   });
 
   it("renders the D18 route for both targets", async () => {
-    const config = await loadConfig(
-      path.join(process.cwd(), "devcanon.config.yaml"),
-    );
-    const { outputs } = await renderAll(config, false, true);
+    const config = shippedSkillsConfig;
+    const { outputs } = shippedSkillsRender;
     const d18Spawn = [
       "Codex.spawn_agent({",
       "  task_name: d18_<instance_ordinal>,",
@@ -483,10 +480,8 @@ describe("shipped skill rendering", () => {
   });
 
   it("preserves the pr-review scope notice before play-review for both targets", async () => {
-    const config = await loadConfig(
-      path.join(process.cwd(), "devcanon.config.yaml"),
-    );
-    const { outputs } = await renderAll(config, false, true);
+    const config = shippedSkillsConfig;
+    const { outputs } = shippedSkillsRender;
     const scopeNotice =
       "PR review scope: mode=..., selection=..., selected files=.... Review is continuing.";
 
@@ -523,10 +518,8 @@ describe("shipped skill rendering", () => {
   });
 
   it("keeps conditional Phase 3 controller support linked and packaged for both write-disabled targets", async () => {
-    const config = await loadConfig(
-      path.join(process.cwd(), "devcanon.config.yaml"),
-    );
-    const { outputs, skills } = await renderAll(config, false, true);
+    const config = shippedSkillsConfig;
+    const { outputs, skills } = shippedSkillsRender;
     const workflow = skills.find(
       (skill) => skill.name === "issue-priming-workflow",
     );
@@ -549,10 +542,8 @@ describe("shipped skill rendering", () => {
   });
 
   it("keeps conditional branch-review fix disposition linked and packaged for both targets", async () => {
-    const config = await loadConfig(
-      path.join(process.cwd(), "devcanon.config.yaml"),
-    );
-    const { outputs, skills } = await renderAll(config, false, true);
+    const config = shippedSkillsConfig;
+    const { outputs, skills } = shippedSkillsRender;
     const workflow = skills.find((skill) => skill.name === "branch-review");
     const reference = "references/fix-disposition.md";
 
@@ -639,10 +630,8 @@ describe("shipped skill rendering", () => {
   });
 
   it("renders every validated source skill once for each enabled target", async () => {
-    const config = await loadConfig(
-      path.join(process.cwd(), "devcanon.config.yaml"),
-    );
-    const { outputs, skills } = await renderAll(config, false, true);
+    const config = shippedSkillsConfig;
+    const { outputs, skills } = shippedSkillsRender;
     const skillOutputs = outputs.filter((output) => output.type === "skill");
 
     expect(skillOutputs).toHaveLength((skills.length + 1) * TARGETS.length);

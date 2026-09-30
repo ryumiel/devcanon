@@ -33,6 +33,7 @@ import {
 } from "./devcanon-runtime.js";
 import { reconcileDevcanonRuntimeSource } from "./devcanon-runtime.js";
 import { writeRenderedDevcanonRuntime } from "./devcanon-runtime.js";
+
 import { renderAll as renderAllWithProvider } from "./pipeline.js";
 
 describe("devcanon-runtime rendering", () => {
@@ -758,7 +759,207 @@ describe("devcanon-runtime rendering", () => {
       readFile(path.join(runtimeDir, "scripts", "resolve-bash.mjs")),
     ).resolves.toEqual(before);
   });
+
+  it.skipIf(process.platform === "win32")(
+    "settles concurrent staged adapter checks before cleanup after resolver failure",
+    async () => {
+      const runtimeDir = path.join(
+        config.library.skillsDir,
+        "devcanon-runtime",
+      );
+      const validated = await validateDevcanonRuntime(runtimeDir, {
+        adapterSourceDir: path.resolve("skills/devcanon-runtime"),
+      });
+      const runtime = path.join(runtimeDir, "scripts", "runtime");
+      const stagedShellPath = path.join(tempDir, "staged-shell-path");
+      const identityStarted = path.join(tempDir, "identity-started");
+      const identityInspection = path.join(tempDir, "identity-inspection");
+      const identityInspected = path.join(tempDir, "identity-inspected");
+      const stagedShellObserved = path.join(tempDir, "staged-shell-observed");
+      const releaseIdentity = path.join(tempDir, "release-identity");
+      const resolverReady = path.join(tempDir, "resolver-ready");
+      const releaseResolverFailure = path.join(
+        tempDir,
+        "release-resolver-failure",
+      );
+      const resolverExited = path.join(tempDir, "resolver-exited");
+      const resolverProcessId = path.join(tempDir, "resolver-process-id");
+      const identityBash = path.join(tempDir, "identity-bash");
+      await writeFile(
+        identityBash,
+        `#!/usr/bin/env bash
+printf started > ${JSON.stringify(identityStarted)}
+attempt=0
+while [ ! -f ${JSON.stringify(identityInspection)} ] && [ "$attempt" -lt 100 ]; do
+  sleep 0.01
+  attempt=$((attempt + 1))
+done
+test -f ${JSON.stringify(identityInspection)} || exit 73
+if [ -f "$(cat ${JSON.stringify(stagedShellPath)})" ]; then
+  printf retained > ${JSON.stringify(stagedShellObserved)}
+else
+  printf removed > ${JSON.stringify(stagedShellObserved)}
+fi
+printf inspected > ${JSON.stringify(identityInspected)}
+attempt=0
+while [ ! -f ${JSON.stringify(releaseIdentity)} ] && [ "$attempt" -lt 100 ]; do
+  sleep 0.01
+  attempt=$((attempt + 1))
+done
+test -f ${JSON.stringify(releaseIdentity)} || exit 74
+printf '%s\\n' '5.2.0'
+`,
+      );
+      await chmod(identityBash, 0o755);
+      const pair = {
+        ...validated.adapterPair,
+        shell: Buffer.from(`#!/usr/bin/env bash
+printf '%s\\n' ${JSON.stringify(identityBash)}
+printf '%s' "$0" > ${JSON.stringify(stagedShellPath)}
+`),
+        resolver:
+          Buffer.from(`import { access, writeFile } from "node:fs/promises";
+import { writeFileSync } from "node:fs";
+
+async function waitForFile(file) {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    try {
+      await access(file);
+      return;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+  process.exit(71);
+}
+
+writeFileSync(${JSON.stringify(resolverProcessId)}, String(process.pid));
+await waitForFile(${JSON.stringify(identityStarted)});
+await writeFile(${JSON.stringify(resolverReady)}, "ready");
+await waitForFile(${JSON.stringify(releaseResolverFailure)});
+await writeFile(${JSON.stringify(resolverExited)}, "exited");
+process.exit(42);
+`),
+      };
+      const before = await readFile(
+        path.join(runtimeDir, "scripts", "resolve-bash.mjs"),
+      );
+      const publication = reconcileDevcanonRuntimeSource(
+        runtimeDir,
+        await providerFromValidated(runtime, validated),
+        forgedSnapshot(validated, {
+          adapterPair: pair,
+          authoritativeAdapterPair: pair,
+        }),
+      );
+      let publicationSettled = false;
+      const publicationOutcome = publication.then(
+        () => {
+          publicationSettled = true;
+        },
+        () => {
+          publicationSettled = true;
+        },
+      );
+
+      try {
+        await waitForFile(identityStarted);
+        await waitForFile(resolverReady);
+        await writeFile(releaseResolverFailure, "fail\n");
+        await waitForFile(resolverExited);
+        await waitForProcessExit(
+          Number(await readFile(resolverProcessId, "utf8")),
+        );
+        await new Promise(setImmediate);
+        await writeFile(identityInspection, "inspect\n");
+        await waitForFile(identityInspected);
+        expect(publicationSettled).toBe(false);
+        await writeFile(releaseIdentity, "release\n");
+        await expect(publication).rejects.toThrow(/Command failed/i);
+        await expect(readFile(stagedShellObserved, "utf8")).resolves.toBe(
+          "retained",
+        );
+        await expect(
+          readFile(path.join(runtimeDir, "scripts", "resolve-bash.mjs")),
+        ).resolves.toEqual(before);
+      } finally {
+        await writeFile(identityInspection, "inspect\n").catch(() => undefined);
+        await writeFile(releaseIdentity, "release\n").catch(() => undefined);
+        await writeFile(releaseResolverFailure, "fail\n").catch(
+          () => undefined,
+        );
+        await publicationOutcome;
+      }
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "reports a staged shell failure before a concurrent resolver failure",
+    async () => {
+      const runtimeDir = path.join(
+        config.library.skillsDir,
+        "devcanon-runtime",
+      );
+      const validated = await validateDevcanonRuntime(runtimeDir, {
+        adapterSourceDir: path.resolve("skills/devcanon-runtime"),
+      });
+      const runtime = path.join(runtimeDir, "scripts", "runtime");
+      const resolverStarted = path.join(tempDir, "resolver-started");
+      const pair = {
+        ...validated.adapterPair,
+        shell: Buffer.from(
+          "#!/usr/bin/env bash\nprintf shell-failure >&2\nexit 31\n",
+        ),
+        resolver: Buffer.from(`import { writeFileSync } from "node:fs";
+writeFileSync(${JSON.stringify(resolverStarted)}, "started");
+console.log(process.execPath);
+`),
+      };
+
+      await expect(
+        reconcileDevcanonRuntimeSource(
+          runtimeDir,
+          await providerFromValidated(runtime, validated),
+          forgedSnapshot(validated, {
+            adapterPair: pair,
+            authoritativeAdapterPair: pair,
+          }),
+        ),
+      ).rejects.toThrow(/shell-failure/);
+      await expect(readFile(resolverStarted, "utf8")).resolves.toBe("started");
+    },
+  );
 });
+
+async function waitForFile(file: string): Promise<void> {
+  const deadline = Date.now() + 1_000;
+  while (Date.now() < deadline) {
+    if (
+      await readFile(file)
+        .then(() => true)
+        .catch(() => false)
+    )
+      return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`timed out waiting for test handshake: ${file}`);
+}
+
+async function waitForProcessExit(processId: number): Promise<void> {
+  const deadline = Date.now() + 1_000;
+  while (Date.now() < deadline) {
+    try {
+      process.kill(processId, 0);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ESRCH") return;
+      throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(
+    `timed out waiting for resolver process ${processId} to exit`,
+  );
+}
 
 function requiredProviderLeaf(
   validated: Awaited<ReturnType<typeof validateProviderBackedRuntime>>,

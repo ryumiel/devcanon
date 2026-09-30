@@ -16,7 +16,16 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import {
   canCreateSymlinks,
   cleanupTempDir,
@@ -88,7 +97,10 @@ const execFileAsync = promisify(execFile);
 async function seedPassiveRuntime(config: ResolvedConfig): Promise<void> {
   const runtimeDir = path.join(config.library.skillsDir, "devcanon-runtime");
   if (!(await pathExists(runtimeDir))) {
-    await copyDevcanonRuntimeFixture(config.library.skillsDir);
+    await cp(runtimeFixtureTemplate, runtimeDir, {
+      recursive: true,
+      verbatimSymlinks: true,
+    });
   }
 }
 
@@ -106,6 +118,10 @@ async function canCreateFifo(): Promise<boolean> {
 }
 
 const fifoAvailable = await canCreateFifo();
+let runtimeFixtureTemplate: string;
+let runtimeFixtureProvider: Awaited<
+  ReturnType<typeof createDevcanonRuntimeProviderFixture>
+>;
 
 type PublicHelperCatalogRow = {
   id: string;
@@ -242,10 +258,29 @@ describe("sync", () => {
     strict = false,
   ) => diffAllWithProvider(comparedConfig, targetFilter, strict, provider);
 
+  beforeAll(async () => {
+    const templateRoot = await createTempDir();
+    runtimeFixtureTemplate = path.join(
+      templateRoot,
+      "skills",
+      "devcanon-runtime",
+    );
+    runtimeFixtureProvider = await copyDevcanonRuntimeFixture(
+      path.join(templateRoot, "skills"),
+    );
+  });
+
   beforeEach(async () => {
     tempDir = await createTempDir();
-    await copyDevcanonRuntimeFixture(path.join(tempDir, "skills"));
-    provider = await createDevcanonRuntimeProviderFixture(tempDir);
+    await cp(
+      runtimeFixtureTemplate,
+      path.join(tempDir, "skills", "devcanon-runtime"),
+      {
+        recursive: true,
+        verbatimSymlinks: true,
+      },
+    );
+    provider = runtimeFixtureProvider;
     const installed = installTestLogger();
     restoreLogger = installed.restore;
     testLogger = installed.testLogger;
@@ -255,6 +290,10 @@ describe("sync", () => {
     symlinkFailure.enabled = false;
     restoreLogger();
     await cleanupTempDir(tempDir);
+  });
+
+  afterAll(async () => {
+    await cleanupTempDir(path.dirname(path.dirname(runtimeFixtureTemplate)));
   });
 
   it("fresh sync installs skills and agents via copy", async () => {

@@ -28,24 +28,20 @@ import {
   runPackageManager,
 } from "../__test-helpers__/npm-pack.js";
 import type { InstallMode, ResolvedConfig } from "../config/schema.js";
+import type { AcceptedProvider } from "../runtime-build/provider.js";
 import { pathExists } from "../utils/fs.js";
 import { sync as syncWithProvider } from "./sync.js";
 import { uninstall } from "./uninstall.js";
 
 const symlinkAvailable = await canCreateSymlinks();
 const executableModeMutable = await canMutateExecutableMode();
+let provider: AcceptedProvider;
 
 async function sync(
   config: ResolvedConfig,
   options: Parameters<typeof syncWithProvider>[1],
 ) {
-  return syncWithProvider(
-    config,
-    options,
-    await providerFromRuntimeFixture(
-      path.join(config.library.skillsDir, "devcanon-runtime"),
-    ),
-  );
+  return syncWithProvider(config, options, provider);
 }
 
 async function copyRuntimeFixture(skillsDir: string): Promise<void> {
@@ -63,6 +59,9 @@ async function prepareRuntimeSyncFixture(
   await mkdir(config.library.agentsDir, { recursive: true });
   await copyRuntimeFixture(config.library.skillsDir);
   await createSkillFixture(config.library.skillsDir, "consumer-skill");
+  provider = await providerFromRuntimeFixture(
+    path.join(config.library.skillsDir, "devcanon-runtime"),
+  );
 }
 
 describe("devcanon-runtime sync", () => {

@@ -4,8 +4,9 @@
 
 ## Repository CLI setup
 
-`pnpm run setup:cli` currently builds DevCanon and globally registers the
-authoritative checkout as `devcanon`. Run it from the checkout root after
+`pnpm run setup:cli` invokes `build:runtime` once, then globally registers the
+authoritative checkout as `devcanon`. That build compiles the CLI and prepares
+its source runtime together. Run it from the checkout root after
 dependencies are installed. It is not a `devcanon` application subcommand and
 does not render or install managed outputs.
 

@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { constants } from "node:fs";
 import {
   cp,
   mkdir,
@@ -33,7 +34,11 @@ async function createIsolatedCheckout(): Promise<string> {
   await cp(
     path.join(repositoryRoot, "node_modules"),
     path.join(checkout, "node_modules"),
-    { recursive: true, verbatimSymlinks: true },
+    {
+      recursive: true,
+      verbatimSymlinks: true,
+      mode: constants.COPYFILE_FICLONE,
+    },
   );
   return checkout;
 }

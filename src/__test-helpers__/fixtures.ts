@@ -102,7 +102,7 @@ export async function createSkillFixture(
 
 export async function copyDevcanonRuntimeFixture(
   skillsDir: string,
-): Promise<void> {
+): Promise<AcceptedProvider> {
   const { validateDevcanonRuntime } = await import(
     "../validate/devcanon-runtime.js"
   );
@@ -146,6 +146,7 @@ export async function copyDevcanonRuntimeFixture(
     adapterSourceDir: DEV_CANON_RUNTIME_SOURCE_DIR,
     provider,
   });
+  return provider;
 }
 
 export async function createDevcanonRuntimeProviderFixture(
