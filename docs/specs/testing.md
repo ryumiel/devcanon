@@ -91,6 +91,20 @@ explicit TSX source-launcher smoke test.
   followed by the exact isolated `devcanon` executable proving `--version` and
   `--help`
 
+Sync integration cases are split across installation/recovery/preflight,
+legacy reconciliation, managed mutation protection, and removal/mode files.
+Vitest isolates those files; cases within each file remain serial because
+logger, working-directory and fault-injection state are process-wide.
+Each file owns an immutable runtime fixture and each case gets fresh writable
+directories. Setup-only installed state may reuse renderer-produced runtime
+bytes when capability profiles and the complete source runtime inventory,
+bytes and permissions match the fixture exactly. Ordinary fixture outputs
+still use their owning renderer. Representative real copy and symlink installs
+prove the arrangement against complete generated/installed layouts and bound
+manifest records, ignoring timestamps only. The sync operation under test
+always uses production validation and persistence; runtime migration and
+initial-install acceptance cases retain real sync setup.
+
 The setup integration test owns observable CLI-registration proof. It uses an
 isolated global location so an operator-global executable cannot satisfy the
 test, and subprocess failures propagate without a repair path. It does not
