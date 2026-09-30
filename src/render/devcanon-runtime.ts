@@ -589,12 +589,24 @@ async function assertStagedRuntime(scriptsDirectory: string): Promise<void> {
     await assertNativeResolverContract(scriptsDirectory);
     return;
   }
+  const [shell, resolver] = await Promise.allSettled([
+    assertStagedShell(scriptsDirectory),
+    assertStagedResolver(scriptsDirectory),
+  ]);
+  if (shell.status === "rejected") throw shell.reason;
+  if (resolver.status === "rejected") throw resolver.reason;
+}
+
+async function assertStagedShell(scriptsDirectory: string): Promise<void> {
   const { stdout } = await promisify(execFile)("bash", [
     path.join(scriptsDirectory, "devcanon-runtime.sh"),
     "runtime",
     "resolve-bash",
   ]);
   await assertBashExecutable(stdout, "staged shell");
+}
+
+async function assertStagedResolver(scriptsDirectory: string): Promise<void> {
   const { stdout: resolverStdout } = await promisify(execFile)(
     process.execPath,
     [path.join(scriptsDirectory, "resolve-bash.mjs")],

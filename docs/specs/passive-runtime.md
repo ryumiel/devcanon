@@ -181,10 +181,13 @@ Only `render` and non-dry `sync` may migrate a recognized pristine legacy pair.
 The compositor stages the version-matched adapter pair together with the
 three-leaf PR-ART-05 copy of the accepted provider and validates their coherent
 composition, including the closed `devcanon-runtime.mjs` entrypoint contract,
-before publishing any staged source content. On POSIX, staging and publication
-preserve the executable state of `devcanon-runtime.sh`. It then publishes the
-two adapters as one version-matched pair and reconciles PR-ART-05 through
-PR-LIFE-11 under the bounded recovery behavior in PR-ADAPT-03.
+before publishing any staged source content. On POSIX, after that bundle gate,
+the shell-adapter and resolver checks run independently and both settle before
+any failure handling, cleanup, or publication; a shell failure retains its
+ordered diagnostic priority. Staging and publication preserve the executable
+state of `devcanon-runtime.sh`. It then publishes the two adapters as one
+version-matched pair and reconciles PR-ART-05 through PR-LIFE-11 under the
+bounded recovery behavior in PR-ADAPT-03.
 
 This transition preserves `config/runtime-config.json` and every unrelated
 library path. It does not remove or reinstall the whole
