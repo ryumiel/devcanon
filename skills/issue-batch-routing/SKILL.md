@@ -102,6 +102,12 @@ Maintain a compact controller-local ledger. The ledger is monitor state, not a
 tracker substitute and not durable source authority. Carry it across monitor
 passes and automation resumes when possible.
 
+Before direct or coordinated creation, establish or recover this existing
+ledger and the complete dispatch tuple. A fresh accepted route may initialize
+current facts from supported evidence. A resumed historical attempt with
+unavailable ledger or replay evidence waits or reports; never reconstruct prior
+keys, digests, approvals, or bindings.
+
 Allowed values: `source_provider: github | linear`. Additional providers
 require an explicit provider boundary.
 
@@ -134,70 +140,53 @@ require an explicit provider boundary.
 | `last_routed_merge_routing_key`                | Merge-ready route key last sent to `pr-merge`.                                                                                                                                     |
 | `last_routed_archival_key`                     | Terminal archival route key last confirmed or sent.                                                                                                                                |
 
-`last_routed_ci_run_check_identifier` is diagnostic only and is not
-authoritative for de-duplication. Replay-sensitive review-response and CI-fix
-deduplication must use the full route-key fields.
-`last_routed_approval_gate_key` records only actual approval routes sent after
-matching approval evidence is present. Report-only waiting state uses
-`last_reported_approval_waiting_key` instead.
+`last_routed_ci_run_check_identifier` is diagnostic, never authoritative for
+de-duplication; replay-sensitive review-response and CI-fix use full keys.
+`last_routed_approval_gate_key` records sent routes with matching approval;
+report-only waiting uses `last_reported_approval_waiting_key`.
 
-Pending host creation is controller-local recovery evidence, not an
-`owner_thread_id`, route-key replacement, schema field, or durable notice. A
-pending result retains its complete requested route key and any provisional host
-identifier only for supported confirmation or discovery. A source refresh,
+Before host creation, retain its original complete route key as controller
+recovery evidence. A pending result adds its provisional host identifier only
+for supported confirmation or discovery. Neither is an `owner_thread_id`,
+route-key replacement, schema field, or durable notice. A source refresh,
 including one with a changed digest, must reconcile that pending creation before
-considering another dispatch and must not erase it or treat the provisional
-identifier as a confirmed owner mapping.
+another dispatch and must not erase it or treat the provisional identifier as a
+confirmed owner mapping.
 
 ## Controller-Held Approved-Route Facts
 
-For receipt validation, the router holds the approved-route facts from the
-controller's approval, validated initial owner-handoff report, and resumed-route
-state: source provider, source issue identifier, owner thread ID, the
-approved route identity, reviewed plan digest, auto-handoff identity, refreshed
-source-issue state snapshot digest, and the current head SHA when a branch or
-PR exists. The auto-handoff identity is
-non-authorizing provenance, not an approval or a receipt-derived authority. The
-router records the initial owner-handoff facts before any receipt only when the
-report comes from the recorded owner thread, matches the current source provider
-and issue, and carries the controller-validated route tuple. The router retains
-the refreshed source-issue state snapshot digest from its own source refresh;
-an owner-handoff cannot initialize or refresh that controller-held fact. A receipt cannot
-initialize, refresh, authenticate, or validate those facts. These are
-controller-local facts, not a new receipt artifact, ledger schema, or
-persistence system.
+For receipt validation, the router holds controller approval, validated initial
+owner-handoff, and resumed-route facts: provider, issue, owner ID, approved
+route identity, reviewed-plan digest, auto-handoff identity, refreshed
+source-state digest, and current head when a branch or PR exists. Auto-handoff
+identity is non-authorizing provenance. Before any receipt, record an initial
+handoff only from the recorded owner, matching current provider/issue, with the
+controller-validated tuple. Only router source refresh supplies the source-state
+digest; an owner handoff cannot initialize or refresh it. A receipt cannot
+initialize, refresh, authenticate, or validate these controller-local facts;
+they are not a receipt artifact, schema, or persistence system.
 
-The existing confirmed owner/host binding also retains the independently proven
-expected repository with its canonical issue and complete route key. Before
-retaining an existing keyed route, deriving
-`current_approved_owner_route_identity`, accepting a receipt, or continuing an
-owner route, compare the current independently proven expected repository to
-that retained binding. Use the existing supported canonical repository identity
-comparison, so equivalent aliases may match. A missing, ambiguous, or
-mismatched current or retained repository waits or reports while retaining the
-original owner, key, and binding, with no receipt effect. Do not replace the
-retained binding from changed input, a checkout, a report, or a receipt.
+The confirmed owner/host binding retains independently proven expected
+repository, canonical issue, and complete key. Before keyed-route retention,
+approved-route derivation, receipt acceptance, or continuation, compare the
+current repository to it with supported canonical identity, allowing equivalent
+aliases. A missing, ambiguous, or mismatched repository waits or reports,
+retaining original owner, key, and binding with no receipt effect. Do not replace
+the binding from changed input, checkout, report, or receipt.
 
-`current_approved_owner_route_identity` is the controller-local deterministic
-identity of the current issue-authority approval binding: source provider,
-source issue identifier, owner thread ID, current issue-authority approval
-identity, reviewed plan digest, auto-handoff identity, refreshed source-issue
-state snapshot digest. The router derives and records it from those
-controller-held facts before accepting a receipt; a change to any component
-creates a new route identity. It is not an opaque value supplied by a
-receipt or owner report. The current issue-authority
-approval identity is the existing complete `last_routed_issue_priming_route_key`
-recorded before or at source-specific issue-priming handoff. An initial
-owner-handoff report may echo that key only for equality comparison; it cannot
-originate it. Missing or mismatched keys fail closed to waiting or manual
-action.
+`current_approved_owner_route_identity` is the controller-derived current
+issue-authority identity: provider, issue, owner ID, issue-authority approval,
+reviewed-plan digest, auto-handoff identity, and refreshed source-state digest.
+Record it before a receipt; changed components create a new identity. It is not
+owner- or receipt-supplied. Its approval identity is the complete
+`last_routed_issue_priming_route_key` recorded before or at source-specific
+handoff. An initial report may echo that key only for equality; it cannot create
+it. Missing or mismatched keys wait or require manual action.
 
 Unknown provider states are reported as waiting rather than coerced into GitHub
 or Linear terminology.
 
 ## Provider And Workflow Boundaries
-
-The batch router coordinates existing workflows; it does not replace them.
 
 - `github-issue-priming` owns GitHub issue fetching, evidence persistence,
   worktree setup, and handoff into `issue-priming-workflow`.
@@ -327,7 +316,8 @@ For each open batch item:
    `owner_thread_id` is still missing, wait, inspect, or report instead of
    routing another source-specific priming entrypoint or owner task. Missing
    route-key evidence fails closed to waiting or manual action. For an eligible
-   initial binding/release only, supply the recorded complete key, canonical provider-prefixed
+   initial binding/release only, supply the recorded complete key, canonical
+   provider-prefixed
    `source_issue_identifier`, independently proven expected repository, and
    host-confirmed owner binding, plus the optional paired checkout candidate
    when present, as non-authorizing controller handoff context to the
@@ -371,8 +361,11 @@ For each open batch item:
    transport one. When the
    recovery facts show that the initial continuation was already sent, continue
    the existing owner lifecycle without another initial release.
-5. Refresh owner-thread state and integrate any owner-thread gate report or
-   validated initial owner-handoff report.
+5. After an initial binding, refresh or wait for supported owner state and
+   integrate its existing validated initial-handoff or gate report. Creation, a
+   worktree, a queued task, or a sent continuation is not readiness. Retain
+   missing or unknown delivery or response evidence; wait or report for
+   reconciliation, not a blind resend or readiness claim.
 6. Refresh current source and PR state. Apply the canonical
    `issue-priming-workflow` genuine-gate classification while preserving the
    router's PR, source-issue, publication, and terminal precedence before any
