@@ -244,8 +244,7 @@ describe("sync", () => {
 
   beforeEach(async () => {
     tempDir = await createTempDir();
-    await copyDevcanonRuntimeFixture(path.join(tempDir, "skills"));
-    provider = await createDevcanonRuntimeProviderFixture(tempDir);
+    provider = await copyDevcanonRuntimeFixture(path.join(tempDir, "skills"));
     const installed = installTestLogger();
     restoreLogger = installed.restore;
     testLogger = installed.testLogger;
