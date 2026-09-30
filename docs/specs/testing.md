@@ -50,6 +50,12 @@ and selections that omit that checker retain Vitest's default behavior.
 
 ## Runtime Preparation
 
+Hosted CI requests Node `24` with `check-latest: false`, allowing
+`setup-node` to select the latest matching patch already in the runner's
+tool cache and download a matching Node 24 release when no cached version
+is available. `setup-node` logs the selected version. Local development
+keeps the exact version in `.nvmrc`.
+
 Standalone `test`, `test:unit`, `test:integration:*`, `test:unit:windows`,
 watch, and coverage commands prepare
 fresh TypeScript and runtime outputs before Vitest. Composite `check` prepares
