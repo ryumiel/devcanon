@@ -8,7 +8,9 @@
 every retained test remains required; documentation-only changes run their
 applicable documentation checks. There is no separate exhaustive, scheduled,
 manual, or main-only test lane. Hosted Ubuntu CI runs the four existing Vitest
-projects as parallel required legs, each with a 75-second runtime budget. The
+projects as parallel required legs, with the unit project split into two
+disjoint Vitest shards. Both shards are required; together they run every unit
+file once. Each Ubuntu leg has a 75-second runtime budget. The
 focused Windows PR-review lane runs its 54 actual lifecycle, lease, manifest,
 and source-immutability behaviors; its Ubuntu unit contract proves that exact
 lane selection. A separate focused Windows setup lane proves native CLI
@@ -35,6 +37,19 @@ discovery, and cleanup behavior. The required end-to-end safety net covers CLI
 registration, copy and symlink sync where supported, runtime bootstrap and
 termination, source-immutability capture/verify/cleanup plus mutation failure,
 and PR-review success with a failure or cleanup path.
+
+---
+
+## Runtime Preparation
+
+Standalone `test`, `test:unit`, `test:integration:*`, `test:unit:windows`,
+watch, and coverage commands prepare
+fresh TypeScript and runtime outputs before Vitest. Composite `check` prepares
+and verifies that output through `check:runtime`, then runs Vitest directly;
+`test:ci:windows` prepares once before its serial unit and integration phases.
+Neither composite rebuilds unchanged output between phases. CI project lanes
+remain independently prepared; sharing artifacts across hosted jobs is not
+required.
 
 ---
 

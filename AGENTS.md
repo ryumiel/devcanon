@@ -109,7 +109,7 @@ pnpm run lint
 # Lint (Markdown)
 pnpm run lint:markdown
 
-# Run all checks (format + lint + test)
+# Run all checks (format + lint + test; runtime prepared once)
 pnpm run check
 ```
 
