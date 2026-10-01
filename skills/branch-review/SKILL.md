@@ -545,9 +545,10 @@ or Contracts hard-rule finding.
 The compliance category does not expand this control-flow exception. An exact
 behavior-preserving compliance correction may use the existing bounded route
 only after its Writing Skills rule, source-violation, authority, and
-preservation proofs pass and the ordinary candidate qualification and hard-stop
-checks pass. A typing-only correction does not itself justify narrow follow-up
-review; apply the shared full-versus-narrow scope policy to the changed head.
+preservation proofs pass and the applicable ordinary or selected candidate
+qualification and hard-stop checks pass. A typing-only correction does not
+itself justify narrow follow-up review; apply the shared full-versus-narrow
+scope policy to the changed head.
 
 The candidate hard-stop check applies this rule after qualification and
 proportionality authorization and again to every resulting unit. A hit halts

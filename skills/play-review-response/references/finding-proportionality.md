@@ -38,5 +38,6 @@ proof and cannot enter through this category.
 - Repair a proof or test defect only at its existing proof owner and without
   expanding production behavior.
 - Apply only the exact authorized behavior-preserving compliance correction
-  after its rule, source, preservation, and verification proofs are established.
+  after its pre-edit eligibility evidence is established; complete the
+  corrected-source rule and verification proofs after editing.
 - Do not mutate for an invalid or speculative finding.

@@ -87,10 +87,8 @@ consumer. For each candidate, retain all of these facts:
 
 - authoritative contract anchor;
 - for a product blocker, reachable production path and meaningful bad outcome;
-- for a compliance candidate, the explicit mandatory rule, concrete
-  current-source violation, exact current authority, and source inspection
-  showing intended behavior and public-contract preservation instead of a
-  manufactured production bad outcome;
+- for a compliance candidate, the shared Writing Skills owner's required
+  category evidence instead of a manufactured production bad outcome;
 - proposed files or modules;
 - new state or lifecycle ownership;
 - behavior changed or disabled;
@@ -117,22 +115,14 @@ classifications and dispositions from the portable policy:
   production correction.
 - A proof or test defect may receive a repair only at its existing proof owner,
   with no production-behavior expansion.
-- An authorized behavior-preserving compliance repair may receive only the
-  exact rule correction after its rule, source, authority, and preservation
-  proofs pass. The D12 context requires before-edit violation evidence and
-  after-edit rule proof, appropriate static analysis or typechecks, relevant
-  existing behavioral tests, changed-head validation, and independent review.
-  A typing-only fix needs no invented runtime failure or automatic narrow
-  review; suppression and unsafe assertions do not qualify.
+- A compliance candidate follows the shared Writing Skills owner's eligibility
+  and withholding rules. If admitted, D12 receives its before-edit evidence
+  and after-edit proof obligations; the changed head requires validation and
+  independent review. Typing-only work does not automatically narrow review.
 - An adjacent independently releasable defect receives a concise
   separate-work non-mutating caller handoff.
 - An invalid or speculative finding receives a concise rejection and no
   mutation.
-
-Disputed rules, uncertain preservation, new interface or dependency decisions,
-widened scope, or crossed approval boundaries stop for owner handoff. Product
-or control-flow changes still require the product-blocker behavioral regression
-proof and cannot be routed as compliance.
 
 Treat the wave as the publication boundary. If any D14/D15 candidate authorizes
 a head-changing fix, keep every same-wave non-mutating handoff provisional and
