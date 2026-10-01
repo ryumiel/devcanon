@@ -491,7 +491,7 @@ the installed sibling
 [`../play-review-response/references/finding-proportionality.md`](../play-review-response/references/finding-proportionality.md).
 Use the current finding evidence, active-diff context, issue-scope evidence,
 and validated prior findings when the existing paired follow-up inputs provide
-them. Apply the guideline's four-way classification and its existing
+them. Apply the guideline's classification and its existing
 dispositions without restating or extending them here. This consumes the
 guideline policy; it creates no new finding field, artifact, classifier, or
 recovery state, and Branch Review does not own that policy. Only candidates the
@@ -541,6 +541,13 @@ interface, dependency, policy, or scope change. Check current authority before
 asking again: control flow alone does not establish missing authority. The
 exception does not apply to Nits, widened or ambiguous work, or either Safety
 or Contracts hard-rule finding.
+
+The compliance category does not expand this control-flow exception. An exact
+behavior-preserving compliance correction may use the existing bounded route
+only after its Writing Skills rule, source-violation, authority, and
+preservation proofs pass and the ordinary candidate qualification and hard-stop
+checks pass. A typing-only correction does not itself justify narrow follow-up
+review; apply the shared full-versus-narrow scope policy to the changed head.
 
 The candidate hard-stop check applies this rule after qualification and
 proportionality authorization and again to every resulting unit. A hit halts

@@ -79,13 +79,18 @@ survives.
 
 After guarded capture → spawn → verify → validate/retain → cleanup → apply and
 before any D12 route, process every guard-verified semantically consumable
-candidate that could otherwise reach D12 through the portable four-way policy.
+candidate that could otherwise reach D12 through the portable Writing Skills
+classification policy.
 Retain a private, transient, same-controller, unnamed, unpersisted bounded
 impact preview. It has no helper, schema, artifact, notice, or independent
 consumer. For each candidate, retain all of these facts:
 
 - authoritative contract anchor;
-- reachable production path and meaningful bad outcome;
+- for a product blocker, reachable production path and meaningful bad outcome;
+- for a compliance candidate, the explicit mandatory rule, concrete
+  current-source violation, exact current authority, and source inspection
+  showing intended behavior and public-contract preservation instead of a
+  manufactured production bad outcome;
 - proposed files or modules;
 - new state or lifecycle ownership;
 - behavior changed or disabled;
@@ -105,17 +110,29 @@ unknown fact plus permitted repository anchors or minimum evidence pointers.
 The detailed impact preview stays controller-local.
 
 Classify every candidate independently and separate dispositions before
-grouping so mixed sets cannot carry unauthorized work. Apply exactly these four
+grouping so mixed sets cannot carry unauthorized work. Apply the
 classifications and dispositions from the portable policy:
 
 - An in-scope product blocker may receive only the smallest authorized
   production correction.
 - A proof or test defect may receive a repair only at its existing proof owner,
   with no production-behavior expansion.
+- An authorized behavior-preserving compliance repair may receive only the
+  exact rule correction after its rule, source, authority, and preservation
+  proofs pass. The D12 context requires before-edit violation evidence and
+  after-edit rule proof, appropriate static analysis or typechecks, relevant
+  existing behavioral tests, changed-head validation, and independent review.
+  A typing-only fix needs no invented runtime failure or automatic narrow
+  review; suppression and unsafe assertions do not qualify.
 - An adjacent independently releasable defect receives a concise
   separate-work non-mutating caller handoff.
 - An invalid or speculative finding receives a concise rejection and no
   mutation.
+
+Disputed rules, uncertain preservation, new interface or dependency decisions,
+widened scope, or crossed approval boundaries stop for owner handoff. Product
+or control-flow changes still require the product-blocker behavioral regression
+proof and cannot be routed as compliance.
 
 Treat the wave as the publication boundary. If any D14/D15 candidate authorizes
 a head-changing fix, keep every same-wave non-mutating handoff provisional and
@@ -130,7 +147,8 @@ severity, validity, technical fixability, grouping, or approval prose alone is
 not mutation authority.
 
 Count a failed round only when a complete guard-verified semantically valid wave
-requires an authorized production or proof correction. Initial implementation
+requires an authorized production, compliance, or proof correction. Initial
+implementation
 and unavailable, malformed, verification-rejected, mutation-detected,
 cleanup-failed, or non-mutating-only waves do not consume this budget and keep
 their existing terminal handling. The existing current-episode fixup count `0`,

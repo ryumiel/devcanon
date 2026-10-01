@@ -859,6 +859,15 @@ candidate requires validation, a frozen current head, and independent review
 before another repair qualification or approval. Findings and `--fix` never
 create implementation authority.
 
+An exact authorized behavior-preserving compliance correction may enter this
+same bounded route under the [Writing Skills review and mutation
+policy](../guidelines/writing-skills.md#review-and-mutation-routing). Its
+mandatory-rule, current-source violation, exact authority, and preservation
+proofs replace a product blocker's runtime bad-outcome proof; product and
+control-flow changes still require the existing behavioral regression proof.
+The ordinary/selected verification split, hard stops, failed-round limits,
+changed-head validation, independent review, and approval gates still apply.
+
 ## Acceptance Criteria
 
 - Natural-language batch management selects coordination; explicit router calls

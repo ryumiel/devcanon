@@ -446,11 +446,29 @@ as one of:
 
 1. an in-scope product blocker;
 2. an adjacent independently releasable defect;
-3. a proof or test defect; or
-4. invalid or speculative.
+3. a proof or test defect;
+4. an authorized behavior-preserving compliance repair; or
+5. invalid or speculative.
 
-Blocking scope requires a reachable production path, an authoritative contract
-violation, a meaningful bad outcome, and a minimal behavioral regression.
+Product-blocker scope requires a reachable production path, an authoritative
+contract violation, a meaningful bad outcome, and a minimal behavioral
+regression.
+An authorized behavior-preserving compliance repair instead requires all of:
+a current explicit mandatory repository rule; a concrete violation in current
+source; existing current authority for the exact bounded correction; and
+source inspection demonstrating that the correction preserves intended behavior
+and public contracts. Record the rule and violating source before mutation.
+After the edit, prove the corrected source satisfies the rule, run appropriate
+static analysis or typechecks and relevant existing behavioral tests, and
+validate and independently review the changed head. A typing-only correction
+need not manufacture a failing runtime test, but it must not suppress the rule
+or use an unsafe assertion to appear compliant. Preference, inferred style,
+severity, critic validity, or technical fixability alone cannot qualify it.
+If the rule is disputed, preservation uncertain, a new interface or dependency
+decision needed, scope widened, or an approval boundary crossed, stop and hand
+off under the existing owner. A correction that changes product or control-flow
+behavior remains subject to the product-blocker regression proof; the
+compliance category cannot bypass it.
 Severity alone does not expand scope. Route adjacent defects independently;
 repair proof or test defects without expanding production scope; do not mutate
 for invalid or speculative findings.

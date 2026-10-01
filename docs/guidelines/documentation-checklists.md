@@ -151,8 +151,9 @@ the complete allocation and admissibility rule. During review or gardening:
   packaging, and canonical references) instead of duplicating runtime failure
   cases?
 - Before mutation, has a broad or adversarial finding been classified as an
-  in-scope blocker, adjacent releasable defect, proof/test defect, or
-  invalid/speculative finding?
+  in-scope blocker, adjacent releasable defect, proof/test defect, authorized
+  behavior-preserving compliance repair, or invalid/speculative finding under
+  [Writing Skills](writing-skills.md#review-and-mutation-routing)?
 
 ## Change Review Checklist
 

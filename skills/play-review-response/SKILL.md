@@ -166,9 +166,10 @@ Before choosing inline or planned implementation, load the bundled
 [`references/finding-proportionality.md`](references/finding-proportionality.md).
 Writing Skills remains the classification owner; this runtime copy is its
 portable installed representation and does not add policy here. Only an
-in-scope product blocker, or a proof/test correction at its existing proof
-owner, reaches mode selection through the existing bounded route. Proof/test
-corrections remain proof/test-only and cannot expand production behavior. Every
+in-scope product blocker, a proof/test correction at its existing proof owner,
+or an authorized behavior-preserving compliance repair reaches mode selection
+through the existing bounded route. Proof/test corrections remain
+proof/test-only and cannot expand production behavior. Every
 other classification disposition bypasses inline/planned implementation
 selection and retains its existing no-code disposition or independent route.
 
