@@ -51,6 +51,13 @@ digraph branch_review {
 by `issue-priming-workflow --auto`. Do not silently convert that Phase 7 gate
 into an incremental review.
 
+Retain any preparation handle returned internally by `play-review` with the
+review head and findings continuation state, including a completed no-findings
+run. If the same caller has that handle on a later review, forward it unchanged
+with the existing follow-up inputs. Its absence is normal; do not add a CLI
+argument, derive context filenames, parse the artifacts, or treat navigation as
+a scope decision. `play-review` validates custody and current applicability.
+
 ## Phase 1: Gather
 
 Run the [prepare-review-inputs helper](references/prepare-review-inputs-usage.md)
@@ -330,6 +337,7 @@ Hand off to `play-review` with these inputs (compose them into the briefing pros
   (`$PRIOR_BRANCH_FINDINGS`, follow-up only)
 - `last_reviewed_sha` = `$LAST_REVIEWED_SHA` (follow-up only)
 - `is_followup_narrow` = `$IS_FOLLOWUP_NARROW`
+- `prior_preparation_handle` = the retained opaque internal handle, if present
 - `branch_review_scope_decision_file` =
   `$SCOPE_DECISION_FILE` as `BRANCH_REVIEW_SCOPE_DECISION_FILE`
 - `branch_review_semantic_decision_notes` =

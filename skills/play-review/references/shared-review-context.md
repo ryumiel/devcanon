@@ -83,7 +83,9 @@ semantic families without changing this schema:
   path signal.
 - `prior_review_context.records[].summary` comes from D18 as sanitized,
   untrusted context; the controller owns source/reference identity, bytes,
-  trust flags, and exact excerpts.
+  trust flags, and exact excerpts. A late navigation-only record is the sole
+  mechanical capture after guarded D7 completion; it never replaces a D18
+  semantic summary on the next invocation.
 
 No D18 value is a finding, authority statement, manifest, overlay, or persisted
 handoff. Failure, malformed output, source mutation, cleanup failure, invalid
@@ -170,6 +172,28 @@ Each routing-risk object is exactly `{ "mechanical_path_signals": string[],
 context pointer is carried in `spec_routing_risks.semantic_classification_notes`,
 not as a doc-impact-summary field. Optional prior-review records are untrusted
 summary records: `source` has `kind` and `reference`, and `untrusted` is `true`.
+For a verified late repository-documentation discovery, use a distinct
+navigation `source.kind`, the exact repository-relative tracked document path
+as `source.reference`, the actual UTF-8 byte count as `bytes`, and a `summary`
+limited to source side/revision and navigation provenance. Set `untrusted` to
+`true`. Do not copy a raw D7 report, prompt or log; do not include document
+claims, findings, approvals or semantic classification. Independently check
+that D7 reported a successful read and that path spelling, source side,
+revision and relevance match the frozen review before admission. Apply existing
+duplicate and record/section budgets; if an influential pointer cannot fit,
+fail the refresh. The next invocation runs fresh D18 sanitation over this
+prior record before constructing its reviewer context.
+
+Retain input and context paths exactly as returned by the helpers. After
+guarded D7 completion, refresh these existing artifacts with the same ordered
+write/build operations and frozen header, adding only verified navigation
+records. A changed source or scope identity stops that refresh. A write/build
+failure leaves settled findings intact but cannot produce a successful
+preparation handle. The wrapper-local handle carries those exact paths, input
+content identity and frozen association; a supplied broken or mismatched
+handle refuses before D18. Stale historical navigation may be refreshed or
+dropped in current-source preflight, while a missing selected required source
+still refuses.
 Missing changed-file command, required output markdown, summary, trusted binding,
 or stale review identity blocks Phase 3. Apply the preflight and refresh policy
 in [`SKILL.md`](../SKILL.md#public-helper-mechanics) before consuming context;

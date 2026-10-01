@@ -612,6 +612,8 @@ Hand off to `play-review` with these manifest-backed inputs:
 - `prior_threads` = parsed from the `{{tool:github-cli}} api .../comments` and `.../reviews` responses (follow-up only)
 - `last_reviewed_sha` = set in Phase 1 (follow-up only)
 - `is_followup_narrow` = computed in Phase 3
+- `prior_preparation_handle` = the retained opaque internal handle from an
+  earlier run in this caller, if present
 
 Follow `skills/play-review/SKILL.md` end-to-end. Before that semantic stage,
 validate prepared paths and their current base/head/worktree bindings; changed
@@ -621,7 +623,16 @@ shared review context is internal `play-review` phase scaffolding, not a
 review-context file in this wrapper. `pr-review` remains compatible when
 `play-review` changes only its bounded shared-context prose or helper internals
 and preserves the findings notice, findings envelope, and Phase 4 output
-contract. The output is a markdown document with optional pre-findings
+contract.
+
+Retain a returned preparation handle with the review head and findings
+continuation state, including a completed no-findings review. Forward it
+unchanged when the same caller performs a fresh follow-up. No retained handle
+is normal. It is not a provider artifact, public notice, payload, approval
+evidence or new follow-up parameter; `play-review` alone validates and consumes
+it. Do not derive an artifact path or use its contents for scope selection.
+
+The output is a markdown document with optional pre-findings
 presentation such as `## Root-Cause Synthesis`, followed by `## Findings` and
 (follow-up only) `## Carry-forward` sections. Immediately after `play-review`
 returns and before the Phase 5 user gate, capture the immutable review head and

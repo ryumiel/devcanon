@@ -41,9 +41,32 @@ ADR or other selected current-source reference from readability checks. Compare
 declared head, base, worktree, authority, and content identity with the frozen
 review identity, applicable source side, and policy. A missing, malformed, or
 mismatched supplied candidate ADR or source reference stops before semantic
-dispatch. Absent optional or unselected inputs do not fail preflight.
-The `*-review-context-input.json` manifest and `*-review-context.md` are future
-Phase 2.5 outputs, so they are not pre-D18 inputs. The required order is:
+dispatch. Absent optional or unselected inputs do not fail preflight. A supplied
+opaque prior preparation handle is an existing artifact input: require its
+original helper-returned input and context paths, retained input content
+identity, and frozen repository/root/base/head and active/full range association.
+Validate both readable regular artifacts, including that the context renders
+from the exact retained input. Compare the input header/content with the prior
+frozen association and wrapper-proven current repository before D18.
+Missing, malformed, swapped, or wrong-repository/head evidence refuses; never
+derive a sibling filename or reconstruct missing evidence. No handle on an
+initial or legacy invocation is normal preparation.
+
+For a validated prior handle, inspect its navigation records as historical
+optional candidates. Resolve each against the current applicable source side,
+exact tracked spelling/content, working-tree state and selected scope. Carry an
+unchanged relevant path with original provenance; refresh a moved, deleted,
+out-of-scope or source-side-changed path through the current index or bounded
+tracked discovery, or drop it. Missing optional navigation alone does not fail.
+A separately selected required source that is missing still refuses. Changed
+base/ranges, policy or authority, dirty source, or uncertain semantic impact
+refreshes affected or broader preparation; scope uncertainty returns to the
+wrapper. Freeze the accepted candidates before the current invocation's D18;
+never reuse the previous D18 semantic result.
+
+The current invocation's `*-review-context-input.json` manifest and
+`*-review-context.md` are future Phase 2.5 outputs, not pre-D18 inputs. The
+required order is:
 preflight existing supplied inputs; verify, validate, and clean D18; use the
 shared-context helper to write the manifest and build the context; validate the
 resulting artifacts; then dispatch D7.
@@ -98,7 +121,8 @@ selecting a default.
   `language_hints` derived from the active range.
 - Follow-up: `prior_threads` (`{file, line, body, author, status}` records),
   `prior_branch_findings` (validated findings/v3 path), `last_reviewed_sha`,
-  and `is_followup_narrow`. The wrapper must run `validate-findings` before
+  `is_followup_narrow`, and, when retained by the caller, the opaque prior
+  preparation handle. The wrapper must run `validate-findings` before
   supplying branch findings; they are local evidence, not GitHub threads.
 - Branch-review context: `branch_review_scope_decision_file` and
   `branch_review_semantic_decision_notes`, including any sanitized
@@ -130,6 +154,14 @@ This notice is the only structured surface in conversation. Consumers parse the
 path from this line; `branch-review`, `pr-review`, and
 `issue-priming-workflow` all rely on its exact form. Do not reword it.
 
+For its invoking wrapper's local continuation state, also retain an opaque
+preparation handle after successful context construction or refresh. It binds
+the exact helper-returned input and context paths, input content identity, and
+frozen repository/root/base/head/active/full range association. This internal
+custody is not a public notice, findings field, CLI argument, or approval token.
+The wrapper may forward it unchanged on a later review; `play-review` alone
+validates and consumes it.
+
 Use `references/findings-envelope-contract.md` for validation and publication,
 including `carry_forward[]` and derived nits. Consumers fail closed before
 opening, replacing, or posting evidence.
@@ -152,6 +184,14 @@ validates record mechanics; D18 reads and summarizes the needed sources.
 
 No guidelines found? Proceed with agents' built-in knowledge and note it in the
 report.
+
+For relevant repository documentation whose location is unknown, consult an
+available repository-owned navigation index or make a bounded tracked-file
+discovery in the selected scope before assuming a conventional path. Do not
+require a particular index name or enumerate all documentation eagerly.
+Support references and execution artifacts are distinct from repository
+documentation. Discovery supplies navigation only; it neither widens the
+wrapper-selected review nor changes mutation or approval authority.
 
 For governance/workflow policy, use `docs/guidelines/documentation-checklists.md`'s Adjacent Governance Policy Set; for generated artifacts, derived artifacts, helper I/O files, `.ephemeral` handoffs, cross-skill handoffs, or side-channel data consumed by another actor, apply the Side-Channel Artifact Contract Checklist in `docs/guidelines/documentation-checklists.md`. Concrete helper contracts remain owned by the changed source skill, script, runtime helper, ADR, or test. Do not load the ADR corpus by default; include ADR references only when their procedure, format, or claims are adjacent governance.
 
@@ -321,6 +361,20 @@ applied independently per guarded route with no `--handoff`, is:
 5. **cleanup the exact retained baseline**.
 6. **apply only after cleanup**: accept completed findings or verifier verdicts;
    preserve diagnostic evidence and incompleteness otherwise.
+
+After a successfully verified and cleaned D7 terminal result, inspect only
+repository-documentation references D7 reports as successfully read. For each
+relevant candidate, independently check its exact repository-relative tracked
+spelling, applicable source side and revision, selected scope, and read evidence
+against the frozen review. Capture only mechanically verified navigation under
+`prior_review_context.records` as specified in the shared-context reference;
+do not infer semantic claims from D7 prose or replace any accepted D18 field.
+Check the frozen source/scope identity again, then use the existing ordered
+shared-context operations with the original helper-returned paths to refresh
+the input and rendered context. Preserve their exact returned paths. A failed
+write/build cannot advertise retained preparation: keep settled findings
+separately and report the preparation failure. This capture adds no agent or
+review stage and does not run on rejected or incomplete D7 output.
 
 The no-handoff helper calls, with a distinct retained baseline per route, are:
 

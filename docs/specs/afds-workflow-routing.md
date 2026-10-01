@@ -701,6 +701,23 @@ refresh; `branch-review` and `pr-review` retain fix-scope decisions and broaden
 review whenever impact cannot be bounded. D7 remains comprehensive and D10
 retains its existing triggers and failure rules.
 
+For review follow-up, `play-review` may retain relevant repository-documentation
+paths that D7 independently found and successfully read after initial context
+preparation. The controller verifies exact tracked spelling, source side,
+revision, scope and read evidence after guarded D7 completion, then refreshes
+the existing bounded prior-context artifact using its original helper-returned
+paths. Records contain only untrusted navigation provenance, not claims or
+approval. The invoking branch or PR wrapper retains and forwards the exact
+internal preparation handle when available; absence invokes ordinary discovery.
+A supplied missing or mismatched handle stops before semantic dispatch. Fresh
+D18 sanitizes retained records for the new review, and D7 rereads relevant
+authoritative source. Historical optional paths that move, disappear, change
+source side or leave scope are refreshed through current navigation or dropped;
+missing selected required source still refuses. Repository documentation
+discovery uses an available index or bounded tracked search without assuming a
+fixed index name or widening the selected review range. This does not add a
+public artifact, stage, schema or notice.
+
 ### PLAN-004: Preserved boundaries
 
 Model/effort bindings, D14–D16, source protection, lifecycle cleanup, exact-digest
