@@ -731,8 +731,10 @@ Planning review contract: planning-review/combined-v1
 ```
 
 For `--auto`, return those values to the parent only after that combined PASS.
-For `Route: review-response-parent-owned`, the parent separately obtains user
-approval of these exact bytes and rehashes before executor handoff. Direct
+For `Route: review-response-parent-owned`, the parent separately decides
+approval satisfaction for these exact bytes under its Plan Approval Gate and
+rehashes before executor handoff. Planning review does not grant implementation
+authority. Direct
 unreviewed execution retains its existing FULL structural route but cannot
 claim combined assurance. Pass reviewed consumers all three literal values:
 
@@ -750,7 +752,7 @@ the contract tag, and the current exact plan bytes before using them.
 
 For `--auto`, return the three captured values to the parent after the complete
 combined PASS. For `Route: review-response-parent-owned`, return those same
-values to the parent for its separate user-approval gate. Neither route offers
+values to the parent for its separate approval-satisfaction gate. Neither route offers
 an execution choice here.
 
 For every other explicit planning invocation, offer this execution choice after

@@ -181,10 +181,14 @@ Direct unreviewed executor input retains its existing FULL structural route,
 without claiming combined assurance or mechanical eligibility from this tag.
 
 `review-response-parent-owned` requires the same current combined evidence
-before presenting the plan for explicit user approval. Preserve that separate
-approval for the exact reviewed digest and rehash immediately before execution.
-Any changed bytes require review within budget and renewed user approval; the
-human approval loop has no automatic cycle-reset effect. Preserve mechanical
+before the parent applies its separate Plan Approval Gate to the exact reviewed
+digest. The producer supplies reviewed bytes and provenance; it does not decide
+whether explicit current-session authority already satisfies that gate for an
+eligible behavior-preserving compliance correction covering the entire plan.
+The parent owns that limited decision and rehashes immediately before execution.
+Any changed bytes require review within budget and a new parent authority
+assessment; prior approval cannot cover new bytes, and the human approval loop
+has no automatic cycle-reset effect. Preserve mechanical
 execution's independent eligibility/guardrails and D14–D16. All producer and
 consumer changes must activate together; no intermediate one-PASS/two-PASS mix
 is supported.
