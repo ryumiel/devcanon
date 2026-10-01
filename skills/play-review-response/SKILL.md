@@ -329,9 +329,9 @@ authorization satisfies this gate without a repeated approval request only for
 an eligible plan containing only behavior-preserving compliance corrections
 when it covers **every** correction in that plan, every affected file, the full
 scope, and all proof obligations. First establish the mandatory rule,
-current-source violation,
-exact authority, and preservation proof required by the [Writing Skills review
-and mutation policy](../../docs/guidelines/writing-skills.md#review-and-mutation-routing).
+current-source violation, exact authority, and preservation proof required by
+Writing Skills and carried in the bundled
+[finding-proportionality reference](references/finding-proportionality.md).
 Retain the authority source and its whole-plan coverage assessment with the
 plan path, exact reviewed digest, contract tag, and current combined producer
 provenance in controller-local state. A finding, severity, classification,
