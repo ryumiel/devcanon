@@ -866,12 +866,17 @@ candidate requires validation, a frozen current head, and independent review
 before another repair qualification or approval. Findings and `--fix` never
 create implementation authority.
 
-An exact authorized behavior-preserving compliance correction may enter this
-same bounded route under the [Writing Skills review and mutation
-policy](../guidelines/writing-skills.md#review-and-mutation-routing). Its
-mandatory-rule, current-source violation, exact authority, and preservation
-proofs replace a product blocker's runtime bad-outcome proof; product and
-control-flow changes still require the existing behavioral regression proof.
+Under the [Writing Skills review and mutation
+policy](../guidelines/writing-skills.md#review-and-mutation-routing), a
+behavior-preserving compliance candidate is classified from mandatory-rule,
+current-source violation, and preservation evidence independently of repair
+authority. Known missing exact authority retains that classification, withholds
+mutation, and requires an explicit existing owner or approval handoff; uncertain
+authority retains it and follows the existing fail-closed route. Only an
+otherwise qualified candidate with exact current authority may enter this same
+bounded route. Its rule, violation, and preservation evidence replace a product
+blocker's runtime bad-outcome proof; product and control-flow changes still
+require the existing behavioral regression proof.
 The ordinary/selected verification split, hard stops, failed-round limits,
 changed-head validation, independent review, and approval gates still apply.
 When this correction is planned review-response work, the parent applies the

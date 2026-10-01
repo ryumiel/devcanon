@@ -150,10 +150,12 @@ the complete allocation and admissibility rule. During review or gardening:
 - Is installed coverage limited to concise composition (presence, parseability,
   packaging, and canonical references) instead of duplicating runtime failure
   cases?
-- Before mutation, has a broad or adversarial finding been classified as an
-  in-scope blocker, adjacent releasable defect, proof/test defect, authorized
-  behavior-preserving compliance repair, or invalid/speculative finding under
-  [Writing Skills](writing-skills.md#review-and-mutation-routing)?
+- Has a broad or adversarial finding been classified as an in-scope blocker,
+  adjacent releasable defect, proof/test defect, behavior-preserving compliance
+  candidate, or invalid/speculative finding under
+  [Writing Skills](writing-skills.md#review-and-mutation-routing), independently
+  of exact current mutation authority? Before mutation, has that authority and
+  every applicable repair gate been established separately?
 
 ## Change Review Checklist
 

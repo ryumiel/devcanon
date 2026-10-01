@@ -447,28 +447,37 @@ as one of:
 1. an in-scope product blocker;
 2. an adjacent independently releasable defect;
 3. a proof or test defect;
-4. an authorized behavior-preserving compliance repair; or
+4. a behavior-preserving compliance candidate; or
 5. invalid or speculative.
 
 Product-blocker scope requires a reachable production path, an authoritative
 contract violation, a meaningful bad outcome, and a minimal behavioral
 regression.
-An authorized behavior-preserving compliance repair instead requires all of:
-a current explicit mandatory repository rule; a concrete violation in current
-source; existing current authority for the exact bounded correction; and
-source inspection demonstrating that the correction preserves intended behavior
-and public contracts. Record the rule and violating source before mutation.
-After the edit, prove the corrected source satisfies the rule, run appropriate
-static analysis or typechecks and relevant existing behavioral tests, and
-validate and independently review the changed head. A typing-only correction
-need not manufacture a failing runtime test, but it must not suppress the rule
-or use an unsafe assertion to appear compliant. Preference, inferred style,
-severity, critic validity, or technical fixability alone cannot qualify it.
-If the rule is disputed, preservation uncertain, a new interface or dependency
-decision needed, scope widened, or an approval boundary crossed, stop and hand
-off under the existing owner. A correction that changes product or control-flow
-behavior remains subject to the product-blocker regression proof; the
-compliance category cannot bypass it.
+A behavior-preserving compliance candidate instead requires all of: a current
+explicit mandatory repository rule; a concrete violation in current source; and
+source inspection demonstrating that the bounded correction preserves intended
+behavior and public contracts. Classify from those facts independently of
+permission to repair. Record the rule, violating source, and preservation
+evidence before mutation. Preference, inferred style, severity, critic
+validity, or technical fixability alone cannot qualify the candidate.
+
+Establish current authority for the exact bounded correction separately before
+selecting mutation. Only a candidate with that authority and every other
+applicable qualification may enter the existing bounded repair route. If exact
+authority is known to be missing, retain the compliance candidate
+classification, withhold mutation, and hand off explicitly to the existing
+owner or approval gate. If authority is uncertain, retain the classification,
+withhold mutation, and establish the missing evidence or decision under the
+existing bounded fail-closed route. A disputed rule, uncertain preservation,
+new interface or dependency decision, widened scope, or crossed approval
+boundary also stops for the existing owner; classification grants no permission.
+After an authorized edit, prove the corrected source satisfies the rule, run
+appropriate static analysis or typechecks and relevant existing behavioral
+tests, and validate and independently review the changed head. A typing-only
+correction need not manufacture a failing runtime test, but it must not suppress
+the rule or use an unsafe assertion to appear compliant. A correction that
+changes product or control-flow behavior remains subject to the product-blocker
+regression proof; the compliance category cannot bypass it.
 Severity alone does not expand scope. Route adjacent defects independently;
 repair proof or test defects without expanding production scope; do not mutate
 for invalid or speculative findings.

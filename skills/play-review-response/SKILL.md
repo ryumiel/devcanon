@@ -33,13 +33,13 @@ WHEN receiving code review feedback:
 3. VERIFY: Check against codebase reality
 4. EVALUATE: Technically sound for THIS codebase?
 5. RESPOND: Technical acknowledgment or reasoned pushback
-6. EXECUTE: Only after the earlier classification and selected execution mode
-   authorize it; work one item at a time and test each
+6. EXECUTE: Only after classification, exact current mutation authority, and
+   the selected execution mode permit it; work one item at a time and test each
 ```
 
 **Execution boundary:** Every instruction below to implement, fix, or execute
-assumes the earlier Writing Skills classification and selected execution mode
-have already authorized it.
+assumes Writing Skills classification, separately established exact current
+authority, and the selected execution mode permit it.
 
 ## Forbidden Responses
 
@@ -165,13 +165,18 @@ explanation-only, or unclear feedback before selecting a mode.
 Before choosing inline or planned implementation, load the bundled
 [`references/finding-proportionality.md`](references/finding-proportionality.md).
 Writing Skills remains the classification owner; this runtime copy is its
-portable installed representation and does not add policy here. Only an
-in-scope product blocker, a proof/test correction at its existing proof owner,
-or an authorized behavior-preserving compliance repair reaches mode selection
-through the existing bounded route. Proof/test corrections remain
-proof/test-only and cannot expand production behavior. Every
-other classification disposition bypasses inline/planned implementation
-selection and retains its existing no-code disposition or independent route.
+portable installed representation and does not add policy here. Classify a
+behavior-preserving compliance candidate from rule, violation, and preservation
+evidence before assessing its exact current repair authority. Only an in-scope
+product blocker, a proof/test correction at its existing proof owner, or an
+otherwise qualified compliance candidate with exact current authority reaches
+inline/planned implementation selection through the existing bounded route.
+Known missing authority retains the candidate classification, withholds
+mutation, and requires an explicit existing owner or approval handoff; uncertain
+authority retains the classification and uses the existing fail-closed route to
+establish the missing evidence or decision. Proof/test corrections remain
+proof/test-only and cannot expand production behavior. Other non-mutating
+dispositions bypass implementation selection or use their independent route.
 
 Implementation selections:
 
@@ -326,20 +331,24 @@ without invoking `play-brainstorm` and without making it a dependency of
 Before handing the generated plan to `play-subagent-execution`, assess approval
 satisfaction against the exact reviewed plan. Explicit current-session user
 authorization satisfies this gate without a repeated approval request only for
-an eligible plan containing only behavior-preserving compliance corrections
-when it covers **every** correction in that plan, every affected file, the full
+an eligible plan containing only otherwise qualified behavior-preserving
+compliance corrections when it covers **every** correction in that plan, every
+affected file, the full
 scope, and all proof obligations. First establish the mandatory rule,
-current-source violation, exact authority, and preservation proof required by
-Writing Skills and carried in the bundled
+current-source violation, and preservation evidence that classify each
+compliance candidate under Writing Skills and the bundled
 [finding-proportionality reference](references/finding-proportionality.md).
+Assess exact current authority separately for every planned mutation.
 Retain the authority source and its whole-plan coverage assessment with the
 plan path, exact reviewed digest, contract tag, and current combined producer
 provenance in controller-local state. A finding, severity, classification,
 reviewer tag, or planning PASS does not create implementation authority.
 
 For all other planned review-response work, request explicit user approval of
-the reviewed plan. Missing, partial, or ambiguous authority also requires that
-approval or the existing owning handoff. Behavior, control-flow or public
+the reviewed plan. Known missing authority withholds mutation and requires an
+explicit existing owner or approval handoff; uncertain, partial, or ambiguous
+coverage also withholds mutation until the existing approval or decision-owner
+route resolves it. Behavior, control-flow or public
 contract changes, a new interface or dependency, widened scope, or a crossed
 approval boundary cannot use the compliance exception; stop at the existing
 approval or decision-owner handoff. When approval is required, present the plan

@@ -491,8 +491,13 @@ the installed sibling
 [`../play-review-response/references/finding-proportionality.md`](../play-review-response/references/finding-proportionality.md).
 Use the current finding evidence, active-diff context, issue-scope evidence,
 and validated prior findings when the existing paired follow-up inputs provide
-them. Apply the guideline's classification and its existing
-dispositions without restating or extending them here. This consumes the
+them. Classify compliance candidates from rule, violation, and preservation
+evidence independently of repair authority. Establish exact current authority
+separately before grouping, fix-unit construction, or mutation; known missing
+authority retains the candidate class but withholds mutation for an explicit
+existing owner or approval handoff, while uncertain authority retains the class
+and follows the existing fail-closed route. Apply the guideline's classification
+and its existing dispositions without extending them here. This consumes the
 guideline policy; it creates no new finding field, artifact, classifier, or
 recovery state, and Branch Review does not own that policy. Only candidates the
 guideline routes to existing bounded remediation may continue; every other
@@ -542,11 +547,12 @@ asking again: control flow alone does not establish missing authority. The
 exception does not apply to Nits, widened or ambiguous work, or either Safety
 or Contracts hard-rule finding.
 
-The compliance category does not expand this control-flow exception. An exact
-behavior-preserving compliance correction may use the existing bounded route
-only after its Writing Skills rule, source-violation, authority, and
-preservation proofs pass and the applicable ordinary or selected candidate
-qualification and hard-stop checks pass. A typing-only correction does not
+The compliance category does not expand this control-flow exception. A
+behavior-preserving compliance candidate may use the existing bounded route
+only after its Writing Skills rule, source-violation, and preservation evidence
+establish eligibility, exact current repair authority is established separately,
+and the applicable ordinary or selected candidate qualification and hard-stop
+checks pass. A typing-only correction does not
 itself justify narrow follow-up review; apply the shared full-versus-narrow
 scope policy to the changed head.
 

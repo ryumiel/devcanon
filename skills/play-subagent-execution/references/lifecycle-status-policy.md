@@ -115,10 +115,15 @@ classifications and dispositions from the portable policy:
   production correction.
 - A proof or test defect may receive a repair only at its existing proof owner,
   with no production-behavior expansion.
-- A compliance candidate follows the shared Writing Skills owner's eligibility
-  and withholding rules. If admitted, D12 receives its before-edit evidence
-  and after-edit proof obligations; the changed head requires validation and
-  independent review. Typing-only work does not automatically narrow review.
+- A compliance candidate is classified from the shared Writing Skills owner's
+  rule, violation, and preservation evidence independently of exact repair
+  authority. Establish that authority separately before D12. Known missing
+  authority retains the class, withholds D12, and produces an explicit existing
+  owner or approval handoff; uncertain authority retains the class and uses the
+  existing `BLOCKED` clarification route. Only an otherwise qualified candidate
+  with exact authority may reach D12 with before-edit evidence and after-edit
+  proof obligations; the changed head requires validation and independent
+  review. Typing-only work does not automatically narrow review.
 - An adjacent independently releasable defect receives a concise
   separate-work non-mutating caller handoff.
 - An invalid or speculative finding receives a concise rejection and no

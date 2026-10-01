@@ -18,11 +18,12 @@ change source. The repair path must retain current evidence, exact scope,
 proportionality, hard stops, bounded recurrence, fresh validation, and
 independent review before approval.
 
-A behavior-preserving compliance correction has a different proof target from
-a product blocker: the owner must establish an applicable mandatory rule, a
-current-source violation, exact implementation authority, and preservation of
-existing behavior. When review response uses a generated implementation plan,
-independent planning review proves the plan's correctness and executability;
+A behavior-preserving compliance candidate has a different proof target from
+a product blocker: the owner establishes an applicable mandatory rule, a
+current-source violation, and preservation of existing behavior independently
+of implementation authority. Exact authority for the correction is a separate
+requirement before repair. When review response uses a generated implementation
+plan, independent planning review proves its correctness and executability;
 it does not create implementation authority. Requiring a second approval solely
 because that plan was generated would disregard explicit current authorization
 that already covers its exact correction.
@@ -48,6 +49,13 @@ Each repair changes the candidate. Applicable validation, a frozen new head,
 and independent review are required before another qualification or final
 approval. Existing evidence schemas, notices, custody rules, and both target
 renderings remain unchanged.
+
+Classifying a compliance candidate does not authorize its correction. Known
+missing exact authority retains the classification and withholds mutation for
+an explicit existing owner or approval handoff; uncertain authority retains
+the classification and follows the existing fail-closed route until resolved.
+Only an otherwise qualified candidate with current exact authority may enter
+the bounded repair route and its applicable proof and review gates.
 
 For an eligible behavior-preserving compliance repair in planned review
 response, the parent may satisfy its separate plan approval gate using explicit
