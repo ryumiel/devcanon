@@ -3,7 +3,11 @@ import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { cleanupTempDir, createTempDir } from "../__test-helpers__/fixtures.js";
+import {
+  SHIPPED_CAPABILITY_PROFILES,
+  cleanupTempDir,
+  createTempDir,
+} from "../__test-helpers__/fixtures.js";
 
 const execFileAsync = promisify(execFile);
 const runtimeScript = path.resolve(
@@ -91,7 +95,7 @@ describe("devcanon-runtime typed entrypoint", () => {
         "capabilityProfiles.balanced.codex",
       ]);
       expect(JSON.parse(result.stdout)).toMatchObject({
-        value: "gpt-6-sol",
+        value: SHIPPED_CAPABILITY_PROFILES.balanced.codex,
       });
       await writeFile(
         path.join(copied, "config", "runtime-config.json"),

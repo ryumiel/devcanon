@@ -15,6 +15,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import {
+  SHIPPED_CAPABILITY_PROFILES,
   cleanupTempDir,
   copyDevcanonRuntimeFixture,
   createConfigFile,
@@ -620,7 +621,7 @@ describe("CLI entrypoint", () => {
       expect(JSON.parse(result.stdout)).toMatchObject({
         source: "bundled",
         key: "capabilityProfiles.balanced.codex",
-        value: "gpt-6-sol",
+        value: SHIPPED_CAPABILITY_PROFILES.balanced.codex,
       });
     } finally {
       await rm(tempDir, { recursive: true, force: true });
@@ -668,9 +669,9 @@ describe("CLI entrypoint", () => {
         [
           "version: 2",
           "capabilityProfiles:",
-          "  efficient: { claude: claude-haiku-4-5-20251001, codex: gpt-5.6-luna }",
-          "  balanced: { claude: claude-sonnet-5, codex: gpt-6-sol }",
-          "  frontier: { claude: claude-opus-5, codex: gpt-6-astra }",
+          "  efficient: { claude: test-claude-efficient, codex: test-codex-efficient }",
+          "  balanced: { claude: test-claude-balanced, codex: test-codex-balanced }",
+          "  frontier: { claude: test-claude-frontier, codex: test-codex-frontier }",
           "library:",
           `  skillsDir: ${path.join(tempDir, "skills")}`,
           `  agentsDir: ${agentsDir}`,
@@ -808,9 +809,9 @@ describe("CLI entrypoint", () => {
           [
             "version: 2",
             "capabilityProfiles:",
-            "  efficient: { claude: claude-haiku-4-5-20251001, codex: gpt-5.6-luna }",
-            "  balanced: { claude: claude-sonnet-5, codex: gpt-6-sol }",
-            "  frontier: { claude: claude-opus-5, codex: gpt-6-astra }",
+            "  efficient: { claude: test-claude-efficient, codex: test-codex-efficient }",
+            "  balanced: { claude: test-claude-balanced, codex: test-codex-balanced }",
+            "  frontier: { claude: test-claude-frontier, codex: test-codex-frontier }",
             "library:",
             `  skillsDir: ${path.join(tempDir, "skills")}`,
             `  agentsDir: ${path.join(tempDir, "agents")}`,

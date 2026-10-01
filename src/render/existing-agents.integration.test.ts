@@ -10,7 +10,6 @@ import {
 } from "../__test-helpers__/render.js";
 import { loadConfig } from "../config/load.js";
 import type { ResolvedConfig } from "../config/schema.js";
-import { sha256 } from "../utils/hash.js";
 import { renderAll as renderAllWithProvider } from "./pipeline.js";
 
 interface AgentSourceFixture {
@@ -47,28 +46,13 @@ async function renderAll(
   );
 }
 
-const CODEX_ROLE_DEFAULTS: Record<
-  string,
-  { model: string; model_reasoning_effort: string }
-> = {
-  assessor: { model: "gpt-6-sol", model_reasoning_effort: "low" },
-  investigator: { model: "gpt-6-sol", model_reasoning_effort: "medium" },
-  implementer: { model: "gpt-6-sol", model_reasoning_effort: "medium" },
-  reviewer: { model: "gpt-6.1-sol", model_reasoning_effort: "high" },
-  "deep-reviewer": { model: "gpt-6-astra", model_reasoning_effort: "high" },
-};
-
-const EXPECTED_CLAUDE_CONTENT_HASHES: Record<string, string> = {
-  assessor: "a83318166fa51ea78dacc3e7805516c1ff9c724790fb40eaf960cb8c9b22b645",
-  investigator:
-    "f572d191b875dbd0affd186077d3df72ec72d89098b7d19613df15f725f1122e",
-  executor: "c70e04e1b7c40ebaf4b711aef0cc33ccdd22ad3db9fd3716180825176b4ae8a6",
-  implementer:
-    "37b5bfe3a30de6cb3a573793eaedd39bde75947cf752549ecd17199fbf3535a0",
-  reviewer: "d9ffaa37fec8bae73e9a5fdd5f4a63b2c41f639c4fae77e507dd6ab36b82e835",
-  "deep-reviewer":
-    "a51eb11f741a23f84fc6c5fd19753103565d45dab66be21739d708a902a7d8ae",
-} as const;
+const PINNED_CODEX_ROLES = new Set([
+  "assessor",
+  "investigator",
+  "implementer",
+  "reviewer",
+  "deep-reviewer",
+]);
 
 type RenderOutput = Awaited<ReturnType<typeof renderAll>>["outputs"][number];
 
@@ -138,8 +122,9 @@ describe("shipped semantic agents", () => {
       expect(source.claude).not.toHaveProperty("model");
       expect(source.claude.effort).toBe(role.claudeEffort);
       expect(source.claude.tools).toEqual(role.claudeTools);
-      if (CODEX_ROLE_DEFAULTS[role.name]) {
-        expect(source.codex).toMatchObject(CODEX_ROLE_DEFAULTS[role.name]);
+      if (PINNED_CODEX_ROLES.has(role.name)) {
+        expect(source.codex.model).toEqual(expect.stringMatching(/\S/));
+        expect(source.codex.model_reasoning_effort).toBe(role.routeEffort);
       } else {
         expect(source.codex.model).toBeNull();
         expect(source.codex).not.toHaveProperty("model_reasoning_effort");
@@ -187,19 +172,21 @@ describe("shipped semantic agents", () => {
       expect(codexToml).toEqual({
         name: role.name,
         description: source.description,
-        ...(CODEX_ROLE_DEFAULTS[role.name] ?? {}),
+        ...(PINNED_CODEX_ROLES.has(role.name)
+          ? {
+              model: source.codex?.model,
+              model_reasoning_effort: role.routeEffort,
+            }
+          : {}),
         sandbox_mode: role.codexSandbox,
         developer_instructions: expect.stringContaining(
           source.instructions.trim(),
         ),
       });
-      if (!CODEX_ROLE_DEFAULTS[role.name]) {
+      if (!PINNED_CODEX_ROLES.has(role.name)) {
         expect(codexToml).not.toHaveProperty("model");
         expect(codexToml).not.toHaveProperty("model_reasoning_effort");
       }
-      expect(sha256(claudeOutput.content)).toBe(
-        EXPECTED_CLAUDE_CONTENT_HASHES[role.name],
-      );
       expect(claudeOutput.content).not.toContain("{{model:");
       expect(codexOutput.content).not.toContain("{{model:");
     }

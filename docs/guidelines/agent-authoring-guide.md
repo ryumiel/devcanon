@@ -162,15 +162,16 @@ tools, sandbox, source-immutable instructions, and external default. Do not copy
 the YAML into this guide; keeping one exact example prevents the authoring
 procedure from becoming a competing role-envelope owner.
 
-Use target-local `codex.model: null` when an agent source must intentionally
-suppress Codex model resolution and emission. This remains appropriate for five
-thin semantic roles whose fresh controller routes supply their configured full
-model and independent route effort. The ordinary reviewer instead has the
-stable target-local `gpt-6-astra`/`medium` default documented in the agent spec;
-its ordinary routes use medium, while D10 explicitly selects high for targeted
-verification. Literal models remain for a stable target-local source constraint;
-absent models permit ordinary capability resolution. The agent spec owns these
-three Codex source states and Claude's literal-or-absent rule.
+Current semantic role defaults and target-native efforts are owned by
+[`agents/*.yaml`](../../agents/) and the
+[semantic role catalog](../specs/agents.md#semantic-role-catalog). Codex role
+sources use literal model overrides for assessor, investigator, implementer,
+reviewer, and deep-reviewer; executor retains explicit `codex.model: null`.
+Do not copy provider model identifiers into independent authoring guidance or
+test expectations. The catalog defines Codex route effort separately from
+Claude effort. Keep source defaults and direct-route settings consistent when
+changing a model or effort. Literal, absent, and explicit-null Codex model
+states retain their meanings defined by the agent spec.
 
 Reusable methods still stay in skills. The owning workflow must guard a
 source-immutable dispatch before consuming the result; the spec-owned

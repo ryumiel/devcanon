@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { parse as parseYaml } from "yaml";
 import { providerFromRuntimeFixture } from "../__test-helpers__/fixtures.js";
 import {
   getSkillOutput,
@@ -59,6 +60,11 @@ async function renderAll(
     targetFilter,
   );
 }
+
+const reviewerSource = parseYaml(
+  await readFile(path.join(process.cwd(), "agents/reviewer.yaml"), "utf8"),
+);
+const reviewerModel: string = reviewerSource.codex.model;
 
 const shippedSkillsConfig = await loadConfig(
   path.join(process.cwd(), "devcanon.config.yaml"),
@@ -219,7 +225,7 @@ describe("shipped skill rendering", () => {
         const configuredModel = ["D5_MODEL", "D7_MODEL", "D10_MODEL"].includes(
           binding,
         )
-          ? "gpt-6.1-sol"
+          ? reviewerModel
           : config.capabilityProfiles[capability].codex;
 
         expect(normalizedBody).toContain(
@@ -410,7 +416,7 @@ describe("shipped skill rendering", () => {
       expect(playReview).not.toContain("model: D8_MODEL");
       expect(playReview).not.toContain("model: D9_MODEL");
       expect(playReview).toContain(d10Spawn);
-      expect(playReview).toContain("gpt-6.1-sol");
+      expect(playReview).toContain(reviewerModel);
       expect(playReview).not.toContain(
         "D10 is one response-only `deep-reviewer`, frontier/high",
       );
@@ -423,7 +429,7 @@ describe("shipped skill rendering", () => {
           getSkillOutput(outputs, skill, target).content,
         );
         expect(body).toContain(spawn);
-        expect(body).toContain("gpt-6.1-sol");
+        expect(body).toContain(reviewerModel);
       }
 
       const { body: planning } = parseFrontmatter(

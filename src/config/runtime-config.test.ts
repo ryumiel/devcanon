@@ -1,7 +1,9 @@
-import { mkdir, symlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { parse as parseYaml } from "yaml";
 import {
+  SHIPPED_CAPABILITY_PROFILES,
   canCreateSymlinks,
   cleanupTempDir,
   createConfigFile,
@@ -9,6 +11,7 @@ import {
   makeConfigYaml,
 } from "../__test-helpers__/fixtures.js";
 import { UserError } from "../utils/errors.js";
+import { DEFAULT_CONFIG_YAML } from "./defaults.js";
 import {
   formatRuntimeConfigScalar,
   getRuntimeConfigScalar,
@@ -17,6 +20,21 @@ import {
 } from "./runtime-config.js";
 
 const symlinkAvailable = await canCreateSymlinks();
+
+describe("shipped model catalog consistency", () => {
+  it("keeps repository, scaffold, and bundled profiles synchronized", async () => {
+    const repository = parseYaml(
+      await readFile(
+        new URL("../../devcanon.config.yaml", import.meta.url),
+        "utf8",
+      ),
+    );
+    const scaffold = parseYaml(DEFAULT_CONFIG_YAML);
+
+    expect(repository.capabilityProfiles).toEqual(SHIPPED_CAPABILITY_PROFILES);
+    expect(scaffold.capabilityProfiles).toEqual(SHIPPED_CAPABILITY_PROFILES);
+  });
+});
 
 describe("runtime configuration selection", () => {
   let tempDir: string;
@@ -75,7 +93,7 @@ describe("runtime configuration selection", () => {
           selected.value,
           "capabilityProfiles.balanced.codex",
         ),
-      ).toBe("gpt-6-sol");
+      ).toBe(SHIPPED_CAPABILITY_PROFILES.balanced.codex);
     } finally {
       process.chdir(previousCwd);
     }
@@ -334,7 +352,7 @@ describe("runtime configuration catalog", () => {
       getRuntimeConfigScalar(
         {
           capabilityProfiles: {
-            balanced: { codex: "gpt-6-sol" },
+            balanced: { codex: "test-codex-balanced" },
           },
         },
         key,

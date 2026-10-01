@@ -19,6 +19,7 @@ import {
 } from "../../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../../__test-helpers__/logger.js";
 import type { TestLoggerResult } from "../../__test-helpers__/logger.js";
+import { DEFAULT_CONFIG_YAML } from "../../config/defaults.js";
 import { loadConfig } from "../../config/load.js";
 import {
   AgentSourceSchema,
@@ -190,20 +191,9 @@ describe("initAction", () => {
     const config = ConfigSchema.parse(parseYaml(raw));
 
     expect(config.version).toBe(2);
-    expect(config.capabilityProfiles).toEqual({
-      efficient: {
-        claude: "claude-haiku-4-5-20251001",
-        codex: "gpt-5.6-luna",
-      },
-      balanced: {
-        claude: "claude-sonnet-5",
-        codex: "gpt-6-sol",
-      },
-      frontier: {
-        claude: "claude-opus-5",
-        codex: "gpt-6-astra",
-      },
-    });
+    expect(config.capabilityProfiles).toEqual(
+      ConfigSchema.parse(parseYaml(DEFAULT_CONFIG_YAML)).capabilityProfiles,
+    );
   });
 
   it("emits a balanced sample agent without target model or effort fields", async () => {

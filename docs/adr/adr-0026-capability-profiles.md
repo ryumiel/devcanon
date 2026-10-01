@@ -4,17 +4,16 @@
 
 Accepted
 
-This decision partially supersedes only the model-tier glossary and resolution
-choice in [ADR-0005](adr-0005-per-target-skill-rendering.md) and the tier-plus-
-effort default catalog in
-[ADR-0025](adr-0025-codex-model-tier-selection.md). Their remaining historical
-rationale and evidence stay accepted.
+This decision partially supersedes the model-tier glossary and resolution
+choice in [ADR-0005](adr-0005-per-target-skill-rendering.md). Its remaining
+historical rationale stays accepted.
 
 [ADR-0035](adr-0035-installed-runtime-configuration-discovery.md) supersedes
 this decision only for the installed-runtime catalog lifecycle and a
 controller's consumption of an already-rendered route binding. This ADR remains
-the decision owner for the capability-profile vocabulary and its source-to-
-target model mapping.
+the decision owner for the capability-profile vocabulary and model-resolution
+mechanism. Specific provider model identifiers are mutable configuration,
+not architectural decisions.
 
 ## Context
 
@@ -28,20 +27,9 @@ DevCanon needs a small portable vocabulary for model capability while keeping
 effort and other execution constraints explicit. The source schema, not this
 prose record, remains the executable authority.
 
-Provider documentation supplies evidence about available model families and
-native configuration surfaces, but it does not define DevCanon's cross-target
-policy. Anthropic documents the current Claude model IDs and characterizes
-Haiku, Sonnet, and Opus differently in its
-[model overview](https://platform.claude.com/docs/en/about-claude/models/overview).
-Claude Code documents full model names, aliases, effort, and subagent model
-fields in its
-[model configuration](https://code.claude.com/docs/en/model-config) and
-[subagent](https://code.claude.com/docs/en/sub-agents) references. OpenAI
-documents the named GPT-5.6 Codex models and independent reasoning-effort
-selection in the
-[Codex model guide](https://developers.openai.com/codex/models), while the
-[Codex configuration reference](https://developers.openai.com/codex/config-reference)
-documents the native model and reasoning-effort fields.
+Provider documentation supplies evidence about available models and native
+configuration surfaces. Runtime availability remains a client/account fact,
+separate from locally validating model-string syntax.
 
 ## Decision
 
@@ -50,36 +38,14 @@ DevCanon source configuration version 2 has exactly three capability profiles:
 Claude model string and one Codex model string. Profiles contain models only;
 they do not contain effort or any other execution setting.
 
-The accepted catalog is:
-
-| Capability  | Claude                      | Codex           |
-| ----------- | --------------------------- | --------------- |
-| `efficient` | `claude-haiku-4-5-20251001` | `gpt-5.6-luna`  |
-| `balanced`  | `claude-sonnet-5`           | `gpt-5.6-terra` |
-| `frontier`  | `claude-opus-5`             | `gpt-6-astra`   |
-
-These rows are DevCanon policy mappings, not claims that the paired provider
-models are equivalent.
-
-The September 9, 2026 baseline amendment replaces Codex frontier Sol with
-[GPT-6 Astra](https://developers.openai.com/api/docs/models/gpt-6-astra) and
-retains the other mappings. Astra is adopted as the starting frontier baseline;
-this decision does not claim measured DevCanon performance gains or require a
-model benchmark qualification campaign. Role tiers and Codex route efforts
-remain unchanged. The agent spec records the provider-specific omission of
-unsupported Claude Haiku executor effort. No speculative route adjustments or
-automatic escalation/fallback policies are introduced. Earlier model evaluation
-records remain historical evidence; ordinary configuration and render checks
-verify that DevCanon applies the selected baseline correctly.
-
-The September 10, 2026 baseline amendment adopts
-[Claude Opus 5](https://platform.claude.com/docs/en/about-claude/models/overview)
-as the frontier Claude baseline and retains the other mappings. This decision
-does not claim measured DevCanon performance gains or require a model
-benchmark qualification campaign. Role tiers and both targets' route efforts
-remain unchanged. Opus 5 supports the same effort range as the model it
-replaces, so `frontier` role efforts carry over unchanged. No speculative
-route adjustments or automatic escalation/fallback policies are introduced.
+The repository catalog is owned by `devcanon.config.yaml`, scaffold defaults
+by `src/config/defaults.ts`, and the bundled runtime catalog by
+`skills/devcanon-runtime/config/runtime-config.json`. Agent target overrides
+are owned by `agents/*.yaml`. Model updates change these configuration sources
+and their consumers without amending an ADR. Ordinary configuration and render
+checks verify consistency; they must not pin provider model identifiers in
+independent test expectations. Paired provider values do not imply model
+equivalence.
 
 Agents may select one profile with the top-level `capability` field. Codex model
 resolution follows this precedence for `codex.model`:
@@ -119,21 +85,10 @@ Version 2 is a clean boundary. DevCanon does not provide v1 compatibility,
 automatic translation, custom capability names, transitional aliases, or
 legacy profiles.
 
-The Claude mapping is inferred from the official Anthropic and Claude Code
-documentation above. Exact Claude Code runtime availability and the
-compatibility of every mapped model with every explicit effort remain
-unverified because no live Claude session was available. That limitation does
-not block baseline adoption or impose a separate pre-deployment qualification
-step. Live dispatch handles client/account availability through the owning
-route's existing unavailable or rejected-pair behavior. Terra and the historical
-Sol frontier mapping retain the dated local runtime-smoke evidence recorded in ADR-0025,
-while effort is now chosen separately. Astra adoption is supported by the
-official model documentation linked above and local configuration/render
-checks; no live Astra runtime trial or model benchmark was performed for this
-amendment. The Luna row is supported by the current official Codex model guide
-and provider catalog linked above, but remains locally runtime-unverified.
-Luna follows the same live-dispatch availability handling; no separate runtime
-trial is required before adopting it.
+Local validation establishes syntax and source/render consistency, not provider
+entitlement. Live dispatch handles client/account availability through the
+owning route's existing unavailable or rejected-pair behavior. No separate
+runtime qualification campaign is required for catalog maintenance.
 
 ## Consequences
 
@@ -149,8 +104,8 @@ trial is required before adopting it.
 - Generated and installed outputs remain derived. Ignored `generated/`
   previews may be regenerated for local verification but are never committed
   as authority.
-- Future catalog changes require new provider evidence, local render coverage,
-  and an explicit DevCanon policy decision.
+- Future model updates require configuration and render consistency checks;
+  they do not require a new ADR or a fixed provider-model test snapshot.
 - Accepted ADRs such as ADR-0007 and ADR-0008 retain former model-tier terms as
   historical decision evidence. Compatibility fixtures and tests may also name
   removed fields or tokens to prove rejection. Those occurrences are not

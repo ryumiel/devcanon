@@ -1,11 +1,16 @@
 import { lstat, readdir } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import { parse as parseYaml } from "yaml";
 import {
   readAgentRoutingPolicyOwner,
   readAgentSemanticRoleOwner,
 } from "../__test-helpers__/agent-routing-policy.js";
 import { readRepoFile } from "../__test-helpers__/skill-contracts.js";
 import { loadConfig } from "../config/load.js";
+
+const reviewerModel: string = parseYaml(
+  await readRepoFile("agents/reviewer.yaml"),
+).codex.model;
 
 const OWNER_PATH = "docs/guidelines/agent-routing-and-mutation-policy.md";
 const AGENT_SPEC_PATH = "docs/specs/agents.md";
@@ -345,7 +350,7 @@ describe("agent routing and mutation policy owner", () => {
       const source = ownerSkills.get(ownerSkill);
       expect(source, `${ownerSkill} source is readable`).toBeDefined();
       expect(source?.replace(/\s+/gu, " ")).toContain(
-        `\`${model}\` = \`${role === "reviewer" ? "gpt-6.1-sol" : `{{model-codex:${capability}}}`}\``,
+        `\`${model}\` = \`${role === "reviewer" ? reviewerModel : `{{model-codex:${capability}}}`}\``,
       );
       expect(config.capabilityProfiles[capability].codex).toMatch(/\S/);
       expect(source).toContain(
