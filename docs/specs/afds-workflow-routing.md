@@ -631,7 +631,7 @@ automatic round. The planning owner defines materiality and reopening authority.
 
 ### PLAN-003: Current approval and compatible consumers
 
-Approval names the current exact plan bytes and both covered remits. Corrections
+Approval satisfaction binds the current exact plan bytes and both covered remits. Corrections
 distinguish rechecked coverage from applicable carried evidence. Invalid,
 missing or mixed-version provenance cannot authorize execution. Auto execution,
 mechanical execution and parent-owned review-response consumers migrate with

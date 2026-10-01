@@ -504,10 +504,9 @@ Action: Apply the canonical `.ephemeral` write guard, write
 Approval Gate: wait for a current combined D5 PASS, capture
 `Plan written to <path>.`, `Reviewed digest: <sha256>`, and
 `Planning review contract: planning-review/combined-v1`, and retain validated
-producer provenance. Assess the parent approval gate for the exact reviewed
-plan; ask for approval using `{captured-plan-path}` replaced with the captured
-path when current authority does not satisfy that gate. After approval
-satisfaction and the required exact-byte rehash,
+producer provenance. Request explicit user approval of this reviewed
+product-blocker plan using `{captured-plan-path}` replaced with the captured
+path. Wait for that approval, then perform the required exact-byte rehash and
 invoke `play-subagent-execution` with:
 Plan: <path>
 Expected digest: <sha256>
