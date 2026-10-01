@@ -323,23 +323,6 @@ it("selects the exact issue-578 Windows PR-review lane", async () => {
     { insideRootSuite: true, title: windowsExecutableTitle },
   ]);
 
-  const collection = await commandHarness.run(
-    process.execPath,
-    [
-      path.join(repositoryRoot, "node_modules/vitest/vitest.mjs"),
-      "list",
-      "--project",
-      "unit",
-      "--json",
-      "--no-file-parallelism",
-      ...laneFiles,
-      "--testNamePattern",
-      selector,
-    ],
-    { cwd: repositoryRoot, deadlineMs: windowsLaneCollectionDeadlineMs },
-  );
-  expect(collection.exitCode, collection.stderr).toBe(0);
-  expect(collection.stderr).toBe("");
   type LaneTestInventory = {
     file: string;
     name: string;
@@ -355,14 +338,32 @@ it("selects the exact issue-578 Windows PR-review lane", async () => {
   };
   const sortInventory = (inventory: LaneTestInventory[]) =>
     [...inventory].sort(compareInventory);
+  // Inventory collection is tooling work, not a lifecycle deadline assertion.
+  // Bound each child separately so loading seven suites under CI contention
+  // cannot exhaust one shared child deadline. Preserve the exact union below.
+  const inventory: LaneTestInventory[] = [];
+  for (const laneFile of laneFiles) {
+    const collection = await commandHarness.run(
+      process.execPath,
+      [
+        path.join(repositoryRoot, "node_modules/vitest/vitest.mjs"),
+        "list",
+        "--project",
+        "unit",
+        "--json",
+        "--no-file-parallelism",
+        laneFile,
+        "--testNamePattern",
+        selector,
+      ],
+      { cwd: repositoryRoot, deadlineMs: windowsLaneCollectionDeadlineMs },
+    );
+    expect(collection.exitCode, collection.stderr).toBe(0);
+    expect(collection.stderr).toBe("");
+    inventory.push(...(JSON.parse(collection.stdout) as LaneTestInventory[]));
+  }
   const collectedInventory = sortInventory(
-    (
-      JSON.parse(collection.stdout) as Array<{
-        file: string;
-        name: string;
-        projectName: string;
-      }>
-    ).map(({ file, name, projectName }) => ({
+    inventory.map(({ file, name, projectName }) => ({
       file: path.relative(repositoryRoot, file).split(path.sep).join("/"),
       name,
       projectName,
@@ -646,7 +647,7 @@ it("selects the exact issue-578 Windows PR-review lane", async () => {
 
   expect(collectedInventory).toHaveLength(54);
   expect(collectedInventory).toEqual(sortInventory(expectedCollectedInventory));
-});
+}, 45_000);
 
 function createLease(): PrReviewLease {
   return reducePrReviewLease(null, identity, {
