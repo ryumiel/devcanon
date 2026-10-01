@@ -506,6 +506,49 @@ Choose one of these coverage routes:
 - **Editorial prose:** Use review, linting, and documentation checks. Do not add
   an automated test when no authoritative consumer can observe the wording.
 
+### Selecting an evaluation boundary
+
+When an evaluation is already requested or required, choose the smallest
+exercise that can observe the behavior being claimed. Before running it,
+describe in existing local planning or evaluation material, in proportion to
+the claim: the authoritative procedure, starting condition, producer and
+consumer boundary, observable outcome, and what the exercise cannot prove. No
+particular file, report schema, or real task is required by this selection
+step. Keep the expected outcome and scoring outside the consumer's input.
+
+Match the exercise to the claim:
+
+- **Policy interpretation:** A response-only scenario can show whether an
+  agent makes the intended decision under the stated pressure. It cannot prove
+  that a helper ran or that a workflow continued. For skill pressure tests,
+  retain the `play-skill-authoring` assessor, baseline, and guard contract.
+- **Helper capability:** Execute the owning helper with representative inputs
+  and inspect its actual output or refusal. A description of the command or a
+  consumer's proposed invocation cannot prove execution.
+- **Controlled workflow execution:** In an isolated, authorized procedure,
+  observe the ordinary producer output, consumer action, and resulting state at
+  the changed boundary. Prepare scratch inputs only through normal authorized
+  steps. A fresh consumer must derive values and permitted actions from the
+  published contract and ordinary producer output; scaffolding must not prefill
+  the result, discovery, propagation, or unspecified representation, authority,
+  or lifetime choices being tested. Include a missing, stale, or scope-expanding
+  input when that condition exercises the changed boundary.
+- **Live use:** Claim behavior in real work only from authorized live-use
+  evidence at that boundary. A synthetic run, even one that completes its
+  controlled procedure, does not establish live reliability, model superiority,
+  cost savings, review redundancy, or retrospective metrics. The real-task
+  evaluation in `docs/specs/afds-workflow-routing.md` remains deferred.
+
+Define the exercise's finite scope before running it. For a baseline and
+candidate comparison, give both equivalent task facts, permissions, and
+relevant environment; identify any differences. Disclose and exclude a hinted
+exploratory run from neutral comparison. A passing baseline does not establish
+a defect or justify searching for a failure. Record a no-change result when
+the evidence supports no revision, and leave a boundary unverified when the
+needed authority or execution capability is unavailable. Share agent-local
+results only through the sanitized summary and evidence-pointer limits of
+EVID-004 in `docs/specs/afds-workflow-routing.md`.
+
 Exact text is appropriate only for parser syntax, schema or artifact fields,
 lifecycle states, output protocols, and other intentional public interfaces.
 Do not test explanatory wording, sentence order, keyword presence, source-string
