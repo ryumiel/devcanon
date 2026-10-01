@@ -706,10 +706,26 @@ paths that D7 independently found and successfully read after initial context
 preparation. The controller verifies exact tracked spelling, source side,
 revision, scope and read evidence after guarded D7 completion, then refreshes
 the existing bounded prior-context artifact using its original helper-returned
-paths. Records contain only untrusted navigation provenance, not claims or
-approval. The invoking branch or PR wrapper retains and forwards the exact
-internal preparation handle when available; absence invokes ordinary discovery.
-A supplied missing or mismatched handle stops before semantic dispatch. Fresh
+paths. Records use exactly `source.kind: "verified-repository-doc-navigation"`,
+the tracked path as `source.reference`, and a bounded summary of source
+side/revision and navigation provenance. Identical path and side/revision
+records coalesce; distinct sides may remain separate. Other kinds remain
+ordinary untrusted prior context, even when a reference resembles a document
+path. Navigation contains no document claims or approval. The invoking branch
+or PR wrapper retains the exact existing five-field
+`SharedContextFamilyBinding` (`schema`, `input_file`, `input_sha256`,
+`context_file`, `context_sha256`) with closed
+`play-review/shared-context-family/v1` schema and exact-byte SHA-256 digests.
+It retains the original repository/root/base/head/active/full association
+separately and forwards the family unchanged only during live local custody.
+The branch wrapper clears family and association before deliberate local
+family/worktree release or replacement. The PR wrapper clears both before
+lease-owned removal/recreation, terminal head advancement or old artifact
+retirement, selected worktree switching, and known completed artifact
+retirement. Failed or refused lifecycle operations do not restore discarded
+custody. Later absence invokes ordinary discovery. An unexpectedly missing,
+malformed or mismatched supplied family or independent association stops before
+semantic dispatch. Fresh
 D18 sanitizes retained records for the new review, and D7 rereads relevant
 authoritative source. Historical optional paths that move, disappear, change
 source side or leave scope are refreshed through current navigation or dropped;

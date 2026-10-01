@@ -42,12 +42,18 @@ declared head, base, worktree, authority, and content identity with the frozen
 review identity, applicable source side, and policy. A missing, malformed, or
 mismatched supplied candidate ADR or source reference stops before semantic
 dispatch. Absent optional or unselected inputs do not fail preflight. A supplied
-opaque prior preparation handle is an existing artifact input: require its
-original helper-returned input and context paths, retained input content
-identity, and frozen repository/root/base/head and active/full range association.
-Validate both readable regular artifacts, including that the context renders
-from the exact retained input. Compare the input header/content with the prior
-frozen association and wrapper-proven current repository before D18.
+prior preparation handle is the exact retained `SharedContextFamilyBinding`
+from the existing shared-context runtime, with schema
+`play-review/shared-context-family/v1` and exactly five required members:
+`schema`, `input_file`, `input_sha256`, `context_file`, and `context_sha256`.
+Reject unknown or duplicate members. The paths are the original helper-returned
+repository-relative paths; both digests are lowercase 64-character SHA-256 of
+the exact respective file bytes. Validate both readable regular artifacts and
+their digests, including that the context renders from the exact retained
+input. Separately retain the original frozen repository/root/base/head and
+active/full range association in the invoking wrapper's review continuation
+state. Compare the input header/content with that independent prior association
+and wrapper-proven current repository before D18.
 Missing, malformed, swapped, or wrong-repository/head evidence refuses; never
 derive a sibling filename or reconstruct missing evidence. No handle on an
 initial or legacy invocation is normal preparation.
@@ -154,13 +160,16 @@ This notice is the only structured surface in conversation. Consumers parse the
 path from this line; `branch-review`, `pr-review`, and
 `issue-priming-workflow` all rely on its exact form. Do not reword it.
 
-For its invoking wrapper's local continuation state, also retain an opaque
-preparation handle after successful context construction or refresh. It binds
-the exact helper-returned input and context paths, input content identity, and
-frozen repository/root/base/head/active/full range association. This internal
-custody is not a public notice, findings field, CLI argument, or approval token.
-The wrapper may forward it unchanged on a later review; `play-review` alone
-validates and consumes it.
+For its invoking wrapper's local continuation state, retain the exact
+`SharedContextFamilyBinding` value from the existing shared-context runtime
+after successful context construction or refresh. Its closed five-member schema
+and exact-byte digests bind the helper-returned input and context artifacts.
+Retain the original frozen repository/root/base/head/active/full range
+association separately in the wrapper's review continuation state. This
+internal custody is not a public notice, findings field, CLI argument, or
+approval token. The wrapper may forward the family value unchanged while its
+local custody is live; `play-review` validates it against the separately
+retained association and current review before consuming it.
 
 Use `references/findings-envelope-contract.md` for validation and publication,
 including `carry_forward[]` and derived nits. Consumers fail closed before

@@ -172,27 +172,38 @@ Each routing-risk object is exactly `{ "mechanical_path_signals": string[],
 context pointer is carried in `spec_routing_risks.semantic_classification_notes`,
 not as a doc-impact-summary field. Optional prior-review records are untrusted
 summary records: `source` has `kind` and `reference`, and `untrusted` is `true`.
-For a verified late repository-documentation discovery, use a distinct
-navigation `source.kind`, the exact repository-relative tracked document path
-as `source.reference`, the actual UTF-8 byte count as `bytes`, and a `summary`
+For a verified late repository-documentation discovery, use
+`source.kind: "verified-repository-doc-navigation"`, the exact
+repository-relative tracked document path as `source.reference`, the actual
+UTF-8 byte count as `bytes`, and a `summary`
 limited to source side/revision and navigation provenance. Set `untrusted` to
 `true`. Do not copy a raw D7 report, prompt or log; do not include document
 claims, findings, approvals or semantic classification. Independently check
 that D7 reported a successful read and that path spelling, source side,
-revision and relevance match the frozen review before admission. Apply existing
-duplicate and record/section budgets; if an influential pointer cannot fit,
-fail the refresh. The next invocation runs fresh D18 sanitation over this
-prior record before constructing its reviewer context.
+revision and relevance match the frozen review before admission. Coalesce
+navigation records with the same exact tracked path and applicable source
+side/revision; records from distinct sides may remain separate within existing
+budgets. Treat other `source.kind` values as ordinary untrusted prior context,
+even when their references look like document paths. Apply existing record and
+section budgets; if an influential pointer cannot fit, fail the refresh. The
+next invocation recognizes only the exact navigation kind and runs fresh D18
+sanitation over this prior record before constructing its reviewer context.
 
 Retain input and context paths exactly as returned by the helpers. After
 guarded D7 completion, refresh these existing artifacts with the same ordered
 write/build operations and frozen header, adding only verified navigation
 records. A changed source or scope identity stops that refresh. A write/build
 failure leaves settled findings intact but cannot produce a successful
-preparation handle. The wrapper-local handle carries those exact paths, input
-content identity and frozen association; a supplied broken or mismatched
-handle refuses before D18. Stale historical navigation may be refreshed or
-dropped in current-source preflight, while a missing selected required source
+preparation handle. The wrapper-local handle is exactly the existing
+`SharedContextFamilyBinding`: schema `play-review/shared-context-family/v1`
+with required `schema`, `input_file`, `input_sha256`, `context_file`, and
+`context_sha256`, no unknown or duplicate members, and lowercase 64-character
+SHA-256 digests over each artifact's exact bytes. Retain the original frozen
+repository/root/base/head/active/full association separately in wrapper
+continuation state. A supplied broken family or mismatched independent
+association refuses before D18; do not reconstruct either from artifacts.
+Stale historical navigation may be refreshed or dropped in current-source
+preflight, while a missing selected required source
 still refuses.
 Missing changed-file command, required output markdown, summary, trusted binding,
 or stale review identity blocks Phase 3. Apply the preflight and refresh policy
