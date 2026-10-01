@@ -444,8 +444,10 @@ capability.
 
 The route owner supplies the capability and independent effort. Every fresh
 Codex dispatch resolves its full model from its Codex-bound rendered route binding
-and passes both model and effort explicitly. Semantic role TOML omits those
-target-local dispatch values. D12
+and passes both model and effort explicitly. Rendered semantic role TOML
+emits literal model and effort defaults when its source specifies them;
+executor retains explicit-null model suppression and omitted effort. Direct
+dispatch still supplies its complete route tuple independently. D12
 uses `implementer`, balanced/medium; D13 uses `executor`, efficient/medium; and
 D14-D16 use `deep-reviewer`, frontier/high. These pairs do not grant external
 mutation authority.
