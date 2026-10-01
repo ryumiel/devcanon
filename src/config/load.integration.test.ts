@@ -120,7 +120,7 @@ describe("loadConfig", () => {
     expect(result.defaults.installMode).toBe("symlink");
     expect(result.capabilityProfiles.balanced).toEqual({
       claude: "claude-sonnet-5",
-      codex: "gpt-6.1-sol",
+      codex: "gpt-6-sol",
     });
   });
 
@@ -373,7 +373,7 @@ describe("loadConfig", () => {
         modelTiers: {
           balanced: {
             claude: { model: "claude-sonnet-5" },
-            codex: { model: "gpt-6.1-sol" },
+            codex: { model: "gpt-6-sol" },
           },
         },
       });

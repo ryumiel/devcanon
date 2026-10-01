@@ -34,7 +34,7 @@ export const CANONICAL_CAPABILITY_PROFILES = {
   },
   balanced: {
     claude: "claude-sonnet-5",
-    codex: "gpt-6.1-sol",
+    codex: "gpt-6-sol",
   },
   frontier: {
     claude: "claude-opus-5",

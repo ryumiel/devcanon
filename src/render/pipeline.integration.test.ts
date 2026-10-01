@@ -1136,7 +1136,7 @@ describe("renderAll", () => {
 
   it.each([
     ["efficient", "claude-haiku-4-5-20251001", "gpt-5.6-luna"],
-    ["balanced", "claude-sonnet-5", "gpt-6.1-sol"],
+    ["balanced", "claude-sonnet-5", "gpt-6-sol"],
     ["frontier", "claude-opus-5", "gpt-6-astra"],
   ] as const)(
     "substitutes the canonical %s model capability per target",

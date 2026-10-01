@@ -98,7 +98,7 @@ describe.runIf(process.platform !== "win32")("setup:cli", () => {
       expect(JSON.parse(catalog.stdout)).toMatchObject({
         source: "bundled",
         key: "capabilityProfiles.balanced.codex",
-        value: "gpt-6.1-sol",
+        value: "gpt-6-sol",
       });
     } finally {
       await rm(xdgDataHome, { recursive: true, force: true });
@@ -245,7 +245,7 @@ describe.runIf(process.platform === "win32")("setup:cli", () => {
       expect(JSON.parse(catalog.stdout)).toMatchObject({
         source: "bundled",
         key: "capabilityProfiles.balanced.codex",
-        value: "gpt-6.1-sol",
+        value: "gpt-6-sol",
       });
     } finally {
       await rm(root, { recursive: true, force: true });

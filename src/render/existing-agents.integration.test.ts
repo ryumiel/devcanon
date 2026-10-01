@@ -51,9 +51,9 @@ const CODEX_ROLE_DEFAULTS: Record<
   string,
   { model: string; model_reasoning_effort: string }
 > = {
-  assessor: { model: "gpt-6.1-sol", model_reasoning_effort: "low" },
-  investigator: { model: "gpt-6.1-sol", model_reasoning_effort: "medium" },
-  implementer: { model: "gpt-6.1-sol", model_reasoning_effort: "medium" },
+  assessor: { model: "gpt-6-sol", model_reasoning_effort: "low" },
+  investigator: { model: "gpt-6-sol", model_reasoning_effort: "medium" },
+  implementer: { model: "gpt-6-sol", model_reasoning_effort: "medium" },
   reviewer: { model: "gpt-6.1-sol", model_reasoning_effort: "high" },
   "deep-reviewer": { model: "gpt-6-astra", model_reasoning_effort: "high" },
 };

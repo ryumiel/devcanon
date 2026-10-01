@@ -158,7 +158,7 @@ standard error. The command and error-code details remain owned by
 
 - From an unrelated directory with no selected source configuration,
   `devcanon config get capabilityProfiles.balanced.codex` reads the packaged
-  catalog and prints `gpt-6.1-sol`. `devcanon --json config path` reports an
+  catalog and prints `gpt-6-sol`. `devcanon --json config path` reports an
   absolute `path` and `source: "bundled"`.
 - With `--config` pointing to a valid custom source configuration,
   `devcanon --config <path> --json config get capabilityProfiles.balanced.codex`
@@ -231,7 +231,7 @@ capabilityProfiles:
     codex: gpt-5.6-luna
   balanced:
     claude: claude-sonnet-5
-    codex: gpt-6.1-sol
+    codex: gpt-6-sol
   frontier:
     claude: claude-opus-5
     codex: gpt-6-astra
@@ -305,7 +305,7 @@ the user-facing boundary without replacing that source authority.
   | Capability  | Claude                      | Codex          |
   | ----------- | --------------------------- | -------------- |
   | `efficient` | `claude-haiku-4-5-20251001` | `gpt-5.6-luna` |
-  | `balanced`  | `claude-sonnet-5`           | `gpt-6.1-sol`  |
+  | `balanced`  | `claude-sonnet-5`           | `gpt-6-sol`    |
   | `frontier`  | `claude-opus-5`             | `gpt-6-astra`  |
 
 - The paired values are DevCanon policy mappings, not provider equivalences.
