@@ -51,8 +51,9 @@ digraph branch_review {
 by `issue-priming-workflow --auto`. Do not silently convert that Phase 7 gate
 into an incremental review.
 
-Retain the exact `SharedContextFamilyBinding` returned internally by
-`play-review` with the review head and findings continuation state, including
+Retain the exact `SharedContextFamilyBinding` returned by `play-review` through
+the installed shared-context helper's `create-family-binding` operation with
+the review head and findings continuation state, including
 a completed no-findings run. Keep its original frozen repository/root/base/head
 and active/full range association separately in that continuation state. While
 the same local family and worktree custody remains live, forward the family
@@ -63,7 +64,8 @@ replacement. A later review without them uses ordinary discovery. Unexpected
 missing or broken evidence while a family is still supplied remains a
 `play-review` pre-D18 refusal. Its absence is normal; do not add a CLI
 argument, derive context filenames, parse the artifacts, or treat navigation as
-a scope decision. `play-review` validates custody and current applicability.
+a scope decision. `play-review` invokes the installed helper to validate live
+custody, then checks the independent association and current applicability.
 
 ## Phase 1: Gather
 

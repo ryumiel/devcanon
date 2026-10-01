@@ -53,14 +53,22 @@ their digests, including that the context renders from the exact retained
 input. Separately retain the original frozen repository/root/base/head and
 active/full range association in the invoking wrapper's review continuation
 state. Compare the input header/content with that independent prior association
-and wrapper-proven current repository before D18.
+and wrapper-proven current repository before D18. Invoke the installed helper's
+`validate-family-binding` with the exact supplied serialized family and both
+original paths; its structural success does not replace the independent
+association comparison. Detached historical navigation is a separate mode:
+require original provider/repository/review provenance and explicit current
+scope from the wrapper, with no live family. Never turn a broken supplied
+family into detached candidates or ordinary absence.
 Missing, malformed, swapped, or wrong-repository/head evidence refuses; never
 derive a sibling filename or reconstruct missing evidence. No handle on an
 initial or legacy invocation is normal preparation.
 
-For a validated prior handle, inspect its navigation records as historical
-optional candidates. Resolve each against the current applicable source side,
-exact tracked spelling/content, working-tree state and selected scope. Carry an
+For a validated prior handle or same-review detached candidates, inspect only
+exact-kind `verified-repository-doc-navigation` records as historical optional
+candidates. Enforce existing prior item and UTF-8 budgets. Resolve each against
+the current applicable source side, exact tracked spelling/content, working-tree
+state and selected scope. Carry an
 unchanged relevant path with original provenance; refresh a moved, deleted,
 out-of-scope or source-side-changed path through the current index or bounded
 tracked discovery, or drop it. Missing optional navigation alone does not fail.
@@ -74,8 +82,9 @@ The current invocation's `*-review-context-input.json` manifest and
 `*-review-context.md` are future Phase 2.5 outputs, not pre-D18 inputs. The
 required order is:
 preflight existing supplied inputs; verify, validate, and clean D18; use the
-shared-context helper to write the manifest and build the context; validate the
-resulting artifacts; then dispatch D7.
+shared-context helper to write the manifest and build the context; create the
+five-field family through that same helper using both exact returned paths;
+then dispatch D7.
 
 Freeze resolved base/head identities and both active and full diff ranges with
 D18's inputs, not merely mutable ref names. After D18 cleanup, compare the
@@ -161,7 +170,8 @@ path from this line; `branch-review`, `pr-review`, and
 `issue-priming-workflow` all rely on its exact form. Do not reword it.
 
 For its invoking wrapper's local continuation state, retain the exact
-`SharedContextFamilyBinding` value from the existing shared-context runtime
+`SharedContextFamilyBinding` value returned by the installed shared-context
+helper's `create-family-binding` operation
 after successful context construction or refresh. Its closed five-member schema
 and exact-byte digests bind the helper-returned input and context artifacts.
 Retain the original frozen repository/root/base/head/active/full range
@@ -264,7 +274,8 @@ rejected result. No additional composer, cache, overlay, role, or reuse mechanis
 ## Phase 2.5: Compose shared review context
 
 Follow `references/shared-review-context.md` and its helper usage: prepare
-findings, `write-review-context-input`, then `build-review-context` through
+findings, `write-review-context-input`, `build-review-context`, then
+`create-family-binding` through
 `scripts/shared-review-context.sh`. The validated
 `play-review/shared-context-input/v1` manifest is the sole context source.
 
@@ -380,8 +391,9 @@ against the frozen review. Capture only mechanically verified navigation under
 do not infer semantic claims from D7 prose or replace any accepted D18 field.
 Check the frozen source/scope identity again, then use the existing ordered
 shared-context operations with the original helper-returned paths to refresh
-the input and rendered context. Preserve their exact returned paths. A failed
-write/build cannot advertise retained preparation: keep settled findings
+the input and rendered context. Preserve their exact returned paths and invoke
+`create-family-binding` after the refreshed build. A failed write/build/binding
+operation cannot advertise retained preparation: keep settled findings
 separately and report the preparation failure. This capture adds no agent or
 review stage and does not run on rejected or incomplete D7 output.
 

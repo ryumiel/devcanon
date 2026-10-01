@@ -2,8 +2,11 @@
 
 Use [review-artifacts usage](review-artifacts-usage.md) for
 `prepare-findings-write` and [shared-review-context usage](shared-review-context-usage.md)
-for `write-review-context-input` and `build-review-context`. These operations
-are ordered: prepare findings, write the input, then build context. Any helper
+for `write-review-context-input`, `build-review-context`,
+`create-family-binding`, and `validate-family-binding`. Preparation is ordered:
+prepare findings, write the input, build context, then create the family from
+both original returned paths. A supplied live family is validated through the
+same helper before D18. Any helper
 failure or unusable result is a hard stop before Phase 3.
 
 At that executable action, resolve the installed `play-review` bundle and
@@ -186,15 +189,20 @@ side/revision; records from distinct sides may remain separate within existing
 budgets. Treat other `source.kind` values as ordinary untrusted prior context,
 even when their references look like document paths. Apply existing record and
 section budgets; if an influential pointer cannot fit, fail the refresh. The
-next invocation recognizes only the exact navigation kind and runs fresh D18
-sanitation over this prior record before constructing its reviewer context.
+next invocation recognizes only the exact navigation kind from a validated live
+family or wrapper-held same-review detached candidates. Detached candidates
+retain separate original provider/repository/review provenance and no artifact
+binding. Apply current scope, source-side/revision, tracked spelling, and
+working-tree checks before fresh D18 sanitation and D7 current-source reads.
+Never use them to excuse a supplied invalid family.
 
 Retain input and context paths exactly as returned by the helpers. After
 guarded D7 completion, refresh these existing artifacts with the same ordered
 write/build operations and frozen header, adding only verified navigation
 records. A changed source or scope identity stops that refresh. A write/build
 failure leaves settled findings intact but cannot produce a successful
-preparation handle. The wrapper-local handle is exactly the existing
+preparation handle. The wrapper-local handle comes from the installed helper's
+`create-family-binding` operation and is exactly the existing
 `SharedContextFamilyBinding`: schema `play-review/shared-context-family/v1`
 with required `schema`, `input_file`, `input_sha256`, `context_file`, and
 `context_sha256`, no unknown or duplicate members, and lowercase 64-character

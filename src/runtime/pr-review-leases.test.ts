@@ -96,6 +96,8 @@ const managedEnvKeys = [
   "FINDINGS_FILE",
   "HEAD_SHA",
   "REVIEW_CONTEXT_INPUT_FILE",
+  "REVIEW_CONTEXT_OUTPUT_FILE",
+  "REVIEW_CONTEXT_FAMILY_JSON",
   "REVIEW_CONTEXT_INPUT_JSON",
   "STATE",
   "BASE_REF",
@@ -1251,6 +1253,87 @@ describe("pr-review lease command validation", () => {
           ),
         ].map((file) => rm(path.join(workspace.worktree, file))),
       );
+      const inputFile = `.ephemeral/detached-${workspace.reviewHead}-review-context-input.json`;
+      const contextFile = `.ephemeral/detached-${workspace.reviewHead}-review-context.md`;
+      const detachedFindingsFile = `.ephemeral/detached-${workspace.reviewHead}-findings.json`;
+      const contextInput = JSON.parse(
+        await readFile(path.join(workspace.worktree, inputFile), "utf8"),
+      );
+      const originalDocBytes = Buffer.byteLength(
+        await readFile(path.join(workspace.worktree, "README.md")),
+      );
+      contextInput.prior_review_context = {
+        records: [
+          {
+            source: {
+              kind: "verified-repository-doc-navigation",
+              reference: "README.md",
+            },
+            bytes: originalDocBytes,
+            summary: `head:${workspace.reviewHead}; side:head; verified read`,
+            untrusted: true,
+          },
+          {
+            source: { kind: "github-review-thread", reference: "README.md" },
+            bytes: originalDocBytes,
+            summary: "Earlier review prose is ordinary untrusted context.",
+            untrusted: true,
+          },
+        ],
+      };
+      await writeFile(
+        path.join(workspace.worktree, inputFile),
+        `${JSON.stringify(contextInput)}\n`,
+      );
+      const helperScript = path.join(
+        originalCwd,
+        "skills/play-review/scripts/shared-review-context.sh",
+      );
+      const helperEnv = {
+        ...process.env,
+        DEVCANON_RUNTIME_DIR: path.join(originalCwd, "skills/devcanon-runtime"),
+        HEAD_SHA: workspace.reviewHead,
+        FINDINGS_FILE: detachedFindingsFile,
+        REVIEW_CONTEXT_INPUT_FILE: inputFile,
+        REVIEW_CONTEXT_OUTPUT_FILE: contextFile,
+      };
+      await execFileAsync("bash", [helperScript, "build-review-context"], {
+        cwd: workspace.worktree,
+        env: helperEnv,
+      });
+      const { stdout: bindingJson } = await execFileAsync(
+        "bash",
+        [helperScript, "create-family-binding"],
+        { cwd: workspace.worktree, env: helperEnv },
+      );
+      const family = JSON.parse(bindingJson);
+      const { stdout: validatedJson } = await execFileAsync(
+        "bash",
+        [helperScript, "validate-family-binding"],
+        {
+          cwd: workspace.worktree,
+          env: { ...helperEnv, REVIEW_CONTEXT_FAMILY_JSON: bindingJson.trim() },
+        },
+      );
+      expect(JSON.parse(validatedJson)).toEqual(family);
+      const detachedNavigation =
+        contextInput.prior_review_context.records.filter(
+          (record: { source: { kind: string } }) =>
+            record.source.kind === "verified-repository-doc-navigation",
+        );
+      const resultArtifact = JSON.parse(
+        await readFile(
+          path.join(workspace.worktree, workspace.resultFile),
+          "utf8",
+        ),
+      );
+      resultArtifact.digests.context_sha256 = await sha256File(
+        path.join(workspace.worktree, contextFile),
+      );
+      await writeFile(
+        path.join(workspace.worktree, workspace.resultFile),
+        `${JSON.stringify(resultArtifact, null, 2)}\n`,
+      );
       const resultSha256 = await sha256File(
         path.join(workspace.worktree, workspace.resultFile),
       );
@@ -1278,11 +1361,16 @@ describe("pr-review lease command validation", () => {
         oldLeaseBytes,
       );
       await writeFile(path.join(workspace.primary, "next.txt"), "next\n");
+      await writeFile(
+        path.join(workspace.primary, "README.md"),
+        "baseline\nnext.txt records the next review marker: next.\n",
+      );
       await execFileAsync("git", [
         "-C",
         workspace.physicalPrimary,
         "add",
         "next.txt",
+        "README.md",
       ]);
       await execFileAsync("git", [
         "-C",
@@ -1368,6 +1456,34 @@ describe("pr-review lease command validation", () => {
       await expect(
         readdir(path.join(workspace.worktree, ".ephemeral")),
       ).resolves.toEqual([]);
+      expect(detachedNavigation).toEqual([
+        {
+          source: {
+            kind: "verified-repository-doc-navigation",
+            reference: "README.md",
+          },
+          bytes: originalDocBytes,
+          summary: `head:${workspace.reviewHead}; side:head; verified read`,
+          untrusted: true,
+        },
+      ]);
+      expect(family.input_file).toBe(inputFile);
+      await expect(
+        lstat(path.join(workspace.worktree, inputFile)),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(
+        lstat(path.join(workspace.worktree, contextFile)),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      const { stdout: currentRead } = await execFileAsync("git", [
+        "-C",
+        workspace.worktree,
+        "show",
+        `${newHead}:README.md`,
+      ]);
+      expect(currentRead).toBe(
+        await readFile(path.join(workspace.worktree, "README.md"), "utf8"),
+      );
+      expect(currentRead).toContain("next.txt records the next review marker");
       await expect(
         execFileAsync("git", ["-C", workspace.worktree, "rev-parse", "HEAD"]),
       ).resolves.toMatchObject({ stdout: `${newHead}\n` });

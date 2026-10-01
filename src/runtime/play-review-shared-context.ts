@@ -69,6 +69,70 @@ export async function validateSharedContextFamilyBinding(input: {
   });
 }
 
+async function familyFromOriginalPaths(): Promise<SharedContextFamilyBinding> {
+  const headSha = requiredEnv("HEAD_SHA");
+  const findingsFile = requiredEnv("FINDINGS_FILE");
+  const inputFile = requiredEnv("REVIEW_CONTEXT_INPUT_FILE");
+  const outputFile = requiredEnv("REVIEW_CONTEXT_OUTPUT_FILE");
+  validateHeadSha(headSha);
+  validateFindingsPath(findingsFile, headSha);
+  const expected = deriveContextPaths(findingsFile);
+  if (inputFile !== expected.inputFile || outputFile !== expected.outputFile) {
+    throw new SharedContextError(
+      "original review context paths do not match findings",
+    );
+  }
+  return validateSharedContextFamilyBinding({ headSha, findingsFile });
+}
+
+function parseSuppliedFamily(raw: string): SharedContextFamilyBinding {
+  if (Buffer.byteLength(raw, "utf8") > 4096) {
+    throw new SharedContextError("supplied family exceeds byte limit");
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw) as unknown;
+  } catch {
+    throw new SharedContextError("supplied family JSON is malformed");
+  }
+  const fields = [
+    "schema",
+    "input_file",
+    "input_sha256",
+    "context_file",
+    "context_sha256",
+  ];
+  if (
+    !isObject(parsed) ||
+    Object.keys(parsed).length !== fields.length ||
+    fields.some((field) => typeof parsed[field] !== "string")
+  ) {
+    throw new SharedContextError(
+      "supplied family must have exactly five string members",
+    );
+  }
+  const members = [...raw.matchAll(/("(?:\\.|[^"\\])*")\s*:/gu)];
+  const keys = members.map((member) => JSON.parse(member[1] ?? '""') as string);
+  if (
+    members.length !== fields.length ||
+    new Set(keys).size !== fields.length ||
+    keys.some((key) => !fields.includes(key))
+  ) {
+    throw new SharedContextError(
+      "supplied family has duplicate or unknown members",
+    );
+  }
+  const family = parsed as unknown as SharedContextFamilyBinding;
+  if (
+    family.schema !== "play-review/shared-context-family/v1" ||
+    !/^[0-9a-f]{64}$/u.test(family.input_sha256) ||
+    !/^[0-9a-f]{64}$/u.test(family.context_sha256)
+  ) {
+    throw new SharedContextError("supplied family schema or digest is invalid");
+  }
+  return family;
+}
+
 interface SharedContextInput {
   schema: "play-review/shared-context-input/v1";
   header: {
@@ -149,9 +213,29 @@ export async function runPlayReviewSharedContextCommand(
         return ok(`${await writeReviewContextInput()}\n`);
       case "build-review-context":
         return ok(`${await buildReviewContext()}\n`);
+      case "create-family-binding":
+        return ok(`${JSON.stringify(await familyFromOriginalPaths())}\n`);
+      case "validate-family-binding": {
+        const supplied = parseSuppliedFamily(
+          requiredEnv("REVIEW_CONTEXT_FAMILY_JSON"),
+        );
+        const actual = await familyFromOriginalPaths();
+        if (
+          Object.keys(actual).some(
+            (key) =>
+              supplied[key as keyof SharedContextFamilyBinding] !==
+              actual[key as keyof SharedContextFamilyBinding],
+          )
+        ) {
+          throw new SharedContextError(
+            "supplied family does not match current artifacts",
+          );
+        }
+        return ok(`${JSON.stringify(actual)}\n`);
+      }
       default:
         throw new SharedContextError(
-          "usage: shared-review-context.sh write-review-context-input|build-review-context",
+          "usage: shared-review-context.sh write-review-context-input|build-review-context|create-family-binding|validate-family-binding",
         );
     }
   } catch (err) {

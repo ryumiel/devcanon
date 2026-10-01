@@ -712,18 +712,30 @@ side/revision and navigation provenance. Identical path and side/revision
 records coalesce; distinct sides may remain separate. Other kinds remain
 ordinary untrusted prior context, even when a reference resembles a document
 path. Navigation contains no document claims or approval. The invoking branch
-or PR wrapper retains the exact existing five-field
+or PR wrapper obtains and validates the exact existing five-field
 `SharedContextFamilyBinding` (`schema`, `input_file`, `input_sha256`,
 `context_file`, `context_sha256`) with closed
 `play-review/shared-context-family/v1` schema and exact-byte SHA-256 digests.
+The installed shared-context helper exposes read-only create and validate
+operations for original helper-returned paths, physical root, reviewed head
+and findings identity. Validation also consumes the exact serialized supplied
+value and refuses malformed, duplicate, unknown, stale or swapped members
+without writing or emitting a usable binding. The existing lease module API
+and artifact schemas remain unchanged.
 It retains the original repository/root/base/head/active/full association
 separately and forwards the family unchanged only during live local custody.
 The branch wrapper clears family and association before deliberate local
-family/worktree release or replacement. The PR wrapper clears both before
-lease-owned removal/recreation, terminal head advancement or old artifact
-retirement, selected worktree switching, and known completed artifact
-retirement. Failed or refused lifecycle operations do not restore discarded
-custody. Later absence invokes ordinary discovery. An unexpectedly missing,
+family/worktree release or replacement. Before lease-owned removal/recreation,
+terminal head advancement or old artifact retirement, the PR wrapper validates
+the still-live family and its independent original association. It extracts
+only exact-kind bounded untrusted navigation into local same-provider-
+repository/PR continuation state before clearing both live binding and
+association or invoking any destructive lease operation, including Phase 7
+cleanup. On success, detached navigation may reach a newly selected worktree
+under independently selected current scope; the retired binding cannot.
+Failed or refused transitions discard pending candidates and do not restore
+discarded custody. Repository/PR switch, explicit release or controller loss
+drops detached candidates. Later absence invokes ordinary discovery. An unexpectedly missing,
 malformed or mismatched supplied family or independent association stops before
 semantic dispatch. Fresh
 D18 sanitizes retained records for the new review, and D7 rereads relevant
