@@ -511,10 +511,11 @@ Choose one of these coverage routes:
 When an evaluation is already requested or required, choose the smallest
 exercise that can observe the behavior being claimed. Before running it,
 describe in existing local planning or evaluation material, in proportion to
-the claim: the authoritative procedure, starting condition, producer and
-consumer boundary, observable outcome, and what the exercise cannot prove. No
-particular file, report schema, or real task is required by this selection
-step. Keep the expected outcome and scoring outside the consumer's input.
+the claim: the evaluation claim, authoritative procedure, starting condition,
+producer and consumer boundary, observable outcome, and what the exercise
+cannot prove. No particular file, report schema, or real task is required by
+this selection step. Keep the expected outcome and scoring outside the
+consumer's input.
 
 Match the exercise to the claim:
 
