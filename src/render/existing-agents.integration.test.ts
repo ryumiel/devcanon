@@ -3,7 +3,10 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
 import { readAgentSemanticRoleOwner } from "../__test-helpers__/agent-routing-policy.js";
-import { providerFromRuntimeFixture } from "../__test-helpers__/fixtures.js";
+import {
+  SHIPPED_CAPABILITY_PROFILES,
+  providerFromRuntimeFixture,
+} from "../__test-helpers__/fixtures.js";
 import {
   parseRenderedMarkdownArtifact,
   parseRenderedTomlArtifact,
@@ -124,6 +127,11 @@ describe("shipped semantic agents", () => {
       expect(source.claude.tools).toEqual(role.claudeTools);
       if (PINNED_CODEX_ROLES.has(role.name)) {
         expect(source.codex.model).toEqual(expect.stringMatching(/\S/));
+        if (role.name !== "reviewer") {
+          expect(source.codex.model).toBe(
+            SHIPPED_CAPABILITY_PROFILES[role.capability].codex,
+          );
+        }
         expect(source.codex.model_reasoning_effort).toBe(role.routeEffort);
       } else {
         expect(source.codex.model).toBeNull();
