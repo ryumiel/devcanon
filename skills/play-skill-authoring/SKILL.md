@@ -50,7 +50,7 @@ TDD to process documentation.
 ## Pressure-Scenario Evaluator Contract
 
 Every pressure-scenario evaluator is a response-only `assessor`,
-balanced/medium and source-immutable, with zero handoffs. Use the scenario's
+balanced/low and source-immutable, with zero handoffs. Use the scenario's
 existing closed acceptance condition as a bounded evaluation; do not substitute
 another role, capability, or effort. The controller retains the expected
 disposition and acceptance condition outside the spawned scenario input. Never
@@ -68,7 +68,7 @@ inputs, and scenario disposition.
 
 | Route | `agent_type` | Capability | Model marker                             | `reasoning_effort` | `source_authority` | Prompt                |
 | ----- | ------------ | ---------- | ---------------------------------------- | ------------------ | ------------------ | --------------------- |
-| D11   | `assessor`   | `balanced` | `D11_MODEL` = `{{model-codex:balanced}}` | `medium`           | `source-immutable` | `D11_SCENARIO_PROMPT` |
+| D11   | `assessor`   | `balanced` | `D11_MODEL` = `{{model-codex:balanced}}` | `low`              | `source-immutable` | `D11_SCENARIO_PROMPT` |
 
 The route has `external_authority: none` and zero handoffs. Build a
 self-contained scenario prompt naming the repository root, the exact
@@ -87,7 +87,7 @@ Codex.spawn_agent({
   task_name: d11_<instance_ordinal>,
   agent_type: "assessor",
   model: D11_MODEL,
-  reasoning_effort: "medium",
+  reasoning_effort: "low",
   fork_turns: "none",
   message: D11_SCENARIO_PROMPT,
 })

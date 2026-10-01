@@ -45,7 +45,7 @@ You: I'm using Subagent-Driven Development to execute this plan.
 Target capability for this run: automatic-close-supported
 
 [Route classification reminder]
-D12 uses the source-mutable `implementer`, balanced/high, for judgment-bearing
+D12 uses the source-mutable `implementer`, balanced/medium, for judgment-bearing
 scoped work. D13 uses guarded inline execution or the source-mutable `executor`,
 efficient/medium, only when all five exact guardrails pass. A D13 executor
 performs the exact validated operation and stops for controller reclassification
@@ -61,19 +61,19 @@ prompt/context, output, and termination. Apply the shared `subagent-lifecycle`
 rule before creation. For this run the controller uses:
 
 D12: task_name=d12_1, agent_type=implementer,
-     model=D12_MODEL, reasoning_effort=high,
+     model=D12_MODEL, reasoning_effort=medium,
      fork_turns=none, message=full task/context/snapshot/report prompt
 D13: task_name=d13_1, agent_type=executor,
      model=D13_MODEL, reasoning_effort=medium,
      fork_turns=none, message=exact guarded task/context/snapshot/report prompt
 D14: task_name=d14_1, agent_type=deep-reviewer,
-     model=D14_MODEL, reasoning_effort=xhigh,
+     model=D14_MODEL, reasoning_effort=high,
      fork_turns=none, message=independent D14 same-head response-only prompt
 D15: task_name=d15_1, agent_type=deep-reviewer,
-     model=D15_MODEL, reasoning_effort=xhigh,
+     model=D15_MODEL, reasoning_effort=high,
      fork_turns=none, message=independent D15 same-head response-only prompt
 D16: task_name=d16_1, agent_type=deep-reviewer,
-     model=D16_MODEL, reasoning_effort=xhigh,
+     model=D16_MODEL, reasoning_effort=high,
      fork_turns=none, message=fresh D16 whole-range response-only prompt
 
 Each `model` value above is the full nonblank owner-rendered resolution, not a

@@ -47,6 +47,17 @@ async function renderAll(
   );
 }
 
+const CODEX_ROLE_DEFAULTS: Record<
+  string,
+  { model: string; model_reasoning_effort: string }
+> = {
+  assessor: { model: "gpt-6.1-sol", model_reasoning_effort: "low" },
+  investigator: { model: "gpt-6.1-sol", model_reasoning_effort: "medium" },
+  implementer: { model: "gpt-6.1-sol", model_reasoning_effort: "medium" },
+  reviewer: { model: "gpt-6.1-sol", model_reasoning_effort: "high" },
+  "deep-reviewer": { model: "gpt-6-astra", model_reasoning_effort: "high" },
+};
+
 const EXPECTED_CLAUDE_CONTENT_HASHES: Record<string, string> = {
   assessor: "a83318166fa51ea78dacc3e7805516c1ff9c724790fb40eaf960cb8c9b22b645",
   investigator:
@@ -127,9 +138,8 @@ describe("shipped semantic agents", () => {
       expect(source.claude).not.toHaveProperty("model");
       expect(source.claude.effort).toBe(role.claudeEffort);
       expect(source.claude.tools).toEqual(role.claudeTools);
-      if (role.name === "reviewer") {
-        expect(source.codex.model).toBe("gpt-6-astra");
-        expect(source.codex.model_reasoning_effort).toBe("medium");
+      if (CODEX_ROLE_DEFAULTS[role.name]) {
+        expect(source.codex).toMatchObject(CODEX_ROLE_DEFAULTS[role.name]);
       } else {
         expect(source.codex.model).toBeNull();
         expect(source.codex).not.toHaveProperty("model_reasoning_effort");
@@ -177,18 +187,13 @@ describe("shipped semantic agents", () => {
       expect(codexToml).toEqual({
         name: role.name,
         description: source.description,
-        ...(role.name === "reviewer"
-          ? {
-              model: "gpt-6-astra",
-              model_reasoning_effort: "medium",
-            }
-          : {}),
+        ...(CODEX_ROLE_DEFAULTS[role.name] ?? {}),
         sandbox_mode: role.codexSandbox,
         developer_instructions: expect.stringContaining(
           source.instructions.trim(),
         ),
       });
-      if (role.name !== "reviewer") {
+      if (!CODEX_ROLE_DEFAULTS[role.name]) {
         expect(codexToml).not.toHaveProperty("model");
         expect(codexToml).not.toHaveProperty("model_reasoning_effort");
       }

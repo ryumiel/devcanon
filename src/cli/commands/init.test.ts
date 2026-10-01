@@ -197,7 +197,7 @@ describe("initAction", () => {
       },
       balanced: {
         claude: "claude-sonnet-5",
-        codex: "gpt-5.6-terra",
+        codex: "gpt-6.1-sol",
       },
       frontier: {
         claude: "claude-opus-5",

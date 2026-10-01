@@ -91,7 +91,7 @@ describe("newAgentAction", () => {
 
     expect(claudeAgent?.content).toContain('model: "claude-sonnet-5"');
     expect(claudeAgent?.content).not.toContain("effort:");
-    expect(codexAgent?.content).toContain('model = "gpt-5.6-terra"');
+    expect(codexAgent?.content).toContain('model = "gpt-6.1-sol"');
     expect(codexAgent?.content).not.toContain("model_reasoning_effort");
   });
 

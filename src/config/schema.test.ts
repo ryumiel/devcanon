@@ -17,7 +17,7 @@ const CAPABILITY_PROFILES = {
   },
   balanced: {
     claude: "claude-sonnet-5",
-    codex: "gpt-5.6-terra",
+    codex: "gpt-6.1-sol",
   },
   frontier: {
     claude: "claude-opus-5",
@@ -360,7 +360,7 @@ describe("AgentSourceSchema", () => {
   it("preserves literal, absent, and explicit-null Codex model states", () => {
     const literal = AgentSourceSchema.parse({
       ...validAgent,
-      codex: { model: "gpt-5.6-terra" },
+      codex: { model: "gpt-6.1-sol" },
     });
     const absent = AgentSourceSchema.parse({
       ...validAgent,
@@ -371,7 +371,7 @@ describe("AgentSourceSchema", () => {
       codex: { model: null },
     });
 
-    expect(literal.codex?.model).toBe("gpt-5.6-terra");
+    expect(literal.codex?.model).toBe("gpt-6.1-sol");
     expect(absent.codex).not.toHaveProperty("model");
     expect(suppressed.codex?.model).toBeNull();
   });

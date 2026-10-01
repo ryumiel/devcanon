@@ -91,7 +91,7 @@ describe("devcanon-runtime typed entrypoint", () => {
         "capabilityProfiles.balanced.codex",
       ]);
       expect(JSON.parse(result.stdout)).toMatchObject({
-        value: "gpt-5.6-terra",
+        value: "gpt-6.1-sol",
       });
       await writeFile(
         path.join(copied, "config", "runtime-config.json"),

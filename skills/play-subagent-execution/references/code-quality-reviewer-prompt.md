@@ -12,7 +12,7 @@ disposition, invalidation, and terminal transitions.
 **Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/deep-reviewer.yaml`](../../../agents/deep-reviewer.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
 
 **Routes:** D15 and D16 are separate response-only `deep-reviewer`,
-frontier/xhigh, source-immutable sessions with zero handoffs. The controller
+frontier/high, source-immutable sessions with zero handoffs. The controller
 applies GUARD-001 independently around each session. Do not change source,
 tests, configuration, documentation, or external systems; return only the
 response. Findings are evidence; mutation disposition belongs to the controller.
@@ -21,7 +21,7 @@ Never reuse a D15 session or result as D16.
 **Fresh configuration:** Before either capture, validate `deep-reviewer`,
 `frontier`, the nonblank full model in the controller/owner-supplied
 already-rendered `D15_MODEL` or already-rendered `D16_MODEL` binding,
-independent `xhigh`,
+independent `high`,
 source-immutable and external-none authority, a route-local
 `d15_<instance_ordinal>` or `d16_<instance_ordinal>`, `fork_turns: "none"`,
 the fully substituted route-specific prompt, response-only output, and its

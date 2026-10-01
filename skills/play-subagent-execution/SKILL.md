@@ -446,8 +446,8 @@ The route owner supplies the capability and independent effort. Every fresh
 Codex dispatch resolves its full model from its Codex-bound rendered route binding
 and passes both model and effort explicitly. Semantic role TOML omits those
 target-local dispatch values. D12
-uses `implementer`, balanced/high; D13 uses `executor`, efficient/medium; and
-D14-D16 use `deep-reviewer`, frontier/xhigh. These pairs do not grant external
+uses `implementer`, balanced/medium; D13 uses `executor`, efficient/medium; and
+D14-D16 use `deep-reviewer`, frontier/high. These pairs do not grant external
 mutation authority.
 
 For Claude D13 executor dispatch, omit named effort for the efficient
@@ -467,11 +467,11 @@ contracts, and termination below.
 
 | Route | `agent_type`    | Capability  | Model marker                              | `reasoning_effort` | `source_authority` | Prompt                      |
 | ----- | --------------- | ----------- | ----------------------------------------- | ------------------ | ------------------ | --------------------------- |
-| D12   | `implementer`   | `balanced`  | `D12_MODEL` = `{{model-codex:balanced}}`  | `high`             | `source-mutable`   | `D12_SELF_CONTAINED_PROMPT` |
+| D12   | `implementer`   | `balanced`  | `D12_MODEL` = `{{model-codex:balanced}}`  | `medium`           | `source-mutable`   | `D12_SELF_CONTAINED_PROMPT` |
 | D13   | `executor`      | `efficient` | `D13_MODEL` = `{{model-codex:efficient}}` | `medium`           | `source-mutable`   | `D13_SELF_CONTAINED_PROMPT` |
-| D14   | `deep-reviewer` | `frontier`  | `D14_MODEL` = `{{model-codex:frontier}}`  | `xhigh`            | `source-immutable` | `D14_SELF_CONTAINED_PROMPT` |
-| D15   | `deep-reviewer` | `frontier`  | `D15_MODEL` = `{{model-codex:frontier}}`  | `xhigh`            | `source-immutable` | `D15_SELF_CONTAINED_PROMPT` |
-| D16   | `deep-reviewer` | `frontier`  | `D16_MODEL` = `{{model-codex:frontier}}`  | `xhigh`            | `source-immutable` | `D16_SELF_CONTAINED_PROMPT` |
+| D14   | `deep-reviewer` | `frontier`  | `D14_MODEL` = `{{model-codex:frontier}}`  | `high`             | `source-immutable` | `D14_SELF_CONTAINED_PROMPT` |
+| D15   | `deep-reviewer` | `frontier`  | `D15_MODEL` = `{{model-codex:frontier}}`  | `high`             | `source-immutable` | `D15_SELF_CONTAINED_PROMPT` |
+| D16   | `deep-reviewer` | `frontier`  | `D16_MODEL` = `{{model-codex:frontier}}`  | `high`             | `source-immutable` | `D16_SELF_CONTAINED_PROMPT` |
 
 | Route | Self-contained prompt and output                                              | Termination                                                      |
 | ----- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------- |
@@ -494,7 +494,7 @@ Codex.spawn_agent({
   task_name: d12_<instance_ordinal>,
   agent_type: "implementer",
   model: D12_MODEL,
-  reasoning_effort: "high",
+  reasoning_effort: "medium",
   fork_turns: "none",
   message: D12_SELF_CONTAINED_PROMPT,
 })
@@ -512,7 +512,7 @@ Codex.spawn_agent({
   task_name: d14_<instance_ordinal>,
   agent_type: "deep-reviewer",
   model: D14_MODEL,
-  reasoning_effort: "xhigh",
+  reasoning_effort: "high",
   fork_turns: "none",
   message: D14_SELF_CONTAINED_PROMPT,
 })
@@ -521,7 +521,7 @@ Codex.spawn_agent({
   task_name: d15_<instance_ordinal>,
   agent_type: "deep-reviewer",
   model: D15_MODEL,
-  reasoning_effort: "xhigh",
+  reasoning_effort: "high",
   fork_turns: "none",
   message: D15_SELF_CONTAINED_PROMPT,
 })
@@ -530,7 +530,7 @@ Codex.spawn_agent({
   task_name: d16_<instance_ordinal>,
   agent_type: "deep-reviewer",
   model: D16_MODEL,
-  reasoning_effort: "xhigh",
+  reasoning_effort: "high",
   fork_turns: "none",
   message: D16_SELF_CONTAINED_PROMPT,
 })
@@ -546,7 +546,7 @@ through the existing route terminal without substitution.
 
 ## Execution Route Classification
 
-D12 uses the source-mutable `implementer`, balanced/high, for judgment-bearing
+D12 uses the source-mutable `implementer`, balanced/medium, for judgment-bearing
 scoped implementation. Preserve the existing status, snapshot, scoped commit,
 self-review, TDD, and verification contracts in
 [`references/implementer-prompt.md`](references/implementer-prompt.md).
@@ -614,9 +614,9 @@ eligibility, or checking hard-risk triggers.
 
 ### D14-D15 guarded per-task reviews
 
-D14 is a separate response-only `deep-reviewer`, frontier/xhigh and
+D14 is a separate response-only `deep-reviewer`, frontier/high and
 source-immutable, with zero handoffs. D15 is a separate response-only
-`deep-reviewer`, frontier/xhigh and source-immutable, with zero handoffs. Use
+`deep-reviewer`, frontier/high and source-immutable, with zero handoffs. Use
 the configured role and effort; do not substitute an ordinary reviewer,
 ambient role, model, or effort. The
 [lifecycle/status policy](references/lifecycle-status-policy.md) is the
@@ -627,7 +627,7 @@ its command sequence.
 
 ### D16 guarded final whole-implementation review
 
-D16 is a fresh response-only `deep-reviewer`, frontier/xhigh and
+D16 is a fresh response-only `deep-reviewer`, frontier/high and
 source-immutable, with zero handoffs. Supply the whole implementation base/head
 range and the D16-specific question from
 `references/code-quality-reviewer-prompt.md`.

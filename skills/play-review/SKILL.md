@@ -187,7 +187,7 @@ handoffs, no network, and no inherited turns.
 
 | Route | `agent_type` | Capability | Model marker                             | `reasoning_effort` | `source_authority` | Prompt                        |
 | ----- | ------------ | ---------- | ---------------------------------------- | ------------------ | ------------------ | ----------------------------- |
-| D18   | `assessor`   | `balanced` | `D18_MODEL` = `{{model-codex:balanced}}` | `medium`           | `source-immutable` | `D18_SEMANTIC_CONTEXT_PROMPT` |
+| D18   | `assessor`   | `balanced` | `D18_MODEL` = `{{model-codex:balanced}}` | `low`              | `source-immutable` | `D18_SEMANTIC_CONTEXT_PROMPT` |
 
 A missing, blank, unresolved, or mismatched marker blocks before capture or
 spawn. Do not search a source checkout, use an alias, or fall back to a nearby
@@ -199,7 +199,7 @@ Codex.spawn_agent({
   task_name: d18_<instance_ordinal>,
   agent_type: "assessor",
   model: D18_MODEL,
-  reasoning_effort: "medium",
+  reasoning_effort: "low",
   fork_turns: "none",
   message: D18_SEMANTIC_CONTEXT_PROMPT,
 })
@@ -248,9 +248,9 @@ Apply the dispatch ritual loaded in Phase 2.25 before capture; unavailable
 ritual or unresolved bindings block before capture. D7 has zero handoffs,
 `external_authority: none`, and no recursion. Do not substitute roles or effort.
 
-| Route | `agent_type` | Capability | Model marker                            | `reasoning_effort` | `source_authority` | Prompt      |
-| ----- | ------------ | ---------- | --------------------------------------- | ------------------ | ------------------ | ----------- |
-| D7    | `reviewer`   | `frontier` | `D7_MODEL` = `{{model-codex:frontier}}` | `medium`           | `source-immutable` | `D7_PROMPT` |
+| Route | `agent_type` | Capability | Model marker               | `reasoning_effort` | `source_authority` | Prompt      |
+| ----- | ------------ | ---------- | -------------------------- | ------------------ | ------------------ | ----------- |
+| D7    | `reviewer`   | `frontier` | `D7_MODEL` = `gpt-6.1-sol` | `high`             | `source-immutable` | `D7_PROMPT` |
 
 Build one self-contained prompt using `references/agent-briefing-template.md`.
 Include exact scope/head, working directory, shared-context path, applicable
@@ -263,7 +263,7 @@ Codex.spawn_agent({
   task_name: d7_<instance_ordinal>,
   agent_type: "reviewer",
   model: D7_MODEL,
-  reasoning_effort: "medium",
+  reasoning_effort: "high",
   fork_turns: "none",
   message: D7_PROMPT,
 })
@@ -371,9 +371,9 @@ the Phase 2.25 dispatch ritual. D10 is separate from D7 and the implementer;
 zero handoffs, `external_authority: none`, source-immutable, no recursion.
 Missing or mismatched bindings block before capture; no substitute pair.
 
-| Route | `agent_type` | Capability | Model marker                             | `reasoning_effort` | `source_authority` | Prompt              |
-| ----- | ------------ | ---------- | ---------------------------------------- | ------------------ | ------------------ | ------------------- |
-| D10   | `reviewer`   | `frontier` | `D10_MODEL` = `{{model-codex:frontier}}` | `high`             | `source-immutable` | `D10_CRITIC_PROMPT` |
+| Route | `agent_type` | Capability | Model marker                | `reasoning_effort` | `source_authority` | Prompt              |
+| ----- | ------------ | ---------- | --------------------------- | ------------------ | ------------------ | ------------------- |
+| D10   | `reviewer`   | `frontier` | `D10_MODEL` = `gpt-6.1-sol` | `high`             | `source-immutable` | `D10_CRITIC_PROMPT` |
 
 The self-contained brief contains only selected unchanged Blocking claims,
 stable identities/ordinals, exact candidate/ranges, working directory, literal

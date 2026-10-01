@@ -620,7 +620,7 @@ describe("CLI entrypoint", () => {
       expect(JSON.parse(result.stdout)).toMatchObject({
         source: "bundled",
         key: "capabilityProfiles.balanced.codex",
-        value: "gpt-5.6-terra",
+        value: "gpt-6.1-sol",
       });
     } finally {
       await rm(tempDir, { recursive: true, force: true });
@@ -669,7 +669,7 @@ describe("CLI entrypoint", () => {
           "version: 2",
           "capabilityProfiles:",
           "  efficient: { claude: claude-haiku-4-5-20251001, codex: gpt-5.6-luna }",
-          "  balanced: { claude: claude-sonnet-5, codex: gpt-5.6-terra }",
+          "  balanced: { claude: claude-sonnet-5, codex: gpt-6.1-sol }",
           "  frontier: { claude: claude-opus-5, codex: gpt-6-astra }",
           "library:",
           `  skillsDir: ${path.join(tempDir, "skills")}`,
@@ -809,7 +809,7 @@ describe("CLI entrypoint", () => {
             "version: 2",
             "capabilityProfiles:",
             "  efficient: { claude: claude-haiku-4-5-20251001, codex: gpt-5.6-luna }",
-            "  balanced: { claude: claude-sonnet-5, codex: gpt-5.6-terra }",
+            "  balanced: { claude: claude-sonnet-5, codex: gpt-6.1-sol }",
             "  frontier: { claude: claude-opus-5, codex: gpt-6-astra }",
             "library:",
             `  skillsDir: ${path.join(tempDir, "skills")}`,

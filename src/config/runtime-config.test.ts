@@ -75,7 +75,7 @@ describe("runtime configuration selection", () => {
           selected.value,
           "capabilityProfiles.balanced.codex",
         ),
-      ).toBe("gpt-5.6-terra");
+      ).toBe("gpt-6.1-sol");
     } finally {
       process.chdir(previousCwd);
     }
@@ -334,7 +334,7 @@ describe("runtime configuration catalog", () => {
       getRuntimeConfigScalar(
         {
           capabilityProfiles: {
-            balanced: { codex: "gpt-5.6-terra" },
+            balanced: { codex: "gpt-6.1-sol" },
           },
         },
         key,

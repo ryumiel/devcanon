@@ -29,5 +29,6 @@ claude:
     - WebSearch
 
 codex:
-  model: null
+  model: gpt-6.1-sol
+  model_reasoning_effort: medium
   sandbox_mode: workspace-write

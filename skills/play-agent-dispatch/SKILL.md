@@ -98,12 +98,13 @@ thinking budget for omission. Validate `source_authority` separately against
 that same catalog; effort does not imply authority.
 `agents/*.yaml` are governed declarations and parity inputs,
 never semantic authorities; their target-local literal fields are governed
-values under the agent spec, but D4's fresh-Codex selection still resolves its
-full model through the Codex-bound rendered binding.
+values under the agent spec, and D4's fresh-Codex selection honors the explicit Codex reviewer override
+`gpt-6.1-sol`; other roles use their Codex-bound rendered capability binding.
 
 For the selected D4 role, the complete Codex-bound model bindings are
 `efficient` → `{{model-codex:efficient}}`, `balanced` →
-`{{model-codex:balanced}}`, and `frontier` → `{{model-codex:frontier}}`. The
+`{{model-codex:balanced}}`, and `frontier` → `{{model-codex:frontier}}`. For `reviewer`, select the literal role override `gpt-6.1-sol` instead of
+the frontier binding. The
 bindings select only the exact full Codex model; the separately validated role effort remains
 independent. A missing, blank, unresolved, or mismatched binding blocks before
 spawn. Do not search a source checkout, use a sibling runtime when a rendered

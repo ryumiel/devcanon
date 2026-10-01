@@ -64,7 +64,7 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
 ## Skipping the gate for "obvious" gated issues
 
 - **Problem:** Single-module issues sometimes have hidden cross-module dependencies
-- **Fix:** When `payload.research = gated`, always run the balanced/medium
+- **Fix:** When `payload.research = gated`, always run the balanced/low
   `assessor` gate. When `payload.research = forced`, skip the gate intentionally
   and carry `forced by --research` as the research reason
 
