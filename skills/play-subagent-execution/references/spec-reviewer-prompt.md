@@ -6,7 +6,7 @@ Use this template when dispatching a spec compliance reviewer subagent.
 
 **Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/deep-reviewer.yaml`](../../../agents/deep-reviewer.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
 
-**Route:** D14 is a response-only `deep-reviewer`, frontier/xhigh and
+**Route:** D14 is a response-only `deep-reviewer`, frontier/high and
 source-immutable, with zero handoffs. The controller supplies the captured task
 head and applies GUARD-001 outside this prompt. Do not change source, tests,
 configuration, documentation, or external systems; return only the response.
@@ -14,7 +14,7 @@ Findings are evidence; mutation disposition belongs to the controller.
 
 **Fresh configuration:** Before D14 capture, validate `deep-reviewer`,
 `frontier`, the nonblank full model in the controller/owner-supplied
-already-rendered `D14_MODEL` binding, independent `xhigh`, source-immutable and
+already-rendered `D14_MODEL` binding, independent `high`, source-immutable and
 external-none authority, `d14_<instance_ordinal>`, `fork_turns: "none"`, this
 independent fully substituted prompt, response-only output, and the existing
 same-head/fix-loop termination. A missing, blank, unresolved, or mismatched

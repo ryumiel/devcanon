@@ -1,11 +1,16 @@
 import { lstat, readdir } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import { parse as parseYaml } from "yaml";
 import {
   readAgentRoutingPolicyOwner,
   readAgentSemanticRoleOwner,
 } from "../__test-helpers__/agent-routing-policy.js";
 import { readRepoFile } from "../__test-helpers__/skill-contracts.js";
 import { loadConfig } from "../config/load.js";
+
+const reviewerModel: string = parseYaml(
+  await readRepoFile("agents/reviewer.yaml"),
+).codex.model;
 
 const OWNER_PATH = "docs/guidelines/agent-routing-and-mutation-policy.md";
 const AGENT_SPEC_PATH = "docs/specs/agents.md";
@@ -23,7 +28,7 @@ const FRESH_SPAWNS = [
     "assessor",
     "balanced",
     "D1_MODEL",
-    "medium",
+    "low",
     "source-immutable",
     "D1_PROMPT",
   ],
@@ -33,7 +38,7 @@ const FRESH_SPAWNS = [
     "investigator",
     "balanced",
     "D2_MODEL",
-    "high",
+    "medium",
     "source-immutable",
     "D2_PROMPT",
   ],
@@ -43,7 +48,7 @@ const FRESH_SPAWNS = [
     "investigator",
     "balanced",
     "D3_MODEL",
-    "high",
+    "medium",
     "source-immutable",
     "D3_PROMPT",
   ],
@@ -53,7 +58,7 @@ const FRESH_SPAWNS = [
     "reviewer",
     "frontier",
     "D5_MODEL",
-    "medium",
+    "high",
     "source-immutable",
     "D5_PLAN_REVIEW_PROMPT",
   ],
@@ -63,7 +68,7 @@ const FRESH_SPAWNS = [
     "reviewer",
     "frontier",
     "D7_MODEL",
-    "medium",
+    "high",
     "source-immutable",
     "D7_PROMPT",
   ],
@@ -83,7 +88,7 @@ const FRESH_SPAWNS = [
     "assessor",
     "balanced",
     "D11_MODEL",
-    "medium",
+    "low",
     "source-immutable",
     "D11_SCENARIO_PROMPT",
   ],
@@ -93,7 +98,7 @@ const FRESH_SPAWNS = [
     "implementer",
     "balanced",
     "D12_MODEL",
-    "high",
+    "medium",
     "source-mutable",
     "D12_SELF_CONTAINED_PROMPT",
   ],
@@ -113,7 +118,7 @@ const FRESH_SPAWNS = [
     "deep-reviewer",
     "frontier",
     "D14_MODEL",
-    "xhigh",
+    "high",
     "source-immutable",
     "D14_SELF_CONTAINED_PROMPT",
   ],
@@ -123,7 +128,7 @@ const FRESH_SPAWNS = [
     "deep-reviewer",
     "frontier",
     "D15_MODEL",
-    "xhigh",
+    "high",
     "source-immutable",
     "D15_SELF_CONTAINED_PROMPT",
   ],
@@ -133,7 +138,7 @@ const FRESH_SPAWNS = [
     "deep-reviewer",
     "frontier",
     "D16_MODEL",
-    "xhigh",
+    "high",
     "source-immutable",
     "D16_SELF_CONTAINED_PROMPT",
   ],
@@ -143,7 +148,7 @@ const FRESH_SPAWNS = [
     "investigator",
     "balanced",
     "D17_DIAGNOSIS_MODEL",
-    "high",
+    "medium",
     "source-immutable",
     "D17_DIAGNOSIS_SELF_CONTAINED_PROMPT",
   ],
@@ -163,7 +168,7 @@ const FRESH_SPAWNS = [
     "implementer",
     "balanced",
     "D17_JUDGMENT_FIX_MODEL",
-    "high",
+    "medium",
     "source-mutable",
     "D17_JUDGMENT_FIX_SELF_CONTAINED_PROMPT",
   ],
@@ -173,7 +178,7 @@ const FRESH_SPAWNS = [
     "assessor",
     "balanced",
     "D18_MODEL",
-    "medium",
+    "low",
     "source-immutable",
     "D18_SEMANTIC_CONTEXT_PROMPT",
   ],
@@ -232,10 +237,7 @@ describe("agent routing and mutation policy owner", () => {
         const role = rolesByName.get(clause.role);
         expect(role, `${route.id} has a known semantic role`).toBeDefined();
         expect(clause.capability).toBe(role?.capability);
-        const expectedEffort =
-          route.id === "D10" && clause.role === "reviewer"
-            ? "high"
-            : role?.routeEffort;
+        const expectedEffort = role?.routeEffort;
         expect(clause.effort).toBe(expectedEffort);
         expect(clause.sourceAuthority).toBe(role?.sourceAuthority);
         expect(config.capabilityProfiles[clause.capability].codex).toMatch(
@@ -245,7 +247,7 @@ describe("agent routing and mutation policy owner", () => {
     }
   });
 
-  it("keeps D10 as the sole high-effort reviewer exception", async () => {
+  it("uses high effort for every ordinary reviewer route", async () => {
     const owner = await readAgentRoutingPolicyOwner(OWNER_PATH);
     const reviewerRoutes = owner.directChildRoutes
       .filter((route) =>
@@ -254,8 +256,8 @@ describe("agent routing and mutation policy owner", () => {
       .map((route) => [route.id, route.clauses[0]?.effort]);
 
     expect(reviewerRoutes).toEqual([
-      ["D5", "medium"],
-      ["D7", "medium"],
+      ["D5", "high"],
+      ["D7", "high"],
       ["D10", "high"],
     ]);
   });
@@ -348,7 +350,7 @@ describe("agent routing and mutation policy owner", () => {
       const source = ownerSkills.get(ownerSkill);
       expect(source, `${ownerSkill} source is readable`).toBeDefined();
       expect(source?.replace(/\s+/gu, " ")).toContain(
-        `\`${model}\` = \`{{model-codex:${capability}}}\``,
+        `\`${model}\` = \`${role === "reviewer" ? reviewerModel : `{{model-codex:${capability}}}`}\``,
       );
       expect(config.capabilityProfiles[capability].codex).toMatch(/\S/);
       expect(source).toContain(

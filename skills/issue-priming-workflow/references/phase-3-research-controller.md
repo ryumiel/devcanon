@@ -53,7 +53,7 @@ Codex.spawn_agent({
   task_name: d2_<instance_ordinal>,
   agent_type: "investigator",
   model: D2_MODEL,
-  reasoning_effort: "high",
+  reasoning_effort: "medium",
   fork_turns: "none",
   message: D2_PROMPT,
 })
@@ -62,7 +62,7 @@ Codex.spawn_agent({
   task_name: d3_<instance_ordinal>,
   agent_type: "investigator",
   model: D3_MODEL,
-  reasoning_effort: "high",
+  reasoning_effort: "medium",
   fork_turns: "none",
   message: D3_PROMPT,
 })

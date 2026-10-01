@@ -12,10 +12,10 @@ applicable questions, sub-checks, and aggregation method in this template.
 
 ```
 Role: <role>
-Semantic route: reviewer, frontier/medium, source-immutable, response-only, zero handoffs
+Semantic route: reviewer, frontier/high, source-immutable, response-only, zero handoffs
 Review question: <review-question>
 
-The semantic route is `reviewer`, frontier/medium, source-immutable,
+The semantic route is `reviewer`, frontier/high, source-immutable,
 response-only, with zero handoffs. Return only the terminal review response.
 Do not modify durable source, write a handoff, or spawn another agent.
 

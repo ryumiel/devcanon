@@ -144,7 +144,7 @@ discovery API is introduced.
 
 ### Baseline adoption and historical runtime evidence
 
-Adopt the model catalog in ADR-0026 and the target-specific role envelopes in
+Adopt the configured model catalog and the target-specific role envelopes in
 [the agent spec](../specs/agents.md#semantic-role-catalog) using ordinary
 repository configuration, render, and contract checks. The previous bounded
 runtime matrix and named-role trials are retired as acceptance and deployment
@@ -153,35 +153,9 @@ required. Live dispatch still uses the owning route's exact model, supported
 effort representation, and existing rejection behavior; this amendment does
 not permit aliases, fallback, or inferred availability.
 
-The July 15, 2026 runtime record below is historical evidence only. Its model
-and effort labels describe that run, not required attempts or current dispatch
-instructions. In particular, Sol is the historical Codex frontier, and the
-recorded Claude Haiku `medium` label must not be sent by current dispatches.
-
-| Historical capability / effort | Claude                      | Codex           |
-| ------------------------------ | --------------------------- | --------------- |
-| efficient / medium             | `claude-haiku-4-5-20251001` | `gpt-5.6-luna`  |
-| balanced / medium              | `claude-sonnet-5`           | `gpt-5.6-terra` |
-| balanced / high                | `claude-sonnet-5`           | `gpt-5.6-terra` |
-| frontier / high                | `claude-opus-4-8`           | `gpt-5.6-sol`   |
-| frontier / xhigh               | `claude-opus-4-8`           | `gpt-5.6-sol`   |
-
-That protocol called for ten no-tool pair attempts using exact full model and
-effort values without aliases, fallback, substitution, or retry. It compared
-the sole extracted final text with
-`DEVCANON_SMOKE_OK <full-model> <effort>`. The six Codex named-role cases
-permitted only `git rev-parse --verify HEAD` and one named direct-child handoff
-containing `DEVCANON_ROLE_SMOKE_OK <role> <head>`, checked and cleaned under the
-minimum source-immutability guard.
-
-The dated report recorded all five Claude pair rows as passed and three of
-five Codex pair rows as passed. The two Sol rows were blocked by final-text
-literal mismatches. All six Codex named-role rows were blocked because the
-installed client exposed no supported native named-role selection interface;
-no role was substituted or emulated. Those results left the ADR Proposed under
-the former gate. They remain unchanged historical observations and do not
-establish current Haiku effort support or Astra runtime verification. The
-September amendment retires that gate without reclassifying the results.
+Specific model choices remain mutable configuration under the capability
+profile mechanism in ADR-0026. Historical model trials do not select current
+models or add deployment gates.
 
 ## Consequences
 
@@ -202,9 +176,9 @@ September amendment retires that gate without reclassifying the results.
   narrow and caller-scoped.
 - Deterministic mechanics remain governed by ADR-0019 and the packaged runtime
   boundary accepted by ADR-0024.
-- ADR-0025 remains historical model-selection evidence. ADR-0026 remains the
-  accepted owner of the model-only capability catalog and capability/effort
-  independence.
+- ADR-0026 remains the accepted owner of the capability vocabulary,
+  model-resolution mechanism, and capability/effort independence. Current
+  provider model identifiers belong to configuration sources.
 - Generated outputs remain disposable. The agent source schema accepts an
   explicit-null `codex.model` to suppress rendered model assignment despite a
   capability; native TOML grammar and install boundaries remain unchanged.
@@ -253,7 +227,6 @@ prerequisites for baseline adoption:
 - [ADR-0016: Single-Task Auto Final-Review Carve-Out](adr-0016-single-task-auto-final-review-carve-out.md)
 - [ADR-0019: Script Authority for Deterministic Skill Mechanics](adr-0019-script-authority-for-deterministic-skill-mechanics.md)
 - [ADR-0024: Shared Passive Runtime Support Bundle](adr-0024-shared-support-skill-runtime.md)
-- [ADR-0025: Select Named GPT-5.6 Codex Tiers](adr-0025-codex-model-tier-selection.md)
 - [ADR-0026: Replace Model Tiers with Capability Profiles](adr-0026-capability-profiles.md)
 - [Shared subagent lifecycle procedure](../../skills/subagent-lifecycle/SKILL.md)
 - [Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md)

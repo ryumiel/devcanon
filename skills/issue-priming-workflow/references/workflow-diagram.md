@@ -9,7 +9,7 @@ digraph priming {
   worktree [label="1. Worktree\nAdopt handed-off\nworktree + issue body"];
   helpers [label="Helper guards\nphase-artifacts.mjs\nwrite-* helpers", shape=box];
   immutable_guard [label="D1-D3 source-immutable guard\nresolve configured full model + independent effort; validate complete tuple\nfresh Codex fork_turns:none; response-only; zero handoffs\ncapture -> spawn -> verify -> validate -> cleanup -> apply", shape=note];
-  gate [label="2. Gate\nassessor balanced/medium\nfresh history-free child\nassesses complexity"];
+  gate [label="2. Gate\nassessor balanced/low\nfresh history-free child\nassesses complexity"];
   decide [label="Research?", shape=diamond];
   external_policy [label="Root dispatches zero or one conditional external investigator total\nImmediate and late paths are mutually exclusive\nexternal dispatch names network access", shape=note];
   immediate_external_decide [label="Immediate external criterion met before internal report?", shape=diamond];

@@ -119,8 +119,8 @@ describe("loadConfig", () => {
     expect(result.library.generatedDir).toBeTruthy();
     expect(result.defaults.installMode).toBe("symlink");
     expect(result.capabilityProfiles.balanced).toEqual({
-      claude: "claude-sonnet-5",
-      codex: "gpt-5.6-terra",
+      claude: "test-claude-balanced",
+      codex: "test-codex-balanced",
     });
   });
 
@@ -372,8 +372,8 @@ describe("loadConfig", () => {
       const yaml = makeConfigYaml({
         modelTiers: {
           balanced: {
-            claude: { model: "claude-sonnet-5" },
-            codex: { model: "gpt-5.6-terra" },
+            claude: { model: "test-claude-balanced" },
+            codex: { model: "test-codex-balanced" },
           },
         },
       });
@@ -529,7 +529,7 @@ describe("loadConfig", () => {
         name: "a missing target",
         value: {
           ...CANONICAL_CAPABILITY_PROFILES,
-          balanced: { claude: "claude-sonnet-5" },
+          balanced: { claude: "test-claude-balanced" },
         },
       },
       {
@@ -548,7 +548,7 @@ describe("loadConfig", () => {
           ...CANONICAL_CAPABILITY_PROFILES,
           balanced: {
             ...CANONICAL_CAPABILITY_PROFILES.balanced,
-            claude: { model: "claude-sonnet-5" },
+            claude: { model: "test-claude-balanced" },
           },
         },
       },

@@ -29,22 +29,31 @@ type CodexSource = NonNullable<LoadedAgent["source"]["codex"]>;
 
 export const CANONICAL_CAPABILITY_PROFILES = {
   efficient: {
-    claude: "claude-haiku-4-5-20251001",
-    codex: "gpt-5.6-luna",
+    claude: "test-claude-efficient",
+    codex: "test-codex-efficient",
   },
   balanced: {
-    claude: "claude-sonnet-5",
-    codex: "gpt-5.6-terra",
+    claude: "test-claude-balanced",
+    codex: "test-codex-balanced",
   },
   frontier: {
-    claude: "claude-opus-5",
-    codex: "gpt-6-astra",
+    claude: "test-claude-frontier",
+    codex: "test-codex-frontier",
   },
 };
 const DEV_CANON_RUNTIME_SOURCE_DIR = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../../skills/devcanon-runtime",
 );
+
+// Package/installed tests compare against the shipped source catalog, while
+// behavior fixtures above deliberately use provider-independent identifiers.
+export const SHIPPED_CAPABILITY_PROFILES = JSON.parse(
+  await readFile(
+    path.join(DEV_CANON_RUNTIME_SOURCE_DIR, "config", "runtime-config.json"),
+    "utf8",
+  ),
+).capabilityProfiles as ResolvedConfig["capabilityProfiles"];
 
 export function makeConfigYaml(
   overrides: Record<string, unknown> = {},

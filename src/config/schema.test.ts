@@ -12,16 +12,16 @@ import {
 
 const CAPABILITY_PROFILES = {
   efficient: {
-    claude: "claude-haiku-4-5-20251001",
-    codex: "gpt-5.6-luna",
+    claude: "test-claude-efficient",
+    codex: "test-codex-efficient",
   },
   balanced: {
-    claude: "claude-sonnet-5",
-    codex: "gpt-5.6-terra",
+    claude: "test-claude-balanced",
+    codex: "test-codex-balanced",
   },
   frontier: {
-    claude: "claude-opus-5",
-    codex: "gpt-6-astra",
+    claude: "test-claude-frontier",
+    codex: "test-codex-frontier",
   },
 };
 
@@ -360,7 +360,7 @@ describe("AgentSourceSchema", () => {
   it("preserves literal, absent, and explicit-null Codex model states", () => {
     const literal = AgentSourceSchema.parse({
       ...validAgent,
-      codex: { model: "gpt-5.6-terra" },
+      codex: { model: "test-codex-balanced" },
     });
     const absent = AgentSourceSchema.parse({
       ...validAgent,
@@ -371,7 +371,7 @@ describe("AgentSourceSchema", () => {
       codex: { model: null },
     });
 
-    expect(literal.codex?.model).toBe("gpt-5.6-terra");
+    expect(literal.codex?.model).toBe("test-codex-balanced");
     expect(absent.codex).not.toHaveProperty("model");
     expect(suppressed.codex?.model).toBeNull();
   });
@@ -652,7 +652,7 @@ describe("ConfigSchema.capabilityProfiles", () => {
         ...CAPABILITY_PROFILES,
         balanced: {
           ...CAPABILITY_PROFILES.balanced,
-          claude: { model: "claude-sonnet-5" },
+          claude: { model: "test-claude-balanced" },
         },
       },
     });

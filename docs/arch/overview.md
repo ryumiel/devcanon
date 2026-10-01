@@ -142,9 +142,11 @@ this section is only the current module-boundary summary.
 ### Semantic Agent Routing Boundary
 
 The current architecture has six semantic source roles under `agents/` and
-both-target render convergence for that catalog. Their source `codex.model:
-null` and omitted source Codex effort intentionally suppress rendered Codex
-model/effort. The Claude executor omits unsupported Haiku effort; the other
+both-target render convergence for that catalog. Assessor, investigator,
+implementer, reviewer, and deep-reviewer sources specify literal Codex model
+and effort defaults, which are emitted in their rendered TOML. Executor uses
+`codex.model: null` and omitted source Codex effort to suppress both rendered
+fields. The Claude executor omits unsupported Haiku effort; the other
 five Claude role envelopes remain unchanged. The
 [agent spec](../specs/agents.md#semantic-role-catalog) is the sole exact catalog
 owner; source definitions are authoritative for implementation state, while

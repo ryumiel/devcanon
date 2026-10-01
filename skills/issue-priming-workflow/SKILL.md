@@ -248,7 +248,7 @@ Phase 3 investigator, run
 The gate is evaluated for `payload.research = gated`. Only the research phase
 (Phase 3) is conditional based on the gate's output.
 
-Dispatch one response-only `assessor`, balanced/medium and source-immutable,
+Dispatch one response-only `assessor`, balanced/low and source-immutable,
 using the prompt template in `references/gate-agent-prompt.md`. The assessor
 reads the issue-body file from `ISSUE_BODY_PATH`, scans `docs/adr/` titles, and
 checks `AGENTS.md` for relevant rules. The route has external authority `none`,
@@ -266,7 +266,7 @@ and gate disposition.
 
 | Route | `agent_type` | Capability | Model marker                            | `reasoning_effort` | `source_authority` | Prompt      |
 | ----- | ------------ | ---------- | --------------------------------------- | ------------------ | ------------------ | ----------- |
-| D1    | `assessor`   | `balanced` | `D1_MODEL` = `{{model-codex:balanced}}` | `medium`           | `source-immutable` | `D1_PROMPT` |
+| D1    | `assessor`   | `balanced` | `D1_MODEL` = `{{model-codex:balanced}}` | `low`              | `source-immutable` | `D1_PROMPT` |
 
 The route has `external_authority: none` and zero handoffs. The prompt must name
 the issue title, source, identifier, guarded issue-body path,
@@ -282,7 +282,7 @@ Codex.spawn_agent({
   task_name: d1_<instance_ordinal>,
   agent_type: "assessor",
   model: D1_MODEL,
-  reasoning_effort: "medium",
+  reasoning_effort: "low",
   fork_turns: "none",
   message: D1_PROMPT,
 })
@@ -393,8 +393,8 @@ and research disposition.
 
 | Route | `agent_type`   | Capability | Model marker                            | `reasoning_effort` | `source_authority` | Prompt      |
 | ----- | -------------- | ---------- | --------------------------------------- | ------------------ | ------------------ | ----------- |
-| D2    | `investigator` | `balanced` | `D2_MODEL` = `{{model-codex:balanced}}` | `high`             | `source-immutable` | `D2_PROMPT` |
-| D3    | `investigator` | `balanced` | `D3_MODEL` = `{{model-codex:balanced}}` | `high`             | `source-immutable` | `D3_PROMPT` |
+| D2    | `investigator` | `balanced` | `D2_MODEL` = `{{model-codex:balanced}}` | `medium`           | `source-immutable` | `D2_PROMPT` |
+| D3    | `investigator` | `balanced` | `D3_MODEL` = `{{model-codex:balanced}}` | `medium`           | `source-immutable` | `D3_PROMPT` |
 
 D2 has no network access. D3's network binding is exactly `dispatch-named`, and
 its evidence qualifier is exactly `named-network`, only for its one root-curated
@@ -409,7 +409,7 @@ Codex.spawn_agent({
   task_name: d2_<instance_ordinal>,
   agent_type: "investigator",
   model: D2_MODEL,
-  reasoning_effort: "high",
+  reasoning_effort: "medium",
   fork_turns: "none",
   message: D2_PROMPT,
 })
@@ -417,7 +417,7 @@ Codex.spawn_agent({
   task_name: d3_<instance_ordinal>,
   agent_type: "investigator",
   model: D3_MODEL,
-  reasoning_effort: "high",
+  reasoning_effort: "medium",
   fork_turns: "none",
   message: D3_PROMPT,
 })

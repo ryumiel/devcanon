@@ -925,8 +925,10 @@ create implementation authority.
   leaves.
 - Both-target agent render tests prove exactly six roles, top-level capability
   parity, omitted Claude executor effort, unchanged Claude model/effort
-  envelopes for the other five roles, and omitted Codex model and effort for
-  all six semantic roles. The agent spec owns the exact target-model semantics.
+  envelopes for the other five roles, explicit Codex model and effort for
+  assessor, investigator, implementer, reviewer, and deep-reviewer, and omitted
+  Codex model and effort for executor. The agent spec owns the exact
+  target-model semantics.
   The same checks retain command/handoff envelopes,
   source-immutable instructions, and no semantic-child external authority.
 

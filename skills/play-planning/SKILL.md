@@ -698,7 +698,7 @@ consume the result. A guard failure, unavailable or malformed response,
 incomplete coverage, unexpected tag, digest mismatch, source drift, or cleanup
 failure is non-passing and never creates a handoff.
 
-Use only the rendered `D5_MODEL` = `{{model-codex:frontier}}`, `reviewer`, frontier/medium,
+Use only the rendered `D5_MODEL` = `gpt-6.1-sol`, `reviewer`, frontier/high,
 source-immutable, response-only tuple, with no handoffs or external authority:
 
 ```text
@@ -706,7 +706,7 @@ Codex.spawn_agent({
   task_name: d5_<instance_ordinal>,
   agent_type: "reviewer",
   model: D5_MODEL,
-  reasoning_effort: "medium",
+  reasoning_effort: "high",
   fork_turns: "none",
   message: D5_PLAN_REVIEW_PROMPT,
 })

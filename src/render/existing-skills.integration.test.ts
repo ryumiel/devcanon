@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { parse as parseYaml } from "yaml";
 import { providerFromRuntimeFixture } from "../__test-helpers__/fixtures.js";
 import {
   getSkillOutput,
@@ -59,6 +60,11 @@ async function renderAll(
     targetFilter,
   );
 }
+
+const reviewerSource = parseYaml(
+  await readFile(path.join(process.cwd(), "agents/reviewer.yaml"), "utf8"),
+);
+const reviewerModel: string = reviewerSource.codex.model;
 
 const shippedSkillsConfig = await loadConfig(
   path.join(process.cwd(), "devcanon.config.yaml"),
@@ -188,7 +194,7 @@ describe("shipped skill rendering", () => {
     }
   });
 
-  it("materializes every active route model binding from the configured capability", async () => {
+  it("materializes capability bindings and the explicit Codex reviewer override", async () => {
     const config = shippedSkillsConfig;
     const { outputs } = shippedSkillsRender;
     const bindings = [
@@ -216,7 +222,11 @@ describe("shipped skill rendering", () => {
           getSkillOutput(outputs, skill, target).content,
         );
         const normalizedBody = normalizeContractText(body);
-        const configuredModel = config.capabilityProfiles[capability].codex;
+        const configuredModel = ["D5_MODEL", "D7_MODEL", "D10_MODEL"].includes(
+          binding,
+        )
+          ? reviewerModel
+          : config.capabilityProfiles[capability].codex;
 
         expect(normalizedBody).toContain(
           `\`${binding}\` = \`${configuredModel}\``,
@@ -356,8 +366,7 @@ describe("shipped skill rendering", () => {
     }
   });
 
-  it("renders ordinary reviewer routes at Astra/medium and preserves D10 high", async () => {
-    const config = shippedSkillsConfig;
+  it("renders ordinary reviewer routes at Sol/high and preserves deep-reviewer routing", async () => {
     const { outputs } = shippedSkillsRender;
     const d10Spawn = [
       "Codex.spawn_agent({",
@@ -377,7 +386,7 @@ describe("shipped skill rendering", () => {
           "  task_name: d5_<instance_ordinal>,",
           '  agent_type: "reviewer",',
           "  model: D5_MODEL,",
-          '  reasoning_effort: "medium",',
+          '  reasoning_effort: "high",',
           '  fork_turns: "none",',
           "  message: D5_PLAN_REVIEW_PROMPT,",
           "})",
@@ -390,7 +399,7 @@ describe("shipped skill rendering", () => {
           "  task_name: d7_<instance_ordinal>,",
           '  agent_type: "reviewer",',
           "  model: D7_MODEL,",
-          '  reasoning_effort: "medium",',
+          '  reasoning_effort: "high",',
           '  fork_turns: "none",',
           "  message: D7_PROMPT,",
           "})",
@@ -407,9 +416,9 @@ describe("shipped skill rendering", () => {
       expect(playReview).not.toContain("model: D8_MODEL");
       expect(playReview).not.toContain("model: D9_MODEL");
       expect(playReview).toContain(d10Spawn);
-      expect(playReview).toContain(config.capabilityProfiles.frontier.codex);
+      expect(playReview).toContain(reviewerModel);
       expect(playReview).not.toContain(
-        "D10 is one response-only `deep-reviewer`, frontier/xhigh",
+        "D10 is one response-only `deep-reviewer`, frontier/high",
       );
       expect(playReview).not.toContain(
         "`semantic_role: deep-reviewer`; `capability: frontier`",
@@ -420,7 +429,7 @@ describe("shipped skill rendering", () => {
           getSkillOutput(outputs, skill, target).content,
         );
         expect(body).toContain(spawn);
-        expect(body).toContain(config.capabilityProfiles.frontier.codex);
+        expect(body).toContain(reviewerModel);
       }
 
       const { body: planning } = parseFrontmatter(
@@ -445,7 +454,7 @@ describe("shipped skill rendering", () => {
             `  task_name: ${route.toLowerCase()}_<instance_ordinal>,`,
             '  agent_type: "deep-reviewer",',
             `  model: ${route}_MODEL,`,
-            '  reasoning_effort: "xhigh",',
+            '  reasoning_effort: "high",',
             '  fork_turns: "none",',
             `  message: ${route}_SELF_CONTAINED_PROMPT,`,
             "})",
@@ -463,7 +472,7 @@ describe("shipped skill rendering", () => {
       "  task_name: d18_<instance_ordinal>,",
       '  agent_type: "assessor",',
       "  model: D18_MODEL,",
-      '  reasoning_effort: "medium",',
+      '  reasoning_effort: "low",',
       '  fork_turns: "none",',
       "  message: D18_SEMANTIC_CONTEXT_PROMPT,",
       "})",

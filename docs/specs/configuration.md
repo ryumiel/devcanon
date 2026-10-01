@@ -158,7 +158,7 @@ standard error. The command and error-code details remain owned by
 
 - From an unrelated directory with no selected source configuration,
   `devcanon config get capabilityProfiles.balanced.codex` reads the packaged
-  catalog and prints `gpt-5.6-terra`. `devcanon --json config path` reports an
+  catalog and prints `gpt-6-sol`. `devcanon --json config path` reports an
   absolute `path` and `source: "bundled"`.
 - With `--config` pointing to a valid custom source configuration,
   `devcanon --config <path> --json config get capabilityProfiles.balanced.codex`
@@ -231,7 +231,7 @@ capabilityProfiles:
     codex: gpt-5.6-luna
   balanced:
     claude: claude-sonnet-5
-    codex: gpt-5.6-terra
+    codex: gpt-6-sol
   frontier:
     claude: claude-opus-5
     codex: gpt-6-astra
@@ -300,18 +300,14 @@ the user-facing boundary without replacing that source authority.
 - Every profile is a strict `{ claude: <model>, codex: <model> }` object. Both
   values are required render-safe, non-blank strings capped at 256 characters.
   Additional profile fields, including effort, are rejected.
-- The default and repository catalog is exact:
-
-  | Capability  | Claude                      | Codex           |
-  | ----------- | --------------------------- | --------------- |
-  | `efficient` | `claude-haiku-4-5-20251001` | `gpt-5.6-luna`  |
-  | `balanced`  | `claude-sonnet-5`           | `gpt-5.6-terra` |
-  | `frontier`  | `claude-opus-5`             | `gpt-6-astra`   |
-
-- The paired values are DevCanon policy mappings, not provider equivalences.
-  The September 2026 baseline adopts Astra for Codex frontier and Opus 5 for
-  Claude frontier while retaining the other mappings. It does not introduce a
-  model benchmark qualification gate or change skill-route tiers and efforts.
+- Provider model identifiers are mutable configuration. The repository catalog
+  is owned by `devcanon.config.yaml`, initialized defaults by
+  `src/config/defaults.ts`, and bundled defaults by
+  `skills/devcanon-runtime/config/runtime-config.json`. Those shipped catalogs
+  must agree; tests verify source consistency without a duplicated real-model
+  allowlist. Model updates do not require ADR amendments.
+- Paired provider values are selected mappings, not provider equivalences.
+  Model changes do not implicitly change route effort or add a benchmark gate.
 - Capability selects a model only. Claude `effort` and Codex
   `model_reasoning_effort` remain explicit target-native fields and are never
   inherited from a profile. The agent contract separately defines literal,

@@ -89,9 +89,9 @@ describe("newAgentAction", () => {
       (output) => output.type === "agent" && output.target === "codex",
     );
 
-    expect(claudeAgent?.content).toContain('model: "claude-sonnet-5"');
+    expect(claudeAgent?.content).toContain('model: "test-claude-balanced"');
     expect(claudeAgent?.content).not.toContain("effort:");
-    expect(codexAgent?.content).toContain('model = "gpt-5.6-terra"');
+    expect(codexAgent?.content).toContain('model = "test-codex-balanced"');
     expect(codexAgent?.content).not.toContain("model_reasoning_effort");
   });
 

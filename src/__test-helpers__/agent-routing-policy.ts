@@ -559,7 +559,7 @@ function parseEscalationAdoptionRow(
 }
 
 const ROUTE_CAPABILITIES = ["efficient", "balanced", "frontier"] as const;
-const ROUTE_EFFORTS = ["medium", "high", "xhigh"] as const;
+const ROUTE_EFFORTS = ["low", "medium", "high", "xhigh"] as const;
 const ROUTE_CLAUSE_PATTERN =
   /^(?:branch `([a-z][a-z0-9-]*)`:\s+)?`([a-z][a-z0-9-]*)`,\s*([a-z][a-z-]*)\/([a-z][a-z0-9-]*),\s*(source-[^,;\s]+)(.*)$/;
 const ROUTE_CLAUSE_WITHOUT_SOURCE_PATTERN =

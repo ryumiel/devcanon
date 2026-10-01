@@ -134,8 +134,6 @@ Quick navigation index for the DevCanon repository.
   [`docs/adr/adr-0024-shared-support-skill-runtime.md`](docs/adr/adr-0024-shared-support-skill-runtime.md)
 - Where is the installed runtime configuration-discovery decision recorded? ->
   [`docs/adr/adr-0035-installed-runtime-configuration-discovery.md`](docs/adr/adr-0035-installed-runtime-configuration-discovery.md)
-- Where is the historical Codex model tier selection evidence recorded? ->
-  [`docs/adr/adr-0025-codex-model-tier-selection.md`](docs/adr/adr-0025-codex-model-tier-selection.md)
 - Where is the current capability profile decision recorded? ->
   [`docs/adr/adr-0026-capability-profiles.md`](docs/adr/adr-0026-capability-profiles.md)
 - Where is the semantic routing and mutation-authority decision recorded? ->

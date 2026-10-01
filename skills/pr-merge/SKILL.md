@@ -200,7 +200,7 @@ workflow/job names, reproduced command evidence, in-scope/out-of-scope
 classification, fix-route recommendation, and any blocker that requires manual
 resolution.
 
-Dispatch one response-only `investigator`, balanced/high and source-immutable,
+Dispatch one response-only `investigator`, balanced/medium and source-immutable,
 with zero handoffs. This bounded B3 diagnosis route has external authority
 `none`; do not substitute another role, capability, effort, mutation default,
 or ambient agent.
@@ -217,9 +217,9 @@ and CI-repair disposition.
 
 | Route              | `agent_type`   | Capability  | Model marker                                          | `reasoning_effort` | `source_authority` | Prompt                                   |
 | ------------------ | -------------- | ----------- | ----------------------------------------------------- | ------------------ | ------------------ | ---------------------------------------- |
-| D17 `diagnosis`    | `investigator` | `balanced`  | `D17_DIAGNOSIS_MODEL` = `{{model-codex:balanced}}`    | `high`             | `source-immutable` | `D17_DIAGNOSIS_SELF_CONTAINED_PROMPT`    |
+| D17 `diagnosis`    | `investigator` | `balanced`  | `D17_DIAGNOSIS_MODEL` = `{{model-codex:balanced}}`    | `medium`           | `source-immutable` | `D17_DIAGNOSIS_SELF_CONTAINED_PROMPT`    |
 | D17 `exact-fix`    | `executor`     | `efficient` | `D17_EXACT_FIX_MODEL` = `{{model-codex:efficient}}`   | `medium`           | `source-mutable`   | `D17_EXACT_FIX_SELF_CONTAINED_PROMPT`    |
-| D17 `judgment-fix` | `implementer`  | `balanced`  | `D17_JUDGMENT_FIX_MODEL` = `{{model-codex:balanced}}` | `high`             | `source-mutable`   | `D17_JUDGMENT_FIX_SELF_CONTAINED_PROMPT` |
+| D17 `judgment-fix` | `implementer`  | `balanced`  | `D17_JUDGMENT_FIX_MODEL` = `{{model-codex:balanced}}` | `medium`           | `source-mutable`   | `D17_JUDGMENT_FIX_SELF_CONTAINED_PROMPT` |
 
 Every branch has `external_authority: none`. The fully substituted prompt names
 the anchored PR head, bounded repository and authorized paths, collected CI
@@ -237,7 +237,7 @@ Codex.spawn_agent({
   task_name: d17_<instance_ordinal>,
   agent_type: "investigator",
   model: D17_DIAGNOSIS_MODEL,
-  reasoning_effort: "high",
+  reasoning_effort: "medium",
   fork_turns: "none",
   message: D17_DIAGNOSIS_SELF_CONTAINED_PROMPT,
 })
@@ -259,7 +259,7 @@ Codex.spawn_agent({
   task_name: d17_<instance_ordinal>,
   agent_type: "implementer",
   model: D17_JUDGMENT_FIX_MODEL,
-  reasoning_effort: "high",
+  reasoning_effort: "medium",
   fork_turns: "none",
   message: D17_JUDGMENT_FIX_SELF_CONTAINED_PROMPT,
 })
@@ -369,7 +369,7 @@ exactly one mutable fix child:
   efficient/medium on Codex; omit named effort for the efficient-capability
   Claude executor.
 - Route a judgment-bearing fix to one source-mutable `implementer`,
-  balanced/high.
+  balanced/medium.
 
 These are the only two fix routes; do not add or infer a fourth D17 path. Every
 semantic child has external authority `none`. Name the exact authorized durable

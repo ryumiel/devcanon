@@ -8,7 +8,7 @@ prompt; the assessor returns only the gate response and receives zero handoffs.
 semantic source role at
 [`agents/assessor.yaml`](../../../agents/assessor.yaml). The source role owns
 identity, capability, and source-authority envelope. The routing policy and
-Phase 2 own the fresh balanced/medium tuple; this template owns only
+Phase 2 own the fresh balanced/low tuple; this template owns only
 issue-priming gate method and response shape.
 
 ## Message Body Template
