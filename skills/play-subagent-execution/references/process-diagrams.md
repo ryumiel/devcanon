@@ -161,7 +161,11 @@ pre-dispatch D13 selection is governed by
 [`skip-dispatch-policy.md`](skip-dispatch-policy.md).
 
 For a review finding, the classification box represents the lifecycle owner's
-private bounded impact preview and four-way disposition before a D12 edge. A
+private bounded impact preview before a D12 edge. Classification authority is
+[Writing Skills](../../../docs/guidelines/writing-skills.md#review-and-mutation-routing),
+with an installed copy in
+[`finding-proportionality.md`](../../play-review-response/references/finding-proportionality.md);
+the lifecycle owner applies its dispositions and owns the D12 loop. A
 complete authorized-correction wave records its round before the decision:
 rounds 1 and 2 may take the bounded-fix edge, while round 3 must stop at
 `BLOCKED` with `review-loop-limit` before D12; a materially unchanged family

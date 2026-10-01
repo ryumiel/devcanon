@@ -33,13 +33,13 @@ WHEN receiving code review feedback:
 3. VERIFY: Check against codebase reality
 4. EVALUATE: Technically sound for THIS codebase?
 5. RESPOND: Technical acknowledgment or reasoned pushback
-6. EXECUTE: Only after the earlier classification and selected execution mode
-   authorize it; work one item at a time and test each
+6. EXECUTE: Only after classification, exact current mutation authority, and
+   the selected execution mode permit it; work one item at a time and test each
 ```
 
 **Execution boundary:** Every instruction below to implement, fix, or execute
-assumes the earlier Writing Skills classification and selected execution mode
-have already authorized it.
+assumes Writing Skills classification, separately established exact current
+authority, and the selected execution mode permit it.
 
 ## Forbidden Responses
 
@@ -165,12 +165,18 @@ explanation-only, or unclear feedback before selecting a mode.
 Before choosing inline or planned implementation, load the bundled
 [`references/finding-proportionality.md`](references/finding-proportionality.md).
 Writing Skills remains the classification owner; this runtime copy is its
-portable installed representation and does not add policy here. Only an
-in-scope product blocker, or a proof/test correction at its existing proof
-owner, reaches mode selection through the existing bounded route. Proof/test
-corrections remain proof/test-only and cannot expand production behavior. Every
-other classification disposition bypasses inline/planned implementation
-selection and retains its existing no-code disposition or independent route.
+portable installed representation and does not add policy here. Classify a
+behavior-preserving compliance candidate from rule, violation, and preservation
+evidence before assessing its exact current repair authority. Only an in-scope
+product blocker, a proof/test correction at its existing proof owner, or an
+otherwise qualified compliance candidate with exact current authority reaches
+inline/planned implementation selection through the existing bounded route.
+Known missing authority retains the candidate classification, withholds
+mutation, and requires an explicit existing owner or approval handoff; uncertain
+authority retains the classification and uses the existing fail-closed route to
+establish the missing evidence or decision. Proof/test corrections remain
+proof/test-only and cannot expand production behavior. Other non-mutating
+dispositions bypass implementation selection or use their independent route.
 
 Implementation selections:
 
@@ -273,9 +279,8 @@ After `play-planning` emits `Plan written to <path>.`,
 `Reviewed digest: <sha256>`, and
 `Planning review contract: planning-review/combined-v1`, capture the path,
 exact reviewed digest, and complete combined producer provenance in
-controller-local state. Present the generated plan for explicit user approval,
-and
-invoke `play-subagent-execution` only after approval with:
+controller-local state. Apply the Plan Approval Gate below before invoking
+`play-subagent-execution` with:
 
 ```text
 Plan: <path>
@@ -297,9 +302,9 @@ rely on issue-priming `--auto` reduced-route behavior, because direct/manual
 review-response plans do not carry parent-owned issue-priming state, validated
 auto-handoff evidence, or a guaranteed downstream `branch-review --fix` loop.
 For `Route: review-response-parent-owned`, `play-planning` emits the plan path
-only after one complete combined D5 review passes both remits. User approval is
-separate, binds the exact reviewed digest, and cannot repair missing, mixed,
-stale, or legacy planning provenance.
+only after one complete combined D5 review passes both remits. Approval
+satisfaction is separate from planning review, binds the exact reviewed digest,
+and cannot repair missing, mixed, stale, or legacy planning provenance.
 
 `play-subagent-execution` owns executor-owned mechanics after the handoff:
 task-contract validation, dispatch/skip-dispatch, review routing, snapshot
@@ -323,12 +328,34 @@ one D5 review covering both remits. This gate borrows the approval-gate shape fr
 without invoking `play-brainstorm` and without making it a dependency of
 `play-review-response`.
 
-Before handing the generated plan to `play-subagent-execution`, present the
-plan to the user with a distinct producer notice and approval prompt. Use the
-captured concrete plan path in human-facing approval text by replacing
-`{captured-plan-path}` below with the path captured from `play-planning`. Do
-not include a second `Plan written to <path>.` placeholder, because
-`play-planning` owns the single contract notice.
+Before handing the generated plan to `play-subagent-execution`, assess approval
+satisfaction against the exact reviewed plan. Explicit current-session user
+authorization satisfies this gate without a repeated approval request only for
+an eligible plan containing only otherwise qualified behavior-preserving
+compliance corrections when it covers **every** correction in that plan, every
+affected file, the full
+scope, and all proof obligations. First establish the mandatory rule,
+current-source violation, and preservation evidence that classify each
+compliance candidate under Writing Skills and the bundled
+[finding-proportionality reference](references/finding-proportionality.md).
+Assess exact current authority separately for every planned mutation.
+Retain the authority source and its whole-plan coverage assessment with the
+plan path, exact reviewed digest, contract tag, and current combined producer
+provenance in controller-local state. A finding, severity, classification,
+reviewer tag, or planning PASS does not create implementation authority.
+
+For all other planned review-response work, request explicit user approval of
+the reviewed plan. Known missing authority withholds mutation and requires an
+explicit existing owner or approval handoff; uncertain, partial, or ambiguous
+coverage also withholds mutation until the existing approval or decision-owner
+route resolves it. Behavior, control-flow or public
+contract changes, a new interface or dependency, widened scope, or a crossed
+approval boundary cannot use the compliance exception; stop at the existing
+approval or decision-owner handoff. When approval is required, present the plan
+with a distinct producer notice and prompt. Replace `{captured-plan-path}`
+below with the path captured from `play-planning`. Do not include a second
+`Plan written to <path>.` placeholder, because `play-planning` owns the single
+contract notice.
 
 ```text
 I wrote the review-response plan at {captured-plan-path}.
@@ -344,9 +371,15 @@ The plan approval gate is explicit:
 - Run planning input self-review before invoking `play-planning`;
   `play-planning` owns plan self-review and combined D5 review before it emits
   `Plan written to <path>.`.
-- Wait for user approval before implementation begins.
-- Approval happens after `Plan written to <path>.` and before
-  `play-subagent-execution`.
+- Establish approval satisfaction after `Plan written to <path>.` and before
+  `play-subagent-execution`. Use exact existing authority only under the
+  whole-plan compliance condition above; otherwise wait for explicit approval
+  or use the existing owning handoff.
+- Immediately before execution, recheck the retained authority against the
+  current reviewed plan, its digest and producer provenance. Any changed plan
+  bytes invalidate the prior review and approval assessment: use the remaining
+  combined D5 pass or the existing reassessment route, then reassess authority
+  for the new exact plan. Do not reset the pass budget.
 - `play-planning` returns `Plan written to <path>.` for this route only after
   combined D5 review passes both remits; invalid planning provenance remains
   inside `play-planning` and stops before this approval gate.
@@ -354,17 +387,18 @@ The plan approval gate is explicit:
   complete D5 pass history, then derive the remaining budget from that history.
   A PASS from the initial first pass leaves one correction pass; route that edit
   through `play-planning`, including plan self-review and combined D5 review,
-  before renewed approval. A PASS reached on correction pass two leaves no pass,
-  even when this is the user's first requested edit.
+  before renewed approval assessment. A PASS reached on correction pass two
+  leaves no pass, even when this is the user's first requested edit.
 - When no pass remains, pause the approval loop for the explicit owning
   reassessment and cycle-reopening decision required by the combined-review
   contract. Present the exhausted budget and retained scope/pass history; do
   not dispatch another review until that owner decision explicitly authorizes a
   new bounded cycle. A user request for another edit is not an implicit reset
   or reopening.
-- Repeat the user approval loop until the user approves or stops the work.
-  User approval may continue indefinitely, but every edited plan remains
-  subject to the current cycle's D5 pass budget and any required reopening.
+- Repeat the approval assessment after each reviewed revision until exact
+  authority covers it, the user explicitly approves it, or work stops. User
+  approval may continue indefinitely, but every edited plan remains subject
+  to the current cycle's D5 pass budget and any required reopening.
 
 ### Planning Input Self-Review
 
@@ -476,11 +510,12 @@ Mode: Planned execution.
 Action: Apply the canonical `.ephemeral` write guard, write
 `.ephemeral/<date>-review-response-design.md`, invoke `play-planning` with
 `Route: review-response-parent-owned` and `Design: <path>`. Follow the Plan
-Approval Gate: wait for current combined D5 approval, capture
+Approval Gate: wait for a current combined D5 PASS, capture
 `Plan written to <path>.`, `Reviewed digest: <sha256>`, and
 `Planning review contract: planning-review/combined-v1`, and retain validated
-producer provenance. Ask for approval using `{captured-plan-path}` replaced
-with the captured path. After approval and the required exact-byte rehash,
+producer provenance. Request explicit user approval of this reviewed
+product-blocker plan using `{captured-plan-path}` replaced with the captured
+path. Wait for that approval, then perform the required exact-byte rehash and
 invoke `play-subagent-execution` with:
 Plan: <path>
 Expected digest: <sha256>

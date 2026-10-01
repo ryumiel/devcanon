@@ -79,13 +79,16 @@ survives.
 
 After guarded capture → spawn → verify → validate/retain → cleanup → apply and
 before any D12 route, process every guard-verified semantically consumable
-candidate that could otherwise reach D12 through the portable four-way policy.
+candidate that could otherwise reach D12 through the portable Writing Skills
+classification policy.
 Retain a private, transient, same-controller, unnamed, unpersisted bounded
 impact preview. It has no helper, schema, artifact, notice, or independent
 consumer. For each candidate, retain all of these facts:
 
 - authoritative contract anchor;
-- reachable production path and meaningful bad outcome;
+- for a product blocker, reachable production path and meaningful bad outcome;
+- for a compliance candidate, the shared Writing Skills owner's required
+  category evidence instead of a manufactured production bad outcome;
 - proposed files or modules;
 - new state or lifecycle ownership;
 - behavior changed or disabled;
@@ -105,13 +108,22 @@ unknown fact plus permitted repository anchors or minimum evidence pointers.
 The detailed impact preview stays controller-local.
 
 Classify every candidate independently and separate dispositions before
-grouping so mixed sets cannot carry unauthorized work. Apply exactly these four
+grouping so mixed sets cannot carry unauthorized work. Apply the
 classifications and dispositions from the portable policy:
 
 - An in-scope product blocker may receive only the smallest authorized
   production correction.
 - A proof or test defect may receive a repair only at its existing proof owner,
   with no production-behavior expansion.
+- A compliance candidate is classified from the shared Writing Skills owner's
+  rule, violation, and preservation evidence independently of exact repair
+  authority. Establish that authority separately before D12. Known missing
+  authority retains the class, withholds D12, and produces an explicit existing
+  owner or approval handoff; uncertain authority retains the class and uses the
+  existing `BLOCKED` clarification route. Only an otherwise qualified candidate
+  with exact authority may reach D12 with before-edit evidence and after-edit
+  proof obligations; the changed head requires validation and independent
+  review. Typing-only work does not automatically narrow review.
 - An adjacent independently releasable defect receives a concise
   separate-work non-mutating caller handoff.
 - An invalid or speculative finding receives a concise rejection and no
@@ -130,7 +142,8 @@ severity, validity, technical fixability, grouping, or approval prose alone is
 not mutation authority.
 
 Count a failed round only when a complete guard-verified semantically valid wave
-requires an authorized production or proof correction. Initial implementation
+requires an authorized production, compliance, or proof correction. Initial
+implementation
 and unavailable, malformed, verification-rejected, mutation-detected,
 cleanup-failed, or non-mutating-only waves do not consume this budget and keep
 their existing terminal handling. The existing current-episode fixup count `0`,

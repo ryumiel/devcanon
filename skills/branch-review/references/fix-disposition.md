@@ -23,7 +23,10 @@ edit. On a hit, halt immediately and leave later units unprocessed. For a
 selected control-flow correction, retain the main workflow's fail-before
 behavioral regression proof before the edit and require its pass-after proof;
 this reference neither restates nor broadens that eligibility condition. Apply
-the bounded fix for every selected unit. For a selected control-flow correction,
+the bounded fix for every selected unit. For a compliance correction, retain
+the shared Writing Skills owner's pre-edit evidence and complete its
+corrected-source rule, static, and relevant existing behavioral proof after the
+edit. For a selected control-flow correction,
 the pass-after proof must succeed before full validation and commit. Run
 `pnpm run check` for TypeScript repositories (or the repository-defined
 equivalent elsewhere), and commit it. A failed required proof or validation

@@ -18,6 +18,16 @@ change source. The repair path must retain current evidence, exact scope,
 proportionality, hard stops, bounded recurrence, fresh validation, and
 independent review before approval.
 
+A behavior-preserving compliance candidate has a different proof target from
+a product blocker: the owner establishes an applicable mandatory rule, a
+current-source violation, and preservation of existing behavior independently
+of implementation authority. Exact authority for the correction is a separate
+requirement before repair. When review response uses a generated implementation
+plan, independent planning review proves its correctness and executability;
+it does not create implementation authority. Requiring a second approval solely
+because that plan was generated would disregard explicit current authorization
+that already covers its exact correction.
+
 ## Decision
 
 The existing bounded remediation route accepts an ordinary blocker only when
@@ -40,6 +50,33 @@ and independent review are required before another qualification or final
 approval. Existing evidence schemas, notices, custody rules, and both target
 renderings remain unchanged.
 
+Classifying a compliance candidate does not authorize its correction. Known
+missing exact authority retains the classification and withholds mutation for
+an explicit existing owner or approval handoff; uncertain authority retains
+the classification and follows the existing fail-closed route until resolved.
+Only an otherwise qualified candidate with current exact authority may enter
+the bounded repair route and its applicable proof and review gates.
+
+For an eligible behavior-preserving compliance repair in planned review
+response, the parent may satisfy its separate plan approval gate using explicit
+current-session user authority only when the plan contains eligible
+behavior-preserving compliance corrections and that authority covers every
+correction in the exact combined-reviewed plan, every affected file, scope, and
+proof obligation. The parent retains the authority source with the reviewed
+plan digest and current producer provenance, then checks it again immediately
+before execution. Missing, partial or ambiguous coverage, behavior or
+control-flow changes, a changed public contract, a new interface or dependency,
+widened scope or a crossed approval boundary keeps the existing explicit
+approval or owning handoff. Other planned work still requires explicit reviewed
+plan approval. A plan-byte edit invalidates review and approval; correction
+uses the remaining bounded planning-review pass or its reassessment route and
+requires a new authority assessment. The direct/manual executor's structural
+gate and independent implementation and changed-head reviews remain required.
+
+This narrowly qualifies ADR-0039's unconditional separate plan-approval rule
+for review response; it does not change its combined planning review, digest,
+provenance, or two-pass budget decisions.
+
 This decision supersedes only ADR-0038's universal requirement that every
 autonomous repair candidate have separately verified VALID evidence. ADR-0038
 continues to own its remaining single-reviewer, targeted-verification, evidence,
@@ -51,6 +88,8 @@ and freshness decisions.
   as a selected blocker without fabricating a critic verdict.
 - Repair owners must establish current exact implementation authority rather
   than deriving it from review findings or the fix mode.
+- Exact current user authority can satisfy the reviewed-plan gate for the
+  covered compliance correction without a repeated approval request.
 - A changed candidate cannot reuse its pre-mutation qualification or approval
   evidence.
 - The retained exclusions keep uncertain, consequential, disputed, or
@@ -64,3 +103,7 @@ and freshness decisions.
   cannot grant implementation authority.
 - Create a separate repair route or artifact: rejected because the existing
   bounded remediation route already owns execution and fresh-review handling.
+- Require a new approval for every generated compliance plan despite complete
+  current authority: rejected because plan generation does not revoke exact
+  authorization; current combined review and provenance still protect the
+  handoff.

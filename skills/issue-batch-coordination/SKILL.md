@@ -118,8 +118,7 @@ Refreshing the controller does not refresh active owners' contexts.
 
 Before routing review-driven repairs, read the existing
 [finding proportionality reference](../play-review-response/references/finding-proportionality.md)
-and use the review-disposition owner. That reference classifies current
-contract defects, adjacent work, proof/test defects, and speculative findings.
+and apply its classifications and dispositions without duplicating them here.
 Do not create another review layer or turn severity, a technically possible
 fix, or a successful experiment into scope authority. Keep acceptance and
 validation proportional to the approved behavior; do not add a general repair
