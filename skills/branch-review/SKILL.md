@@ -51,6 +51,22 @@ digraph branch_review {
 by `issue-priming-workflow --auto`. Do not silently convert that Phase 7 gate
 into an incremental review.
 
+Retain the exact `SharedContextFamilyBinding` returned by `play-review` through
+the installed shared-context helper's `create-family-binding` operation with
+the review head and findings continuation state, including
+a completed no-findings run. Keep its original frozen repository/root/base/head
+and active/full range association separately in that continuation state. While
+the same local family and worktree custody remains live, forward the family
+unchanged with the existing follow-up inputs. Clear both the optional family
+and its reuse association before deliberately releasing or replacing that
+family or worktree custody; do not restore them after a failed release or
+replacement. A later review without them uses ordinary discovery. Unexpected
+missing or broken evidence while a family is still supplied remains a
+`play-review` pre-D18 refusal. Its absence is normal; do not add a CLI
+argument, derive context filenames, parse the artifacts, or treat navigation as
+a scope decision. `play-review` invokes the installed helper to validate live
+custody, then checks the independent association and current applicability.
+
 ## Phase 1: Gather
 
 Run the [prepare-review-inputs helper](references/prepare-review-inputs-usage.md)
@@ -330,6 +346,9 @@ Hand off to `play-review` with these inputs (compose them into the briefing pros
   (`$PRIOR_BRANCH_FINDINGS`, follow-up only)
 - `last_reviewed_sha` = `$LAST_REVIEWED_SHA` (follow-up only)
 - `is_followup_narrow` = `$IS_FOLLOWUP_NARROW`
+- `prior_preparation_handle` = the retained exact
+  `SharedContextFamilyBinding`, if live and present; keep its original review
+  association separately rather than adding fields to the family
 - `branch_review_scope_decision_file` =
   `$SCOPE_DECISION_FILE` as `BRANCH_REVIEW_SCOPE_DECISION_FILE`
 - `branch_review_semantic_decision_notes` =

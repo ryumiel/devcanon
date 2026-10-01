@@ -2,8 +2,11 @@
 
 Use [review-artifacts usage](review-artifacts-usage.md) for
 `prepare-findings-write` and [shared-review-context usage](shared-review-context-usage.md)
-for `write-review-context-input` and `build-review-context`. These operations
-are ordered: prepare findings, write the input, then build context. Any helper
+for `write-review-context-input`, `build-review-context`,
+`create-family-binding`, and `validate-family-binding`. Preparation is ordered:
+prepare findings, write the input, build context, then create the family from
+both original returned paths. A supplied live family is validated through the
+same helper before D18. Any helper
 failure or unusable result is a hard stop before Phase 3.
 
 At that executable action, resolve the installed `play-review` bundle and
@@ -83,7 +86,9 @@ semantic families without changing this schema:
   path signal.
 - `prior_review_context.records[].summary` comes from D18 as sanitized,
   untrusted context; the controller owns source/reference identity, bytes,
-  trust flags, and exact excerpts.
+  trust flags, and exact excerpts. A late navigation-only record is the sole
+  mechanical capture after guarded D7 completion; it never replaces a D18
+  semantic summary on the next invocation.
 
 No D18 value is a finding, authority statement, manifest, overlay, or persisted
 handoff. Failure, malformed output, source mutation, cleanup failure, invalid
@@ -170,6 +175,44 @@ Each routing-risk object is exactly `{ "mechanical_path_signals": string[],
 context pointer is carried in `spec_routing_risks.semantic_classification_notes`,
 not as a doc-impact-summary field. Optional prior-review records are untrusted
 summary records: `source` has `kind` and `reference`, and `untrusted` is `true`.
+For a verified late repository-documentation discovery, use
+`source.kind: "verified-repository-doc-navigation"`, the exact
+repository-relative tracked document path as `source.reference`, the actual
+UTF-8 byte count as `bytes`, and a `summary`
+limited to source side/revision and navigation provenance. Set `untrusted` to
+`true`. Do not copy a raw D7 report, prompt or log; do not include document
+claims, findings, approvals or semantic classification. Independently check
+that D7 reported a successful read and that path spelling, source side,
+revision and relevance match the frozen review before admission. Coalesce
+navigation records with the same exact tracked path and applicable source
+side/revision; records from distinct sides may remain separate within existing
+budgets. Treat other `source.kind` values as ordinary untrusted prior context,
+even when their references look like document paths. Apply existing record and
+section budgets; if an influential pointer cannot fit, fail the refresh. The
+next invocation recognizes only the exact navigation kind from a validated live
+family or wrapper-held same-review detached candidates. Detached candidates
+retain separate original provider/repository/review provenance and no artifact
+binding. Apply current scope, source-side/revision, tracked spelling, and
+working-tree checks before fresh D18 sanitation and D7 current-source reads.
+Never use them to excuse a supplied invalid family.
+
+Retain input and context paths exactly as returned by the helpers. After
+guarded D7 completion, refresh these existing artifacts with the same ordered
+write/build operations and frozen header, adding only verified navigation
+records. A changed source or scope identity stops that refresh. A write/build
+failure leaves settled findings intact but cannot produce a successful
+preparation handle. The wrapper-local handle comes from the installed helper's
+`create-family-binding` operation and is exactly the existing
+`SharedContextFamilyBinding`: schema `play-review/shared-context-family/v1`
+with required `schema`, `input_file`, `input_sha256`, `context_file`, and
+`context_sha256`, no unknown or duplicate members, and lowercase 64-character
+SHA-256 digests over each artifact's exact bytes. Retain the original frozen
+repository/root/base/head/active/full association separately in wrapper
+continuation state. A supplied broken family or mismatched independent
+association refuses before D18; do not reconstruct either from artifacts.
+Stale historical navigation may be refreshed or dropped in current-source
+preflight, while a missing selected required source
+still refuses.
 Missing changed-file command, required output markdown, summary, trusted binding,
 or stale review identity blocks Phase 3. Apply the preflight and refresh policy
 in [`SKILL.md`](../SKILL.md#public-helper-mechanics) before consuming context;

@@ -19,8 +19,10 @@ command_name="${1:-}"
 case "$command_name" in
   write-review-context-input) ;;
   build-review-context) ;;
+  create-family-binding) ;;
+  validate-family-binding) ;;
   *)
-    runtime_error "usage: shared-review-context.sh write-review-context-input|build-review-context"
+    runtime_error "usage: shared-review-context.sh write-review-context-input|build-review-context|create-family-binding|validate-family-binding"
     ;;
 esac
 

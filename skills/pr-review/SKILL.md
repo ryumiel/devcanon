@@ -95,6 +95,38 @@ Detect mode:
 
 ## Phase 2: Worktree setup
 
+The retained optional `SharedContextFamilyBinding` and its separately retained
+original review association belong only to the selected live review worktree.
+Before a lease operation can remove/recreate that worktree, advance its head,
+or retire its artifacts, validate any still-supplied live family with the
+installed shared-context helper's `validate-family-binding` operation and both
+original helper-returned paths. Independently compare its input header with
+the original repository/root/base/head/active/full association. A malformed or
+mismatched supplied family refuses before the destructive lease operation.
+From a validated input, extract only exact-kind
+`verified-repository-doc-navigation` records within existing prior item and
+UTF-8 byte budgets, requiring `untrusted: true` and valid source/reference,
+bytes and summary fields. Retain path, original side/revision and untrusted
+provenance in wrapper-local detached continuation state, bound separately to
+the provider repository and PR. Do not carry other prior records, document
+claims, semantic results, or approvals. Then clear the old family and
+association before calling the lease owner. A failed/refused transition stops
+and discards pending candidates; it never restores dead custody. Read-only
+discovery and uninterrupted same-worktree resume keep live custody. Normal
+absence keeps ordinary discovery available.
+
+Before switching selected worktrees within the same PR, apply the same
+validation/extraction and clear live custody. A repository or PR switch drops
+both live custody and detached candidates.
+
+After successful advancement/recreation, forward detached candidates only for
+the same provider repository and PR, with independently selected current scope.
+The new physical worktree may differ from the historical root. `play-review`
+refreshes or drops stale optional paths before fresh D18 and D7 current-source
+reads; it never receives the retired family. Switching repository/PR, explicit
+continuation release, or controller loss discards detached candidates. An
+unexpectedly invalid family still supplied remains a pre-D18 refusal.
+
 Bind the lease helper before selecting a worktree path:
 
 ```bash
@@ -612,16 +644,39 @@ Hand off to `play-review` with these manifest-backed inputs:
 - `prior_threads` = parsed from the `{{tool:github-cli}} api .../comments` and `.../reviews` responses (follow-up only)
 - `last_reviewed_sha` = set in Phase 1 (follow-up only)
 - `is_followup_narrow` = computed in Phase 3
+- `prior_preparation_handle` = the retained exact
+  `SharedContextFamilyBinding` from an earlier run in this caller, if live and
+  present; keep its original review association separately
+- `retained_navigation_candidates` = optional bounded exact-kind untrusted
+  records extracted before successful lease retirement in the same provider
+  repository and PR continuation, with separate original provenance; never a
+  live family or an authority to select scope
 
 Follow `skills/play-review/SKILL.md` end-to-end. Before that semantic stage,
 validate prepared paths and their current base/head/worktree bindings; changed
 source, policy, authority, or dirty worktree state refreshes preparation. The
 shared review context is internal `play-review` phase scaffolding, not a
-`pr-review` consumer hook. Do not parse, validate, render, post, or snapshot the Phase 2.5 shared
-review-context file in this wrapper. `pr-review` remains compatible when
+`pr-review` consumer hook. Do not render, post, or snapshot the Phase 2.5 shared
+review-context file in this wrapper. The sole read before retirement is the
+validated input for bounded navigation extraction and independent association
+checking. `pr-review` remains compatible when
 `play-review` changes only its bounded shared-context prose or helper internals
 and preserves the findings notice, findings envelope, and Phase 4 output
-contract. The output is a markdown document with optional pre-findings
+contract.
+
+Retain the returned exact `SharedContextFamilyBinding` with the review head and
+findings continuation state, including a completed no-findings review. Retain
+the original frozen repository/root/base/head/active/full range association
+separately. Forward the family unchanged on a fresh follow-up only while the
+same selected worktree and family custody remain live under the Phase 2
+invalidation rule. On successful retirement, forward only detached same-PR
+navigation candidates with current scope. No retained family is normal. The
+family is not a provider artifact,
+public notice, payload, approval evidence or new follow-up parameter;
+`play-review` alone validates and consumes it. Do not derive an artifact path
+or use its contents for scope selection.
+
+The output is a markdown document with optional pre-findings
 presentation such as `## Root-Cause Synthesis`, followed by `## Findings` and
 (follow-up only) `## Carry-forward` sections. Immediately after `play-review`
 returns and before the Phase 5 user gate, capture the immutable review head and
@@ -1143,6 +1198,12 @@ approved-review artifact, and validated payload file when available. Do not
 retry or reconstruct a GitHub mutation from conversation text.
 
 ## Phase 7: Cleanup
+
+Before a lease-gated cleanup attempt that may remove the review worktree or its
+owned artifacts, apply Phase 2 validation/extraction, then clear the live family
+and association. Retain bounded detached navigation only after successful
+same-PR continuation. A failed or refused cleanup discards pending candidates
+and does not restore live custody.
 
 Never remove a review worktree directly. Use `review-leases.sh
 inspect-worktree` before every cleanup decision and `review-leases.sh

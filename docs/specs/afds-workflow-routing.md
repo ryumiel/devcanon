@@ -704,6 +704,51 @@ refresh; `branch-review` and `pr-review` retain fix-scope decisions and broaden
 review whenever impact cannot be bounded. D7 remains comprehensive and D10
 retains its existing triggers and failure rules.
 
+For review follow-up, `play-review` may retain relevant repository-documentation
+paths that D7 independently found and successfully read after initial context
+preparation. The controller verifies exact tracked spelling, source side,
+revision, scope and read evidence after guarded D7 completion, then refreshes
+the existing bounded prior-context artifact using its original helper-returned
+paths. Records use exactly `source.kind: "verified-repository-doc-navigation"`,
+the tracked path as `source.reference`, and a bounded summary of source
+side/revision and navigation provenance. Identical path and side/revision
+records coalesce; distinct sides may remain separate. Other kinds remain
+ordinary untrusted prior context, even when a reference resembles a document
+path. Navigation contains no document claims or approval. The invoking branch
+or PR wrapper obtains and validates the exact existing five-field
+`SharedContextFamilyBinding` (`schema`, `input_file`, `input_sha256`,
+`context_file`, `context_sha256`) with closed
+`play-review/shared-context-family/v1` schema and exact-byte SHA-256 digests.
+The installed shared-context helper exposes read-only create and validate
+operations for original helper-returned paths, physical root, reviewed head
+and findings identity. Validation also consumes the exact serialized supplied
+value and refuses malformed, duplicate, unknown, stale or swapped members
+without writing or emitting a usable binding. The existing lease module API
+and artifact schemas remain unchanged.
+It retains the original repository/root/base/head/active/full association
+separately and forwards the family unchanged only during live local custody.
+The branch wrapper clears family and association before deliberate local
+family/worktree release or replacement. Before lease-owned removal/recreation,
+terminal head advancement or old artifact retirement, the PR wrapper validates
+the still-live family and its independent original association. It extracts
+only exact-kind bounded untrusted navigation into local same-provider-
+repository/PR continuation state before clearing both live binding and
+association or invoking any destructive lease operation, including Phase 7
+cleanup. On success, detached navigation may reach a newly selected worktree
+under independently selected current scope; the retired binding cannot.
+Failed or refused transitions discard pending candidates and do not restore
+discarded custody. Repository/PR switch, explicit release or controller loss
+drops detached candidates. Later absence invokes ordinary discovery. An unexpectedly missing,
+malformed or mismatched supplied family or independent association stops before
+semantic dispatch. Fresh
+D18 sanitizes retained records for the new review, and D7 rereads relevant
+authoritative source. Historical optional paths that move, disappear, change
+source side or leave scope are refreshed through current navigation or dropped;
+missing selected required source still refuses. Repository documentation
+discovery uses an available index or bounded tracked search without assuming a
+fixed index name or widening the selected review range. This does not add a
+public artifact, stage, schema or notice.
+
 ### PLAN-004: Preserved boundaries
 
 Model/effort bindings, D14–D16, source protection, lifecycle cleanup,

@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   cp,
   lstat,
@@ -239,6 +240,184 @@ function expectNoRoutingRiskListItemFenceBodies(section: string): void {
 }
 
 describe("play-review shared context helper", () => {
+  it("creates and validates the original five-field family through the installed helper", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      const input = await runInputWriter(cwd);
+      const context = await runHelper(cwd);
+      const env = {
+        REVIEW_CONTEXT_INPUT_FILE: input.stdout.trim(),
+        REVIEW_CONTEXT_OUTPUT_FILE: context.stdout.trim(),
+      };
+      const created = await runHelper(cwd, "create-family-binding", env);
+      const family = JSON.parse(created.stdout);
+      expect(created.stderr).toBe("");
+      expect(family).toEqual({
+        schema: "play-review/shared-context-family/v1",
+        input_file: inputFile,
+        input_sha256: createHash("sha256")
+          .update(await readFile(path.join(cwd, inputFile)))
+          .digest("hex"),
+        context_file: outputFile,
+        context_sha256: createHash("sha256")
+          .update(await readFile(path.join(cwd, outputFile)))
+          .digest("hex"),
+      });
+      const validated = await runHelper(cwd, "validate-family-binding", {
+        ...env,
+        REVIEW_CONTEXT_FAMILY_JSON: created.stdout.trim(),
+      });
+      expect(validated.stdout).toBe(created.stdout);
+      expect(validated.stderr).toBe("");
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("refuses independently malformed supplied families without altering artifacts", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      await runInputWriter(cwd);
+      await runHelper(cwd);
+      const env = {
+        REVIEW_CONTEXT_INPUT_FILE: inputFile,
+        REVIEW_CONTEXT_OUTPUT_FILE: outputFile,
+      };
+      const canonical = JSON.parse(
+        (await runHelper(cwd, "create-family-binding", env)).stdout,
+      );
+      const originalInput = await readFile(path.join(cwd, inputFile));
+      const originalOutput = await readFile(path.join(cwd, outputFile));
+      const cases: Array<[string, string, NodeJS.ProcessEnv]> = [
+        [
+          "duplicate",
+          `{\"schema\":\"${canonical.schema}\",\"schema\":\"${canonical.schema}\",\"input_file\":\"${canonical.input_file}\",\"input_sha256\":\"${canonical.input_sha256}\",\"context_file\":\"${canonical.context_file}\",\"context_sha256\":\"${canonical.context_sha256}\"}`,
+          {},
+        ],
+        [
+          "duplicate with overwritten non-string value",
+          JSON.stringify(canonical).replace(
+            '"schema":',
+            '"schema":null,"schema":',
+          ),
+          {},
+        ],
+        ["unknown", JSON.stringify({ ...canonical, extra: "x" }), {}],
+        [
+          "missing",
+          JSON.stringify({
+            schema: canonical.schema,
+            input_file: canonical.input_file,
+            input_sha256: canonical.input_sha256,
+            context_file: canonical.context_file,
+          }),
+          {},
+        ],
+        [
+          "digest",
+          JSON.stringify({ ...canonical, input_sha256: "F".repeat(64) }),
+          {},
+        ],
+        [
+          "stale digest",
+          JSON.stringify({ ...canonical, input_sha256: "0".repeat(64) }),
+          {},
+        ],
+        ["path", JSON.stringify({ ...canonical, context_file: inputFile }), {}],
+        ["head", JSON.stringify(canonical), { HEAD_SHA: "a".repeat(40) }],
+        [
+          "original input path",
+          JSON.stringify(canonical),
+          {
+            REVIEW_CONTEXT_INPUT_FILE: `.ephemeral/other-${headSha}-review-context-input.json`,
+          },
+        ],
+      ];
+      for (const [name, supplied, overrides] of cases) {
+        await expect(
+          runHelper(cwd, "validate-family-binding", {
+            ...env,
+            REVIEW_CONTEXT_FAMILY_JSON: supplied,
+            ...overrides,
+          }),
+          name,
+        ).rejects.toMatchObject({ stdout: "" });
+      }
+      expect(await readFile(path.join(cwd, inputFile))).toEqual(originalInput);
+      expect(await readFile(path.join(cwd, outputFile))).toEqual(
+        originalOutput,
+      );
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("refuses another physical root and nonregular or missing artifacts without repair", async () => {
+    const cwd = await makeGitWorkspace();
+    const otherRoot = await makeGitWorkspace();
+    try {
+      await runInputWriter(cwd);
+      await runHelper(cwd);
+      const env = {
+        REVIEW_CONTEXT_INPUT_FILE: inputFile,
+        REVIEW_CONTEXT_OUTPUT_FILE: outputFile,
+      };
+      const family = (
+        await runHelper(cwd, "create-family-binding", env)
+      ).stdout.trim();
+      const outputBytes = await readFile(path.join(cwd, outputFile));
+      await cp(path.join(cwd, inputFile), path.join(otherRoot, inputFile));
+      await cp(path.join(cwd, outputFile), path.join(otherRoot, outputFile));
+      await expect(
+        runHelper(otherRoot, "validate-family-binding", {
+          ...env,
+          REVIEW_CONTEXT_FAMILY_JSON: family,
+        }),
+      ).rejects.toMatchObject({
+        stdout: "",
+        stderr: expect.stringContaining("working_directory"),
+      });
+      await rm(path.join(cwd, outputFile));
+      await expect(
+        runHelper(cwd, "validate-family-binding", {
+          ...env,
+          REVIEW_CONTEXT_FAMILY_JSON: family,
+        }),
+      ).rejects.toMatchObject({
+        stdout: "",
+        stderr: expect.stringContaining("missing or not a regular file"),
+      });
+      await mkdir(path.join(cwd, outputFile));
+      await expect(
+        runHelper(cwd, "create-family-binding", env),
+      ).rejects.toMatchObject({
+        stdout: "",
+        stderr: expect.stringContaining("not a regular file"),
+      });
+      await rm(path.join(cwd, outputFile), { recursive: true });
+      await writeFile(path.join(cwd, outputFile), outputBytes);
+      await writeFile(path.join(cwd, outputFile), "tampered\n");
+      await expect(
+        runHelper(cwd, "validate-family-binding", {
+          ...env,
+          REVIEW_CONTEXT_FAMILY_JSON: family,
+        }),
+      ).rejects.toMatchObject({
+        stdout: "",
+        stderr: expect.stringContaining("does not match input manifest"),
+      });
+      await writeFile(path.join(cwd, outputFile), outputBytes);
+      await expect(
+        runHelper(cwd, "validate-family-binding", {
+          ...env,
+          REVIEW_CONTEXT_FAMILY_JSON: family,
+        }),
+      ).resolves.toMatchObject({ stdout: `${family}\n` });
+    } finally {
+      await cleanupTempDir(cwd);
+      await cleanupTempDir(otherRoot);
+    }
+  });
   it("builds one bounded direct-child context file from a valid manifest and replaces existing content", async () => {
     const cwd = await makeGitWorkspace();
     try {
@@ -295,6 +474,13 @@ describe("play-review shared context helper", () => {
       await expect(
         readFile(path.join(workspace, outputFile), "utf8"),
       ).resolves.toContain("# Shared Review Context");
+      const family = await runHelper(
+        workspace,
+        "create-family-binding",
+        { REVIEW_CONTEXT_OUTPUT_FILE: outputFile },
+        path.join(skillsDir, "play-review/scripts/shared-review-context.sh"),
+      );
+      expect(JSON.parse(family.stdout).context_file).toBe(outputFile);
     } finally {
       await cleanupTempDir(workspace);
       await cleanupTempDir(tempDir);
