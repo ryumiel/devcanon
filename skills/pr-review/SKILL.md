@@ -476,17 +476,26 @@ bind_scope_decision_artifact() {
     HEAD_SHA="$HEAD_SHA" \
       bash "$PR_REVIEW_ARTIFACT_HELPER" prepare-scope-decision-write || return 1
   ) || return 1
-  # Write the pr-review/scope-decision/v1 envelope to "$SCOPE_DECISION_FILE".
-  # It must record full_range="$FULL_PR_DIFF_RANGE", selected_range="$active_diff_range",
-  # is_followup_narrow, language_hints, changed_files, prior_context, mechanical_facts,
-  # and semantic_decision for the final Phase 3 scope choice. Phase 6 revalidates
-  # the same artifact against "$REVIEW_SCOPE_BASE_REF" before posting.
+  # Follow references/prior-thread-artifacts-usage.md, "Scope-decision
+  # construction": supply verified facts to its single JavaScript example and
+  # write the result to this exact returned path. The runtime owns its closed
+  # shape. Phase 6 revalidates this same artifact before posting.
+  scope_failure_scratch="$(bash "$PR_REVIEW_ARTIFACT_HELPER" create-provider-scope-scratch)" || return 1
+  scope_validation_status=0
   HEAD_SHA="$HEAD_SHA" \
   BASE_REF="$REVIEW_SCOPE_BASE_REF" \
   SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE" \
   PROVIDER_SCOPE_EVIDENCE_FILE="$PROVIDER_SCOPE_EVIDENCE_FILE" \
   PRIOR_THREADS_FILE="${PRIOR_THREADS_FILE:-}" \
-    bash "$PR_REVIEW_ARTIFACT_HELPER" validate-scope-decision || return 1
+    bash "$PR_REVIEW_ARTIFACT_HELPER" validate-scope-decision \
+    2> "$scope_failure_scratch/validator.stderr" || scope_validation_status=$?
+  if [ "$scope_validation_status" -ne 0 ]; then
+    cp "$SCOPE_DECISION_FILE" "$scope_failure_scratch/failed-scope.json" || return 1
+    cat "$scope_failure_scratch/validator.stderr" >&2 || return 1
+    printf 'Scope validation failed; exact candidate and stderr preserved in %s.\n' "$scope_failure_scratch" >&2
+    return "$scope_validation_status"
+  fi
+  bash "$PR_REVIEW_ARTIFACT_HELPER" remove-provider-scope-scratch "$scope_failure_scratch" || return 1
   REVIEW_SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE"
 }
 
@@ -495,6 +504,29 @@ bind_scope_decision_artifact || SCOPE_DECISION_STATUS=$?
 cd "$REVIEW_CALLER_DIR" || exit 1
 [ "$SCOPE_DECISION_STATUS" -eq 0 ] || exit "$SCOPE_DECISION_STATUS"
 ```
+
+The scope decision remains an **unaccepted candidate** until this full
+`validate-scope-decision` call succeeds. If it fails on a positively identified
+shape error in the controller's own newly written candidate, and that
+candidate has never passed validation or entered a handoff, the controller may
+make **one** manual correction. First preserve the exact failed file bytes and
+validator stderr as separate regular files in one fresh controller-owned
+private `.ephemeral` scratch directory, using the adapter's
+`create-provider-scope-scratch` and `remove-provider-scope-scratch` lifecycle.
+Do not replace the canonical file if either preservation fails. Recheck the
+current verified head, provider evidence path and digest, range and prior facts,
+and semantic/mechanical inputs against those used for construction. Only if
+they are unchanged, replace that same canonical candidate path once and run
+the full validator again. A second failure stops; retain the failed bytes,
+stderr, and current inputs for diagnosis. On success, clean only that exact
+owned scratch directory; cleanup failure stops before handoff. The
+`validate-scope-decision` result is the sole continuation gate.
+
+This correction route does not apply to an accepted artifact, stale head or
+base, provider or source mismatch, missing accepted evidence, broken custody,
+or corruption. Follow the existing refusal or fresh-evidence route for those
+conditions. Never reconstruct accepted review evidence or infer acceptance
+from a format-only change.
 
 Pass `REVIEW_SCOPE_DECISION_FILE` and `REVIEW_SCOPE_BASE_REF` through the Phase
 5 gate unchanged. Phase 6 must freeze and validate the approved review against
