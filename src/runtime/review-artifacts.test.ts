@@ -1399,6 +1399,59 @@ describe.skipIf(isWindows)("review artifact runtime reducers", () => {
     }
   });
 
+  it("identifies PR scope construction fields without echoing untrusted values", async () => {
+    const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
+    try {
+      await writeJson(
+        cwd,
+        providerScopeEvidencePath(headSha),
+        await providerScopeEvidence(cwd, baseSha, headSha),
+      );
+      const valid = await providerScopeDecision(cwd, baseSha, headSha);
+      const scopePath = ".ephemeral/topic-scope-decision.json";
+      for (const [changes, diagnostic] of [
+        [
+          { scope_reason_codes: ["private-value"] },
+          "scope decision schema mismatch: scope_reason_codes is not allowed for pr-review\n",
+        ],
+        [
+          { scope_explanation: "private-value" },
+          "scope decision schema mismatch: scope_explanation is not allowed for pr-review\n",
+        ],
+        [
+          { candidate_narrow_range: null },
+          "scope decision schema mismatch: candidate_narrow_range must be a nonempty string\n",
+        ],
+        [
+          { candidate_narrow_range: "" },
+          "scope decision schema mismatch: candidate_narrow_range must be a nonempty string\n",
+        ],
+        [
+          { candidate_narrow_range: 42 },
+          "scope decision schema mismatch: candidate_narrow_range must be a nonempty string\n",
+        ],
+      ] as const) {
+        await writeJson(cwd, scopePath, { ...valid, ...changes });
+        await expect(
+          runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
+        ).resolves.toEqual({ exitCode: 1, stdout: "", stderr: diagnostic });
+      }
+      await writeJson(cwd, scopePath, {
+        ...valid,
+        private_unknown_key: "private-value",
+      });
+      await expect(
+        runReviewArtifactsCommand(providerScopeArgs(headSha, baseSha)),
+      ).resolves.toEqual({
+        exitCode: 1,
+        stdout: "",
+        stderr: "scope decision schema mismatch\n",
+      });
+    } finally {
+      await cleanupRiskSignalsWorkspace(cwd);
+    }
+  });
+
   it("accepts empty provider files with matching GitHub full-diff provenance", async () => {
     const { cwd, baseSha, headSha } = await makeProviderEmptyDiffWorkspace();
     const evidencePath = providerScopeEvidencePath(headSha);

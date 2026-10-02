@@ -24,6 +24,61 @@ The v2 top-level keys are `schema`, `provider`, `repository`, `pr_number`, `base
 
 An empty `provider_files`/`local_files` pair may retain `github-provider-diff/v1` only when its provider full-diff digest equals the canonical local full-diff digest.
 
+## Scope-decision construction
+
+The runtime validator is the sole schema and acceptance authority. After
+`prepare-scope-decision-write` returns its exact canonical path, the controller
+may run this one installed JavaScript example from the review worktree root.
+Set `SCOPE_VERIFIED_FACTS_FILE` to a controller-owned private JSON file of
+**already verified** facts and export `SCOPE_DECISION_FILE` as the unchanged
+path returned by the adapter. The example copies facts without deriving provider identity,
+Git ranges, prior-review state, mechanical facts, or semantic judgment. It
+does not grant acceptance: run `validate-scope-decision` before handoff.
+
+```sh
+node --input-type=module <<'NODE'
+import { readFileSync, writeFileSync } from 'node:fs';
+
+const facts = JSON.parse(readFileSync(process.env.SCOPE_VERIFIED_FACTS_FILE, 'utf8'));
+const scope = { ...facts, schema: 'pr-review/scope-decision/v1', surface: 'pr-review' };
+writeFileSync(process.env.SCOPE_DECISION_FILE, `${JSON.stringify(scope, null, 2)}\n`, { flag: 'w' });
+NODE
+```
+
+The private facts object supplies exactly these values (and no `schema` or
+`surface`): `mode` (`"initial"` or `"follow-up"`), `head_sha` (current 40-hex
+SHA), `full_range`, `selected_range`, and `candidate_narrow_range` (nonempty
+strings), `last_reviewed_sha` (40-hex SHA or `null`),
+`is_followup_narrow` (boolean), `selection_reason` (nonempty string),
+`escalation_reasons`, `changed_files`, and `language_hints` (string arrays),
+`prior_context` (`{ "kind": "none" | "github-prior-threads", "path": null |
+".ephemeral/<canonical-prior-threads-file>" }`), `mechanical_facts`
+(`changed_file_count`: nonnegative integer, `followup_sha_usable` and
+`mechanical_escalate_full`: booleans, `mechanical_escalation_reason`: string),
+`semantic_decision` (`checked` and `ambiguous`: booleans, `notes`: string), and
+`artifacts` (`provider_scope_evidence_file`: exact returned canonical provider
+path, `provider_scope_evidence_sha256`: SHA-256 of its exact bytes). The
+controller must verify every supplied fact before the example; it must not
+default `semantic_decision.checked` to true. `scope_reason_codes` and
+`scope_explanation` are branch-review-only and are prohibited in PR scope.
+
+For an initial PR review, use the provider-evidence full range for all three
+range fields, `last_reviewed_sha: null`, `is_followup_narrow: false`,
+`prior_context: { "kind": "none", "path": null }`,
+`escalation_reasons: ["not-followup"]`, and mechanical facts
+`followup_sha_usable: false`, `mechanical_escalate_full: true`,
+`mechanical_escalation_reason: "not-followup"`; derive the count and file/hint
+arrays from the full range. This initial case requires no canonical prior-threads
+artifact in the worktree: the adapter selects one if it exists, and the runtime
+then rejects an initial scope with prior context. Resolve that conflicting
+artifact through the existing custody/refusal path before preparation; do not
+change the pair to make an initial review appear valid. For a follow-up, use the existing follow-up scope
+policy: a usable prior SHA yields `candidate_narrow_range` equal to
+`<last_reviewed_sha>..HEAD` even when escalation selects the full range; an
+unusable prior SHA yields the full range as candidate. Set selected range,
+escalation reasons, prior pair, mechanical facts, and semantic decision from
+the current verified policy inputs. No placeholder is an accepted fact.
+
 ## Refusal and failures
 
 Unknown commands, missing metadata, unsafe paths, incompatible or malformed runtime contracts, invalid captures, Git-derived evidence mismatches, or invalid support validation exit nonzero without a success path. The existing prepare-only command remains compatible and does not produce evidence.

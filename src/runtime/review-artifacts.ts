@@ -3607,6 +3607,17 @@ function validateScopeShapeSchema(
         ? [...baseScopeKeys, "artifacts"]
         : baseScopeKeys;
 
+  // Name only fixed contract fields. Never echo arbitrary keys or values from
+  // an untrusted scope object into a diagnostic.
+  if (expectedSchema === "pr-review/scope-decision/v1") {
+    for (const branchOnlyKey of ["scope_reason_codes", "scope_explanation"]) {
+      if (Object.hasOwn(scope, branchOnlyKey)) {
+        fail(
+          `scope decision schema mismatch: ${branchOnlyKey} is not allowed for pr-review`,
+        );
+      }
+    }
+  }
   if (
     expectedSchema === "branch-review/scope-decision/v1" &&
     !Object.hasOwn(scope, "scope_reason_codes")
@@ -3618,6 +3629,14 @@ function validateScopeShapeSchema(
     !Object.hasOwn(scope, "scope_explanation")
   ) {
     fail("scope_explanation is required");
+  }
+  if (
+    typeof scope.candidate_narrow_range !== "string" ||
+    scope.candidate_narrow_range.length === 0
+  ) {
+    fail(
+      "scope decision schema mismatch: candidate_narrow_range must be a nonempty string",
+    );
   }
 
   if (

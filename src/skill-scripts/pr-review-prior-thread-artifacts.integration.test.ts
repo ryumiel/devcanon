@@ -1780,6 +1780,125 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
     }
   });
 
+  it("runs the installed scope construction example through the real PR validator", async () => {
+    const { cwd, baseSha, headSha } = await makeGitWorkspace();
+    try {
+      await writeInitialScope(cwd, baseSha, headSha);
+      const decisionPath = scopePath(headSha);
+      const valid = JSON.parse(
+        await readFile(path.join(cwd, decisionPath), "utf8"),
+      );
+      const { schema: _schema, surface: _surface, ...initialFacts } = valid;
+      const usage = await readFile(
+        path.join(
+          process.cwd(),
+          "skills/pr-review/references/prior-thread-artifacts-usage.md",
+        ),
+        "utf8",
+      );
+      const example = usage.match(
+        /```sh\n(node --input-type=module.*?\n)```/s,
+      )?.[1];
+      expect(example).toBeDefined();
+      const factsPath = ".ephemeral/verified-scope-facts.json";
+      const prepare = await runHelper(
+        cwd,
+        helperScript,
+        "prepare-scope-decision-write",
+        { HEAD_SHA: headSha },
+      );
+      expect(prepare.stdout).toBe(`${decisionPath}\n`);
+      const validate = () =>
+        runHelper(cwd, helperScript, "validate-scope-decision", {
+          HEAD_SHA: headSha,
+          BASE_REF: baseSha,
+          SCOPE_DECISION_FILE: decisionPath,
+          PROVIDER_SCOPE_EVIDENCE_FILE: providerScopePath(headSha),
+        });
+      const construct = async (facts: Record<string, unknown>) => {
+        await writeJson(cwd, factsPath, facts);
+        await execFileAsync("sh", ["-c", example as string], {
+          cwd,
+          env: {
+            ...process.env,
+            SCOPE_VERIFIED_FACTS_FILE: factsPath,
+            SCOPE_DECISION_FILE: decisionPath,
+          },
+        });
+      };
+
+      await construct(initialFacts);
+      await expect(validate()).resolves.toMatchObject({ stdout: "" });
+      const followupFacts = {
+        ...initialFacts,
+        mode: "follow-up",
+        last_reviewed_sha: baseSha,
+        selected_range: `${baseSha}..HEAD`,
+        candidate_narrow_range: `${baseSha}..HEAD`,
+        is_followup_narrow: true,
+        escalation_reasons: [],
+        mechanical_facts: {
+          changed_file_count: 1,
+          followup_sha_usable: true,
+          mechanical_escalate_full: false,
+          mechanical_escalation_reason: "",
+        },
+      };
+      await construct(followupFacts);
+      await expect(validate()).resolves.toMatchObject({ stdout: "" });
+
+      for (const [facts, message] of [
+        [
+          { ...initialFacts, scope_reason_codes: ["private"] },
+          "scope_reason_codes is not allowed for pr-review",
+        ],
+        [
+          { ...initialFacts, candidate_narrow_range: null },
+          "candidate_narrow_range must be a nonempty string",
+        ],
+        [
+          { ...initialFacts, head_sha: baseSha },
+          "scope decision head mismatch",
+        ],
+        [
+          {
+            ...initialFacts,
+            artifacts: {
+              ...initialFacts.artifacts,
+              provider_scope_evidence_sha256: "0".repeat(64),
+            },
+          },
+          "provider scope evidence digest mismatch",
+        ],
+      ] as const) {
+        await construct(facts);
+        await expect(validate()).rejects.toMatchObject({
+          stderr: expect.stringContaining(message),
+        });
+      }
+      await construct({
+        ...initialFacts,
+        scope_reason_codes: ["private"],
+        candidate_narrow_range: null,
+      });
+      await expect(validate()).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "scope_reason_codes is not allowed for pr-review",
+        ),
+      });
+      await construct({ ...initialFacts, candidate_narrow_range: null });
+      await expect(validate()).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "candidate_narrow_range must be a nonempty string",
+        ),
+      });
+      await construct(initialFacts);
+      await expect(validate()).resolves.toMatchObject({ stdout: "" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("guards provider evidence write targets before producer output", async () => {
     const { cwd, headSha } = await makeGitWorkspace();
     try {
