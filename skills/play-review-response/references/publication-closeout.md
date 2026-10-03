@@ -119,9 +119,9 @@ Edge dispositions:
 
 Before replying or closeout, confirm the current classification and applicable
 selected outcome.
-When replying to inline review comments on GitHub, reply in the comment thread
-(`{{tool:github-cli}} api repos/{owner}/{repo}/pulls/{pr}/comments/{id}/replies`),
-not as a top-level PR comment.
+When replying to inline review comments on GitHub, use the configured CLI
+invocation in the entry's GitHub Thread Replies section to reply in the
+existing comment thread, not as a top-level PR comment.
 
 Reference the follow-up commit or fix in that reply while preserving the
 existing thread context. When a follow-up commit exists, include its commit SHA.

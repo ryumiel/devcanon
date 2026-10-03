@@ -130,8 +130,8 @@ currently pass.
   boundaries, ownership, ordering, correlation, cleanup, retry, failure, or
   externally visible behavior.
 
-For an executable lifecycle-sensitive concern, or a related, policy-sensitive,
-contract-sensitive, or cross-module cluster requiring diagnosis, read
+For multiple related comments, contract-sensitive, policy-sensitive,
+lifecycle-sensitive, or cross-module feedback, read
 [`references/structural-diagnosis.md`](references/structural-diagnosis.md)
 before writing code or a plan. Its operation-boundary checks and root-cause
 diagnosis apply before deriving work items. This entry remains the normative
@@ -231,6 +231,17 @@ the blocker.
 
 Worked inline, no-code, and GitHub-closeout-exclusion scenarios:
 [`examples/execution-mode-scenarios.md`](examples/execution-mode-scenarios.md).
+
+### Plan Approval Gate
+
+For planned review-response work, apply the complete
+[`references/planned-execution.md#plan-approval-gate`](references/planned-execution.md#plan-approval-gate)
+gate to the exact combined-reviewed plan before executor handoff. The entry
+owns route selection; read that reference only after planned execution is
+selected and before writing the planning input, invoking `play-planning`, or
+handing off the plan. Its approval, authority, provenance, and digest checks
+remain required. If the reference is missing, blank, or unreadable, stop the
+dependent action and report the blocker.
 
 ## YAGNI Check for "Professional" Features
 
@@ -369,8 +380,11 @@ Worked bad/good response pairs for these mistakes:
 ## GitHub Thread Replies
 
 Before any GitHub reply or closeout, read the publication-closeout reference
-above. Reply in the existing thread with concise fix or no-code evidence;
-follow its approval, refetch, and resolution rules.
+above. When replying to an inline review comment on GitHub, use the existing
+comment thread with the configured CLI invocation
+(`{{tool:github-cli}} api repos/{owner}/{repo}/pulls/{pr}/comments/{id}/replies`),
+not a top-level PR comment. Reply with concise fix or no-code evidence; follow
+the reference's approval, refetch, and resolution rules.
 
 ## Issue Batch Routing Reports
 
