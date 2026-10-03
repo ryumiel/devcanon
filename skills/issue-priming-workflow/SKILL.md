@@ -94,13 +94,17 @@ context, never from the selected checkout. Missing, incomplete, provisional,
 changed, or mismatched paired context is a handoff blocker; wait or report
 rather than emitting an owner-handoff or receipt.
 
-For a batch-routed handoff, Phase 1 must use the host's supported current-task
-identity operation to compare the current depth-0 owner with
-`payload.batch-confirmed-owner-id` and, when applicable,
-`payload.batch-confirmed-host-identity`, before artifact consumption or
-research. A missing, provisional, nested, changed, or mismatched confirmation
-blocks; it does not create or move a checkout. `issue-worktree-setup` owns
-checkout root and expected-repository validation.
+For a batch-routed handoff, host-confirmed depth-0 creation and direct delivery
+of the complete retained binding to the same owner suffice for fresh Phase 1
+consumption. An intact continuation of that binding needs no repeated identity
+discovery. If the binding is ambiguous or must be recovered, compare supported
+current host evidence with `payload.batch-confirmed-owner-id` and, when scoped,
+`payload.batch-confirmed-host-identity`. On Codex use the actual executing
+host-provided `CODEX_THREAD_ID`, never a value set from the expected owner ID.
+Missing recovery evidence waits or reports the unresolved fact; provisional
+creation, unknown delivery, nested, changed, conflicting, or mismatched binding
+blocks artifact consumption and research. `issue-worktree-setup` owns checkout
+root and expected-repository validation.
 
 The phases below use `--auto` and `--research` as shorthand for the operator's CLI flags at the entrypoint. The entrypoint reflects them into the payload as `payload.mode = auto` (vs. `interactive`) and `payload.research = forced` (vs. `gated`); the workflow itself only ever sees the payload.
 
@@ -179,19 +183,18 @@ Keep phase-local command snippets where the workflow executes them. For detailed
 The entrypoint has already adopted, provisioned, or reused the issue worktree
 and written the issue body inside it before invoking this workflow.
 `issue-worktree-setup` has already validated its root and expected repository
-identity. For a batch payload, first use the host's supported identity operation
-to compare the current task's depth, owner ID, and host identity when scoped to
-the controller-confirmed binding. Phase 1 then accepts only that ready checkout,
-verifies artifact readability, and fails loudly if the issue-body path is
+identity. For a batch payload, apply the confirmed fresh, intact, or recovery
+binding checks above before artifact reads. Phase 1 then accepts only that
+ready checkout, verifies artifact readability, and fails loudly if the issue-body path is
 malformed or missing, or if a present comment-evidence path is malformed,
 missing, or unreadable. It does not create a worktree, switch a branch, reset
 user changes, or retry provisioning.
 
 ```bash
-# For a batch payload, before this artifact read, stop unless the supported
-# current-task identity equals batch-confirmed-owner-id, is depth 0, and equals
-# batch-confirmed-host-identity when task IDs are host-scoped. Do not invent an
-# identity from the checkout or infer a queued owner as confirmed.
+# For a batch payload, before this artifact read, apply the confirmed fresh,
+# intact, or recovery binding checks above. Recovery uses actual supported host
+# identity, including host-provided CODEX_THREAD_ID on Codex; never assign it
+# from the expected owner ID or infer an identity from the checkout.
 WORKTREE_PATH="<payload.worktree-path>"
 [ -n "$WORKTREE_PATH" ] || { echo "worktree path missing" >&2; exit 1; }
 case "$WORKTREE_PATH" in

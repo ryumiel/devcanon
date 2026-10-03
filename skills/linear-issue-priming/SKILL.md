@@ -69,10 +69,16 @@ When this entrypoint comes from `issue-batch-routing`, it runs in the
 router-created or router-located top-level owner task. Before any artifact
 write, confirm the controller's binding: the canonical batch issue and route,
 the independently proven expected repository, the confirmed owner ID, and host
-identity when that host scopes task IDs. Compare the current supported host task
-identity to that confirmation; a missing, provisional, nested, changed, or
-mismatched binding is a blocker. Do not infer expected repository identity from
-the task checkout. Give an explicit router/host adoption candidate, when one was
+identity when that host scopes task IDs. Host-confirmed depth-0 creation and
+direct delivery of the complete binding to this same owner suffice for a fresh
+handoff; an intact continuation needs no repeated identity discovery. For
+ambiguous or recovered binding, compare supported current host evidence with
+that confirmation. On Codex, use the actual executing host-provided
+`CODEX_THREAD_ID`, never a value set from the expected owner ID. Missing
+recovery evidence waits or reports; pending or provisional creation, unknown
+delivery, nested, changed, conflicting, or mismatched binding blocks writes and
+research. Do not infer expected repository identity from the task checkout.
+Give an explicit router/host adoption candidate, when one was
 supplied, plus the expected repository to `issue-worktree-setup`; ordinary
 direct invocation supplies no candidate and follows its existing provisioning
 path. The
