@@ -241,6 +241,23 @@ use remains available; the router must not implicitly activate or call the
 companion back. Target invocation controls must preserve owning-workflow calls;
 unsupported enforcement is documented as guidance, not a hard guarantee.
 
+Coordination interprets the current request with surrounding human decisions
+and concrete accepted batch scope before handoff. A request to execute or keep
+that batch moving authorizes eligible routine owner creation, provisioning
+through the existing worktree setup owner, targeted owner instructions, and
+dependency-driven continuation within scope where the host permits them. A
+status-only request remains read-only. Skill invocation alone neither grants
+execution authority nor erases still-current prior authorization. Missing or
+conflicting intent or scope holds affected effects for only the missing
+decision; an independent eligible sibling continues. Routing consumes that
+decision and scope without a generic reapproval, then applies its existing
+complete route, identity, recovery, receipt, and host gates before each effect.
+An explicit host denial reports the specific unavailable action without an
+invented permission or workaround. Publication, merge, recurring scheduling,
+destructive cleanup, and scope expansion retain separate applicable decisions,
+including still-current prior authority; routine orchestration grants none of
+them. Source-status effects and archival retain their existing owner gates.
+
 For an active item without a confirmed owner, both direct routing and
 coordination converge on the router's one owner-dispatch sequence: independently
 prove the expected repository from source/project context, validate the complete
