@@ -275,11 +275,10 @@ report. This reuse creates no owner, provider priming, or initial release. Its
 existing validated owner handoff, reviewed-plan provenance, controller-held
 approved-route identity, and sequence acknowledgement remain prerequisites to
 receipt consumption. A previously bound key continues unchanged. Only when no
-compatible owner exists, preflight task-creation capability and an
-owner-accessible current-task identity operation so the created top-level owner
-can confirm its own ID, depth, and scoped host identity, then create exactly one
-top-level owner task only when those current capabilities and authority permit
-it. Missing or unknown creation or identity capability stops before creation. Retain an in-flight attempt before host creation. Record a
+compatible owner exists, preflight task-creation capability, then create
+exactly one top-level owner task only when current capability and authority
+permit it. Missing or unknown creation capability stops before creation.
+Retain an in-flight attempt before host creation. Record a
 routed key only for accepted pending/confirmed creation or compatible confirmed
 reuse; a definitive no-creation denial releases only that in-flight suppression
 and leaves the equal-key retry eligible when authority later permits it. An
@@ -308,6 +307,21 @@ reports readiness. Creation, worktree setup, a queued task, or a sent binding
 does not establish readiness. Missing or unknown delivery or response evidence
 waits or reports for reconciliation without a blind resend.
 
+Host-confirmed creation of a depth-0 owner and a direct, targeted continuation
+to that same owner carrying the complete retained issue, route, repository,
+owner, and scoped-host binding suffice for the fresh owner handoff. Neither the
+provider entrypoint nor shared Phase 1 requires a separate owner-discovery or
+current-task identity operation for that fresh handoff. An ordinary intact
+continuation of the same confirmed binding likewise needs no repeated identity
+discovery. This exception does not accept a pending or provisional creation,
+unknown delivery, a nested child, or conflicting owner or host evidence. If
+the binding must be recovered or is ambiguous, use supported current host
+evidence: on Codex compare the actual executing host-provided
+`CODEX_THREAD_ID` with the retained owner ID and scoped host, never a value
+assigned from the expected owner ID. Missing recovery evidence waits or reports
+the concrete unresolved fact; a mismatch stops the affected route. Repository,
+checkout, and action-permission checks remain independent before effects.
+
 The confirmed owner/host binding retains its independently proven expected
 repository with the canonical issue and original complete route key. Before
 keyed-route retention, current approved-route derivation, receipt acceptance, or
@@ -333,10 +347,10 @@ suppression survive a source refresh until supported reconciliation, so discover
 cannot bypass it.
 
 The confirmed provider owner preserves that binding through both provider
-entrypoints and the shared consumer. The entrypoint compares the current
-supported task identity with the confirmed owner and scoped host identity before
-its evidence writes. After those entrypoint writes, shared Phase 1 independently
-compares the same identity before artifact reads or research. For every
+entrypoints and the shared consumer. Each accepts the fresh direct confirmed
+handoff or intact continuation described above before its evidence writes or
+artifact reads; recovery uses actual supported current host identity and
+stops on unresolved or conflicting evidence. For every
 batch-selected checkout, the setup owner validates an explicit adoption
 candidate's root and repository against the controller-proven expected
 repository before adoption. When supported host confirmation or discovery gives
