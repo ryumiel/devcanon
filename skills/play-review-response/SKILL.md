@@ -629,6 +629,9 @@ Applicable outcomes:
    planned execution after executor returns, use the returned fix evidence. For
    a no-code response, prepare the explanation.
 3. Run the relevant checks for the selected outcome.
+   If validation stops in a stage that may generate files, load
+   [`references/validation-recovery.md`](references/validation-recovery.md)
+   before choosing a recovery action or retry.
 4. When the selected outcome changes code, commit the response work with a
    follow-up commit when the branch is already pushed or reviewed.
 5. Run the Pre-Push Review Gate before push, reply, resolve, or comment side
