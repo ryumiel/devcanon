@@ -46,6 +46,8 @@ Applicable outcomes:
    If validation stops in a stage that may generate files, load
    [`validation-recovery.md`](validation-recovery.md) before choosing a recovery
    action or retry.
+   The main skill remains the normative workflow owner; the recovery reference
+   is a subordinate procedure for that condition and cannot override it.
 4. When the selected outcome changes code, commit the response work with a
    follow-up commit when the branch is already pushed or reviewed.
 5. Run the Pre-Push Review Gate before push, reply, resolve, or comment side
