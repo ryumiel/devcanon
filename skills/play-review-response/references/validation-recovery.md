@@ -1,13 +1,21 @@
 # Interrupted Validation Recovery
 
-Use this reference only when a required or relevant validation run stops in a
-stage that may generate files. The selected review-response outcome, finding
-classification, and existing repair authority still govern what may change.
+Use this reference only when a required or relevant validation command fails
+and may already have executed a stage that generates files, even if the stage
+where it stopped does not generate files. The selected review-response outcome,
+finding classification, and existing repair authority still govern what may
+change.
 
-Before recovery or retry, record the failed command and stage, then inspect the
-actual worktree status and relevant diff for generated side effects. Separate
-what the evidence supports: the failure may be change-related, possibly
-independent of the change, and/or accompanied by generated residue. These
+Before recovery or retry, record the failed command and what is known about
+stages that ran. Inspect the actual worktree status, relevant diff, and the
+command's known generated output paths, including ignored paths that ordinary
+Git status and diff omit. Use documented outputs and stages that may have run
+to bound the inspection. If those facts are unknown, gather the evidence before
+retrying. A clean Git status alone does not establish that no generated residue
+remains.
+Separate what the evidence supports: the failure may be
+change-related, possibly independent of the change, and/or accompanied by
+generated residue. These
 possibilities can coexist; retain uncertainty where the cause is unproven.
 A passing rerun alone does not establish independence or flakiness.
 
