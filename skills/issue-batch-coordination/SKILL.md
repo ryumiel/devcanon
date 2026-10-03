@@ -23,7 +23,9 @@ and dispatch. The router alone owns complete route keys, gate precedence,
 approval evidence, progress receipts, and terminal or archival eligibility.
 Invocation is not authorization. Preserve user decisions and the owning
 workflow's gates; do not implement, approve, merge, or change issue status by
-substituting this skill for an owner.
+substituting this skill for an owner. A request to execute a concrete accepted
+batch can authorize routine orchestration within that scope; invocation alone
+does not decide whether work or inspection was requested.
 
 ## Entry and working context
 
@@ -42,9 +44,23 @@ with missing ledger or replay facts waits or reports, never reconstructing
 keys, digests, approvals, or bindings. The controller owns recovery, creation
 reconciliation, binding delivery, and readiness observation; the provider owner
 owns priming and later work. Resolve missing context from tracker and owner
-reports; request only the missing decision when evidence cannot settle it. A
-coordination request does not authorize new tasks, messages, publication, or
-scheduling: honor current host and user authorization for each effect.
+reports; request only the missing decision when evidence cannot settle it.
+Interpret the current request with surrounding human decisions and the concrete
+accepted batch scope before any owner handoff or effect. An execution-oriented
+request to start or keep that batch moving authorizes routine creation of
+missing owner tasks, worktree provisioning through the existing owning setup
+workflow, targeted instructions to those owners, and dependency-driven
+continuation within the accepted scope, where the host permits each action.
+Retain compatible prior authorization across turns; naming this skill neither
+grants execution nor discards established work intent. A status or inspection
+request remains read-only: discover and report, but do not create or message
+owners or release priming. If intent or accepted scope is missing or
+conflicting, ask only for that decision before affected effects. Publication,
+merge, recurring scheduling, destructive cleanup, and scope expansion each
+retain their applicable separate decisions, including any still-current prior
+authorization. Report an explicit host restriction or denial for the specific
+action; do not invent an alternative permission or route around it. One
+blocked item does not hold independently eligible siblings.
 
 Keep one current view beside the ledger: dependencies, acceptance/owner,
 validation, gate/blocker/next action, controller/successor, policy

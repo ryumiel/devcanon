@@ -37,8 +37,14 @@ status directly, and must not bypass owning workflows.
 Run only on explicit user invocation or an explicit owning-workflow handoff,
 including one from `issue-batch-coordination`. Ordinary batch-management intent
 selects the companion; do not activate this router implicitly or invoke the
-companion back. Direct bounded router use remains available. Invocation grants
-no approval or side-effect authority beyond the evidence required below.
+companion back. Direct bounded router use remains available. Invocation itself
+grants no effect authority. For a coordinated route, consume the coordinator's
+contextual work intent and accepted scope without reasking for generic
+orchestration permission; the coordinator owns that interpretation. For a
+direct route, interpret the user's bounded request and surrounding decisions
+under the same inspect/start-work distinction below. Preserve still-current
+prior authority, and validate each requested effect against the current facts
+and host restrictions.
 
 Codex disables implicit invocation through its sidecar policy. Claude retains
 workflow calls and direct user invocation: its manual-only setting would block
@@ -55,6 +61,8 @@ number model:
 - Linear issue: `source_provider: linear` plus identifier or URL.
 - Optional known owner-thread, branch, PR, or head facts from a prior monitor
   pass.
+- Current inspect or start-work intent and concrete accepted scope for an
+  effectful route, including applicable prior human decisions.
 - Optional parent approval evidence, scoped as described below.
 
 For read-only owner discovery, the router needs independently proven expected
@@ -83,13 +91,23 @@ continuation. It is not a label for a nested controller child.
 
 Keep inspect/monitor-only work separate from start-work. Inspect/monitor-only
 may refresh, discover, reconcile pending creation, or report; it must not create
-an owner task or begin provider priming. Start-work requires explicit work
-intent and applicable effect authority, subject to the current host's actual
-task capability and restrictions. Preserve compatible existing authority and
-confirmed owner continuity without requesting a generic reapproval. When only a
-required decision is missing, ask for that decision; a host denial remains a
-separate manual outcome and no skill prose overrides it. Start-work authority
-does not grant publication, merge, or another downstream effect.
+an owner task or begin provider priming. Start-work requires contextual
+execution intent, concrete accepted scope, and applicable routine effect
+authority, subject to the current host's actual task capability and
+restrictions. A concrete request to advance the accepted batch supplies
+routine authority for eligible owner creation, provisioning through
+`issue-worktree-setup`, targeted owner instructions, and dependency-driven
+continuation within that scope. Preserve compatible existing authority and
+confirmed owner continuity without requesting a generic reapproval. Validate
+the complete dispatch tuple, repository and owner/host identity, active source
+state, and pending-creation recovery before creation or initial release. Empty
+or conflicting intent or scope stops affected effects before dispatch; ask only
+for the missing decision. A host denial reports the specific unavailable action
+without a workaround. Continue independently eligible siblings. Start-work
+authority does not grant publication, merge, recurring scheduling, destructive
+cleanup, scope expansion, or a downstream owner gate; evaluate each separately
+using its applicable current or previously supplied decision. Keep existing
+source-status and archival rules.
 
 When the host provides thread-management or automation tools, use those tools to
 start, inspect, message, and archive owner threads. When those tools are absent,
@@ -666,6 +684,10 @@ Parent approval is not blanket permission. It applies only when a user or
 parent workflow explicitly authorized the same source issue or PR, gate kind,
 route key, and allowed side effect. Approval messages must also match the
 current owner thread and head SHA when a branch or PR exists.
+This gate-specific approval check does not add a generic approval step for
+routine targeted owner instructions or verified unfinished non-gate
+continuation already authorized by concrete accepted batch execution. Those
+actions still require current scope, route, receipt, owner, and host checks.
 
 Contract phrase: same source issue or PR, gate kind, route key, and allowed side effect.
 
