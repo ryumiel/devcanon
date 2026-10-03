@@ -43,6 +43,10 @@ Applicable outcomes:
    planned execution after executor returns, use the returned fix evidence. For
    a no-code response, prepare the explanation.
 3. Run the relevant checks for the selected outcome.
+   If a failed command may already have executed a generating stage, follow
+   the main skill's
+   [Interrupted Validation Recovery](../SKILL.md#interrupted-validation-recovery)
+   condition before choosing recovery or retry.
 4. When the selected outcome changes code, commit the response work with a
    follow-up commit when the branch is already pushed or reviewed.
 5. Run the Pre-Push Review Gate before push, reply, resolve, or comment side

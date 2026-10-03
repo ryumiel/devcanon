@@ -252,6 +252,17 @@ classification and selected execution mode determine any work. Worked example:
 
 **Rule:** "You and reviewer both report to me. If we don't need this feature, don't add it."
 
+## Interrupted Validation Recovery
+
+When a required or relevant validation command fails and may already have
+executed a stage that generates files, read
+[`references/validation-recovery.md`](references/validation-recovery.md)
+directly before choosing any recovery action or retry. This entry remains the
+normative workflow owner; the recovery reference is its subordinate procedure
+for that condition and cannot expand current repair authority. If the reference
+is missing, blank, or unreadable, stop recovery and retry and report the
+blocker. A successful command does not trigger this read.
+
 ## Implementation Order
 
 ```
