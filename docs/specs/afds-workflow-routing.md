@@ -789,7 +789,8 @@ missing or mixed-version provenance cannot authorize execution. Auto execution,
 mechanical execution and parent-owned review-response consumers migrate with
 the producer. Review-response approval satisfaction remains a separate parent
 gate bound to the reviewed digest: exact explicit current-session authority may
-cover an entire plan of eligible behavior-preserving compliance corrections, while
+cover an entire plan of eligible behavior-preserving compliance or authorized
+necessary-completion corrections, while
 other planned work requires explicit reviewed-plan approval. Changed bytes
 require renewed review and parent authority assessment within the retained
 budget. Legacy paired results are never silently upgraded.
@@ -912,23 +913,23 @@ automatic budget-limit approval or user-home installation is introduced.
 
 ### Acceptance scenarios for the active contract
 
-| Scenario                                            | Required result                                                                                                                                                                           |
-| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Complex plan spans multiple producers and consumers | One reviewer proves both remits for every applicable task/boundary; omitted coverage fails.                                                                                               |
-| Initial PASS                                        | Current digest and complete coverage permit the appropriate handoff; separate external/user gates still apply.                                                                            |
-| Corrected blockers                                  | The one remaining pass checks full diff and dependencies; new digest, rechecked rows and justified carried rows are explicit.                                                             |
-| Nit-only feedback                                   | Defer without mandatory review; editing bytes invalidates approval and uses remaining budget.                                                                                             |
-| Initially missed inspectable defect found late      | Genuine blocker prevents PASS even on comprehensive re-review; no third automatic pass.                                                                                                   |
-| Material redesign                                   | Obtain owning decision and comprehensive review within remaining budget, otherwise reassess.                                                                                              |
-| Repeated blocker or unavailable reviewer            | No handoff; report unresolved condition and owning reassessment route.                                                                                                                    |
-| Invalid ADR path                                    | Controller preflight rejects it before D18 or another semantic child is dispatched.                                                                                                       |
-| Unchanged references                                | No duplicate discovery required; relevant authoritative claims are still independently verified.                                                                                          |
-| Policy drift or changed uncommitted source          | Dependent coverage/evidence is invalidated despite unchanged plan digest or HEAD.                                                                                                         |
-| Legacy handoff mismatch or lost provenance          | Migrated reviewed consumer refuses; no synthetic second PASS or downgrade to unreviewed execution.                                                                                        |
-| Review-response approval followed by plan edit      | Previous approval cannot authorize new bytes; review within the retained budget and reassess exact authority at the parent gate.                                                          |
-| Exact authority for compliance plan                 | Current user authority covering every reviewed correction, affected file, scope and proof obligation satisfies the parent gate without a repeated request; preserve direct/manual review. |
-| Partial authority or widened compliance plan        | Stop for explicit reviewed-plan approval or the existing owning handoff; the finding and planning PASS confer no authority.                                                               |
-| Mechanical task with invalid planning provenance    | Mechanical eligibility is not granted by the tag; retain all independent eligibility checks.                                                                                              |
+| Scenario                                                    | Required result                                                                                                                                                                                     |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Complex plan spans multiple producers and consumers         | One reviewer proves both remits for every applicable task/boundary; omitted coverage fails.                                                                                                         |
+| Initial PASS                                                | Current digest and complete coverage permit the appropriate handoff; separate external/user gates still apply.                                                                                      |
+| Corrected blockers                                          | The one remaining pass checks full diff and dependencies; new digest, rechecked rows and justified carried rows are explicit.                                                                       |
+| Nit-only feedback                                           | Defer without mandatory review; editing bytes invalidates approval and uses remaining budget.                                                                                                       |
+| Initially missed inspectable defect found late              | Genuine blocker prevents PASS even on comprehensive re-review; no third automatic pass.                                                                                                             |
+| Material redesign                                           | Obtain owning decision and comprehensive review within remaining budget, otherwise reassess.                                                                                                        |
+| Repeated blocker or unavailable reviewer                    | No handoff; report unresolved condition and owning reassessment route.                                                                                                                              |
+| Invalid ADR path                                            | Controller preflight rejects it before D18 or another semantic child is dispatched.                                                                                                                 |
+| Unchanged references                                        | No duplicate discovery required; relevant authoritative claims are still independently verified.                                                                                                    |
+| Policy drift or changed uncommitted source                  | Dependent coverage/evidence is invalidated despite unchanged plan digest or HEAD.                                                                                                                   |
+| Legacy handoff mismatch or lost provenance                  | Migrated reviewed consumer refuses; no synthetic second PASS or downgrade to unreviewed execution.                                                                                                  |
+| Review-response approval followed by plan edit              | Previous approval cannot authorize new bytes; review within the retained budget and reassess exact authority at the parent gate.                                                                    |
+| Exact authority for compliance or necessary-completion plan | Current user authority covering every reviewed correction, affected responsibility, scope and proof obligation satisfies the parent gate without a repeated request; preserve direct/manual review. |
+| Partial authority or widened plan                           | Stop for explicit reviewed-plan approval or the existing owning handoff; the finding and planning PASS confer no authority.                                                                         |
+| Mechanical task with invalid planning provenance            | Mechanical eligibility is not granted by the tag; retain all independent eligibility checks.                                                                                                        |
 
 ### Verification and evaluation expectations
 
@@ -1074,15 +1075,33 @@ otherwise qualified candidate with exact current authority may enter this same
 bounded route. Its rule, violation, and preservation evidence replace a product
 blocker's runtime bad-outcome proof; product and control-flow changes still
 require the existing behavioral regression proof.
+Necessary completion of the current authorized change may qualify a bounded
+correction across an unchanged file, out-of-diff location, signature adaptation
+to an already approved contract, another module, or adjacent context. Before
+editing, the repair owner records the causal link from the change to the
+inconsistency, the violated requirement or approved contract, why correction
+is necessary, the design-determined result, and current authority for every
+affected responsibility. Exact mutation authority is checked separately.
+Missing, partial, stale, or ambiguous evidence withholds mutation. An unrelated
+stale document, undetermined caller behavior, or requested new ownership or
+interface decision cannot use this condition. Review locations stay truthful;
+the correction needs current bounded scope and any required reviewed-plan
+evidence. An approved caller migration changing executable control flow needs
+fail-before and
+pass-after regression proof. A caused stale implementation-status paragraph
+needs source consistency and applicable documentation checks, not a fabricated
+runtime failure.
 The ordinary/selected verification split, hard stops, failed-round limits,
 changed-head validation, independent review, and approval gates still apply.
 When this correction is planned review-response work, the parent applies the
 [Plan Approval Gate](../../skills/play-review-response/SKILL.md#plan-approval-gate)
 to the exact combined-reviewed plan. Explicit current-session user authority
-may satisfy it only if every correction, affected file, scope and proof
-obligation is covered and behavior is preserved. Missing or ambiguous coverage,
-behavior or control-flow changes, a changed public contract, new interfaces or
-dependencies, widened scope, or crossed approval boundaries require explicit
+may satisfy it only if every correction, affected responsibility, scope and
+proof obligation is covered. Behavior or control-flow correction must be
+contract-determined necessary completion with executable regression proof.
+Missing or ambiguous coverage, a new public contract, interface, ownership,
+architecture or dependency decision, expanded responsibilities, or crossed
+approval boundaries require explicit
 reviewed-plan approval or the existing owning handoff. Changed plan bytes
 require review within the retained budget and a new authority assessment;
 current producer provenance, digest checks, the direct/manual structural gate,
@@ -1136,8 +1155,9 @@ D14–D16 and final changed-head independent review remain required.
   the existing bounded repair route without D10 only after its owner rechecks
   the closed trigger set; all existing stops, proportionality, independent
   review, and final approval gates remain in force.
-- An eligible planned compliance repair may use explicit current-session
-  authority for the complete reviewed plan at the parent approval gate;
+- An eligible planned compliance or necessary-completion repair may use
+  explicit current-session authority for the complete reviewed plan at the
+  parent approval gate;
   incomplete coverage or altered plan bytes cannot inherit that authority or
   bypass independent execution and changed-head review.
 

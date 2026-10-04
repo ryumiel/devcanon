@@ -15,18 +15,26 @@ claim retains `critic: null` and `not-required` verification. When blockers
 share a root invariant, name it in the report, inspect adjacent same-invariant
 active-diff surfaces, and form one cohesive bounded group only when every
 included finding remains independently eligible under the main workflow.
+For a qualified necessary-completion unit, inspect only the additional
+unchanged, out-of-diff, or cross-module surfaces required by its recorded
+causal link and approved contract. Recheck exact authority for every affected
+responsibility before grouping or editing; grouping does not make an unrelated
+surface eligible. Preserve truthful finding anchors.
 
 Nits are report-only under v3 and do not enter this execution flow.
 
 For each resulting unit, reapply the main workflow's hard-stop rule before any
 edit. On a hit, halt immediately and leave later units unprocessed. For a
-selected control-flow correction, retain the main workflow's fail-before
+selected control-flow correction or an executable necessary-completion
+correction, retain the main workflow's fail-before
 behavioral regression proof before the edit and require its pass-after proof;
 this reference neither restates nor broadens that eligibility condition. Apply
 the bounded fix for every selected unit. For a compliance correction, retain
 the shared Writing Skills owner's pre-edit evidence and complete its
 corrected-source rule, static, and relevant existing behavioral proof after the
-edit. For a selected control-flow correction,
+edit. For a documentation correction, check truthful source consistency and
+applicable documentation rules without inventing a runtime failure. For a
+selected control-flow or executable necessary-completion correction,
 the pass-after proof must succeed before full validation and commit. Run
 `pnpm run check` for TypeScript repositories (or the repository-defined
 equivalent elsewhere), and commit it. A failed required proof or validation

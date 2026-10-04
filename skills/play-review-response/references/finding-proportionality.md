@@ -13,6 +13,31 @@ Before mutating source in response to a finding, classify it as exactly one of:
 4. behavior-preserving compliance candidate; or
 5. invalid or speculative.
 
+Necessary completion of the current authorized change is a bounded repair
+condition, not another finding class. Before editing, record five explicit
+facts: the causal link from that change to the inconsistency; the applicable
+violated requirement or approved contract; why correction is necessary to
+finish the change; the design-determined intended result; and current authority
+for every affected responsibility. Establish exact mutation authority
+separately from classification and these facts. Findings, severity, technical
+fixability, `--auto`, and `--fix` supply none of them. Refresh existing scope
+and reviewed-plan evidence before mutation. Missing, partial, stale, or
+ambiguous facts or authority withhold mutation for the existing owner or
+approval handoff.
+
+With those facts and authority, an unchanged file, out-of-diff location,
+signature adaptation to an already approved contract, second module, or
+needed adjacent context does not alone deny a necessary correction. Complete
+only the approved contract. Unrelated pre-existing defects, new ownership,
+architecture, interface or public-contract decisions, new dependencies,
+expanded responsibilities, and crossed explicit approval boundaries stop.
+Retain ordinary or selected verification, Safety and Contracts hard-rule stops,
+nit defaults, recurrence bounds, proof, changed-head review, and full-versus-
+narrow review selection. Executable behavior or control-flow changes require
+fail-before and pass-after behavioral regression proof; documentation
+corrections require truthful source consistency and applicable documentation
+checks without inventing a runtime failure.
+
 An in-scope product blocker requires all of: a reachable production path, an
 authoritative contract violation, a meaningful bad outcome, and a minimal
 behavioral regression. Severity, critic validity, and technical fixability are
