@@ -14,6 +14,17 @@ review-response route key, blocking evidence, intended or completed external
 actions, thread disposition, verification result, requested parent action, and
 next safe command or workflow.
 
+For a review wait, name the exact expected event, such as a new review result
+on the current PR head, or the supported authorized trigger and its owning
+workflow. After a no-code reply, the owner decides whether a fresh-review
+request is needed and whether current authority and host capability support it.
+Report a concrete missing authority or capability when they do not. A posted
+reply does not mean a new review is running; do not imply a watcher will repeat
+requests or a reviewer will respond. A thumbs-up is review evidence for the
+owner and router to reconcile, not merge authority or proof that current-head,
+CI, protection, and unresolved-feedback checks passed. Keep those checks with
+the owning merge and routing workflows.
+
 Reports that name only a source issue or PR identity without provider-tagged
 source identity are incomplete for mixed-batch reconciliation; the router or
 owning workflow should wait or request manual action instead of accepting

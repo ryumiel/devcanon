@@ -389,12 +389,81 @@ revision or fingerprint. Refresh cannot expand authority, and missing policy
 or unresolved authority/scope changes stop affected actions with a concrete
 decision or evidence request. Owner reports remain the primary progress signal.
 
-An optional authorized watchdog uses supported host controls and the existing
-controller. Successor acknowledgement and reconciliation of any timer target
-and status precede successor dispatch. Unchanged reports are suppressed without
-claiming unsupported notification control; terminal completion stops or pauses
-the timer through its owner. No new scheduler, child route, approval schema, or
-provider mutation authority is introduced, and refresh does not guarantee compliance.
+#### ROUTE-007-MONITOR: Optional batch monitoring lifecycle
+
+Monitoring is optional for an accepted batch and requires retained applicable
+scheduling and messaging authority, a verified controller, existing owner and
+repository bindings, readable canonical policy, and inspectable schedule and
+notification state. The host's supported controls own scheduling. User-selected
+model, effort, cadence, and authorized repository post-merge commands remain
+configurable within host limits. Missing authority, ambiguous binding, unreadable
+policy, or unsupported control holds the affected action with a concrete reason;
+independently authorized owner reports continue.
+
+Exactly one monitoring mode may be active for a batch: a heartbeat waking the
+existing coordinator, or a separately authorized watcher restricted to external
+observation and notification. Inspect and reuse a matching existing schedule.
+Before changing modes, pause or retire the predecessor and verify its state;
+unknown stop status holds competing activation. A heartbeat invokes coordination
+with its existing ledger and routing authority. A separate watcher may retain
+only local notification state and notify existing recipients. It cannot approve,
+implement, merge, mutate a provider, create or replace an owner, or write the
+batch ledger. Neither mode introduces a custom scheduler or mandatory agent.
+
+#### ROUTE-007-EVENT: Observation is non-authorizing evidence
+
+Owner reports remain the primary continuation signal. A separate watcher keeps
+the observed provider event identity, PR head, known recipient binding, and
+delivery outcome needed to suppress duplicate or unchanged observations. New
+comments and applicable current-head review signals reach the known owner;
+failed delivery, ambiguous ownership, and completion needing coordination reach
+the controller. A failed delivery remains actionable rather than counting as a
+successful notification. Missing recipient or permission holds delivery; it
+does not authorize replacement creation. Notification proves neither action nor
+completion nor route, approval, or current-head authority. Receivers reconcile
+current evidence through their owning workflows; an old-head signal cannot
+authorize a new-head merge.
+
+#### ROUTE-007-REVIEW: Review waits and merge evidence
+
+After a no-code reply, the review-response owner decides whether a fresh-review
+request is needed, supported, and authorized. Every review wait names an
+expected external event or a supported authorized trigger, or reports the
+concrete missing authority or capability. The reply itself does not start a
+review. Monitoring does not repeatedly request reviews or guarantee a reviewer
+response. A thumbs-up is evidence only under an applicable retained human merge
+decision; the merge owner still applies its current-head, CI, protection,
+unresolved-feedback, and other owning checks.
+
+#### ROUTE-007-RECOVERY: Handoff and terminal shutdown
+
+Recovery revalidates existing controller and owner bindings, schedule identity,
+target and status, and notification state. Successor acknowledgement and
+supported retargeting, or verified retirement followed by authorized
+replacement, precede successor dispatch. A notification cannot reconstruct
+missing authority or replay evidence. No open PR alone proves completion:
+terminal status requires every accepted item and authorized post-merge
+obligation to be complete. Preserve required evidence before removable-worktree
+cleanup. Stop or pause monitoring through its owning host control and verify
+the observed result separately from chat archival; unavailable control remains
+an explicit unresolved obligation. Honor an explicit user stop.
+
+Acceptance requires an authorized reused schedule with one active mode,
+duplicate suppression, an explicit event or authorized trigger after a no-code
+reply, acknowledged handoff with retained notification state, continued
+monitoring while accepted work remains despite no open PR, and verified shutdown
+after post-merge obligations and evidence preservation. Reject a competing
+monitor, unchanged resend, replacement task from unknown ownership, old-head
+merge inference, claimed automatic review rerun, authority reconstructed from a
+notification, no-open-PR completion inference, or archival claimed as timer
+shutdown. Verify these cases against the operational procedure and rendered
+target guidance without activating a live schedule.
+
+Evidence pointer: [GitHub issue #783](https://github.com/ryumiel/devcanon/issues/783)
+records the accepted monitor boundary and acceptance cases for ROUTE-007-MONITOR
+through ROUTE-007-RECOVERY; result: accepted behavior evidence. The
+[`issue-batch-coordination` watchdog procedure](../../skills/issue-batch-coordination/references/watchdog.md)
+owns operational implementation and verification follow-up.
 
 ### AUTH-001: Separate Mutation Axes
 

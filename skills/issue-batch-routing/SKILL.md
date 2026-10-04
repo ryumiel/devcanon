@@ -831,6 +831,12 @@ shared PR or issue comments.
 
 ## Automation And Resume
 
+For an optional coordinator heartbeat or separately authorized watcher, use
+the coordinator's [watchdog operation](../issue-batch-coordination/references/watchdog.md)
+for supported schedule and notification mechanics. A watcher observation is
+non-authorizing evidence; this router retains its complete route, approval,
+receipt, and terminal gates after reconciling current owner and provider facts.
+
 When the host provides recurring automation or thread-management tools:
 
 - carry known owner-thread mappings;
