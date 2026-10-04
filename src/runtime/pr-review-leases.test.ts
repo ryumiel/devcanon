@@ -1387,6 +1387,18 @@ describe("pr-review lease command validation", () => {
         "HEAD",
       ]);
       const newHead = newHeadOutput.trim();
+      const diagnosticsDirectory = path.join(
+        workspace.physicalPrimary,
+        ".ephemeral",
+        "pr-432-controller-diagnostics-advance-run",
+      );
+      await mkdir(diagnosticsDirectory);
+      const diagnosticsFile = path.join(
+        diagnosticsDirectory,
+        "terminal-report.txt",
+      );
+      const diagnosticBytes = "terminal report before advancement\n";
+      await writeFile(diagnosticsFile, diagnosticBytes);
       process.chdir(workspace.physicalPrimary);
       setReadStatusEnv(workspace);
       Object.assign(process.env, {
@@ -1424,6 +1436,9 @@ describe("pr-review lease command validation", () => {
         immutable_head: newHead,
         lease_file: workspace.leaseFile,
       });
+      await expect(readFile(diagnosticsFile, "utf8")).resolves.toBe(
+        diagnosticBytes,
+      );
       expect(await readLease(workspace.primary, workspace.leaseFile)).toEqual({
         schema: "pr-review/lease/v1",
         repository: "owner/repo",
@@ -6406,11 +6421,26 @@ describe("pr-review lease Git cleanup safety", () => {
           path.join(workspace.primary, ".git", "info", "exclude"),
           ".ephemeral/\n",
         );
+        const diagnosticsDirectory = path.join(
+          workspace.physicalPrimary,
+          ".ephemeral",
+          `pr-432-controller-diagnostics-${state}-cleanup-run`,
+        );
+        await mkdir(diagnosticsDirectory);
+        const diagnosticsFile = path.join(
+          diagnosticsDirectory,
+          "terminal-report.txt",
+        );
+        const diagnosticBytes = `terminal report before ${state} cleanup\n`;
+        await writeFile(diagnosticsFile, diagnosticBytes);
         process.chdir(workspace.physicalPrimary);
         setReadStatusEnv(workspace);
         const cleanup = await runPrReviewLeasesCommand(["cleanup-worktree"]);
         expect(cleanup.exitCode, state).toBe(0);
         expect(cleanup.stdout, state).toContain("OUTCOME=removed");
+        await expect(readFile(diagnosticsFile, "utf8")).resolves.toBe(
+          diagnosticBytes,
+        );
         const removedLease = await readLease(
           workspace.primary,
           workspace.leaseFile,
@@ -6911,6 +6941,18 @@ describe("pr-review lease Git cleanup safety", () => {
     const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
       await makeRegisteredWorkspace("pr-review-cleanup-");
     await writeFile(path.join(worktree, ".ephemeral/unmanaged.txt"), "keep\n");
+    const diagnosticsDirectory = path.join(
+      physicalPrimary,
+      ".ephemeral",
+      "pr-432-controller-diagnostics-unmanaged-run",
+    );
+    await mkdir(diagnosticsDirectory);
+    const diagnosticsFile = path.join(
+      diagnosticsDirectory,
+      "terminal-report.txt",
+    );
+    const diagnosticBytes = "terminal report beside unmanaged checkout file\n";
+    await writeFile(diagnosticsFile, diagnosticBytes);
 
     try {
       process.chdir(physicalPrimary);
@@ -6969,6 +7011,18 @@ describe("pr-review lease Git cleanup safety", () => {
       expect(result.stdout).toContain(
         "MESSAGE=unmanaged .ephemeral artifacts: .ephemeral/unmanaged.txt",
       );
+      const cleanup = await runPrReviewLeasesCommand(["cleanup-worktree"]);
+      expect(cleanup.exitCode).toBe(0);
+      expect(cleanup.stdout).toContain("OUTCOME=retained");
+      expect(cleanup.stdout).toContain(
+        "REFUSAL_REASON=unmanaged-ephemeral-artifacts",
+      );
+      await expect(readFile(diagnosticsFile, "utf8")).resolves.toBe(
+        diagnosticBytes,
+      );
+      await expect(
+        readFile(path.join(worktree, ".ephemeral/unmanaged.txt"), "utf8"),
+      ).resolves.toBe("keep\n");
     } finally {
       process.chdir(originalCwd);
       await rm(tempRoot, { recursive: true, force: true });

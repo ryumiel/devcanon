@@ -442,6 +442,15 @@ rather than treating the successful removal as a failed removal.
 
 ## Cleanup Classifier
 
+Optional controller diagnostics retained under the physical primary
+repository's `.ephemeral` directory are outside the disposable review
+worktree and outside this classifier's ownership. Cleanup and opted terminal
+advancement leave those historical bytes untouched. The current wrapper-local
+diagnostic binding is cleared before either operation. A file left inside the
+review worktree without existing lease/artifact ownership remains unmanaged;
+the controller does not migrate, register, relocate, or delete it to make
+cleanup eligible.
+
 `inspect-worktree` and `cleanup-worktree` share one classifier. The classifier
 does not mutate the filesystem; it returns a decision record. Dirty worktrees,
 unmanaged `.ephemeral` artifacts, identity mismatches, and invalid lease

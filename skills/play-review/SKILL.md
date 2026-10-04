@@ -142,6 +142,18 @@ selecting a default.
 - Branch-review context: `branch_review_scope_decision_file` and
   `branch_review_semantic_decision_notes`, including any sanitized
   `contract_example_discipline_context_path:` pointer.
+- PR-review controller diagnostics: optional
+  `controller_diagnostics_destination` with exactly
+  `{primary_repository_root,directory}`. Absence means memory-only capture and
+  creates no disk target. If supplied, both members must be nonempty absolute
+  physical strings. Before any diagnostic write or dependent child dispatch,
+  verify the physical primary root and selected worktree belong to the same
+  Git repository; the directory is the current enclosing PR wrapper's fresh,
+  exclusively allocated immediate child of its ignored, nonsymlink primary
+  `.ephemeral` directory; the directory is real, nonsymlink, and physically
+  outside the selected checkout. Reject malformed, empty, historical, stale,
+  symlinked, aliased, or unverifiable supplied custody and stop. Never infer a
+  checkout fallback.
 
 Wrappers select full or narrow scope under
 `references/follow-up-scope-policy.md` before invoking this skill. Initial
@@ -349,6 +361,19 @@ when every claim is invalid. Silence, waiting, timeout, interruption, and nudgin
 never mean completion. Capture a returned result or controller-observed
 orchestration failure before cleanup or supersession; do not fabricate a child
 result. Preserve diagnostics without accepting findings from incomplete routes.
+When the validated optional controller destination is present, only this
+controller may persist raw terminal reports, ledger snapshots, and validation
+diagnostics there. Create each diagnostic as a new regular nonsymlink leaf
+exclusively; a collision or failed write preserves existing bytes and stops
+dependent persistence or continuation. Retain raw terminal capture in memory
+first. If a guard baseline is active, a diagnostic write failure still follows
+the required verify and exact baseline-cleanup attempts before that stop; it
+cannot short-circuit GUARD-001. Keep the destination out of child
+prompts, disk authority, findings, reviewer evidence, shared-context family,
+scope-validation scratch, manifest and approval paths, lease fields, and public
+notices. Those artifacts keep their exact owner/helper-returned paths. A
+diagnostic cannot substitute for failed semantic evidence or a failed GUARD
+step, and it changes no acceptance or terminal gate.
 Record each incomplete D7/D10 in `incomplete_review_routes[]`; it blocks approval
 but is neither a finding nor verifier input. See
 `references/terminal-result-boundaries.md` for ownership boundaries.
