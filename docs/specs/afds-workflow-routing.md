@@ -389,6 +389,25 @@ revision or fingerprint. Refresh cannot expand authority, and missing policy
 or unresolved authority/scope changes stop affected actions with a concrete
 decision or evidence request. Owner reports remain the primary progress signal.
 
+For each item and operation, coordination compares incoming owner and provider
+observations with retained current facts before reporting or acting. Supported
+identity, applicable head or revision, and verification evidence determine
+whether an observation is comparable and current; timestamps alone do not.
+Duplicate or superseded delivery cannot regress a verified outcome, reopen a
+resolved blocker, notify misleadingly, or repeat a route effect. Conflict or
+incomparable evidence triggers a bounded refresh of the affected authoritative
+owner or provider; missing identity or freshness holds that action. Accepted
+facts update the item and batch summary together so the current gate, blocker,
+next action, and evidence agree while historical approvals and replay facts
+remain retained. After interrupted observation, refresh before consumption;
+after a possible effect without a retained record, reconcile its supported
+result and original route identity before retrying. Unknown results wait.
+Authorization, dispatch or delivery, observed owner start, and verified
+completion require distinct evidence; an absent authority or replay fact is
+never reconstructed from status or transcript. The router's existing route
+keys, receipt and approval gates, pending-creation recovery, and source owners
+remain authoritative for effects.
+
 Coordination selects the audience after reconciling owner and router evidence.
 Routine commits, checks, bounded fixes, review or shared-resource waits, and
 other authorized non-gate progress stay in controller-local summaries without

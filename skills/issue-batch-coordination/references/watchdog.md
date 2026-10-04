@@ -51,6 +51,11 @@ Preserve notification preferences through
 supported host controls; quiet prompt output does not guarantee that the host
 will suppress a run notification. State any host limitation accurately.
 
+For delayed or conflicting observations, apply the coordinator's current-view
+comparison and the router's observation recovery before deciding that a wakeup
+has an actionable delta. The timer prompt does not carry a separate replay
+policy.
+
 Stop or pause the schedule through its owning host tool after the router has
 verified terminal completion for the batch, or honor an explicit user stop.
 Record the observed result; do not claim a timer stopped without confirmation.
