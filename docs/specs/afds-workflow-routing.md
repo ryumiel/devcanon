@@ -408,6 +408,39 @@ never reconstructed from status or transcript. The router's existing route
 keys, receipt and approval gates, pending-creation recovery, and source owners
 remain authoritative for effects.
 
+Coordination selects the audience after reconciling owner and router evidence.
+Routine commits, checks, bounded fixes, review or shared-resource waits, and
+other authorized non-gate progress stay in controller-local summaries without
+unsolicited user notices or routine acknowledgement waits. The router retains
+its complete monitor summary, and the owner still produces every required
+handoff, gate, recovery, and result report. Coordination gives one concise
+notice for an actionable decision, blocker or failure, meaningful delivery
+milestone, verified terminal batch completion without delivery, or explicit
+status request, and suppresses duplicate or no-action notices, including a
+terminal outcome already reported with delivery or status. Terminal notice
+selection follows authoritative reconciliation even when the timer will stop.
+Required phase producer notices remain intact. An explicit status
+request receives a current read-only answer even without new progress; host
+notification suppression depends on supported controls.
+
+On a coordinated handoff, the router retains a complete internal monitor
+summary and coordination selects its user-facing notices. On a direct bounded
+router invocation, the router presents the current requested result, including
+read-only status, actionable gates with complete known facts, and verified
+terminal outcome without delivery under the same concise, duplicate-aware
+selection rule. Direct presentation neither invokes coordination back nor
+grants additional effect authority.
+
+Active authorized owners continue on intact bindings. Interrupted or resumable
+idle continuation validates the existing approved route, plan provenance,
+refreshed source state and head when required, acknowledged positive progress
+sequence, and unfinished non-gate evidence before consuming a receipt. Genuine
+gates take precedence; missing or stale facts follow the existing wait or
+manual-action path and expose any needed decision. Intact facts may be reused
+with changed facts and evidence pointers, while required complete gate and
+recovery evidence is never abbreviated. No new route state or authority follows
+from quiet reporting.
+
 An optional authorized watchdog uses supported host controls and the existing
 controller. Successor acknowledgement and reconciliation of any timer target
 and status precede successor dispatch. Unchanged reports are suppressed without
