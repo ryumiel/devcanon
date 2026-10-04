@@ -859,9 +859,14 @@ Every monitor pass records a complete controller-local summary:
 - next check time
 
 Keep this summary available for coordination and recovery even when no user
-notice is selected. `issue-batch-coordination` owns user-notification selection:
-routine progress stays internal, while actionable decisions or blockers,
-meaningful delivery, and requested status remain visible. A missing route,
+notice is selected. On a coordinated handoff, pass the complete summary to
+`issue-batch-coordination` for its canonical user-notification selection;
+routine progress stays internal. On direct bounded invocation, present the
+current requested result from this summary, including a read-only status
+answer, actionable decisions or blockers with complete known gate facts, and
+verified terminal batch completion without delivery. Apply the coordinator's
+same concise notice and duplicate-event rules without invoking it back or
+turning presentation into effect authority. A missing route,
 gate, or recovery fact follows its existing wait or manual-action path; quiet
 reporting cannot establish readiness. Keep reports summary-only. Do not paste
 raw transcripts, raw logs, raw validation output, local `.ephemeral` paths, or

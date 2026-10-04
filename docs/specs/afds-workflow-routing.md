@@ -415,10 +415,21 @@ unsolicited user notices or routine acknowledgement waits. The router retains
 its complete monitor summary, and the owner still produces every required
 handoff, gate, recovery, and result report. Coordination gives one concise
 notice for an actionable decision, blocker or failure, meaningful delivery
-milestone, or explicit status request, and suppresses duplicate or no-action
-notices. Required phase producer notices remain intact. An explicit status
+milestone, verified terminal batch completion without delivery, or explicit
+status request, and suppresses duplicate or no-action notices, including a
+terminal outcome already reported with delivery or status. Terminal notice
+selection follows authoritative reconciliation even when the timer will stop.
+Required phase producer notices remain intact. An explicit status
 request receives a current read-only answer even without new progress; host
 notification suppression depends on supported controls.
+
+On a coordinated handoff, the router retains a complete internal monitor
+summary and coordination selects its user-facing notices. On a direct bounded
+router invocation, the router presents the current requested result, including
+read-only status, actionable gates with complete known facts, and verified
+terminal outcome without delivery under the same concise, duplicate-aware
+selection rule. Direct presentation neither invokes coordination back nor
+grants additional effect authority.
 
 Active authorized owners continue on intact bindings. Interrupted or resumable
 idle continuation validates the existing approved route, plan provenance,

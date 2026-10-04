@@ -24,8 +24,10 @@ controller/ledger context when the host requires explicit pointers:
 > Take at most the next authorized action per affected item through the skill's
 > owning workflows. Retain routine progress and monitor reports internally;
 > notify only for an actionable decision, blocker or failure, meaningful
-> delivery milestone, or explicit status request. Avoid duplicate or no-action
-> notices. Stop the schedule after verified terminal completion.
+> delivery milestone, verified terminal batch completion without delivery, or
+> explicit status request. Avoid duplicate or no-action notices, including a
+> terminal outcome already reported with delivery or status. Stop the schedule
+> after verified terminal completion and notice selection.
 
 The prompt selects the policy owner; it does not carry a copy of the policy or
 grant permission to mutate a provider. Keep source revision or content

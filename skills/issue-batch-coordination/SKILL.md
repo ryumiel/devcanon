@@ -125,10 +125,14 @@ removable owner worktree.
    current ledger and router summary without an unsolicited user notice or
    acknowledgement wait. Give the user one concise report when a decision or
    action is needed, an actionable blocker or failure arises, a meaningful
-   delivery milestone is reached, or the user requests status. Answer a status
+   delivery milestone is reached, the batch reaches verified terminal
+   completion without a delivery milestone, or the user requests status.
+   Report that terminal outcome after authoritative reconciliation, even when
+   no further action is needed and monitoring will stop. Answer a status
    request from current evidence even without a new milestone. Suppress
    no-action notices and duplicate commentary/final reports for the same
-   event; retain exact notices required by an owning phase or other consumer.
+   event, including a terminal outcome already reported with delivery or
+   status; retain exact notices required by an owning phase or other consumer.
    Missing authority or required evidence holds the affected action and
    surfaces the concrete missing decision or evidence when user action is
    needed. Creation or a sent binding is not readiness: first observe
