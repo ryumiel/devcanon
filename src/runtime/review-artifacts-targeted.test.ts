@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   targetedEnvelope,
@@ -13,7 +14,63 @@ const head = "a".repeat(40);
 const prior = "b".repeat(40);
 const envelope = () => targetedEnvelope(head);
 const finding = () => targetedFinding(head);
+
+const briefingExample = () => {
+  const template = readFileSync(
+    new URL(
+      "../../skills/play-review/references/agent-briefing-template.md",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const match = template.match(/~~~json\n([\s\S]*?)\n~~~/);
+  if (!match) throw new Error("briefing JSON example missing");
+  return JSON.parse(match[1]) as Record<string, unknown>;
+};
+
 describe("targeted review evidence", () => {
+  it("accepts the briefing example and rejects independent closed-contract violations", () => {
+    const example = briefingExample();
+    expect(() => validateTargetedReviewEvidence(example)).not.toThrow();
+
+    const withFinding = (
+      change: (finding: Record<string, unknown>) => void,
+    ) => {
+      const value = structuredClone(example);
+      const claim = (value.findings as Record<string, unknown>[])[0];
+      change(claim);
+      return value;
+    };
+    const unknownMember = withFinding((claim) => {
+      (claim.assessment as Record<string, unknown>).selection_rationale =
+        "invented";
+    });
+    expect(() => validateTargetedReviewEvidence(unknownMember)).toThrow();
+
+    const unknownCategory = withFinding((claim) => {
+      claim.category = "Invented";
+      claim.body = (claim.body as string).replace(
+        "Nit | Logic",
+        "Nit | Invented",
+      );
+    });
+    expect(() => validateTargetedReviewEvidence(unknownCategory)).toThrow();
+
+    const staleAssessment = withFinding((claim) => {
+      (claim.assessment as Record<string, unknown>).assessed_head_sha = prior;
+    });
+    expect(() => validateTargetedReviewEvidence(staleAssessment)).toThrow();
+
+    const { review_head_sha: _reviewHeadSha, ...missingHead } =
+      structuredClone(example);
+    expect(() => validateTargetedReviewEvidence(missingHead)).toThrow();
+
+    const missingEvidence = withFinding((claim) => {
+      (claim.assessment as Record<string, unknown>).basis = " ";
+    });
+    expect(() => validateTargetedReviewEvidence(missingEvidence)).toThrow();
+  });
+
   it.each(targetedEvidenceCases(head))(
     "$name (accepted=$accepted)",
     ({ value, accepted }) => {

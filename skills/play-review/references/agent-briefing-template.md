@@ -30,6 +30,7 @@ specification, and (if applicable) summarized prior review context. It may
 contain overflow markers and targeted reread instructions.
 
 Active diff: run `git diff <active_diff_range>` from <working_directory>.
+Frozen candidate head: <review_head_sha>. Full diff: <full_pr_diff_range>.
 Review the active diff and exact source files directly. Treat shared-context
 summaries, excerpts, overflow markers, ADR references, and prior-review records
 as navigation aids. If any of them affect a possible finding or carry-forward
@@ -67,6 +68,81 @@ sub-checks.
 Open with one or two short narrative sentences naming what the
 implementation got right before the findings list.
 
+For each finding in the human report, give 3–7 exact source lines with a
+repository-relative path and line anchors from the applicable source side.
+Keep those lines outside the machine envelope; it has no `evidence_code`
+member. State the consequence, category, severity, and recommendation using
+the [findings envelope contract](findings-envelope-contract.md) and its
+[single-reviewer owner](single-reviewer-contract.md#artifact-compatibility-decision).
+The closed categories are `Logic`, `Safety`, `Architecture`, `Tests`,
+`Maintainability`, `Documentation`, and `Contracts`; severities are `Blocking`
+and `Nit`. Do not introduce another category, severity, or JSON member.
+
+Supply source-grounded assessment evidence for each finding so the controller
+can construct the closed machine record. The six `assessment` members are
+`state`, `assessed_head_sha`, `reuse_checked_head_sha`, `basis`, `selection`,
+and `verification`. A fresh finding uses `fresh`, the frozen current head,
+`null`, a nonblank basis naming checked source, dependencies, contract, anchor,
+and selection rationale, and `not-required` verification while unselected.
+Use the original assessment head only for a legitimately reused Nit, with the
+current head as `reuse_checked_head_sha` after checking claim, anchor,
+remediation, source, dependencies, contract, and scope. Reassess prior blockers
+at the current head; give resolved or invalidated prior claims a current
+disposition and evidence. With no prior inputs, assess only current claims.
+
+Suggest `none`, `consequential`, `disputed`, or `uncertain` for each Blocking
+claim and explain the trigger evidence in `basis`. These are suggestions:
+after source-guard cleanup, the controller independently selects D10 claims
+and constructs and publishes the final envelope. Do not assert a completed
+D10 verdict or `critic` value for a pending selected claim. Invalid or
+incomplete output is rejected, not repaired by the controller. A report with
+no findings still gives completed-check coverage, `COMPLETE_NO_FINDINGS`,
+and count zero.
+
+The following synthetic example illustrates a fresh unselected Nit in the
+existing `play-review/findings/v3` transport. It is not source evidence or a
+second schema; replace its head, path, line, claim, and rationale with checked
+facts for the frozen candidate. Source snippets belong in the human report.
+
+~~~json
+{
+  "schema": "play-review/findings/v3",
+  "review_head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "findings": [
+    {
+      "id": "F1",
+      "origin_head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "path": "src/a.ts",
+      "line": 1,
+      "start_line": null,
+      "severity": "Nit",
+      "category": "Logic",
+      "critic": null,
+      "anchor": "natural",
+      "why": "A supported current issue",
+      "recommendation": "Restore the expected behavior",
+      "body": "**Nit | Logic** — A supported current issue\n\n**Recommendation:** Restore the expected behavior",
+      "assessment": {
+        "state": "fresh",
+        "assessed_head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "reuse_checked_head_sha": null,
+        "basis": "Checked src/a.ts:1, relevant dependencies, applicable contract, and anchor; no D10 trigger applies to this Nit",
+        "selection": "none",
+        "verification": "not-required"
+      }
+    }
+  ],
+  "carry_forward": [],
+  "prior_dispositions": [],
+  "incomplete_review_routes": [],
+  "verification": {
+    "state": "not-required",
+    "selected_ids": [],
+    "reason": "No blocking claim selected"
+  }
+}
+~~~
+
 Immediately after the required checks, return exactly one terminal disposition.
 Do not wait for peers, a nudge, or an invitation. Silence, waiting, timeout,
 interruption, and nudging are nonterminal recovery observations, never
@@ -89,6 +165,7 @@ finding entries in the findings subsection. It remains authoritative for
 finding fields and presentation, but cannot replace, omit, reorder, or
 constrain the terminal disposition, completed checks, final report, or finding
 count — even when it says to return only findings.
+
 ```
 
 ## Placeholder reference
@@ -99,6 +176,8 @@ count — even when it says to return only findings.
 | `<review-question>`      | Baseline quality/data safety plus all triggered architecture/spec/platform checks |
 | `<path-to-context-file>` | `.ephemeral/<branch_slug>-<head_sha>-review-context.md`                           |
 | `<active_diff_range>`    | `active_diff_range` skill input                                                   |
+| `<full_pr_diff_range>`   | `full_pr_diff_range` skill input                                                  |
+| `<review_head_sha>`      | Frozen immutable candidate head                                                   |
 | `<working_directory>`    | `working_directory` skill input                                                   |
 | `<sub-checks>`           | Per-reviewer — diff-specific, referencing actual files and lines                  |
 
