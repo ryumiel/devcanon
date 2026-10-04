@@ -313,8 +313,10 @@ ritual or unresolved bindings block before capture. D7 has zero handoffs,
 | D7    | `reviewer`   | `frontier` | `D7_MODEL` = `gpt-6.1-sol` | `high`             | `source-immutable` | `D7_PROMPT` |
 
 Build one self-contained prompt using `references/agent-briefing-template.md`.
-Include exact scope/head, working directory, shared-context path, applicable
-checks, source pointers, contract-example context, and terminal requirements.
+Include exact active/full ranges and frozen head, working directory,
+shared-context path, applicable checks, source pointers, the template's
+owner-linked closed finding/assessment instructions and example,
+contract-example context, and terminal requirements.
 Missing, blank, unresolved, or mismatched bindings block before capture; no
 source-checkout lookup or fallback model is permitted. After capture:
 
