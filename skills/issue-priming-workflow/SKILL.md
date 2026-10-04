@@ -164,11 +164,15 @@ or permission. Correct contradicted prior assessment statements in the already
 authorized response or destination under its existing write permissions.
 
 Report timing only when endpoints have compatible provenance for the same run.
-Keep start-to-dispatch, start-to-first-edit, wall-clock, and processing time
-distinct; a first note is not proof of run start, and wall time does not establish
-processing time. Existing coordinator metadata may enrich an assessment when
-available and associated with the run, but do not require cross-task access,
-messaging, or new integration to obtain it. Leave unsupported intervals unknown.
+Use supported start metadata only for the execution scope it identifies: an
+associated execution-turn start may anchor turn-start-to-dispatch or
+turn-start-to-first-edit intervals without proving the start of the whole task
+or workflow. Keep those intervals, wall-clock time, and processing time
+distinct. Thread creation, a first note, or update and completion timestamps
+alone do not establish execution start; wall time does not establish processing
+time. Existing coordinator metadata may enrich an assessment when available and
+associated with the run, but do not require cross-task access, messaging, or
+new integration to obtain it. Leave unsupported intervals unknown.
 Do not publish raw history. The request adds no completion or review gate,
 measurement-only rerun, or new monitoring or persistence obligation. Completion
 evidence remains with `play-verification`; shared reporting remains under
