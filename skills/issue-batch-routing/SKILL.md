@@ -238,6 +238,32 @@ Do not directly implement code, resolve conflicts, author PR replies, rerun CI,
 merge, update issue status, or archive threads when an owning workflow must do
 or confirm that work.
 
+## Observation and uncertain-effect recovery
+
+Before routing, acting, or reporting, compare an incoming owner or provider
+observation with retained current facts for the same item and
+operation. Use supported event or operation identity, applicable revision or
+head, and verification evidence to establish comparability and freshness;
+delivery and observation timestamps alone cannot order effects. A duplicate
+or superseded observation does not replace verified current facts, reopen a
+resolved blocker, trigger a notification, or consume or repeat a route key.
+For conflicting or incomparable observations, refresh only the affected
+authoritative owner or provider state, then classify from the reconciled
+current facts. Missing identity, required head, or freshness evidence holds
+the affected action. Keep historical approvals, route keys, receipt sequences,
+and pending creation facts while replacing obsolete current claims.
+
+On resume after an observation may have been interrupted before its record,
+refresh the affected authoritative state before consuming it. If an effect may
+have occurred before its route or delivery record was retained, reconcile the
+supported owner, host, or provider result and the original route identity
+before retrying; an unknown result waits. Authorization, dispatch or delivery,
+observed owner start, and verified completion each require their own supported
+evidence. None implies the next stage. An absent approval, authority binding,
+or replay fact cannot be reconstructed from status or transcript. Apply the
+existing creation, approval, receipt, and route-specific safeguards after this
+reconciliation; it grants no new effect authority.
+
 ## Monitor Loop
 
 For each open batch item:
@@ -394,7 +420,9 @@ For each open batch item:
    worktree, a queued task, or a sent continuation is not readiness. Retain
    missing or unknown delivery or response evidence; wait or report for
    reconciliation, not a blind resend or readiness claim.
-6. Refresh current source and PR state. Apply the canonical
+6. Refresh current source and PR state, and reconcile incoming observations
+   under the observation and uncertain-effect recovery rule before replacing
+   current facts or routing. Apply the canonical
    `issue-priming-workflow` genuine-gate classification while preserving the
    router's PR, source-issue, publication, and terminal precedence before any
    non-gate receipt continuation: when current evidence identifies a canonical
