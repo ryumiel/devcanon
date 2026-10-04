@@ -113,8 +113,11 @@ while the adjacent code block invokes `git worktree remove <path>`.
 Fires only when the active diff adds prose explicitly labeling a pattern as
 broken, deprecated, superseded, or wrong. Grep the repository for unchanged
 occurrences of that pattern. Treat each unchanged occurrence as a
-`Documentation` candidate. Preserve the report-only, out-of-diff,
-judgment-required disposition independently from severity. Apply common
+`Documentation` candidate. Preserve its truthful out-of-diff location and
+judgment-required disposition independently from severity. It is report-only
+by default; only a separate repair owner can qualify an authorized necessary-
+completion correction under the shared policy and bounded repair gates. Apply
+common
 admission: emit `Blocking | Documentation` only when the supported candidate
 or an applicable obligation breach independently crosses the repository merge
 gate; emit `Nit | Documentation` for a real supported issue below that gate;

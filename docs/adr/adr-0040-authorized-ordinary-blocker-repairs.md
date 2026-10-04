@@ -57,16 +57,36 @@ the classification and follows the existing fail-closed route until resolved.
 Only an otherwise qualified candidate with current exact authority may enter
 the bounded repair route and its applicable proof and review gates.
 
-For an eligible behavior-preserving compliance repair in planned review
-response, the parent may satisfy its separate plan approval gate using explicit
+Necessary completion of the current authorized change may also use that route
+when the repair owner records, before editing, the causal link from the change
+to the inconsistency, the violated requirement or approved contract, why the
+correction is needed to finish it, the design-determined result, and current
+authority for every affected responsibility. Exact mutation authority is
+checked separately. An unchanged file, out-of-diff location, second module,
+adjacent context, or signature adaptation to an already approved contract is
+not alone a stop. Unrelated pre-existing defects and new architecture,
+ownership, interface, public-contract, dependency, or responsibility decisions
+still stop for their owner. This changes no finding schema or reviewer anchor:
+out-of-diff findings remain truthful. Ordinary and selected verification,
+Safety and Contracts hard-rule stops, recurrence, changed-head review, and
+full-versus-narrow scope selection remain independent. An executable caller
+migration needs fail-before and pass-after regression proof; a documentation
+correction needs source consistency and applicable documentation checks rather
+than a manufactured runtime failure.
+
+For an eligible behavior-preserving compliance or necessary-completion repair
+in planned review response, the parent may satisfy its separate plan approval
+gate using explicit
 current-session user authority only when the plan contains eligible
-behavior-preserving compliance corrections and that authority covers every
-correction in the exact combined-reviewed plan, every affected file, scope, and
+corrections and that authority covers every correction in the exact
+combined-reviewed plan, every affected responsibility, scope, and
 proof obligation. The parent retains the authority source with the reviewed
 plan digest and current producer provenance, then checks it again immediately
-before execution. Missing, partial or ambiguous coverage, behavior or
-control-flow changes, a changed public contract, a new interface or dependency,
-widened scope or a crossed approval boundary keeps the existing explicit
+before execution. A behavior or control-flow correction qualifies only when
+the approved contract already determines it and executable regression proof is
+required. Missing, partial or ambiguous coverage, a new public contract,
+interface, ownership, architecture or dependency decision, expanded
+responsibilities or a crossed approval boundary keeps the existing explicit
 approval or owning handoff. Other planned work still requires explicit reviewed
 plan approval. A plan-byte edit invalidates review and approval; correction
 uses the remaining bounded planning-review pass or its reassessment route and
@@ -89,7 +109,8 @@ and freshness decisions.
 - Repair owners must establish current exact implementation authority rather
   than deriving it from review findings or the fix mode.
 - Exact current user authority can satisfy the reviewed-plan gate for the
-  covered compliance correction without a repeated approval request.
+  covered compliance or necessary-completion correction without a repeated
+  approval request.
 - A changed candidate cannot reuse its pre-mutation qualification or approval
   evidence.
 - The retained exclusions keep uncertain, consequential, disputed, or

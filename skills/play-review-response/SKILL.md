@@ -157,8 +157,14 @@ portable installed representation and does not add policy here. Classify a
 behavior-preserving compliance candidate from rule, violation, and preservation
 evidence before assessing its exact current repair authority. Only an in-scope
 product blocker, a proof/test correction at its existing proof owner, or an
-otherwise qualified compliance candidate with exact current authority reaches
-inline/planned implementation selection through the existing bounded route.
+otherwise qualified compliance candidate or necessary-completion correction
+with exact current authority reaches inline/planned implementation selection
+through the existing bounded route.
+For a necessary correction caused by the authorized change, use that reference's
+five pre-edit facts and separately verify exact authority for every affected
+responsibility. Unchanged file, signature, module, or adjacent-context
+placement alone does not deny a determined necessary correction; unresolved
+facts, new design decisions, and independent approval boundaries still stop.
 Known missing authority retains the candidate classification, withholds
 mutation, and requires an explicit existing owner or approval handoff; uncertain
 authority retains the classification and uses the existing fail-closed route to
