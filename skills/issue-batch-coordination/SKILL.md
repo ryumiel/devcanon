@@ -206,7 +206,10 @@ its target and status through supported host controls before successor
 dispatch. Archiving the predecessor does not transfer or stop the timer.
 
 Read [Watchdog operation](references/watchdog.md) when a timer is requested,
-already exists, or needs recovery. Scheduling is optional host functionality;
-this skill creates no timer by itself. Missing scheduling support does not
-prevent owner-driven coordination. A refresh can reveal drift, but neither
+already exists, when a separate watcher is authorized, or when either mode
+needs recovery or shutdown. Use its one-mode startup, observation, handoff,
+and verified-stop procedure; owner reports remain primary. Scheduling is
+optional host functionality; this skill creates no timer by itself. Missing
+scheduling support does not prevent owner-driven coordination. A refresh can
+reveal drift, but neither
 prose nor a timer guarantees policy compliance.
