@@ -759,9 +759,9 @@ work without pausing for routine controller or user acknowledgement. Keep
 required internal reports and changed evidence current; when the binding is
 intact, pass changed facts and needed evidence pointers without repeating
 unchanged context. This does not shorten a required gate report or recovery
-receipt. An interrupted or resumable idle owner follows the router's complete
-receipt validation before continuation; missing or stale facts take the
-existing wait or gate path.
+receipt. For a batch-routed interrupted or resumable idle owner, follow the
+router's complete receipt validation before continuation; missing or stale
+facts take the existing wait or gate path.
 
 The following are genuine gates and fail closed: materially unresolved product
 outcomes; externally observable behavior not required by the approved issue;
