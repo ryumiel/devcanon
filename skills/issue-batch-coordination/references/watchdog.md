@@ -1,7 +1,6 @@
 # Watchdog operation
 
-Use this procedure for the optional lifecycle owned by ROUTE-007-MONITOR in
-DevCanon's source behavior spec.
+Use this procedure for optional monitoring of an accepted batch.
 Owner reports remain the primary continuation signal. A host schedule is a
 fallback for an accepted batch, not a second controller or a source of action
 authority. Do not create a custom scheduler or require a watcher agent.
