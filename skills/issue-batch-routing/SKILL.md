@@ -238,6 +238,32 @@ Do not directly implement code, resolve conflicts, author PR replies, rerun CI,
 merge, update issue status, or archive threads when an owning workflow must do
 or confirm that work.
 
+## Observation and uncertain-effect recovery
+
+Before routing, acting, or reporting, compare an incoming owner or provider
+observation with retained current facts for the same item and
+operation. Use supported event or operation identity, applicable revision or
+head, and verification evidence to establish comparability and freshness;
+delivery and observation timestamps alone cannot order effects. A duplicate
+or superseded observation does not replace verified current facts, reopen a
+resolved blocker, trigger a notification, or consume or repeat a route key.
+For conflicting or incomparable observations, refresh only the affected
+authoritative owner or provider state, then classify from the reconciled
+current facts. Missing identity, required head, or freshness evidence holds
+the affected action. Keep historical approvals, route keys, receipt sequences,
+and pending creation facts while replacing obsolete current claims.
+
+On resume after an observation may have been interrupted before its record,
+refresh the affected authoritative state before consuming it. If an effect may
+have occurred before its route or delivery record was retained, reconcile the
+supported owner, host, or provider result and the original route identity
+before retrying; an unknown result waits. Authorization, dispatch or delivery,
+observed owner start, and verified completion each require their own supported
+evidence. None implies the next stage. An absent approval, authority binding,
+or replay fact cannot be reconstructed from status or transcript. Apply the
+existing creation, approval, receipt, and route-specific safeguards after this
+reconciliation; it grants no new effect authority.
+
 ## Monitor Loop
 
 For each open batch item:
@@ -394,12 +420,19 @@ For each open batch item:
    worktree, a queued task, or a sent continuation is not readiness. Retain
    missing or unknown delivery or response evidence; wait or report for
    reconciliation, not a blind resend or readiness claim.
-6. Refresh current source and PR state. Apply the canonical
+6. Refresh current source and PR state, and reconcile incoming observations
+   under the observation and uncertain-effect recovery rule before replacing
+   current facts or routing. Apply the canonical
    `issue-priming-workflow` genuine-gate classification while preserving the
    router's PR, source-issue, publication, and terminal precedence before any
    non-gate receipt continuation: when current evidence identifies a canonical
    genuine gate, use its gate path and do not consume a receipt. Stale gate
    evidence remains a gate and cannot be bypassed by a receipt.
+   An active owner already authorized on an intact route continues its
+   non-gate work without routine acknowledgement or a new receipt exchange.
+   Receipt validation below applies when an interrupted or resumable idle
+   owner needs continuation; it does not turn ordinary active progress into
+   a new gate or user notice.
 7. At initial approval, validated initial owner handoff, and on a resumed route,
    use the router's existing controller-held approved-route facts to first
    compare the current independently proven expected repository to the retained
@@ -814,7 +847,7 @@ evidence. Do not archive based only on a thread's claim that work is complete.
 
 ## Monitor Pass Reports
 
-Every monitor pass reports:
+Every monitor pass records a complete controller-local summary:
 
 - merged or closed items
 - routed items
@@ -825,9 +858,19 @@ Every monitor pass reports:
 - archived threads
 - next check time
 
-Keep reports summary-only. Do not paste raw transcripts, raw logs, raw
-validation output, local `.ephemeral` paths, or agent-local decision trails into
-shared PR or issue comments.
+Keep this summary available for coordination and recovery even when no user
+notice is selected. On a coordinated handoff, pass the complete summary to
+`issue-batch-coordination` for its canonical user-notification selection;
+routine progress stays internal. On direct bounded invocation, present the
+current requested result from this summary, including a read-only status
+answer, actionable decisions or blockers with complete known gate facts, and
+verified terminal batch completion without delivery. Apply the coordinator's
+same concise notice and duplicate-event rules without invoking it back or
+turning presentation into effect authority. A missing route,
+gate, or recovery fact follows its existing wait or manual-action path; quiet
+reporting cannot establish readiness. Keep reports summary-only. Do not paste
+raw transcripts, raw logs, raw validation output, local `.ephemeral` paths, or
+agent-local decision trails into shared PR or issue comments.
 
 ## Automation And Resume
 

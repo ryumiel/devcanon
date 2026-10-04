@@ -64,15 +64,22 @@ blocked item does not hold independently eligible siblings.
 
 Keep one current view beside the ledger: dependencies, acceptance/owner,
 validation, gate/blocker/next action, controller/successor, policy
-revision/fingerprint, and router-required replay facts. Reconcile a newer
-report with its batch summary rather than append history; snapshot, digest, and
-time identify one observation, while approval provenance does not refresh
-source state. Missing, unavailable, stale, or conflicting evidence holds only
-its action. Preserve unknown, unrelated, and router-required facts; clear only
-positive obsolete or inapplicable facts. Prefer needed-evidence pointers over
-detail. These local recovery facts are not a schema, event store, tracker
-substitute, or approval source. Store them stably, never only in a removable
-owner worktree.
+revision/fingerprint, and router-required replay facts. Compare an incoming
+observation with retained facts for the same item and operation before using
+it. Identity, applicable head or revision, and verification evidence establish
+whether it is current; delivery or observation time alone does not order it.
+A comparable duplicate or superseded observation leaves verified current state
+and routed effects unchanged. Conflicting or incomparable observations require
+a bounded refresh from the affected authoritative owner or provider before an
+action or report uses them. Reconcile accepted facts into both the item and
+batch summary, so gate, blocker, next action, and evidence agree. Approval
+provenance and replay history survive current-view replacement; neither
+refreshes source state. Missing, unavailable, stale, or conflicting evidence
+holds only its action. Preserve unknown and unrelated facts; clear only
+positive obsolete or inapplicable current facts. Prefer needed-evidence
+pointers over detail. These local recovery facts are not a schema, event store,
+tracker substitute, or approval source. Store them stably, never only in a
+removable owner worktree.
 
 ## Coordination cycle
 
@@ -100,8 +107,9 @@ owner worktree.
    blocked item need not stop independent eligible siblings.
 4. **Record and yield.** Reconcile the router's outcome into the affected
    current ledger item and its batch summary in the same transition. Before
-   treating facts as current or using them for an action, make the current gate,
-   blocker, next action, evidence, and any retained snapshot, digest and
+   treating facts as current or using them for an action, compare the incoming
+   observation with retained current facts as above, then make the current
+   gate, blocker, next action, evidence, and any retained snapshot, digest and
    observation time agree. Replace the prior monitor summary and clear only
    positively obsolete or inapplicable fields; preserve unrelated items and
    router-required authority and replay facts without copying its contracts.
@@ -111,9 +119,23 @@ owner worktree.
    verified terminal evidence, unresolved obligations and required replay
    facts; a closed source issue alone does not authorize archival. After an
    already-authorized cleanup, replace location and availability claims with
-   the observed result; an unknown result remains unresolved. Give the user a
-   concise delta with meaningful progress, completion, failure, or the concrete
-   decision needed. Creation or a sent binding is not readiness: first observe
+   the observed result; an unknown result remains unresolved. Select the
+   audience after reconciliation. Keep routine owner commits, checks, review
+   or shared-resource waits, bounded fixes, and other non-gate progress in the
+   current ledger and router summary without an unsolicited user notice or
+   acknowledgement wait. Give the user one concise report when a decision or
+   action is needed, an actionable blocker or failure arises, a meaningful
+   delivery milestone is reached, the batch reaches verified terminal
+   completion without a delivery milestone, or the user requests status.
+   Report that terminal outcome after authoritative reconciliation, even when
+   no further action is needed and monitoring will stop. Answer a status
+   request from current evidence even without a new milestone. Suppress
+   no-action notices and duplicate commentary/final reports for the same
+   event, including a terminal outcome already reported with delivery or
+   status; retain exact notices required by an owning phase or other consumer.
+   Missing authority or required evidence holds the affected action and
+   surfaces the concrete missing decision or evidence when user action is
+   needed. Creation or a sent binding is not readiness: first observe
    the owner's existing response or gate report through supported host evidence.
    Suppress repeated unchanged waits. Owner gate reports are the
    primary continuation signal; use supported waits or the optional watchdog,

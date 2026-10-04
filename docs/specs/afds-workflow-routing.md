@@ -389,6 +389,58 @@ revision or fingerprint. Refresh cannot expand authority, and missing policy
 or unresolved authority/scope changes stop affected actions with a concrete
 decision or evidence request. Owner reports remain the primary progress signal.
 
+For each item and operation, coordination compares incoming owner and provider
+observations with retained current facts before reporting or acting. Supported
+identity, applicable head or revision, and verification evidence determine
+whether an observation is comparable and current; timestamps alone do not.
+Duplicate or superseded delivery cannot regress a verified outcome, reopen a
+resolved blocker, notify misleadingly, or repeat a route effect. Conflict or
+incomparable evidence triggers a bounded refresh of the affected authoritative
+owner or provider; missing identity or freshness holds that action. Accepted
+facts update the item and batch summary together so the current gate, blocker,
+next action, and evidence agree while historical approvals and replay facts
+remain retained. After interrupted observation, refresh before consumption;
+after a possible effect without a retained record, reconcile its supported
+result and original route identity before retrying. Unknown results wait.
+Authorization, dispatch or delivery, observed owner start, and verified
+completion require distinct evidence; an absent authority or replay fact is
+never reconstructed from status or transcript. The router's existing route
+keys, receipt and approval gates, pending-creation recovery, and source owners
+remain authoritative for effects.
+
+Coordination selects the audience after reconciling owner and router evidence.
+Routine commits, checks, bounded fixes, review or shared-resource waits, and
+other authorized non-gate progress stay in controller-local summaries without
+unsolicited user notices or routine acknowledgement waits. The router retains
+its complete monitor summary, and the owner still produces every required
+handoff, gate, recovery, and result report. Coordination gives one concise
+notice for an actionable decision, blocker or failure, meaningful delivery
+milestone, verified terminal batch completion without delivery, or explicit
+status request, and suppresses duplicate or no-action notices, including a
+terminal outcome already reported with delivery or status. Terminal notice
+selection follows authoritative reconciliation even when the timer will stop.
+Required phase producer notices remain intact. An explicit status
+request receives a current read-only answer even without new progress; host
+notification suppression depends on supported controls.
+
+On a coordinated handoff, the router retains a complete internal monitor
+summary and coordination selects its user-facing notices. On a direct bounded
+router invocation, the router presents the current requested result, including
+read-only status, actionable gates with complete known facts, and verified
+terminal outcome without delivery under the same concise, duplicate-aware
+selection rule. Direct presentation neither invokes coordination back nor
+grants additional effect authority.
+
+Active authorized owners continue on intact bindings. Interrupted or resumable
+idle continuation validates the existing approved route, plan provenance,
+refreshed source state and head when required, acknowledged positive progress
+sequence, and unfinished non-gate evidence before consuming a receipt. Genuine
+gates take precedence; missing or stale facts follow the existing wait or
+manual-action path and expose any needed decision. Intact facts may be reused
+with changed facts and evidence pointers, while required complete gate and
+recovery evidence is never abbreviated. No new route state or authority follows
+from quiet reporting.
+
 #### ROUTE-007-MONITOR: Optional batch monitoring lifecycle
 
 Monitoring is optional for an accepted batch and requires retained applicable

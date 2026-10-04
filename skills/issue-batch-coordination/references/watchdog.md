@@ -35,9 +35,13 @@ Choose one active mode for the batch:
   > Reread the skill's canonical file and references required for this pass.
   > Reconcile current user decisions and the existing ledger with live owner and
   > provider evidence. Take at most the next authorized action per affected item
-  > through the skill's owning workflows. Stay quiet for unchanged or
-  > non-actionable state; notify on meaningful progress, completion, failure, or
-  > required user action. Stop the schedule after verified terminal completion.
+  > through the skill's owning workflows. Retain routine progress and monitor
+  > reports internally; notify only for an actionable decision, blocker or
+  > failure, meaningful delivery milestone, verified terminal batch completion
+  > without delivery, or explicit status request. Avoid duplicate or no-action
+  > notices, including a terminal outcome already reported with delivery or
+  > status. Stop the schedule after verified terminal completion and notice
+  > selection.
 
 - **Separate watcher:** use only when its own schedule, observation, and
   messaging effects are authorized and supported. Bind its prompt to the
@@ -79,11 +83,22 @@ response. A no-code reply leaves review-response with an explicit expected
 event or authorized supported request, as described in its
 [batch-reporting procedure](../../play-review-response/references/batch-reporting.md).
 
-Suppress unchanged user reports and repeated approval requests after a quiet
-wakeup. Preserve the router's monitor result in controller-local state. Use
-supported host notification preferences where available; quiet prompt output
-does not guarantee that the host suppresses a run notification. State the host
-limitation accurately.
+Owner reports remain the primary signal. A wakeup with no actionable delta
+does not resend approvals, redispatch continuation to an active owner, pause
+that owner for acknowledgement, or repeat an unchanged approval request.
+Preserve the router's complete monitor result in controller-local state while
+suppressing routine user reports. A missing gate or recovery fact still holds
+the affected action and exposes any needed decision. Select user notices under
+the coordinator's notification policy, including verified terminal completion
+without delivery and suppression of a terminal outcome already reported with
+delivery or status. Use supported host notification preferences where
+available; quiet prompt output does not guarantee that the host suppresses a
+run notification. State the host limitation accurately.
+
+For delayed or conflicting observations, apply the coordinator's current-view
+comparison and the router's observation recovery before deciding that a wakeup
+has an actionable delta. The timer prompt does not carry a separate replay
+policy.
 
 ## Recover, hand off, and stop
 
