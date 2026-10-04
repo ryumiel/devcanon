@@ -436,7 +436,10 @@ pre-findings markdown before the helper-rendered preview. It fails closed if the
 preserved block starts with a heading instead of the narrative lead. Continue to
 use the helper-rendered preview for findings and evidence snippets; do not
 manually reshape finding entries.
-Findings tagged `Anchor: out-of-diff` remain report-only and require human judgment.
+Keep `Anchor: out-of-diff` truthful. Such findings require human judgment and
+remain report-only unless the Writing Skills necessary-completion condition,
+exact authority, and every independent `--fix` gate below qualify a bounded
+correction. The reviewer finding itself grants no edit authority.
 
 After the human-readable findings, surface `play-review`'s `Findings written to <path>.` notice line in the wrapper's output (echo it as-is; do not reword). The `play-review/findings/v3` envelope (defined in `skills/play-review/references/findings-envelope-contract.md`) is on disk at the cited path; downstream tools that wrap `branch-review`'s output read the file directly. No JSON fence is appended to conversation — the file is the consumer contract.
 
@@ -547,15 +550,24 @@ authority.
   verification.
 - Nits are report-only and cannot form automatic fix units.
 
-The existing stop rule fires when a fix needs `Anchor: out-of-diff`; a unit
-contains a `play-review` hard-rule judgment-required `Blocking | Safety`
+The existing stop rule fires when a unit contains a `play-review` hard-rule
+judgment-required `Blocking | Safety`
 Sub-check 1 or `Blocking | Contracts` Sub-check 2 finding; or the fix changes
 a function signature, control-flow structure unless it meets the narrow
 exception below, more than one module, or needs context beyond the flagged
-lines and permitted adjacent same-invariant active-diff surfaces.
+lines and permitted adjacent same-invariant active-diff surfaces. A fix needing
+`Anchor: out-of-diff` also stops by default. These location, signature,
+module-count, and adjacent-context stops do not apply solely because the
+necessary-completion condition in Writing Skills is met with exact authority
+for every affected responsibility. Recheck its five pre-edit facts and the
+current bounded scope and any required reviewed plan before a unit is
+constructed or edited; missing or ambiguous evidence stops. This does not
+qualify a nit or waive a hard-rule
+Safety or Contracts stop, ordinary/selected verification, recurrence, proof,
+or changed-head review.
 
-The control-flow branch has one narrow exception. It does not stop an otherwise
-eligible critic-verified in-scope product blocker when current explicit
+The control-flow branch has a narrow product-blocker exception. It does not
+stop an otherwise eligible critic-verified in-scope product blocker when current explicit
 `--fix` task authority covers the exact correction; the authoritative behavior
 contract and finding evidence are unambiguous; a concrete behavioral regression
 has failed before the edit; and the correction is the minimum
@@ -566,7 +578,12 @@ asking again: control flow alone does not establish missing authority. The
 exception does not apply to Nits, widened or ambiguous work, or either Safety
 or Contracts hard-rule finding.
 
-The compliance category does not expand this control-flow exception. A
+Necessary completion may also adapt executable control flow to an already
+approved contract when its minimum correction is determined by that contract,
+current authority covers each affected responsibility, and fail-before and
+pass-after behavioral regression proof is available. It cannot decide a new
+interface, ownership, architecture, dependency, or public contract. The
+compliance category does not expand either control-flow exception. A
 behavior-preserving compliance candidate may use the existing bounded route
 only after its Writing Skills rule, source-violation, and preservation evidence
 establish eligibility, exact current repair authority is established separately,
@@ -639,14 +656,14 @@ the threshold unmet. This grants no new implementation authority.
 
 ## Quick Reference
 
-| Situation                                                 | Action                                                          |
-| --------------------------------------------------------- | --------------------------------------------------------------- |
-| Empty diff                                                | Report "no changes", stop                                       |
-| All clean                                                 | Report "no issues found"                                        |
-| Blocking findings + `--fix`                               | Apply the canonical **With `--fix`** eligibility criteria above |
-| Blocking finding needs design change or out-of-diff edits | Stop, report to caller                                          |
-| Hard-rule judgment-required blocker                       | Stop, preserve in findings file                                 |
-| Nit findings + `--fix`                                    | Report-only handoff; no automatic fix                           |
+| Situation                                                                                                | Action                                                          |
+| -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Empty diff                                                                                               | Report "no changes", stop                                       |
+| All clean                                                                                                | Report "no issues found"                                        |
+| Blocking findings + `--fix`                                                                              | Apply the canonical **With `--fix`** eligibility criteria above |
+| Blocking finding needs a new design decision or out-of-diff edits without qualified necessary completion | Stop, report to caller                                          |
+| Hard-rule judgment-required blocker                                                                      | Stop, preserve in findings file                                 |
+| Nit findings + `--fix`                                                                                   | Report-only handoff; no automatic fix                           |
 
 ## Common Mistakes
 
@@ -662,7 +679,7 @@ the threshold unmet. This grants no new implementation authority.
 
 ## Red Flags — You Are Violating This Skill
 
-- You auto-fixed a finding tagged `Anchor: out-of-diff`
+- You auto-fixed a finding tagged `Anchor: out-of-diff` without qualified, authorized necessary completion
 - You auto-fixed a `Blocking | Safety` Sub-check 1 finding (substitution audit) — these are design work
 - You auto-fixed a `Blocking | Contracts` Sub-check 2 finding (documented-behavior verification) — these are design work
 - You skipped delegating to `play-review` and tried to spawn agents yourself

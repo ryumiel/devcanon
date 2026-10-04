@@ -184,7 +184,11 @@ without claiming combined assurance or mechanical eligibility from this tag.
 before the parent applies its separate Plan Approval Gate to the exact reviewed
 digest. The producer supplies reviewed bytes and provenance; it does not decide
 whether explicit current-session authority already satisfies that gate for an
-eligible behavior-preserving compliance correction covering the entire plan.
+eligible behavior-preserving compliance or necessary-completion correction
+covering the entire plan and every affected responsibility. Necessary
+completion requires its causal link, violated approved contract, necessity,
+design-determined result, and exact authority before mutation. The parent
+retains all separate execution proof and review gates.
 The parent owns that limited decision and rehashes immediately before execution.
 Any changed bytes require review within budget and a new parent authority
 assessment; prior approval cannot cover new bytes, and the human approval loop
