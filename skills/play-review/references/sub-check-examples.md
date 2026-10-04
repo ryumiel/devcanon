@@ -51,8 +51,13 @@ explicitly calling out that `gh api -f <field>=<value>` combined with
 `--input <file>` is broken because `-f` arguments become URL query parameters
 when `--input` is supplied. Sub-check B greps the corpus for the broken
 pattern. Each unchanged sibling file still demonstrating it is a
-`Documentation` candidate that remains report-only, out-of-diff, and
-judgment-required. If the supported candidate or applicable breach crosses the
+`Documentation` candidate with a truthful out-of-diff location and a
+judgment-required disposition. It remains report-only by default; a separate
+repair owner may qualify a correction only when the current authorized change
+caused it, an approved contract determines the necessary result, exact authority
+covers the affected responsibility, and all bounded repair gates pass. This
+hypothetical alone supplies none of that authority. If the supported candidate
+or applicable breach crosses the
 repository merge gate, emit `Blocking | Documentation`; if it is a real
 supported issue below that gate, emit `Nit | Documentation`; otherwise emit no
 finding.

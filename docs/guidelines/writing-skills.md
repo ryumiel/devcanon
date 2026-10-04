@@ -450,6 +450,32 @@ as one of:
 4. a behavior-preserving compliance candidate; or
 5. invalid or speculative.
 
+Necessary completion of the current authorized change is a bounded repair
+condition, not a sixth finding class. Before editing, record five explicit
+facts: the causal link from that change to the inconsistency; the applicable
+violated requirement or approved contract; why correction is necessary to
+finish the change; the design-determined intended result; and the current
+authority covering every affected responsibility. Establish exact mutation
+authority separately from classification and these facts. A finding, severity,
+technical fixability, `--auto`, or `--fix` supplies none of them. Refresh the
+existing scope and reviewed-plan evidence before mutation. Missing, partial,
+stale, or ambiguous facts or authority withhold mutation for the existing owner
+or approval handoff.
+
+When all of those facts and authority hold, an unchanged file, out-of-diff
+location, signature adaptation to an already approved contract, second module,
+or needed adjacent context does not alone deny the necessary correction. The
+correction may complete only that approved contract. Unrelated pre-existing
+defects, new ownership, architecture, interface or public-contract decisions,
+new dependencies, expanded responsibilities, and crossed explicit approval
+boundaries still stop before editing. Preserve the repair owner's ordinary or
+selected verification, Safety and Contracts hard-rule stops, nit defaults,
+recurrence bounds, proof, changed-head review, and full-versus-narrow review
+selection. Executable behavior or control-flow changes require a failing
+pre-edit behavioral regression and passing post-edit proof; documentation
+corrections require truthful source consistency and applicable documentation
+checks, without inventing a runtime failure.
+
 Product-blocker scope requires a reachable production path, an authoritative
 contract violation, a meaningful bad outcome, and a minimal behavioral
 regression.

@@ -106,12 +106,17 @@ Before handing the generated plan to `play-subagent-execution`, assess approval
 satisfaction against the exact reviewed plan. Explicit current-session user
 authorization satisfies this gate without a repeated approval request only for
 an eligible plan containing only otherwise qualified behavior-preserving
-compliance corrections when it covers **every** correction in that plan, every
-affected file, the full
+compliance or authorized necessary-completion corrections when it covers
+**every** correction in that plan, every affected responsibility, the full
 scope, and all proof obligations. First establish the mandatory rule,
 current-source violation, and preservation evidence that classify each
 compliance candidate under Writing Skills and the bundled
 [finding-proportionality reference](finding-proportionality.md).
+For necessary completion, record the five pre-edit facts in that reference,
+including the violated approved contract and design-determined result. An
+approved signature adaptation or cross-module caller correction may qualify;
+new ownership, interface, architecture, dependency, or public-contract
+decisions cannot.
 Assess exact current authority separately for every planned mutation.
 Retain the authority source and its whole-plan coverage assessment with the
 plan path, exact reviewed digest, contract tag, and current combined producer
@@ -122,10 +127,13 @@ For all other planned review-response work, request explicit user approval of
 the reviewed plan. Known missing authority withholds mutation and requires an
 explicit existing owner or approval handoff; uncertain, partial, or ambiguous
 coverage also withholds mutation until the existing approval or decision-owner
-route resolves it. Behavior, control-flow or public
-contract changes, a new interface or dependency, widened scope, or a crossed
-approval boundary cannot use the compliance exception; stop at the existing
-approval or decision-owner handoff. When approval is required, present the plan
+route resolves it. Behavior or control-flow changes may use this gate only as
+authorized necessary completion of the already approved contract, with
+executable regression proof; they cannot use the compliance category to bypass
+that proof. A new public contract, interface, ownership, architecture or
+dependency decision, widened responsibility, or a crossed approval boundary
+stops at the existing approval or decision-owner handoff. When approval is
+required, present the plan
 with a distinct producer notice and prompt. Replace `{captured-plan-path}`
 below with the path captured from `play-planning`. Do not include a second
 `Plan written to <path>.` placeholder, because `play-planning` owns the single
@@ -147,7 +155,7 @@ The plan approval gate is explicit:
   `Plan written to <path>.`.
 - Establish approval satisfaction after `Plan written to <path>.` and before
   `play-subagent-execution`. Use exact existing authority only under the
-  whole-plan compliance condition above; otherwise wait for explicit approval
+  whole-plan condition above; otherwise wait for explicit approval
   or use the existing owning handoff.
 - Immediately before execution, recheck the retained authority against the
   current reviewed plan, its digest and producer provenance. Any changed plan

@@ -430,8 +430,11 @@ requests when the executable owner already covers the invariant and the
 consumer adds no independently fallible behavior.
 
 Substitution and documented-behavior findings require judgment and are never
-automatically fixed. Cross-document identifier drift stays report-only and
-out-of-diff. Within-document drift still requires identifying whether the code
+automatically fixed. Cross-document identifier drift keeps its truthful
+out-of-diff location and is report-only by default. A repair owner may separately
+qualify a necessary-completion correction under Writing Skills, exact authority,
+and the applicable bounded repair gates; review discovery grants no edit
+permission. Within-document drift still requires identifying whether the code
 block is canonical; all fixes remain subject to the contract's per-finding
 eligibility and existing judgment exclusions.
 
