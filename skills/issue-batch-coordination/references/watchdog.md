@@ -22,9 +22,10 @@ controller/ledger context when the host requires explicit pointers:
 > Reread the skill's canonical file and references required for this pass. Reconcile current
 > user decisions and the existing ledger with live owner and provider evidence.
 > Take at most the next authorized action per affected item through the skill's
-> owning workflows. Stay quiet for unchanged or non-actionable state; notify on
-> meaningful progress, completion, failure, or required user action. Stop the
-> schedule after verified terminal completion.
+> owning workflows. Retain routine progress and monitor reports internally;
+> notify only for an actionable decision, blocker or failure, meaningful
+> delivery milestone, or explicit status request. Avoid duplicate or no-action
+> notices. Stop the schedule after verified terminal completion.
 
 The prompt selects the policy owner; it does not carry a copy of the policy or
 grant permission to mutate a provider. Keep source revision or content
@@ -41,9 +42,12 @@ state. If those controls are unavailable, hold affected successor dispatch and
 report the concrete missing control.
 
 Owner reports remain the primary signal. A wakeup with no actionable delta
-does not resend approvals, continue an active owner, or repeat an unchanged
-approval request. Preserve the router's monitor result in local state while
-suppressing redundant user reports. Preserve notification preferences through
+does not resend approvals, redispatch continuation to an active owner, pause
+that owner for acknowledgement, or repeat an unchanged approval request.
+Preserve the router's complete monitor result
+in local state while suppressing routine user reports. A missing gate or
+recovery fact still holds the affected action and exposes any needed decision.
+Preserve notification preferences through
 supported host controls; quiet prompt output does not guarantee that the host
 will suppress a run notification. State any host limitation accurately.
 

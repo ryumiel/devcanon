@@ -389,6 +389,28 @@ revision or fingerprint. Refresh cannot expand authority, and missing policy
 or unresolved authority/scope changes stop affected actions with a concrete
 decision or evidence request. Owner reports remain the primary progress signal.
 
+Coordination selects the audience after reconciling owner and router evidence.
+Routine commits, checks, bounded fixes, review or shared-resource waits, and
+other authorized non-gate progress stay in controller-local summaries without
+unsolicited user notices or routine acknowledgement waits. The router retains
+its complete monitor summary, and the owner still produces every required
+handoff, gate, recovery, and result report. Coordination gives one concise
+notice for an actionable decision, blocker or failure, meaningful delivery
+milestone, or explicit status request, and suppresses duplicate or no-action
+notices. Required phase producer notices remain intact. An explicit status
+request receives a current read-only answer even without new progress; host
+notification suppression depends on supported controls.
+
+Active authorized owners continue on intact bindings. Interrupted or resumable
+idle continuation validates the existing approved route, plan provenance,
+refreshed source state and head when required, acknowledged positive progress
+sequence, and unfinished non-gate evidence before consuming a receipt. Genuine
+gates take precedence; missing or stale facts follow the existing wait or
+manual-action path and expose any needed decision. Intact facts may be reused
+with changed facts and evidence pointers, while required complete gate and
+recovery evidence is never abbreviated. No new route state or authority follows
+from quiet reporting.
+
 An optional authorized watchdog uses supported host controls and the existing
 controller. Successor acknowledgement and reconciliation of any timer target
 and status precede successor dispatch. Unchanged reports are suppressed without

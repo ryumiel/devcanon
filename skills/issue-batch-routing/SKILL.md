@@ -400,6 +400,11 @@ For each open batch item:
    non-gate receipt continuation: when current evidence identifies a canonical
    genuine gate, use its gate path and do not consume a receipt. Stale gate
    evidence remains a gate and cannot be bypassed by a receipt.
+   An active owner already authorized on an intact route continues its
+   non-gate work without routine acknowledgement or a new receipt exchange.
+   Receipt validation below applies when an interrupted or resumable idle
+   owner needs continuation; it does not turn ordinary active progress into
+   a new gate or user notice.
 7. At initial approval, validated initial owner handoff, and on a resumed route,
    use the router's existing controller-held approved-route facts to first
    compare the current independently proven expected repository to the retained
@@ -814,7 +819,7 @@ evidence. Do not archive based only on a thread's claim that work is complete.
 
 ## Monitor Pass Reports
 
-Every monitor pass reports:
+Every monitor pass records a complete controller-local summary:
 
 - merged or closed items
 - routed items
@@ -825,9 +830,14 @@ Every monitor pass reports:
 - archived threads
 - next check time
 
-Keep reports summary-only. Do not paste raw transcripts, raw logs, raw
-validation output, local `.ephemeral` paths, or agent-local decision trails into
-shared PR or issue comments.
+Keep this summary available for coordination and recovery even when no user
+notice is selected. `issue-batch-coordination` owns user-notification selection:
+routine progress stays internal, while actionable decisions or blockers,
+meaningful delivery, and requested status remain visible. A missing route,
+gate, or recovery fact follows its existing wait or manual-action path; quiet
+reporting cannot establish readiness. Keep reports summary-only. Do not paste
+raw transcripts, raw logs, raw validation output, local `.ephemeral` paths, or
+agent-local decision trails into shared PR or issue comments.
 
 ## Automation And Resume
 

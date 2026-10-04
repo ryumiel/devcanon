@@ -111,9 +111,19 @@ owner worktree.
    verified terminal evidence, unresolved obligations and required replay
    facts; a closed source issue alone does not authorize archival. After an
    already-authorized cleanup, replace location and availability claims with
-   the observed result; an unknown result remains unresolved. Give the user a
-   concise delta with meaningful progress, completion, failure, or the concrete
-   decision needed. Creation or a sent binding is not readiness: first observe
+   the observed result; an unknown result remains unresolved. Select the
+   audience after reconciliation. Keep routine owner commits, checks, review
+   or shared-resource waits, bounded fixes, and other non-gate progress in the
+   current ledger and router summary without an unsolicited user notice or
+   acknowledgement wait. Give the user one concise report when a decision or
+   action is needed, an actionable blocker or failure arises, a meaningful
+   delivery milestone is reached, or the user requests status. Answer a status
+   request from current evidence even without a new milestone. Suppress
+   no-action notices and duplicate commentary/final reports for the same
+   event; retain exact notices required by an owning phase or other consumer.
+   Missing authority or required evidence holds the affected action and
+   surfaces the concrete missing decision or evidence when user action is
+   needed. Creation or a sent binding is not readiness: first observe
    the owner's existing response or gate report through supported host evidence.
    Suppress repeated unchanged waits. Owner gate reports are the
    primary continuation signal; use supported waits or the optional watchdog,

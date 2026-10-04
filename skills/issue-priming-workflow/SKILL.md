@@ -754,6 +754,15 @@ validation, normal commits, reviewer dispatch or waiting, and bounded
 in-contract fixes; and task-locally recoverable D12 `NEEDS_CONTEXT` or
 `BLOCKED` statuses.
 
+An active owner with an intact confirmed binding continues this authorized
+work without pausing for routine controller or user acknowledgement. Keep
+required internal reports and changed evidence current; when the binding is
+intact, pass changed facts and needed evidence pointers without repeating
+unchanged context. This does not shorten a required gate report or recovery
+receipt. An interrupted or resumable idle owner follows the router's complete
+receipt validation before continuation; missing or stale facts take the
+existing wait or gate path.
+
 The following are genuine gates and fail closed: materially unresolved product
 outcomes; externally observable behavior not required by the approved issue;
 new public schema or compatibility commitments; ownership or source-surface
@@ -1084,6 +1093,12 @@ originate, derive, or replace that key. Missing or changed paired batch context
 must wait or report rather than emit an owner-handoff. The batch controller
 records these controller-held facts before it consumes a receipt; a later
 receipt cannot initialize or authenticate them.
+
+Produce these complete controller reports when their existing trigger occurs,
+even if coordination selects no user notice. An active owner does not wait for
+acknowledgement of routine internal progress before continuing authorized
+non-gate work. Do not invent a controller acknowledgement or source-state
+digest to make a receipt appear complete.
 
 Every gate report should include the source provider and source issue identifier
 from the payload, except batch-routed reports must use the unchanged canonical
