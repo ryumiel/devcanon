@@ -95,6 +95,32 @@ Detect mode:
 
 ## Phase 2: Worktree setup
 
+### Optional controller diagnostics custody
+
+For this PR-review invocation, the wrapper may choose disk persistence for its
+own raw terminal reports, ledger snapshots, and validation diagnostics. If it
+does, before the first diagnostic write, resolve the physical primary
+repository root and selected physical review worktree, verify that they belong
+to the same Git repository, and create one fresh, unique, exclusive immediate
+directory child of the primary root's ignored `.ephemeral` directory. Use a
+PR-identifying, run-unique leaf (for example,
+`.ephemeral/pr-42-controller-diagnostics-unique-run`); the head alone is not
+unique. Require the `.ephemeral` parent and allocated directory to be real,
+nonsymlink directories and the physical destination to be outside the selected
+review checkout. Reject symlink or `..` alias traversal. An existing candidate,
+including one from the same head or resumed run, is historical: choose another
+leaf through exclusive creation, never reuse or overwrite it. Retain the
+physical root and allocated directory in wrapper-local custody before Phase 4.
+Failure to establish this custody stops optional persistence and its dependent
+continuation; do not write into the checkout. If persistence is not chosen,
+leave the shared review memory-only with no diagnostic disk target.
+
+Clear the current diagnostic binding before the next invocation, repository or
+PR switch, head advancement, or cleanup. Historical primary bytes stay in
+place. This binding is separate from the lease and the live shared-context
+family. It never repairs missing semantic evidence or grants acceptance,
+posting, or cleanup authority.
+
 The retained optional `SharedContextFamilyBinding` and its separately retained
 original review association belong only to the selected live review worktree.
 Before a lease operation can remove/recreate that worktree, advance its head,
@@ -683,6 +709,11 @@ Hand off to `play-review` with these manifest-backed inputs:
   records extracted before successful lease retirement in the same provider
   repository and PR continuation, with separate original provenance; never a
   live family or an authority to select scope
+- `controller_diagnostics_destination` = only when optional persistence was
+  chosen and the current wrapper-local allocation remains live: exactly
+  `{primary_repository_root,directory}`, both nonempty absolute physical
+  strings. Forward the retained allocation, not a historical path or a newly
+  inferred path. An absent value means memory-only diagnostics.
 
 Follow `skills/play-review/SKILL.md` end-to-end. Before that semantic stage,
 validate prepared paths and their current base/head/worktree bindings; changed
