@@ -152,11 +152,14 @@ not replace wrapper-level semantic classification:
 
 Escalate back to full branch review when the shared policy requires it. Treat
 `MECHANICAL_ESCALATE_FULL=true` as a support-validator decision to use the full
-range. Wrapper-level semantic inspection may also escalate for hard-risk
-handoff facts, architecture or contract impact, generated-output behavior,
-safety boundaries, broad scope, or ambiguous classification. Do not restate the
-support validator's deterministic path, count, SHA, range, or language policy
-here; the adapter contract keeps those mechanics in the shared script.
+range. Apply the shared policy's distinction between bounded dependency
+inspection and reassessment of the wider diff to wrapper-level semantic
+inspection, including hard-risk handoff facts. Use the existing scope-decision
+rationale to explain why bounded inspection is insufficient when escalating;
+category labels alone do not add a semantic escalation trigger here. Do not
+restate the support validator's deterministic path, count, SHA, range, or
+language policy here; the adapter contract keeps those mechanics in the shared
+script.
 
 Before finalizing a narrow review, read `CHANGED_FILES_FILE` and inspect the
 candidate diff. The helper writes repo-relative paths from the candidate active
