@@ -76,7 +76,9 @@ After D18 verifies, validates, and cleans successfully, map its retained four
 semantic families without changing this schema:
 
 - `discovered_guidelines.records[].summary` comes from D18; the controller owns
-  each record's path, byte count, priority, and exact excerpts.
+  each record's path, byte count, priority, and exact excerpts. Optional
+  `priority` may be absent, `null`, or a nonempty string; numbers and empty
+  strings are invalid. Keep a source priority as text rather than coercing it.
 - D18 may select only members of the controller's frozen candidate ADR-path set
   and supply reasons. The controller validates unique ADR membership and
   constructs each complete `adr_references[]` `{path, reason}` record. Do not
@@ -94,6 +96,38 @@ No D18 value is a finding, authority statement, manifest, overlay, or persisted
 handoff. Failure, malformed output, source mutation, cleanup failure, invalid
 membership, or over-budget mapping stops before manifest construction and
 D7 completion; there is no controller-summary or partial-context fallback.
+
+### Review-body example
+
+For an illustrative PR #390, suppose the captured review body says: “The
+request handler accepts an empty token without validation.” The controller
+retains the original body bytes and source identity separately. After guarded
+D18 sanitizes the body into a substantive summary, the controller can place
+this record in `prior_review_context.records` of the otherwise complete input
+manifest. Its `bytes` value is the UTF-8 byte count of that illustrative body,
+and `source.reference` identifies the body rather than an invented inline
+thread. The example assumes no inline threads, so the separate prior-thread
+envelope has `threads: []` and `dropped: []`.
+
+```json
+{
+  "source": {
+    "kind": "github-review-body",
+    "reference": "PR #390 review body"
+  },
+  "bytes": 62,
+  "summary": "Earlier review found that the request handler accepts an empty token without validation.",
+  "untrusted": true
+}
+```
+
+The summary preserves the actual finding for the independent reviewer, who
+must verify current source before relying on it. Do not invent a file, line,
+thread ID, or trusted finding status. An optional `exact_excerpt` may carry
+bounded source text under the existing budget; its absence does not erase the
+summary. Keep the original paths returned by `write-review-context-input` and
+`build-review-context`; validation failure stops rather than falling back to a
+partial manifest.
 
 Populate the doc-impact fields from that full-range evidence as follows:
 

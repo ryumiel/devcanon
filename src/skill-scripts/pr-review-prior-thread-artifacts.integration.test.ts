@@ -1780,6 +1780,67 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
     }
   });
 
+  it("runs the documented body-only prior-review example through the adapter", async () => {
+    const { cwd, headSha } = await makeGitWorkspace();
+    try {
+      const usage = await readFile(
+        path.join(
+          process.cwd(),
+          "skills/pr-review/references/prior-thread-artifacts-usage.md",
+        ),
+        "utf8",
+      );
+      const example = usage.match(
+        /## Prior-thread construction[\s\S]*?```sh\n(node --input-type=module[\s\S]*?\n)```/,
+      )?.[1];
+      expect(example).toBeDefined();
+      const { stdout } = await runHelper(
+        cwd,
+        helperScript,
+        "prepare-prior-threads-write",
+        { HEAD_SHA: headSha },
+      );
+      const threadsPath = stdout.trim();
+      expect(threadsPath).toBe(priorThreadsPath(headSha));
+      await execFileAsync("sh", ["-c", example as string], {
+        cwd,
+        env: {
+          ...process.env,
+          HEAD_SHA: headSha,
+          PR_NUMBER: "390",
+          PRIOR_THREADS_FILE: threadsPath,
+        },
+      });
+      expect(
+        JSON.parse(await readFile(path.join(cwd, threadsPath), "utf8")),
+      ).toEqual({
+        schema: "pr-review/prior-threads/v1",
+        provider: "github",
+        pr_number: 390,
+        head_sha: headSha,
+        threads: [],
+        dropped: [],
+      });
+      await expect(
+        runHelper(cwd, helperScript, "validate-prior-threads", {
+          HEAD_SHA: headSha,
+          PRIOR_THREADS_FILE: threadsPath,
+        }),
+      ).resolves.toMatchObject({ stdout: "" });
+      await writeJson(cwd, threadsPath, []);
+      await expect(
+        runHelper(cwd, helperScript, "validate-prior-threads", {
+          HEAD_SHA: headSha,
+          PRIOR_THREADS_FILE: threadsPath,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("prior-thread shape validation failed"),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("runs the installed scope construction example through the real PR validator", async () => {
     const { cwd, baseSha, headSha } = await makeGitWorkspace();
     try {
@@ -1797,7 +1858,7 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
         "utf8",
       );
       const example = usage.match(
-        /```sh\n(node --input-type=module.*?\n)```/s,
+        /## Scope-decision construction[\s\S]*?```sh\n(node --input-type=module[\s\S]*?\n)```/,
       )?.[1];
       expect(example).toBeDefined();
       const factsPath = ".ephemeral/verified-scope-facts.json";
