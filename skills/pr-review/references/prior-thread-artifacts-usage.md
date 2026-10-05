@@ -24,6 +24,51 @@ The v2 top-level keys are `schema`, `provider`, `repository`, `pr_number`, `base
 
 An empty `provider_files`/`local_files` pair may retain `github-provider-diff/v1` only when its provider full-diff digest equals the canonical local full-diff digest.
 
+## Prior-thread construction
+
+From the target review worktree root, set `HEAD_SHA` to the current full head
+SHA and `PR_NUMBER` to the verified positive GitHub PR number. Run
+`prepare-prior-threads-write` and retain its exact returned path as
+`PRIOR_THREADS_FILE`. The controller writes a closed
+`pr-review/prior-threads/v1` object with exactly `schema`, `provider`,
+`pr_number`, `head_sha`, `threads`, and `dropped`; then it runs
+`validate-prior-threads` with that unchanged path before handoff. The runtime
+validator is the acceptance authority. A bare array, a missing field, or an
+invalid thread is rejected. Do not fabricate thread IDs, file paths, or line
+locations to represent a review-body finding.
+
+This executable example is for an illustrative PR #390 at a verified current
+head. It represents a captured review body with a substantive finding and no
+inline threads. The body is carried separately as untrusted prior-review
+context, as described in the [shared review context](../../play-review/references/shared-review-context.md#review-body-example).
+The empty arrays say only that there are no inline threads or dropped thread
+records; they do not erase the body finding. Export the exact prepared path as
+`PRIOR_THREADS_FILE` before running the example:
+
+```sh
+node --input-type=module <<'NODE'
+import { writeFileSync } from 'node:fs';
+
+const envelope = {
+  schema: 'pr-review/prior-threads/v1',
+  provider: 'github',
+  pr_number: Number(process.env.PR_NUMBER),
+  head_sha: process.env.HEAD_SHA,
+  threads: [],
+  dropped: [],
+};
+writeFileSync(process.env.PRIOR_THREADS_FILE, `${JSON.stringify(envelope, null, 2)}\n`, { flag: 'w' });
+NODE
+```
+
+Use this empty-thread form only when the captured provider facts show no inline
+threads. For actual inline threads, populate `threads` and `dropped` from the
+verified capture under the runtime schema; do not substitute this example for
+those facts. If validation refuses, stop and resolve the facts through the
+existing custody path. The adapter prepares the destination and validates the
+written file; the controller owns its bounded content write. Existing cleanup
+remains unchanged.
+
 ## Scope-decision construction
 
 The runtime validator is the sole schema and acceptance authority. After

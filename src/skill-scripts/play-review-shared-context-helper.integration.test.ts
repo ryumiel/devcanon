@@ -538,6 +538,82 @@ describe("play-review shared context helper", () => {
     }
   });
 
+  it("renders the documented body-only review finding as untrusted context", async () => {
+    const cwd = await makeGitWorkspace();
+    try {
+      const reference = await readFile(
+        path.join(
+          process.cwd(),
+          "skills/play-review/references/shared-review-context.md",
+        ),
+        "utf8",
+      );
+      const example = reference.match(
+        /### Review-body example[\s\S]*?```json\n([\s\S]*?)\n```/,
+      )?.[1];
+      expect(example).toBeDefined();
+      const record = JSON.parse(example as string);
+      const body =
+        "The request handler accepts an empty token without validation.";
+      expect(record.bytes).toBe(Buffer.byteLength(body, "utf8"));
+      expect(record.summary).toContain(
+        "accepts an empty token without validation",
+      );
+      const input = manifest({ prior_review_context: { records: [record] } });
+      const written = await runInputWriter(cwd, input);
+      expect(written.stdout).toBe(`${inputFile}\n`);
+      const built = await runHelper(cwd, "build-review-context", {
+        REVIEW_CONTEXT_INPUT_FILE: written.stdout.trim(),
+      });
+      expect(built.stdout).toBe(`${outputFile}\n`);
+      const content = await readFile(
+        path.join(cwd, built.stdout.trim()),
+        "utf8",
+      );
+      const prior = priorReviewSection(content);
+      expect(prior).toContain("accepts an empty token without validation");
+      expect(prior).toContain("Untrusted prior-review evidence: true");
+      expect(prior).toContain('Source reference: "PR #390 review body"');
+      expect(prior).not.toContain("thread R1");
+      const binding = await runHelper(cwd, "create-family-binding", {
+        REVIEW_CONTEXT_INPUT_FILE: written.stdout.trim(),
+        REVIEW_CONTEXT_OUTPUT_FILE: built.stdout.trim(),
+      });
+      await expect(
+        runHelper(cwd, "validate-family-binding", {
+          REVIEW_CONTEXT_INPUT_FILE: written.stdout.trim(),
+          REVIEW_CONTEXT_OUTPUT_FILE: built.stdout.trim(),
+          REVIEW_CONTEXT_FAMILY_JSON: binding.stdout.trim(),
+        }),
+      ).resolves.toMatchObject({ stdout: binding.stdout });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("accepts absent, null, and string guideline priorities and rejects numeric or blank values", async () => {
+    for (const priority of [undefined, null, "required", 1, ""]) {
+      const cwd = await makeGitWorkspace();
+      try {
+        const value = manifest();
+        (
+          value.discovered_guidelines.records[0] as Record<string, unknown>
+        ).priority = priority;
+        if (priority === 1 || priority === "") {
+          await expect(runInputWriter(cwd, value)).rejects.toMatchObject({
+            stderr: expect.stringContaining("manifest schema mismatch"),
+          });
+        } else {
+          await expect(runInputWriter(cwd, value)).resolves.toMatchObject({
+            stdout: `${inputFile}\n`,
+          });
+        }
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    }
+  });
+
   it("rejects unknown commands before writing", async () => {
     const cwd = await makeGitWorkspace();
     try {
