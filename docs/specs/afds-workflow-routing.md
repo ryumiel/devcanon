@@ -199,7 +199,8 @@ The routing policy owns route-level fresh configuration, reuse eligibility,
 one-shot behavior, and the exact rejected-pair outcome. ADR-0027 owns the fixed
 running-session configuration invariant, while
 [`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md) owns the
-follow-up, supersession, cleanup, rejection, and slot-recovery mechanics. This
+follow-up, supersession, cleanup, rejection, slot-recovery, and bounded terminal
+model-capacity recovery mechanics. This
 spec records observable dispatch and guard evidence rather than duplicating
 those lifecycle rules.
 

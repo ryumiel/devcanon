@@ -94,7 +94,9 @@ Codex.spawn_agent({
 ```
 
 A native Codex rejection stops the applicable scenario as unavailable after
-required cleanup; it never enters the ordinary fresh-scenario/retest path.
+required cleanup; it never enters the ordinary fresh-scenario/retest path. A
+known created evaluator's explicit terminal model-capacity failure is assessed
+under `subagent-lifecycle`'s separate bounded recovery procedure.
 
 Resolve `SKILL_PRESSURE_GUARD` to this installed skill bundle's
 `scripts/source-immutability.sh` shim. For every RED baseline, GREEN
@@ -125,7 +127,10 @@ fresh evaluator under the applicable RED, GREEN, or REFACTOR retest step.
 
 The fresh-scenario/retest rule is for an ordinary evaluator outcome after an
 accepted creation attempt. It never converts a missing D11 tuple or native
-model/effort rejection into a second creation attempt.
+model/effort rejection into a second creation attempt. Apply the lifecycle-owned
+terminal model-capacity eligibility and allowance before this ordinary retest
+rule when the created evaluator fails explicitly for capacity without a
+semantic result.
 
 Detected source mutation or cleanup failure is guard-integrity terminal:
 preserve the visible source state, stop the skill-authoring run, and never

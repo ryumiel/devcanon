@@ -270,7 +270,8 @@ alias, or universal hard-coded capability string. As its owner allows, D17 may
 continue only an unchanged branch and stable diagnosis/fix task identity through
 the shared lifecycle rule; diagnosis-to-fix classification is a fresh changed
 tuple. Native rejection uses the existing unavailable/blocked terminal without
-substitution.
+substitution. A known created child's explicit terminal model-capacity failure
+uses `subagent-lifecycle`'s separate bounded recovery procedure.
 
 Resolve `PR_MERGE_DIR` to the installed `pr-merge` bundle directory, then set
 `SOURCE_IMMUTABILITY_HELPER="$PR_MERGE_DIR/scripts/source-immutability.sh"`.
@@ -308,7 +309,9 @@ exact cleanup, including unavailable dispatch, child failure, malformed
 response, semantic rejection, and verification rejection. An ordinary
 unavailable, failed, malformed, or verification-rejected diagnosis keeps the
 retry count unchanged; after safe cleanup, perform no fix, push, or merge and
-report the failed check with a manual-resolution recommendation. Detected
+report the failed check with a manual-resolution recommendation. Assess an
+explicit terminal model-capacity failure under `subagent-lifecycle` before that
+ordinary disposition; it does not increment the CI failure-cycle count. Detected
 source mutation or cleanup failure is guard-integrity terminal: preserve the
 visible source state, stop, and do not repair or hide the mutation. If the PR
 head SHA changes, invalidate the retained diagnosis, keep the retry count

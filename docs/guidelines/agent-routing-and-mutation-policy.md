@@ -249,8 +249,8 @@ original stable-task fix or within-scope continuation and D17's unchanged stable
 branch/task. Every other route in the active route set is fresh-only; D14, D15, and D16 are
 explicitly one-shot fresh reviewers. After this route permission, the existing
 lifecycle owner performs task-name allocation, follow-up, capture,
-supersession, cleanup, slot recovery, and rejection mechanics; this policy does
-not create a naming schema or lifecycle registry.
+supersession, cleanup, slot recovery, and terminal model-capacity recovery;
+this policy does not create a naming schema or lifecycle registry.
 
 A follow-up for D12 or D17 is permitted only under the route permission above,
 when the stable task identity and complete tuple are unchanged, and the existing
@@ -259,11 +259,12 @@ verified-auto attestation when applicable, without configuration overrides. A
 changed tuple or task identity requires a complete fresh session; the lifecycle
 owner performs the transition mechanics.
 
-If native Codex rejects the selected pair, report exactly
+If native Codex rejects the selected model/effort configuration, report exactly
 `model=<rendered-full-model> effort=<route-effort>` and use the route-local
 unavailable or `BLOCKED` terminal. No fallback, alias, effort change, retry,
-escalation, or role substitution is permitted. Slot exhaustion is distinct; the
-lifecycle owner owns exact-pair recovery and rejection mechanics.
+escalation, or role substitution is permitted. Slot-limit creation failures and
+an already-created child's explicit terminal model-capacity failure are distinct;
+the lifecycle owner owns their separate bounded recovery procedures.
 
 The installed
 [`play-agent-dispatch` dispatch-ritual usage](../../skills/play-agent-dispatch/references/dispatch-ritual-usage.md)
