@@ -59,7 +59,7 @@ claude:
     - Write
 
 codex:
-  model: gpt-6-sol
+  model: gpt-6.1-sol
   model_reasoning_effort: low
   sandbox_mode: workspace-write
 ```
@@ -170,7 +170,7 @@ evidence, not source authority.
 
 The canonical `assessor` example above must preserve the unchanged Claude
 envelope, retain its command and named-handoff envelope, prohibit durable and
-external mutation, and emit Codex `model: gpt-6-sol` and
+external mutation, and emit Codex `model: gpt-6.1-sol` and
 `model_reasoning_effort: low`. A rendered role count other than six, a Codex
 model or effort that differs from the source role, or broader mutation instructions
 fails the contract.
@@ -295,7 +295,7 @@ Explicit `codex.model: null` is known agent-source schema, not passthrough or a
 warning. Claude `model` accepts only a literal string or absence; Claude null is
 rejected. The agent spec owns this target distinction.
 The assessor, investigator, and implementer retain their capability and
-Claude envelope and pin literal `codex.model: gpt-6-sol`, with Codex effort
+Claude envelope and pin literal `codex.model: gpt-6.1-sol`, with Codex effort
 `low`, `medium`, and `medium`, respectively. Ordinary reviewer retains its
 frontier capability and Claude envelope and pins `codex.model: gpt-6.1-sol`
 with `codex.model_reasoning_effort: high`. Deep-reviewer pins `codex.model: gpt-6-astra`
