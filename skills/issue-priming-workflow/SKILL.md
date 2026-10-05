@@ -327,7 +327,8 @@ Codex.spawn_agent({
 ```
 
 If native Codex rejects the D1 pair, use the existing unavailable-gate fallback
-after the required cleanup.
+after the required cleanup. A known created assessor's explicit terminal
+model-capacity failure first uses `subagent-lifecycle`'s bounded recovery rule.
 
 Use the enclosing flow's already-resolved
 `$ISSUE_PRIMING_WORKFLOW_DIR/scripts/source-immutability.mjs` binding and apply
@@ -360,8 +361,9 @@ node "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline "$GATE_BASELINE"
 Run exact cleanup after every spawned terminal branch, including child failure,
 malformed output, and verification rejection. An ordinary unavailable, failed,
 malformed, or verification-rejected gate result follows the existing fallback
-to `RESEARCH_NEEDED` after safe cleanup. Only detected source mutation or
-cleanup failure is terminal. Even then, attempt exact cleanup, leave the source
+to `RESEARCH_NEEDED` after safe cleanup. Apply `subagent-lifecycle`'s terminal
+model-capacity eligibility before that ordinary fallback. Only detected source
+mutation or cleanup failure is guard-integrity terminal. Even then, attempt exact cleanup, leave the source
 mutation visible, and never reset, check out, stage, or repair source.
 
 **Pass to the assessor:**
@@ -544,7 +546,9 @@ response, but settle and attempt exact cleanup for every started sibling.
 
 Use `subagent-lifecycle` § Slot-Limit Recovery for any research spawn slot
 failure, preserving captured state and repository anchors; repeated failure or
-escalation stops without persistence or Phase 4. Every immediate sibling must
+escalation stops without persistence or Phase 4. Use its separate Terminal
+Model-Capacity Recovery procedure when a known created child fails explicitly
+for capacity without semantic output. Every immediate sibling must
 settle with its captured tuple before routing. Never cancel, abandon, or route
 early while a sibling is active; in particular do not invoke the helper, emit
 the notice, or enter Phase 4 until both started siblings settle.

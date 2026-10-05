@@ -54,6 +54,11 @@ their spawn points. The shared procedure owns:
   authorized controller archival for a verified eligible child, or confirmed
   genuinely human-only supported authorized cleanup action, and a bounded
   wait;
+- terminal model-capacity recovery: after a known created child ends with an
+  explicit capacity failure and no semantic result, retain its failure, finish
+  required guard and target-honest cleanup, revalidate the route, and permit at
+  most one fresh identical-configuration child with allowance exhausted before
+  dispatch;
 - the closed eligible-quality-failure capability-escalation procedure: result
   classification, positive retained verified evidence, exact declaration and
   target support, one fresh-attempt budget, invariant envelope, concise summary,
@@ -142,14 +147,18 @@ implementers continue to read the worktree from disk.
   successful supported authorized cleanup alternative and bounded wait;
   confirmed children are reconciled and rejected or unknown retry results use
   the existing terminal/manual path with allowance exhausted.
+- Terminal model-capacity failure is separate from rejected configuration and
+  slot-limit creation failure. Unknown or live execution cannot qualify, and a
+  second capacity failure follows the existing blocked/manual path.
 - Workflow-local exceptions remain explicit, so shared cleanup policy does not
   close sessions that a workflow still needs for same-session follow-up.
 - The shared policy remains a compact controller procedure, not an
   event-sourced lifecycle engine, retention proof system, or duplicated
   consumer recovery algorithm.
-- Capability escalation and slot-limit recovery remain distinct: the first has
-  one fresh exact-pair attempt only after eligible-quality-failure validation;
-  the latter retains its existing resource-recovery counter and behavior.
+- Capability escalation, slot-limit recovery, and terminal model-capacity
+  recovery remain distinct. Escalation has one fresh exact-pair attempt only
+  after eligible-quality-failure validation; each recovery retains its own
+  eligibility and allowance.
 
 ## Alternatives considered
 

@@ -19,7 +19,8 @@ consumes, and neither restates nor overrides, these owners:
   complete fresh-Codex tuple fields, and the D4 declaration obligation.
 - `subagent-lifecycle` owns the controller ledger, `<instance_ordinal>` and
   `task_name` allocation, configuration continuity, the cleanup gate,
-  slot-limit recovery, and native-rejection mechanics.
+  slot-limit recovery, terminal model-capacity recovery, and
+  native-rejection mechanics.
 - Each consuming skill owns its route values (semantic role, capability, model
   marker, effort, authority, and prompt name), its prompt inputs, its literal
   `Codex.spawn_agent({...})` block, and its task-local output, failure, and
@@ -83,11 +84,14 @@ Keep this order exact for every fresh child.
 
 ## Native rejection
 
-If native Codex rejects the requested pair, report the exact
+If native Codex rejects the requested model/effort configuration, report the exact
 `model=<resolved full model> effort=<route effort>`, complete the required
 cleanup, and take the consuming skill's existing unavailable or blocked
 terminal for that route. Do not retry, select an alias, change effort,
-escalate, or substitute a role.
+escalate, or substitute a role. For an already-created child's explicit
+terminal model-capacity failure, apply `subagent-lifecycle`'s eligibility and
+allowance before any fresh dispatch; that recovery follows the full ritual
+again and does not change this rejection rule.
 
 ## Workflow boundary
 

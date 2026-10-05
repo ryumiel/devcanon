@@ -144,7 +144,9 @@ Codex.spawn_agent({
 
 If native Codex rejects the requested pair, report the exact
 `model=<RESOLVED_CODEX_MODEL> effort=<SELECTED_CODEX_EFFORT>` and follow the
-existing failed-domain disposition after required cleanup.
+existing failed-domain disposition after required cleanup. A known created
+child's explicit terminal model-capacity failure is first assessed under
+`subagent-lifecycle`'s bounded recovery procedure.
 
 ### Source-Immutable Specialists
 
@@ -248,14 +250,18 @@ When agents return:
 After an ordinary child failure, verification rejection, or payload rejection,
 first complete safe exact cleanup for the affected source-immutable specialist.
 Then let every already-started sibling settle and complete its exact cleanup
-when applicable. After that, integrate no specialist results from that parallel
-batch, and return the failed domains plus the successful summaries to the
-controller. A successful sibling summary remains diagnostic context; it does
-not authorize partial integration after any domain rejects.
+when applicable. A known created child's explicit terminal model-capacity
+failure with no semantic result may use `subagent-lifecycle`'s bounded recovery
+only after the join settles and the route's current checks pass. Otherwise,
+integrate no specialist results from that parallel batch, and return the failed
+domains plus the successful summaries to the controller. A successful sibling
+summary remains diagnostic context; it does not authorize partial integration
+after any domain rejects.
 
-This joined failure path does not start replacement siblings or add another
-parallel dispatch wave. Detected source mutation or cleanup failure is
-guard-integrity terminal: preserve the visible source state, integrate no
+The ordinary joined failure path does not start replacement siblings or add
+another parallel dispatch wave. The lifecycle-owned single capacity recovery
+does not reset the batch or admit partial integration. Detected source mutation
+or cleanup failure is guard-integrity terminal: preserve the visible source state, integrate no
 results, let already-started siblings reach their terminal cleanup attempts,
 and report the integrity failure instead of treating it as an ordinary child
 failure.

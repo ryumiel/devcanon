@@ -58,11 +58,12 @@ rejection. A fresh child never inherits ambient model or effort, and its route
 contract fails closed when native Codex rejects that exact pair.
 
 The shared [`subagent-lifecycle`](../../skills/subagent-lifecycle/SKILL.md)
-owns route-permitted reuse, supersession, cleanup, and slot recovery mechanics. A
-running session's required configuration is fixed: role, full model, effort,
+owns route-permitted reuse, supersession, cleanup, slot recovery, and bounded
+terminal model-capacity recovery after a created child fails without a semantic
+result. A running session's required configuration is fixed: role, full model, effort,
 fork setting, and task identity do not change in place. A changed required tuple
 or task identity therefore needs a new session. The lifecycle owner performs
-route-permitted reuse, follow-up, supersession, cleanup, and slot-recovery
+route-permitted reuse, follow-up, supersession, cleanup, and recovery
 mechanics; route skills own only task-local continuation and terminal behavior. D14, D15, and
 D16 remain one-shot fresh reviewers under the routing policy.
 

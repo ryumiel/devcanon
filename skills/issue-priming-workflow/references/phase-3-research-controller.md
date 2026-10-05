@@ -92,6 +92,8 @@ node "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline "$LEAF_BASELINE"
 Capture failure prevents only that spawn and records that investigator as
 unavailable without inventing a baseline. An ordinary unavailable, failed,
 malformed, or verification-rejected result follows the main outcome precedence
-after safe cleanup. Preserve captured scope, report result, source references,
+after safe cleanup. A known created investigator's explicit terminal
+model-capacity failure first uses `subagent-lifecycle`'s bounded recovery
+procedure. Preserve captured scope, report result, source references,
 blocker state, lifecycle ledger, and repository anchors across the shared
 slot-limit recovery procedure.

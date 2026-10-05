@@ -94,10 +94,11 @@ tuple. On Responses API inventory-only targets, record exactly
 operation or operational state. Cleanup failure is terminal under the owning
 route: do not create the replacement child.
 
-A native target rejection reports the requested `model` and
-`reasoning_effort` and takes the owning route's existing unavailable or blocked
+A native rejection of the requested model/effort configuration reports the
+requested `model` and `reasoning_effort` and takes the owning route's existing unavailable or blocked
 terminal. It authorizes no fallback, alias, effort change, retry, escalation,
-or role substitution.
+or role substitution. A created child's explicit terminal model-capacity
+failure is handled separately under Terminal Model-Capacity Recovery below.
 
 ## Target Lifecycle Capability
 
@@ -268,6 +269,46 @@ When a spawn fails because of a slot/session limit:
 After the single retry, no further slot-recovery creation is permitted. The
 owning workflow reconciles a confirmed child and uses its existing blocked or
 manual-resolution path for rejected or unknown creation.
+
+## Terminal Model-Capacity Recovery
+
+This procedure applies only to a known created child whose execution ended
+with an explicit terminal model-capacity failure and no semantic result. Retain
+the original child identity and failure as observed data in the existing
+controller-local ledger. A generic unavailable, blank, failed, or timed-out
+result is insufficient. Missing failure details, uncertain creation, and an
+unknown, live, or interrupted child do not qualify; reconcile uncertainty with
+existing supported controls before considering another dispatch.
+
+Before a recovery dispatch, complete required source verification and exact
+guard cleanup for the original child, preserve any detected source mutation,
+and run the target-honest lifecycle cleanup gate. A failed required guard or
+cleanup operation blocks recovery. On an inventory-only target, record the
+actual `close-unavailable` outcome; do not claim closure. This procedure does
+not borrow slot-limit recovery's successful close, archival, human action, or
+bounded-wait prerequisite as evidence of terminal model capacity.
+
+Revalidate the consuming route's current authority and ordinary candidate and
+context conditions. Unsupported model/effort configuration, permission denial,
+guard failure, missing authority, a semantic result, or any incomplete required
+evidence is ineligible. Preserve the exact semantic role, capability, full
+model, effort, task and scope, source and external authority, tools, sandbox,
+output, and termination contract. Route selection, one-shot review discipline,
+and task-local result disposition remain with their existing owners.
+
+Recovery requires unused allowance for the failed task attempt in existing
+controller-local state. The controller may allocate at most one fresh child
+with a new route-local ordinal and no inherited history. Record
+remaining model-capacity recovery allowance=`0` before dispatch so interruption
+or failure cannot replenish it. Run the full dispatch ritual, including a new
+source guard baseline where required. Do not continue the failed session or
+change the model, effort, role, or any other tuple value. A second terminal
+model-capacity failure takes the owning route's existing blocked or manual path;
+other fresh-child outcomes take their ordinary route disposition without a
+renewed allowance. Neither slot-limit creation recovery nor eligible-quality-
+failure capability escalation resets this allowance or changes its eligibility.
+No queue, timer, retry framework, persistent evidence, or capacity guarantee
+is introduced.
 
 ## Eligible Quality-Failure Capability Escalation
 
