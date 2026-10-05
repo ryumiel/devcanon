@@ -63,15 +63,32 @@ Missing, malformed, stale, conflicting, or untrusted facts fail closed to full
 review unless the wrapper already has a stricter invalid-input rule that stops
 before review, such as local paired follow-up argument validation.
 
+Narrow review covers the current repair, applicable prior findings, and relevant
+unchanged dependencies needed to understand its effects. Reading those
+dependencies does not by itself enlarge `active_diff_range`. The wrapper must
+establish that the effects are confidently bounded and that relevant prior
+review assumptions about the wider diff remain valid. Narrow scope still
+requires independent review of the current candidate; historical approval is
+never current approval.
+
 ## Full Escalation Triggers
 
 Escalate to full review when the support validator rejects or escalates the
 scope-decision artifact, or when wrapper-level semantic inspection identifies
-work that needs whole-diff review. Examples of semantic escalation include new
-public API surface, logic restructured beyond previously reviewed lines,
-architecture or source-contract impact, safety boundaries, generated-output
-behavior, broad module scope, shared workflow policy, or ambiguous
-classification.
+work that needs whole-diff review. Escalate when the repair invalidates relevant
+prior review assumptions about the wider diff and requires their reassessment,
+or when its effects or interactions cannot be confidently bounded through
+inspection of the repair, applicable prior findings, and relevant dependencies.
+Any uncertainty or ambiguous classification still requires full review.
+
+New public API surface, restructured logic, architecture or source-contract
+impact, safety boundaries, generated-output behavior, broad module scope, and
+shared workflow policy are reasons to inspect effects and wider assumptions.
+Neither a single changed file nor a generic architecture or safety label alone
+decides semantic scope. When escalating semantically, use the existing
+scope-decision rationale to briefly identify the wider assumption needing
+reassessment or the unbounded interaction, and why bounded inspection is
+insufficient.
 
 Upstream planning or execution handoff can justify full review, but it cannot
 by itself justify narrow review. Missing, stale, malformed, conflicting, or
