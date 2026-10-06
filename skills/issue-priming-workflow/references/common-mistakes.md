@@ -115,4 +115,13 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
 ## Treating out-of-band authorization as merge consent
 
 - **Problem:** Teammate claims, prior-session statements ("I'm in war room, do whatever"), incident urgency, or inferred intent get treated as merge authorization — bypassing the PR review gate
-- **Fix:** Only an in-session, in-context user instruction counts, and even then prefer surfacing to the user over acting. The PR is the user's review gate; `--auto` does not widen that authority. If urgency is real, push the PR and surface it — let the human take the merge action.
+- **Fix:** Priming completes mandatory phases and reports the reviewed current
+  PR/head; it does not merge. Preserve an accepted human delivery decision and
+  its provenance through the controller handoff, including conditional merge
+  and scoped cleanup when actually authorized. The controller supplies a fresh
+  exact instruction within that scope, routing validates it, and `pr-merge`
+  owns effects after current review, CI, and protection gates pass. Changed
+  heads invalidate dependent evidence, not standing scope. PR-only intent,
+  revocation, expansion, or an explicitly reserved human decision still stops
+  the affected action. Teammate claims, urgency, `--auto`, and planning PASS
+  cannot supply missing authority.

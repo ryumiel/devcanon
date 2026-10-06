@@ -230,7 +230,7 @@ or Linear terminology.
   provider-specific CI-fix capability fails closed to waiting or manual action;
   do not rerun CI directly and do not fall back to `pr-merge` for repair
   outside the merge path.
-- `pr-merge` owns GitHub PR CI polling inside the merge path, final merge execution, and merge-result reporting.
+- `pr-merge` owns GitHub PR CI polling inside the merge path, final merge execution, scoped post-merge cleanup, and merge-result reporting.
 - `branch-review` is used only when the owning workflow requires a local branch-review gate before PR update or merge.
 - `play-branch-finish` owns pushing branches, running PR creation side effects, posting caller-supplied assumptions or nits, and preserving the branch and worktree after PR creation when an owning workflow hands off to it.
 - `pr-authoring` owns PR title/body policy, title/body composition, and pre-merge title/body validation, but must not create, edit, comment on, or merge PRs.
@@ -593,6 +593,26 @@ source-specific workflow or explicitly authorized provider workflow.
 
 ## Routing Fixtures
 
+### Standing delivery scope and current actions
+
+These semantic cases use the existing keys and handoffs, without live effects.
+The valid family has accepted human scope for publication, conditional merge,
+and scoped cleanup; exact owner O/host T; current PR P/head H; and all required
+review, CI, protection, route and owner evidence. Invalid variants change only
+the named dimension; other facts remain consistent.
+
+| Case                                                                                      | Required outcome                                                                                                                                                                                                                          |
+| ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Valid family progresses from reviewed H publication to merge readiness                    | Coordination issues current concrete instructions within retained scope; router validates each binding and routes merge/cleanup to `pr-merge` once under existing keys. Priming finishes mandatory phases at the reviewed PR/head report. |
+| An authorized correction produces H2, with H2 gates and a new exact instruction refreshed | Reject H bindings, retain delivery scope and O/T, and route the current H2 action without generic human reapproval; preserve historical keys and deduplication.                                                                           |
+| H2 is current but only H readiness and binding exist                                      | Hold the action for H2 evidence and instruction refresh, without revoking scope or consuming its approval route key.                                                                                                                      |
+| Human scope is PR-only                                                                    | Stop at publication; merge requires the missing delivery decision.                                                                                                                                                                        |
+| Human explicitly revokes the accepted scope                                               | Hold further effects for the owning decision; current green evidence does not restore authority.                                                                                                                                          |
+| Human reserves the merge decision and has not supplied it                                 | Wait for that specific human decision; conditional readiness cannot replace it.                                                                                                                                                           |
+| Requested effect expands beyond the accepted scope                                        | Escalate only that expansion before its effect.                                                                                                                                                                                           |
+| Host denies the otherwise eligible action                                                 | Report the specific unavailable action; no alternate host or workflow workaround.                                                                                                                                                         |
+| Verified merge has unrelated unfinished work present during scoped cleanup                | Existing cleanup guards retain that work and report the remaining obligation; merge success does not authorize deletion or terminal archival.                                                                                             |
+
 ### Owner dispatch and checkout adoption
 
 The following bounded fixture families are the self-check surface for the owner
@@ -734,34 +754,41 @@ ledger schema or authorization for provider mutation.
 
 ## Parent Approval Evidence
 
-Parent approval is not blanket permission. It applies only when a user or
-parent workflow explicitly authorized the same source issue or PR, gate kind,
-route key, and allowed side effect. Approval messages must also match the
-current owner thread and head SHA when a branch or PR exists.
-This gate-specific approval check does not add a generic approval step for
-routine targeted owner instructions or verified unfinished non-gate
-continuation already authorized by concrete accepted batch execution. Those
-actions still require current scope, route, receipt, owner, and host checks.
+Parent approval is not blanket permission. Consume the coordinator's accepted
+human delivery scope and concrete current instruction, or the direct user's
+bounded decision. Validate the same source issue or PR, gate kind, route key,
+allowed side effect, exact owner/host, and current branch/head when applicable.
+Coordination interprets standing scope; the router validates eligibility and
+deduplicates dispatch, without becoming a second human approval layer. A
+PR-only decision stays PR-only. Neither `--auto` alone, planning PASS, an owner report,
+nor tool availability grants publication, merge, or cleanup authority.
+
+This gate-specific check adds no generic approval step for routine targeted
+instructions or verified unfinished non-gate continuation already authorized
+by accepted execution. Those actions still require current scope, route,
+receipt, owner, and host checks.
 
 Contract phrase: same source issue or PR, gate kind, route key, and allowed side effect.
 
-Approval expires when any of these changes:
+Changes to PR head, unresolved threads, failing CI run/check, mergeability,
+source-issue state, or a newer owner gate invalidate dependent readiness and
+current action bindings. They do not automatically revoke an accepted delivery
+decision. Reject the stale binding, refresh the affected authoritative facts
+and required review, CI, protection, and owner gates, then consume a new exact
+instruction from coordination within retained scope. For direct routing,
+derive that instruction only from the user's retained bounded decision and
+current facts. Never reuse stale review or approval evidence as current.
 
-- PR head changes
-- unresolved-thread set changes
-- failing CI run/check changes
-- mergeability state changes
-- source-issue state changes
-- owner thread reports a newer gate
-
-When approval evidence is missing, stale, or broader than the requested side
-effect, report waiting and request parent/user approval instead of routing the
-side effect. Missing, stale, or broad approval evidence may update only
+Missing or stale readiness waits for refresh; missing or conflicting scope,
+revocation, expansion, a materially unresolved choice, an explicitly reserved
+human decision, or an exception to a required gate needs its owning decision.
+State the specific missing fact or decision instead of requesting generic
+reapproval. Missing, stale, or overly broad action evidence may update only
 `last_reported_approval_waiting_key`; it must not consume the actual approval
-route key that suppresses sending a later matching approval. When matching
-approval evidence later arrives, re-evaluate the current owner thread, head,
-route key, and allowed side effect before routing approval and updating
-`last_routed_approval_gate_key`.
+route key. Once a matching current instruction and evidence are available,
+re-evaluate the owner/host, head, route key, and allowed effect before routing
+and updating `last_routed_approval_gate_key`. Historical approvals, route keys,
+receipt sequences, continuity, and terminal safeguards remain intact.
 
 ## Safe Approval Templates
 
@@ -923,8 +950,8 @@ revalidates their route keys.
 
 Stop and re-route when:
 
-- approval evidence is broad, stale, or not bound to the route key;
-- the PR head SHA changed after approval;
+- the current action instruction is broad, stale, or not bound to the route key;
+- the PR head SHA changed without refreshing dependent gates and the action binding;
 - unknown provider state is being translated into a GitHub or Linear status;
 - a route would force-push, replace branch continuity, or bypass an owning
   workflow;

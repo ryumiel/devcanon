@@ -259,6 +259,30 @@ destructive cleanup, and scope expansion retain separate applicable decisions,
 including still-current prior authority; routine orchestration grants none of
 them. Source-status effects and archival retain their existing owner gates.
 
+An accepted human delivery decision may include publication, conditional merge,
+and scoped cleanup through completion. Coordination retains its provenance,
+interprets that scope, and supplies concrete current instructions; routing
+validates exact route, issue/PR, owner/host, branch/head when applicable, gate,
+effect, and readiness before dispatch. Head, review, check, mergeability,
+source-state, or gate changes invalidate dependent evidence and action bindings,
+not standing scope. Refresh required evidence and issue a new exact instruction
+within retained scope without generic human reapproval. Historical keys,
+receipt sequences, deduplication, continuity, and terminal checks stay intact.
+Missing readiness waits for refresh. Missing or conflicting scope, revocation,
+expansion, an unresolved material choice, an explicitly reserved human decision,
+or a required exception escalates only its specific decision. Reports, planning
+PASS, and tool availability are evidence, never authority.
+
+Priming retains every mandatory phase and ends its effects at the reviewed
+current PR/head report. The controller consumes that result under retained
+scope, routing validates the next instruction, and `pr-merge` owns polling,
+preflight, verified merge, scoped cleanup, and reporting after current review,
+CI, and protection gates pass. `--auto` alone grants no merge authority and a
+PR-only decision remains PR-only. Existing cleanup guards preserve dirty,
+locked, unfinished, unpublished, and unrelated work; unknown outcomes remain
+unresolved. No new handoff fields, keys, artifact shapes, or effect owners are
+introduced.
+
 For an active item without a confirmed owner, both direct routing and
 coordination converge on the router's one owner-dispatch sequence: independently
 prove the expected repository from source/project context, validate the complete
@@ -1187,6 +1211,15 @@ D14–D16 and final changed-head independent review remain required.
 - Combined validation covers intended current revisions independently of
   publication eligibility. Resume and watchdog decisions refresh policy and
   reconcile controller ownership before affected dispatch under ROUTE-007.
+- Standing delivery cases in the router's existing semantic fixtures progress
+  from reviewed publication through authorized merge and cleanup under retained
+  scope. A changed head rejects stale bindings, then refreshed current gates
+  and instructions continue without generic reapproval. PR-only scope,
+  revocation, a reserved human decision, expansion, and host denial stop their
+  affected effects for the named reason; unfinished unrelated cleanup work is
+  retained. Duplicate and terminal rules remain unchanged. Source/spec parity
+  and both rendered targets preserve these boundaries without live sample
+  publication, merge, or cleanup effects.
 - A fresh human and a fresh agent can route each work origin in ROUTE-002 to the
   same owner, next action, evidence owner, durable-update trigger, or blocker.
 - Ordinary execution can proceed from an executable issue, review comment,
