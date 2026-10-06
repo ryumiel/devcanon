@@ -14,8 +14,10 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
+import { currentReviewEnvelope } from "../__test-helpers__/review-evidence.js";
 import {
   createPrReviewResultValidationContext,
+  readPrReviewResultForBaseline,
   validatePrReviewHandoffFacts,
   validatePrReviewHandoffObject,
   validatePrReviewResultCommandAuthority,
@@ -32,6 +34,44 @@ const realPriorThreadAdapter = path.join(
 
 afterEach(async () => {
   process.chdir(originalCwd);
+});
+
+describe("historical result findings owner", () => {
+  it("rejects malformed substantive findings even when their result-bound digest agrees", async () => {
+    const workspace = await makeWorkspace();
+    try {
+      const findings = currentReviewEnvelope(workspace.headSha, [
+        {
+          path: "../outside",
+          line: 1,
+          start_line: null,
+          severity: "Nit",
+          category: "Documentation",
+          critic: null,
+          anchor: "natural",
+          why: "Invalid path",
+          recommendation: "Repair",
+          body: "**Nit | Documentation** — Invalid path\n\n**Recommendation:** Repair",
+        },
+      ]);
+      await writeJson(workspace.root, workspace.findingsFile, findings);
+      const result = await readJson(workspace.root, workspace.resultFile);
+      (result.digests as JsonObject).findings_sha256 = await sha256File(
+        path.join(workspace.root, workspace.findingsFile),
+      );
+      await writeJson(workspace.root, workspace.resultFile, result);
+      await expect(
+        readPrReviewResultForBaseline({
+          worktreeRoot: workspace.root,
+          resultFile: workspace.resultFile,
+          repository: "owner/repo",
+          prNumber: 42,
+        }),
+      ).rejects.toThrow("findings envelope validation failed");
+    } finally {
+      await rm(workspace.root, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("PR-review shared handoff validation", () => {

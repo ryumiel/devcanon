@@ -13,6 +13,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { runGitStdoutSha256 } from "./git.js";
 import { requireDirectEphemeralChild } from "./paths.js";
+import { validateTargetedReviewEvidence } from "./review-artifacts.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -93,6 +94,95 @@ const FORBIDDEN_KEYS = new Set([
 interface PrReviewResultCommandAuthorityOptions {
   allowReviewBodyDigestMismatch?: true;
   allowedFindingsSha256?: string;
+}
+
+/** Historical data only: the wrapper owns terminal completion and coverage chains. */
+export async function readPrReviewResultForBaseline(input: {
+  worktreeRoot: string;
+  resultFile: string;
+  repository: string;
+  prNumber: number;
+}): Promise<JsonObject> {
+  return withCwd(input.worktreeRoot, async () => {
+    await requireRepoRoot();
+    validateDirectChildPath("result", input.resultFile);
+    await assertReadableFile("result file", input.resultFile);
+    const result = await readJsonObject(input.resultFile, "result file");
+    if (result.schema !== "pr-review/result/v1") fail("result schema mismatch");
+    if (
+      !isRepository(input.repository) ||
+      result.repository !== input.repository
+    )
+      fail("result repository mismatch");
+    if (
+      !isPositiveInteger(input.prNumber) ||
+      result.pr_number !== input.prNumber
+    )
+      fail("result PR number mismatch");
+    const head = stringField(result, "review_head_sha");
+    if (!isSha(head)) fail("reviewed commit unavailable");
+    try {
+      await execFileAsync("git", ["cat-file", "-e", `${head}^{commit}`]);
+    } catch {
+      fail("reviewed commit unavailable");
+    }
+    const findingsFile = stringField(result, "findings_file");
+    validateDirectChildPath("findings", findingsFile);
+    await assertReadableFile("findings file", findingsFile);
+    const digests = objectField(result, "digests");
+    await validateDigest(
+      "findings",
+      findingsFile,
+      stringField(digests, "findings_sha256"),
+    );
+    const findings = await readJsonObject(findingsFile, "findings file");
+    if (findings.schema !== "play-review/findings/v3")
+      fail("findings envelope validation failed");
+    if (findings.review_head_sha !== head)
+      fail("findings review head mismatch");
+    validateTargetedReviewEvidence(findings);
+    if (arrayField(findings, "incomplete_review_routes").length > 0)
+      fail("incomplete review routes cannot establish baseline coverage");
+
+    // Consume only bound coverage fields, not the current publication package.
+    const artifacts = objectField(result, "artifacts");
+    const scopeFile = stringField(artifacts, "scope_decision_file");
+    validateDirectChildPath("scope decision", scopeFile);
+    await assertReadableFile("scope decision file", scopeFile);
+    await validateDigest(
+      "scope decision",
+      scopeFile,
+      stringField(digests, "scope_decision_sha256"),
+    );
+    const scope = await readJsonObject(scopeFile, "scope decision file");
+    if (scope.head_sha !== head) fail("scope decision head mismatch");
+    const summary = objectField(result, "scope_decision");
+    const selectedRange = stringField(scope, "selected_range");
+    const fullRange = stringField(scope, "full_range");
+    if (
+      !selectedRange ||
+      !fullRange ||
+      summary.selected_range !== selectedRange ||
+      summary.full_range !== fullRange ||
+      summary.is_followup_narrow !==
+        booleanField(scope, "is_followup_narrow") ||
+      summary.summary !== stringField(scope, "selection_reason")
+    )
+      fail("result scope decision mismatch");
+    return {
+      repository: input.repository,
+      pr_number: input.prNumber,
+      review_head_sha: head,
+      findings_file: findingsFile,
+      findings,
+      scope_decision: {
+        selected_range: selectedRange,
+        full_range: fullRange,
+        is_followup_narrow: scope.is_followup_narrow,
+        summary: scope.selection_reason,
+      },
+    };
+  });
 }
 
 export async function validatePrReviewResultEvidence(
