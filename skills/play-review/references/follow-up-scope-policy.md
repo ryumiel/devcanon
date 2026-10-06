@@ -30,6 +30,26 @@ does not duplicate the support validator's runtime-backed policy.
 
 ## Baseline Selection
 
+A PR baseline may be a posted review or a completed independent local review
+of the same repository and PR. The wrapper establishes semantic completion
+from existing terminal outcomes, immutable reviewed commit, applicable prior
+findings, accounted source coverage, and reliable comparison. Artifacts alone
+and incomplete or failed semantic routes do not establish completion. Later
+mechanical finalization failure does not erase established semantic completion.
+No fresh context assessment or completion certificate is required for admission.
+
+Use the most recent established comparable coverage, ordered by the commit
+graph. Reconcile competing provider/local coverage and account for the prior
+coverage chain of an incremental baseline; otherwise use full coverage.
+
+Try the smallest existing lookup or owner correction for recoverable evidence
+bookkeeping. Safe relocation, unbound JSON formatting, and optional metadata
+do not disqualify coverage. Honor integrity bindings on consumed evidence;
+never treat a digest conflict as harmless or rebind it to admit a baseline.
+Unavailable findings, unresolved coverage, ancestry failure, or unreliable
+comparison require full coverage. Retain unresolved integrity incidents for
+the existing owner: full review does not cure them.
+
 Initial reviews always use the full PR or branch diff and set
 `is_followup_narrow = false`.
 
@@ -41,7 +61,9 @@ pass. Any uncertainty escalates to full review.
 Full escalation preserves prior context. When a follow-up broadens back to the
 full diff, the wrapper still passes `prior_threads` or validated
 `prior_branch_findings` so `play-review` can verify unresolved items and carry
-them forward.
+them forward. Local PR findings remain substantive identities in existing
+untrusted prior-review context; do not fabricate provider threads or pass
+branch-findings on the PR surface.
 
 `language_hints` are computed only after final active range selection, from the
 selected active diff. A narrow follow-up uses hints from the narrow range; a

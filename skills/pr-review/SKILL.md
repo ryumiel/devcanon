@@ -90,8 +90,41 @@ producer does not refetch provider data.
 
 Detect mode:
 
-- **Initial:** No prior review from the current user on this PR.
-- **Follow-up:** Prior review exists. Find the last reviewed commit from the prior review's `commit_id`. Set `last_reviewed_sha` to that value.
+- **Initial:** No established prior independent coverage of this repository/PR.
+- **Follow-up:** A posted review from the current user or completed independent
+  local review establishes prior coverage. For the current user's provider
+  review use its `commit_id`; for local review use its immutable reviewed commit
+  as `last_reviewed_sha`.
+
+Establish local completion from the existing independent terminal outcomes,
+applicable findings, and source coverage; empty findings or result files alone
+are insufficient. Incomplete/failed semantic routes cannot qualify. A completed
+semantic run may qualify when later result finalization failed, using directly
+available terminal outcomes/findings through existing evidence/context owners.
+Do not require another certificate, recreated package, or context assessment
+solely to admit coverage.
+
+For a safely located existing result, invoke `read-result-for-baseline` through
+`review-manifests.sh` from its verified same-repository root with independently
+established `REPOSITORY`, `PR_NUMBER`, and `RESULT_FILE`. Discover its contract
+in [review manifests usage](references/review-manifests-usage.md). It returns
+non-authorizing historical evidence; reconcile semantic completion separately.
+Before consuming the result, honor any independently retained integrity binding
+on its identity-bearing contents through the existing custody owner. A mismatch
+requires authenticated recovery or owner correction; a newly computed digest
+is not recovery. Unbound optional formatting is harmless.
+Use bounded existing lookup/correction when bookkeeping is recoverable. Retain
+consumed integrity conflicts for their owner; never launder them by rebinding.
+If identity, relevant findings, coverage, ancestry, or comparison remains
+unavailable/conflicting, select full coverage and retain prior context.
+
+When provider and local coverage coexist, follow the shared baseline policy:
+order comparable reviewed commits by ancestry, account for applicable findings
+and wider coverage chains, and reconcile ambiguity or select full coverage.
+Establish these facts before preparing/validating scope, recompute language
+hints after final selection, and preserve the existing semantic escalation
+checks. Historical coverage supplies no approval for the current candidate or
+publication.
 
 ## Phase 2: Worktree setup
 
@@ -699,7 +732,11 @@ Hand off to `play-review` with these manifest-backed inputs:
 - `head_sha` = `git rev-parse HEAD` in the worktree
 - `mode` = `"github-post"`
 - `language_hints` = derived from the **active diff's** changed-files set (so `Code-quality` language checks and risk-triggered routing context match the selected scope; deriving from the full PR would re-run earlier-touched language context on docs-only follow-ups, defeating the narrow-mode scoping)
-- `prior_threads` = parsed from the `{{tool:github-cli}} api .../comments` and `.../reviews` responses (follow-up only)
+- `prior_threads` = actual provider threads parsed from the `{{tool:github-cli}} api .../comments` and `.../reviews` responses (follow-up only)
+- Local prior findings = existing untrusted prior-review context, preserving
+  substantive IDs and origin commits for resolution/carry-forward checks; retain
+  on full escalation. Never fabricate GitHub threads or use branch-findings
+  on this surface.
 - `last_reviewed_sha` = set in Phase 1 (follow-up only)
 - `is_followup_narrow` = computed in Phase 3
 - `prior_preparation_handle` = the retained exact

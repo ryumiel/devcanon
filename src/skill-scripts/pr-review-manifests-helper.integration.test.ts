@@ -1,10 +1,12 @@
 import { execFile, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { chmod, copyFile, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanupTempDir } from "../__test-helpers__/fixtures.js";
+import { currentReviewEnvelope } from "../__test-helpers__/review-evidence.js";
 
 const execFileAsync = promisify(execFile);
 const helperScript = path.join(
@@ -147,6 +149,105 @@ describe("pr-review manifest helpers", () => {
     ).resolves.toMatchObject({
       stdout: "runtime runtime pr-review-manifests read-result-for-preview\n",
     });
+  });
+
+  it("consumes a historical result through the real adapter after a Git documentation repair", async () => {
+    const root = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-baseline-adapter-"),
+    );
+    createdRoots.push(root);
+    const git = (...args: string[]) =>
+      execFileAsync("git", args, { cwd: root });
+    await git("init", "--initial-branch=main");
+    await git("config", "user.name", "Test User");
+    await git("config", "user.email", "test@example.com");
+    await writeFile(path.join(root, "README.md"), "Original documentation\n");
+    await git("add", "README.md");
+    await git("commit", "-m", "base documentation");
+    const base = (await git("rev-parse", "HEAD")).stdout.trim();
+    await writeFile(path.join(root, "README.md"), "Before repair\n");
+    await git("add", "README.md");
+    await git("commit", "-m", "reviewed documentation");
+    const head = (await git("rev-parse", "HEAD")).stdout.trim();
+    await mkdir(path.join(root, ".ephemeral"));
+    const findingsFile = ".ephemeral/retained-findings.json";
+    const scopeFile = ".ephemeral/retained-scope.json";
+    const resultFile = ".ephemeral/relocated.json";
+    const findings = currentReviewEnvelope(head);
+    const scope = {
+      head_sha: head,
+      selected_range: `${base}..${head}`,
+      full_range: `${base}..${head}`,
+      is_followup_narrow: false,
+      selection_reason: "Established coverage",
+    };
+    const findingsBytes = JSON.stringify(findings);
+    const scopeBytes = JSON.stringify(scope);
+    const digest = (bytes: string) =>
+      createHash("sha256").update(bytes).digest("hex");
+    await writeFile(path.join(root, findingsFile), findingsBytes);
+    await writeFile(path.join(root, scopeFile), scopeBytes);
+    await writeFile(
+      path.join(root, resultFile),
+      JSON.stringify({
+        schema: "pr-review/result/v1",
+        repository: "owner/repo",
+        pr_number: 390,
+        review_head_sha: head,
+        findings_file: findingsFile,
+        artifacts: { scope_decision_file: scopeFile },
+        digests: {
+          findings_sha256: digest(findingsBytes),
+          scope_decision_sha256: digest(scopeBytes),
+        },
+        scope_decision: {
+          selected_range: scope.selected_range,
+          full_range: scope.full_range,
+          is_followup_narrow: false,
+          summary: scope.selection_reason,
+        },
+      }),
+    );
+    await writeFile(path.join(root, "README.md"), "Repaired documentation\n");
+    await git("add", "README.md");
+    await git("commit", "-m", "repair documentation");
+    const outcome = await runWrapper(
+      root,
+      helperScript,
+      "read-result-for-baseline",
+      [],
+      { RESULT_FILE: resultFile, HEAD_SHA: "" },
+    );
+    expect(JSON.parse(outcome.stdout)).toMatchObject({
+      review_head_sha: head,
+      findings,
+    });
+    expect(outcome.stderr).toBe("");
+    expect(
+      (await git("diff", "--name-only", `${head}..HEAD`)).stdout.trim(),
+    ).toBe("README.md");
+  });
+
+  it("routes historical reads without requiring current HEAD and propagates refusal", async () => {
+    const { root, runtime, script } = await createInstalledWrapper(
+      helperScript,
+      "pr-review/scripts/review-manifests.sh",
+    );
+    await writeRuntime(runtime, [
+      '[ "$*" = "runtime pr-review-manifests read-result-for-baseline" ]',
+      '[ "$REPOSITORY" = "owner/repo" ]',
+      '[ "$PR_NUMBER" = "390" ]',
+      '[ "$RESULT_FILE" = ".ephemeral/retained.json" ]',
+      '[ -z "${HEAD_SHA:-}" ]',
+      'echo "consumed integrity conflict" >&2',
+      "exit 1",
+    ]);
+    await expect(
+      runWrapper(root, script, "read-result-for-baseline", [], {
+        RESULT_FILE: ".ephemeral/retained.json",
+        HEAD_SHA: "",
+      }),
+    ).rejects.toMatchObject({ stderr: "consumed integrity conflict\n" });
   });
 
   it("forwards replace-findings stdin and its public environment", async () => {
