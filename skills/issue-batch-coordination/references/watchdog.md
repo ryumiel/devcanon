@@ -90,10 +90,32 @@ the existing coordinator for policy/head validation and independent fallback
 under ROUTE-007-REVIEW; slow eyes alone does not establish that event. The
 watcher neither dispatches fallback nor decides review readiness. Failed
 delivery, ambiguous ownership, or completion needing coordination goes to the
-existing controller. A failed delivery remains
-actionable; never record it as successful deduplication. Missing recipient or
+existing controller only when its intervention is required. Bounded authorized
+delivery recovery stays local; exhausted recovery names the exact intervention.
+A failed or unknown delivery remains unresolved and retryable; never record it
+as successful deduplication. Missing recipient or
 messaging permission holds delivery with a concrete report, never a replacement
 task.
+
+Before delivery, reconcile existing notification state with available supported
+owner-delivery evidence for the same provider event and head. Suppress a
+watchdog copy of an owner report already successfully delivered for the same
+recipient action, and suppress the reverse duplicate when owner delivery
+reconciles the watcher result. An attempted send, unknown outcome, or failed
+delivery is not success and must not suppress a retry. Refresh ambiguous delivery
+evidence before deciding whether to retry; retain unresolved status when it
+cannot be established. Reuse existing notification and report state, without a
+new event store. Notify both owner and coordinator only when each has a distinct
+action; review findings normally need only the authorized implementation owner.
+Preserve one successfully delivered verified completion report, including when
+no further routing is needed. A watcher observation alone cannot certify it.
+
+Use compact deltas with provider-tagged issue/PR identity, owner, applicable
+current head, changed state, requested recipient action and an evidence
+reference. Retain full observation/delivery evidence locally; receivers resolve
+and validate required facts before dependent action. Missing evidence holds
+that action. Required readiness invalidation must not wait for routine progress
+or completion reports.
 
 Notifications carry observation context, not approval or proof that work began
 or finished. Receiving owners and the coordinator reconcile current provider,

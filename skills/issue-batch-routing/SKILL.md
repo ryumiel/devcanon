@@ -791,11 +791,43 @@ blockers. `issue-priming-workflow` is the producer after source-entrypoint
 handoff. If a named delegated workflow does not own a gate family or cannot
 produce the route-specific report fields, the router waits or reports manual
 action instead of assuming a report exists.
-Delegated reports must include the relevant complete route key when known or
-applicable. Reports missing the relevant complete route key are incomplete and
-fail closed to waiting or manual action.
 
-Each report must include:
+### Delivery and evidence
+
+Keep routine corrections, intermediate checks, review preparation, recoverable
+errors and unchanged waits in the owning task. Send the coordinator a delta
+only for a required routing/decision action, dependency readiness, exhausted
+recovery requiring intervention, a material head/scope/ownership/readiness
+change affecting a pending action or invalidating recorded readiness, or one
+verified completion, even when no further routing is needed. Initial owner
+handoff remains required to establish existing routing facts. Explicit status
+requests receive current evidence. An active owner continues authorized work
+without a per-step report or acknowledgement wait.
+
+The compact delta carries provider-tagged issue/PR identity, owner, current head
+when applicable, changed state, requested coordinator action (or none for
+verified completion), and an accessible evidence reference. Retain the complete
+supporting report, route key, validators and diagnostics locally under their
+existing owners. This is transport, not a new report schema or evidence store.
+Before any dependent action, resolve the reference and validate all required
+facts against current authoritative state, including route, authority, owner,
+head and replay bindings. A reference or summary alone proves none of them.
+Missing, unreadable, stale, incomplete or conflicting evidence holds the
+dependent action and requests only the missing evidence or intervention.
+
+A changed head invalidates old-head readiness even when routine reporting is
+quiet. Report that invalidation promptly when it affects a pending coordinator
+action or recorded readiness; do not wait for a later combined completion.
+Independent reviewers deliver findings directly to the authorized implementation
+owner. Copy the coordinator only for a distinct coordination action; messaging
+authority and review independence remain required. Combine related pushed-head,
+verification and disposition results into one useful handoff where possible.
+
+The complete supporting gate report must include the relevant complete route
+key when known or applicable. Missing required key evidence fails closed to
+waiting or manual action; a compact message must not hide that omission.
+
+Each supporting gate report must include:
 
 - source provider
 - source issue identifier
@@ -810,12 +842,18 @@ Each report must include:
 - source-specific side effects requested
 - next safe command or workflow to route
 
-Record a digest of the report before sending approvals or re-routing work. If
-the report omits the current head SHA, relevant complete route key, or
-route-specific state needed for the gate, ask the owner thread to refetch and
-resend rather than approving.
+Resolve and record a digest of the complete report before sending approvals or
+re-routing work. If required head, route-key or route-specific evidence is
+missing, ask the owner to refresh that evidence rather than approving. Do not
+require the owner to resend full evidence inline when its reference is valid.
 
 ## Unfinished Non-Gate Progress Receipts
+
+Receipts support interrupted-owner continuation and recovery. They are not
+per-step reports or acknowledgement checkpoints for an active authorized owner.
+Keep ordinary progress local. On actual continuation/recovery, preserve every
+existing receipt, provenance, sequence and acknowledgement check below; compact
+delivery never replaces validation of the complete referenced receipt.
 
 After the router verifies every receipt fact and records its accepted sequence,
 an approved owner route continues when an unfinished non-gate progress
@@ -883,8 +921,11 @@ owner thread, branch, head SHA when known, gate kind, route key, allowed side
 effect, and required final report back to the parent. Every template must also
 preserve issue scope, require current issue/PR/thread refetch before acting,
 preserve branch continuity, forbid force-push, require relevant verification
-gates for the delegated workflow, and require final reporting back to the
-parent.
+gates for the delegated workflow, and require one verified final report back to
+the parent. Apply Delivery and evidence above: keep intermediate work local,
+combine related results, and send only actionable deltas with complete evidence
+accessible by reference. Required current binding facts in an approval remain
+complete; concise reporting never abbreviates approval validation.
 
 ### Plan execution approval
 
@@ -981,9 +1022,13 @@ items; replace the previous summary rather than accumulating pass reports:
 - next check time
 
 Keep this derived summary available for coordination and recovery even when no user
-notice is selected. On a coordinated handoff, pass the complete summary to
-`issue-batch-coordination` for its canonical user-notification selection;
-routine progress stays internal. On direct bounded invocation, present the
+notice is selected. On a coordinated handoff, make the complete summary
+available by evidence reference to `issue-batch-coordination`; send only the
+coordination-relevant delta under Delivery and evidence above. The receiver
+resolves required evidence before routing or selecting a user notice. Routine
+owner progress stays in the owner, without an unsolicited coordinator copy.
+On direct bounded invocation, present the
+
 current requested result from this summary, including a read-only status
 answer, actionable decisions or blockers with complete known gate facts, and
 verified terminal batch completion without delivery. Apply the coordinator's

@@ -135,10 +135,17 @@ Store the ledger stably, never only in a removable owner worktree.
    operational markers; a closed source issue alone does not authorize archival. After an
    already-authorized cleanup, replace location and availability claims with
    the observed result; an unknown result remains unresolved. Select the
-   audience after reconciliation. Keep routine owner commits, checks, review
-   or shared-resource waits, bounded fixes, and other non-gate progress in the
-   current ledger and router summary without an unsolicited user notice or
-   acknowledgement wait. Give the user one concise report when a decision or
+   audience after reconciliation. Owners retain routine commits, intermediate
+   checks, review preparation, shared-resource waits, bounded fixes and
+   recoverable errors locally; these produce no coordinator message or
+   acknowledgement wait. Send the coordinator only a required routing/decision
+   action, dependency readiness, exhausted recovery needing intervention, a
+   material head/scope/ownership/readiness change affecting a pending action or
+   invalidating recorded readiness, or one verified completion. A running owner
+   continues authorized work without waiting for routine acknowledgement.
+   Use the router's compact delta and evidence-reference contract; resolve and
+   validate complete evidence before dependent action. Silence never preserves
+   old-head readiness or proves completion. Give the user one concise report when a decision or
    action is needed, an actionable blocker or failure arises, a meaningful
    delivery milestone is reached, the batch reaches verified terminal
    completion without a delivery milestone, or the user requests status.
@@ -155,6 +162,9 @@ Store the ledger stably, never only in a removable owner worktree.
    Suppress repeated unchanged waits. Owner gate reports are the
    primary continuation signal; use supported waits or the optional watchdog,
    not repeated messages asking running owners to continue.
+
+Use the [reporting scenarios](references/reporting-scenarios.md) to verify
+quiet local work, actionable delivery, evidence resolution and deduplication.
 
 When refreshed policy differs, assess its effect before using it. Editorial
 changes do not invalidate approvals by themselves. A changed authority or

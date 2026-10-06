@@ -434,37 +434,67 @@ keys, receipt and approval gates, pending-creation recovery, and source owners
 remain authoritative for effects.
 
 Coordination selects the audience after reconciling owner and router evidence.
-Routine commits, checks, bounded fixes, review or shared-resource waits, and
-other authorized non-gate progress stay in controller-local summaries without
-unsolicited user notices or routine acknowledgement waits. The router retains
-its complete monitor summary, and the owner still produces every required
-handoff, gate, recovery, and result report. Coordination gives one concise
-notice for an actionable decision, blocker or failure, meaningful delivery
-milestone, verified terminal batch completion without delivery, or explicit
-status request, and suppresses duplicate or no-action notices, including a
-terminal outcome already reported with delivery or status. Terminal notice
-selection follows authoritative reconciliation even when the timer will stop.
-Required phase producer notices remain intact. An explicit status
-request receives a current read-only answer even without new progress; host
-notification suppression depends on supported controls.
+Routine corrections, intermediate checks, review preparation, recoverable errors
+and unchanged waits remain in the owning task without coordinator messages or
+acknowledgement waits. Owners continue already-authorized work autonomously.
+Coordinator delivery is limited to a required routing or decision action,
+dependency readiness, exhausted recovery requiring intervention, a material
+head/scope/ownership/readiness change affecting a pending action or invalidating
+recorded readiness, and one verified completion even without further routing.
+Required initial owner-handoff remains available to establish routing facts.
+Quiet reporting never establishes readiness or preserves stale-head approval.
+
+Deliver a compact delta with provider-tagged issue/PR identity, owner, applicable
+current head, changed state, requested coordinator action and evidence reference.
+Complete route keys, validators, diagnostics and supporting reports stay locally
+accessible under existing owners. Consumers resolve and validate all required
+evidence before dependent action; absent, unreadable, stale, incomplete or
+conflicting evidence holds that action. References do not supply authority or
+replace current-head and replay validation. This changes delivery, not the
+existing ledger, receipt or notification state contracts.
+
+Combine related pushed-head, verification and disposition reports into one
+useful handoff where possible, without delaying a required readiness
+invalidation. Independent reviewers send findings directly to the authorized
+implementation owner; coordinator copies require a distinct coordination
+action. Review independence and messaging authorization remain unchanged.
+Bounded recovery stays local; exhausted recovery identifies the required
+intervention. Preserve required phase producer notices and one verified
+completion report. Explicit status requests receive current evidence even
+without progress; user-facing notice selection remains concise and suppresses
+duplicates already delivered for the same outcome. Host notification
+suppression depends on supported controls.
 
 On a coordinated handoff, the router retains a complete internal monitor
-summary and coordination selects its user-facing notices. On a direct bounded
+summary accessible by reference and sends only coordination-relevant deltas;
+coordination resolves required evidence and selects its user-facing notices. On a direct bounded
 router invocation, the router presents the current requested result, including
 read-only status, actionable gates with complete known facts, and verified
 terminal outcome without delivery under the same concise, duplicate-aware
 selection rule. Direct presentation neither invokes coordination back nor
 grants additional effect authority.
 
-Active authorized owners continue on intact bindings. Interrupted or resumable
-idle continuation validates the existing approved route, selected preparation provenance,
+Active authorized owners continue on intact bindings. Progress receipts support
+interrupted-owner continuation and recovery, not per-step reporting or routine
+acknowledgement checkpoints. Interrupted or resumable idle continuation validates the existing approved route, selected preparation provenance,
 refreshed source state and head when required, acknowledged positive progress
 sequence, and unfinished non-gate evidence before consuming a receipt. Genuine
 gates take precedence; missing or stale facts follow the existing wait or
 manual-action path and expose any needed decision. Intact facts may be reused
 with changed facts and evidence pointers, while required complete gate and
-recovery evidence is never abbreviated. No new route state or authority follows
+recovery evidence remains accessible and must be validated before action. No new route state or authority follows
 from quiet reporting.
+
+Reporting acceptance covers quiet repeated mechanical corrections, bounded
+versus exhausted recovery, complete versus unavailable referenced evidence,
+old-head readiness invalidation, authorized reviewer-to-owner delivery,
+cross-source event/head deduplication, failed/unknown delivery retry, verified
+completion without routing, and explicit status requests. Exercise the
+[focused reporting scenarios](../../skills/issue-batch-coordination/references/reporting-scenarios.md)
+against source and fresh rendered target guidance. Evidence pointer:
+[GitHub issue #816](https://github.com/ryumiel/devcanon/issues/816) records the
+accepted reporting boundary; result: accepted behavior evidence. The
+coordination and routing skills own verification follow-up.
 
 #### ROUTE-007-STATE: Current-state retention
 
@@ -566,8 +596,17 @@ comments and applicable current-head review signals reach the known owner;
 confirmed Connector review quota or unavailability, failed delivery, ambiguous
 ownership, and completion needing coordination reach the controller. Slow or
 lingering eyes alone do not establish quota or unavailability. A failed delivery
-remains actionable rather than counting as a
-successful notification. Missing recipient or permission holds delivery; it
+remains unresolved and retryable rather than counting as a successful
+notification. Bounded authorized delivery recovery stays local; exhausted
+recovery reports the required intervention. Reconcile supported successful
+owner/watchdog delivery evidence for the same provider event, head and recipient
+action before notifying. Suppress duplicates across those sources, not merely
+within one watcher. An attempted send, failed delivery or unknown outcome
+cannot mark success or suppress retry; refresh ambiguous evidence and keep it
+unresolved when success cannot be established. Notify both owner and coordinator
+only for distinct actions. Preserve one verified completion report; observation
+alone does not prove completion. Reuse existing notification state without a new
+event store. Missing recipient or permission holds delivery; it
 does not authorize replacement creation. Notification proves neither action nor
 completion nor route, approval, or current-head authority. Receivers reconcile
 current evidence through their owning workflows; an old-head signal cannot
