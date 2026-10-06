@@ -1104,6 +1104,40 @@ function formatMarkdownCodeSpan(value: string): string {
   return `${delimiter} ${value} ${delimiter}`;
 }
 
+/** Full preparation authority, evaluated in the registered review worktree. */
+export async function validatePrReviewPreparationHandoff(input: {
+  worktreeRoot: string;
+  handoffFile: string;
+  repository: string;
+  prNumber: number;
+  reviewHeadSha: string;
+  leaseBaseRef: string;
+  leaseHeadRef: string;
+}): Promise<JsonObject> {
+  const env = {
+    REPOSITORY: input.repository,
+    PR_NUMBER: String(input.prNumber),
+    HEAD_SHA: input.reviewHeadSha,
+  };
+  const previous = new Map(
+    Object.keys(env).map((key) => [key, process.env[key]]),
+  );
+  Object.assign(process.env, env);
+  try {
+    return await withCwd(input.worktreeRoot, async () => {
+      await validateHandoffFile(input.handoffFile);
+      const handoff = await readJsonObject(input.handoffFile, "handoff file");
+      await validatePrReviewHandoffFacts(handoff, input.handoffFile, input);
+      return handoff;
+    });
+  } finally {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
+
 async function validateHandoffFile(file: string, identityFile = file) {
   await requireRepoRoot();
   readPrNumber();

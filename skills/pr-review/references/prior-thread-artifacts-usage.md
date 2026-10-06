@@ -124,6 +124,28 @@ unusable prior SHA yields the full range as candidate. Set selected range,
 escalation reasons, prior pair, mechanical facts, and semantic decision from
 the current verified policy inputs. No placeholder is an accepted fact.
 
+## Unaccepted candidate correction
+
+Construct corrections through the same canonical facts and destination above;
+full validation after each correction remains the sole acceptance gate. Preserve
+failed bytes and stderr before replacing a never-accepted candidate. Distinct
+mechanically determinable errors may be corrected by the existing owner while
+head, provider path/digest, ranges, prior inputs and substantive decisions remain
+verified. Actual semantic completion must precede a true checked flag; the flag
+is never defaulted to make validation pass. Use validator-derived file-extension
+language hints, such as `md` for Markdown, rather than display names.
+
+The [PR-review operator flow](../SKILL.md) owns controller-local digest/error
+progress checks and escalation. The [lease lifecycle contract](review-lease-lifecycle-contract.md#preparation-recovery-and-retained-custody)
+owns the fixed two-file/four-file retained-failure family and LC-19 recovery.
+An original four-file scratch retains both candidate/stderr pairs. Accompanying
+explanatory notes may evolve only with checked/hint correction; both notes must
+be strings and the reviewer independently confirms unchanged substantive
+selection. All remaining scope facts match exactly; notes-only candidates refuse.
+Scratch
+preserved for that custody is never removed by successful correction or cleanup.
+No scope correction creates a review verdict.
+
 ## Refusal and failures
 
 Unknown commands, missing metadata, unsafe paths, incompatible or malformed runtime contracts, invalid captures, Git-derived evidence mismatches, or invalid support validation exit nonzero without a success path. The existing prepare-only command remains compatible and does not produce evidence.

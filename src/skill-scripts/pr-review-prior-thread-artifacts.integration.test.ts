@@ -7,6 +7,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  realpath,
   rm,
   symlink,
   writeFile,
@@ -2172,4 +2173,595 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
       await cleanupTempDir(cwd);
     }
   });
+});
+
+async function makePreparationRecoveryFixture(fourFileFamily = false) {
+  const { cwd, baseSha, headSha } = await makeGitWorkspace();
+  try {
+    await writeFile(
+      path.join(cwd, ".git/info/exclude"),
+      ".ephemeral/\n.worktrees/\n",
+    );
+    let worktree = path.join(cwd, ".worktrees/pr-390-review");
+    await execFileAsync("git", ["switch", "main"], { cwd });
+    await execFileAsync("git", ["worktree", "add", worktree, "topic"], {
+      cwd,
+    });
+    worktree = await realpath(worktree);
+    await mkdir(path.join(worktree, ".ephemeral"));
+    await writeInitialScope(worktree, baseSha, headSha);
+    const scopeFile = scopePath(headSha);
+    const validScope = JSON.parse(
+      await readFile(path.join(worktree, scopeFile), "utf8"),
+    );
+    if (fourFileFamily)
+      validScope.semantic_decision.notes =
+        "Verified full selection covers the provider-bound changes.";
+    const dirs = [
+      ".ephemeral/provider-scope-capture.checked",
+      ".ephemeral/provider-scope-capture.hints",
+    ] as const;
+    const failures = [
+      {
+        ...validScope,
+        semantic_decision: {
+          ...validScope.semantic_decision,
+          checked: false,
+          notes: fourFileFamily
+            ? "Initial review makes narrow follow-up selection inapplicable."
+            : validScope.semantic_decision.notes,
+        },
+        language_hints: ["typescript"],
+      },
+      { ...validScope, language_hints: ["typescript"] },
+    ];
+    const diagnostics: string[] = [];
+    for (const [index, candidate] of failures.entries()) {
+      await writeJson(worktree, scopeFile, candidate);
+      let stderr = "";
+      try {
+        await runHelper(worktree, helperScript, "validate-scope-decision", {
+          PR_NUMBER: "390",
+          REPOSITORY: "owner/repo",
+          HEAD_SHA: headSha,
+          BASE_REF: baseSha,
+          SCOPE_DECISION_FILE: scopeFile,
+          PROVIDER_SCOPE_EVIDENCE_FILE: providerScopePath(headSha),
+        });
+      } catch (error) {
+        stderr = (error as { stderr: string }).stderr;
+      }
+      expect(stderr).toContain(
+        index === 0 ? "semantic decision must be checked" : "language hints",
+      );
+      diagnostics.push(stderr);
+      const directory = fourFileFamily ? dirs[0] : (dirs[index] as string);
+      const candidateFile =
+        fourFileFamily && index === 1
+          ? "second-failed-scope.json"
+          : "failed-scope.json";
+      const diagnosticsFile =
+        fourFileFamily && index === 1
+          ? "second-validator.stderr"
+          : "validator.stderr";
+      await mkdir(path.join(worktree, directory), { recursive: true });
+      await writeFile(
+        path.join(worktree, directory, candidateFile),
+        JSON.stringify(candidate, null, 2),
+      );
+      await writeFile(path.join(worktree, directory, diagnosticsFile), stderr);
+    }
+    await writeJson(worktree, scopeFile, validScope);
+    const handoffFile = `.ephemeral/pr-390-${headSha}-handoff.json`;
+    await writeJson(worktree, handoffFile, {
+      schema: "pr-review/handoff/v1",
+      repository: "owner/repo",
+      pr_number: 390,
+      execution: { kind: "review-worktree", working_directory: worktree },
+      base_ref: "main",
+      head_ref: "topic",
+      review_scope_base_ref: baseSha,
+      active_diff_range: validScope.selected_range,
+      full_pr_diff_range: validScope.full_range,
+      review_head_sha: headSha,
+      mode: "github-post",
+      language_hints: ["ts"],
+      follow_up: {
+        state: "initial",
+        last_reviewed_sha: null,
+        is_followup_narrow: false,
+      },
+      artifacts: {
+        scope_decision_file: scopeFile,
+        prior_threads_file: null,
+        ...validScope.artifacts,
+      },
+    });
+    const leaseHelper = path.join(
+      path.dirname(helperScript),
+      "review-leases.sh",
+    );
+    const env = {
+      REPOSITORY: "owner/repo",
+      PR_NUMBER: "390",
+      PRIMARY_REPOSITORY_ROOT: cwd,
+      WORKTREE_PATH: worktree,
+      BASE_REF: "main",
+      HEAD_REF: "topic",
+      HEAD_SHA: headSha,
+      PR_REVIEW_DIR: path.dirname(path.dirname(helperScript)),
+    };
+    const { stdout } = await runHelper(cwd, leaseHelper, "derive-path", env);
+    const leaseFile = stdout.trim();
+    const bound = { ...env, LEASE_FILE: leaseFile };
+    await runHelper(cwd, leaseHelper, "write", {
+      ...bound,
+      STATE: "created",
+      UPDATED_AT: "2026-06-11T00:00:00Z",
+    });
+    await runHelper(cwd, leaseHelper, "write", {
+      ...bound,
+      STATE: "failed",
+      EXPECTED_STATE: "created",
+      UPDATED_AT: "2026-06-11T00:01:00Z",
+      FINISHED_AT: "2026-06-11T00:01:00Z",
+      FAILURE_PHASE: "handoff-validation",
+      FAILURE_REASON: "candidate validation refused",
+      FAILURE_RECOVERABILITY: "recoverable",
+    });
+    const firstFailedBytes = await readFile(path.join(cwd, leaseFile), "utf8");
+    await runHelper(cwd, leaseHelper, "write", {
+      ...bound,
+      STATE: "failed",
+      EXPECTED_STATE: "failed",
+      UPDATED_AT: "2026-06-11T00:01:30Z",
+      FINISHED_AT: "2026-06-11T00:01:30Z",
+      FAILURE_PHASE: "handoff-validation",
+      FAILURE_REASON: "second distinct candidate validation refused",
+      FAILURE_RECOVERABILITY: "recoverable",
+      ...(fourFileFamily
+        ? {}
+        : {
+            HANDOFF_FILE: handoffFile,
+            PREPARATION_FAILURE_DIRS: JSON.stringify([dirs[0]]),
+          }),
+    });
+    const failedBytes = await readFile(path.join(cwd, leaseFile), "utf8");
+    const recovery = {
+      ...bound,
+      STATE: "created",
+      EXPECTED_STATE: "failed",
+      HANDOFF_FILE: handoffFile,
+      PREPARATION_FAILURE_DIRS: JSON.stringify([
+        fourFileFamily ? dirs[0] : dirs[1],
+      ]),
+      UPDATED_AT: "2026-06-11T00:02:00Z",
+    };
+    await runHelper(
+      worktree,
+      path.join(path.dirname(helperScript), "review-manifests.sh"),
+      "validate-handoff",
+      recovery,
+    );
+
+    return {
+      cwd,
+      baseSha,
+      headSha,
+      worktree,
+      scopeFile,
+      validScope,
+      dirs,
+      failures,
+      diagnostics,
+      handoffFile,
+      leaseHelper,
+      leaseFile,
+      bound,
+      firstFailedBytes,
+      failedBytes,
+      recovery,
+    };
+  } catch (error) {
+    await cleanupTempDir(cwd);
+    throw error;
+  }
+}
+
+describe("pre-handoff preparation recovery", () => {
+  it.each([
+    "stale-head",
+    "missing-head",
+    "identity",
+    "phase",
+    "accepted-handoff",
+    "duplicate",
+    "duplicate-candidate",
+    "no-progress",
+    "substantive",
+    "extra-entry",
+    "symlink",
+    "dirty",
+  ])(
+    "preserves state and refuses %s recovery",
+    async (fault) => {
+      const fixture = await makePreparationRecoveryFixture();
+      const {
+        cwd,
+        baseSha,
+        headSha,
+        worktree,
+        scopeFile,
+        validScope,
+        dirs,
+        failures,
+        handoffFile,
+        leaseHelper,
+        leaseFile,
+        failedBytes,
+        recovery,
+      } = fixture;
+      try {
+        const scratchFile = path.join(worktree, dirs[0], "failed-scope.json");
+        const scratchBytes = await readFile(scratchFile, "utf8");
+        let invocation = recovery;
+        if (fault === "stale-head")
+          invocation = { ...recovery, HEAD_SHA: baseSha };
+        if (fault === "missing-head")
+          invocation = { ...recovery, HEAD_SHA: "" };
+        if (fault === "identity")
+          invocation = { ...recovery, REPOSITORY: "other/repo" };
+        if (fault === "phase" || fault === "accepted-handoff") {
+          const lease = JSON.parse(failedBytes);
+          if (fault === "phase") lease.failure.phase = "review";
+          else lease.artifacts.handoff_file = handoffFile;
+          await writeFile(path.join(cwd, leaseFile), JSON.stringify(lease));
+        }
+        if (fault === "duplicate")
+          invocation = {
+            ...recovery,
+            PREPARATION_FAILURE_DIRS: JSON.stringify([dirs[0], dirs[0]]),
+          };
+        if (fault === "duplicate-candidate")
+          await writeFile(
+            path.join(worktree, dirs[1], "failed-scope.json"),
+            scratchBytes,
+          );
+        if (fault === "no-progress")
+          await writeFile(scratchFile, JSON.stringify(validScope));
+        if (fault === "substantive")
+          await writeFile(
+            scratchFile,
+            JSON.stringify({
+              ...failures[0],
+              selected_range: `${headSha}..${headSha}`,
+            }),
+          );
+        if (fault === "extra-entry")
+          await writeFile(path.join(worktree, dirs[0], "extra"), "unmanaged");
+        if (fault === "symlink") {
+          await rm(scratchFile);
+          await symlink(path.join(worktree, scopeFile), scratchFile);
+        }
+        if (fault === "dirty")
+          await writeFile(path.join(worktree, "README.md"), "dirty source\n");
+        const before = await readFile(path.join(cwd, leaseFile), "utf8");
+        await expect(
+          runHelper(cwd, leaseHelper, "write", invocation),
+          fault,
+        ).rejects.toMatchObject({ code: 1 });
+        expect(await readFile(path.join(cwd, leaseFile), "utf8"), fault).toBe(
+          before,
+        );
+        const invalidDiscovery = JSON.parse(
+          (await runHelper(cwd, leaseHelper, "discover", invocation)).stdout,
+        );
+        expect(invalidDiscovery.resume, fault).toBeNull();
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+    30_000,
+  );
+  it("recovers two distinct scope failures with exact history and retained custody", async () => {
+    const fixture = await makePreparationRecoveryFixture();
+    const {
+      cwd,
+      worktree,
+      dirs,
+      failures,
+      diagnostics,
+      handoffFile,
+      leaseHelper,
+      leaseFile,
+      bound,
+      firstFailedBytes,
+      failedBytes,
+      recovery,
+    } = fixture;
+    try {
+      const discovery = await runHelper(cwd, leaseHelper, "discover", recovery);
+      expect(JSON.parse(discovery.stdout).disposition).toBe("resume");
+      expect(await readFile(path.join(cwd, leaseFile), "utf8")).toBe(
+        failedBytes,
+      );
+      await runHelper(cwd, leaseHelper, "write", recovery);
+      const lease = JSON.parse(
+        await readFile(path.join(cwd, leaseFile), "utf8"),
+      );
+      expect(lease).toMatchObject({
+        state: "created",
+        created_at: "2026-06-11T00:00:00Z",
+        artifacts: { handoff_file: handoffFile, result_file: null },
+        preparation_failures: dirs.map((directory) => ({ directory })),
+      });
+      const archives = (await readdir(path.join(cwd, ".ephemeral"))).filter(
+        (name) => name.endsWith("-failed-archived-lease.json"),
+      );
+      expect(archives).toHaveLength(2);
+      const archivedBytes = await Promise.all(
+        archives.map((name) =>
+          readFile(path.join(cwd, ".ephemeral", name), "utf8"),
+        ),
+      );
+      expect(archivedBytes).toEqual(
+        expect.arrayContaining([firstFailedBytes, failedBytes]),
+      );
+      for (const [index, directory] of dirs.entries()) {
+        expect(
+          await readFile(
+            path.join(worktree, directory, "failed-scope.json"),
+            "utf8",
+          ),
+        ).toBe(JSON.stringify(failures[index], null, 2));
+        expect(
+          await readFile(
+            path.join(worktree, directory, "validator.stderr"),
+            "utf8",
+          ),
+        ).toBe(diagnostics[index]);
+      }
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  }, 60_000);
+  it("retains custody through incomplete review, terminal state and cleanup", async () => {
+    const {
+      cwd,
+      worktree,
+      dirs,
+      diagnostics,
+      leaseHelper,
+      leaseFile,
+      bound,
+      recovery,
+    } = await makePreparationRecoveryFixture();
+    try {
+      await runHelper(cwd, leaseHelper, "write", recovery);
+      const lease = JSON.parse(
+        await readFile(path.join(cwd, leaseFile), "utf8"),
+      );
+      const recoveredBytes = await readFile(path.join(cwd, leaseFile), "utf8");
+      await writeFile(
+        path.join(worktree, dirs[0], "validator.stderr"),
+        "digest drift",
+      );
+      await expect(
+        runHelper(cwd, leaseHelper, "validate", bound),
+      ).rejects.toMatchObject({
+        code: 1,
+        stderr: expect.stringContaining("digest mismatch"),
+      });
+      expect(await readFile(path.join(cwd, leaseFile), "utf8")).toBe(
+        recoveredBytes,
+      );
+      await writeFile(
+        path.join(worktree, dirs[0], "validator.stderr"),
+        diagnostics[0] as string,
+      );
+      await runHelper(cwd, leaseHelper, "write", {
+        ...bound,
+        STATE: "failed",
+        EXPECTED_STATE: "created",
+        UPDATED_AT: "2026-06-11T00:03:00Z",
+        FINISHED_AT: "2026-06-11T00:03:00Z",
+        FAILURE_PHASE: "review",
+        FAILURE_REASON: "semantic review not complete",
+        FAILURE_RECOVERABILITY: "recoverable",
+      });
+      await expect(
+        runHelper(cwd, leaseHelper, "write", {
+          ...bound,
+          STATE: "reviewed",
+          EXPECTED_STATE: "failed",
+          UPDATED_AT: "2026-06-11T00:04:00Z",
+        }),
+      ).rejects.toMatchObject({ code: 1 });
+      await runHelper(cwd, leaseHelper, "write", {
+        ...bound,
+        STATE: "aborted",
+        EXPECTED_STATE: "failed",
+        UPDATED_AT: "2026-06-11T00:04:00Z",
+        FINISHED_AT: "2026-06-11T00:04:00Z",
+        TERMINAL_REASON: "user abandoned incomplete review",
+      });
+      const terminal = JSON.parse(
+        await readFile(path.join(cwd, leaseFile), "utf8"),
+      );
+      await expect(
+        runHelper(cwd, leaseHelper, "write", {
+          ...bound,
+          STATE: "created",
+          EXPECTED_STATE: "aborted",
+          UPDATED_AT: "2026-06-11T00:05:00Z",
+        }),
+      ).rejects.toMatchObject({ code: 1 });
+      const { HEAD_SHA: _head, ...withoutHead } = bound;
+      const terminalDiscovery = JSON.parse(
+        (await runHelper(cwd, leaseHelper, "discover", withoutHead)).stdout,
+      );
+      expect(terminalDiscovery.active[0].classification).toBe("terminal");
+      expect(terminal.preparation_failures).toEqual(lease.preparation_failures);
+      const cleanup = await runHelper(cwd, leaseHelper, "cleanup-worktree", {
+        ...bound,
+        ALLOW_POLICY_OVERRIDE: "yes",
+      });
+      expect(cleanup.stdout).toContain(
+        "REFUSAL_REASON=preparation-failure-history",
+      );
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  }, 60_000);
+  it("recovers the exact four-file legacy family with explanatory note evolution", async () => {
+    const {
+      cwd,
+      worktree,
+      dirs,
+      leaseHelper,
+      leaseFile,
+      failedBytes,
+      recovery,
+      bound,
+    } = await makePreparationRecoveryFixture(true);
+    try {
+      const files = [
+        "failed-scope.json",
+        "validator.stderr",
+        "second-failed-scope.json",
+        "second-validator.stderr",
+      ];
+      const bytes = await Promise.all(
+        files.map((name) =>
+          readFile(path.join(worktree, dirs[0], name), "utf8"),
+        ),
+      );
+      const discovery = JSON.parse(
+        (await runHelper(cwd, leaseHelper, "discover", recovery)).stdout,
+      );
+      expect(discovery).toMatchObject({
+        disposition: "resume",
+        resume: { lease_file: leaseFile, worktree_path: worktree },
+      });
+      expect(await readFile(path.join(cwd, leaseFile), "utf8")).toBe(
+        failedBytes,
+      );
+      await runHelper(cwd, leaseHelper, "write", recovery);
+      const recoveredBytes = await readFile(path.join(cwd, leaseFile), "utf8");
+      const lease = JSON.parse(recoveredBytes);
+      expect(lease).toMatchObject({
+        state: "created",
+        artifacts: { handoff_file: recovery.HANDOFF_FILE, result_file: null },
+        preparation_failures: [
+          {
+            directory: dirs[0],
+            scope_sha256: sha256(bytes[0] as string),
+            diagnostics_sha256: sha256(bytes[1] as string),
+            second_pair: {
+              scope_sha256: sha256(bytes[2] as string),
+              diagnostics_sha256: sha256(bytes[3] as string),
+            },
+          },
+        ],
+      });
+      expect(
+        await Promise.all(
+          files.map((name) =>
+            readFile(path.join(worktree, dirs[0], name), "utf8"),
+          ),
+        ),
+      ).toEqual(bytes);
+      const archives = (await readdir(path.join(cwd, ".ephemeral"))).filter(
+        (name) => name.endsWith("-failed-archived-lease.json"),
+      );
+      expect(
+        await Promise.all(
+          archives.map((name) =>
+            readFile(path.join(cwd, ".ephemeral", name), "utf8"),
+          ),
+        ),
+      ).toContain(failedBytes);
+      await writeFile(
+        path.join(worktree, dirs[0], "second-validator.stderr"),
+        "second diagnostics drift",
+      );
+      await expect(
+        runHelper(cwd, leaseHelper, "validate", bound),
+      ).rejects.toMatchObject({
+        code: 1,
+        stderr: expect.stringContaining("digest mismatch"),
+      });
+      expect(await readFile(path.join(cwd, leaseFile), "utf8")).toBe(
+        recoveredBytes,
+      );
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  }, 30_000);
+
+  it.each([
+    "fifth-file",
+    "missing-second-diagnostics",
+    "duplicate-pair",
+    "changed-ambiguity",
+    "notes-only",
+    "nonstring-notes",
+  ])(
+    "refuses %s in the fixed four-file family",
+    async (fault) => {
+      const {
+        cwd,
+        worktree,
+        dirs,
+        leaseHelper,
+        leaseFile,
+        recovery,
+        validScope,
+        failedBytes,
+      } = await makePreparationRecoveryFixture(true);
+      try {
+        const first = path.join(worktree, dirs[0], "failed-scope.json");
+        const second = path.join(worktree, dirs[0], "second-failed-scope.json");
+        const candidate = JSON.parse(await readFile(first, "utf8"));
+        if (fault === "fifth-file")
+          await writeFile(
+            path.join(worktree, dirs[0], "third-failed-scope.json"),
+            "extra",
+          );
+        if (fault === "missing-second-diagnostics")
+          await rm(path.join(worktree, dirs[0], "second-validator.stderr"));
+        if (fault === "duplicate-pair")
+          await writeFile(second, await readFile(first));
+        if (fault === "changed-ambiguity")
+          candidate.semantic_decision.ambiguous = true;
+        if (fault === "notes-only")
+          Object.assign(candidate, validScope, {
+            semantic_decision: {
+              ...validScope.semantic_decision,
+              notes: "Earlier explanation of this same selection.",
+            },
+          });
+        if (fault === "nonstring-notes")
+          candidate.semantic_decision.notes = null;
+        if (
+          ["changed-ambiguity", "notes-only", "nonstring-notes"].includes(fault)
+        )
+          await writeFile(first, JSON.stringify(candidate));
+        await expect(
+          runHelper(cwd, leaseHelper, "write", recovery),
+        ).rejects.toMatchObject({ code: 1 });
+        expect(await readFile(path.join(cwd, leaseFile), "utf8")).toBe(
+          failedBytes,
+        );
+        expect(
+          JSON.parse(
+            (await runHelper(cwd, leaseHelper, "discover", recovery)).stdout,
+          ).resume,
+        ).toBeNull();
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+    20_000,
+  );
 });

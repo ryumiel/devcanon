@@ -16,6 +16,37 @@ For `write`, `CREATED_AT` is optional (otherwise `UPDATED_AT` is used); `HANDOFF
 
 `record-audit-failure` requires `REPOSITORY`, `PR_NUMBER`, `PRIMARY_REPOSITORY_ROOT`, `LEASE_FILE`, `STATE=failed`, `BASE_REF`, `HEAD_REF`, `UPDATED_AT`, `FINISHED_AT`, `FAILURE_PHASE=preview-render`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, and `EXPECTED_STATE=gated`; it is accepted only for an existing gated lease with gated preview-render evidence. `inspect-worktree` and `cleanup-worktree` require `REPOSITORY`, `PR_NUMBER`, `PRIMARY_REPOSITORY_ROOT`, `WORKTREE_PATH`, and `LEASE_FILE`. For `cleanup-worktree`, optional `ALLOW_POLICY_OVERRIDE=yes` permits removal from a non-`posted`/non-`aborted` state when all other cleanup guards permit it. `session-create` also accepts optional `ALLOW_TERMINAL_ADVANCE=yes`; absence preserves the default route and any other supplied value is invalid. No command reads stdin. `DEVCANON_RUNTIME_DIR` is optional for runtime diagnostics.
 
+`write` supports LC-19 failed-to-created recovery only for the eligible
+pre-handoff failure defined by the [lifecycle owner](review-lease-lifecycle-contract.md#preparation-recovery-and-retained-custody).
+It requires exact current `HEAD_SHA`, fully validated `HANDOFF_FILE`, unchanged
+base/head refs and fresh `UPDATED_AT`. Optional `PREPARATION_FAILURE_DIRS` is a
+JSON array of distinct repo-relative controller-owned scratch directories.
+Supply it when recording handoff-validation failure or recovering through LC-19;
+claiming custody requires the corrected fully validated handoff even when the
+failure write does not accept that handoff. `discover` may consume the same
+explicit recovery handoff/head/scratch inputs read-only. Each scratch must pass
+the lifecycle owner's closed content and byte-digest checks; absent or empty
+input claims no additional directories. Duplicate candidates, broken custody,
+stale head, identity mismatch and unrelated failure phases refuse before writes.
+
+Each `preparation_failures` record has closed `directory`, `scope_sha256` and
+`diagnostics_sha256` keys, plus optional closed `second_pair` with the two digest
+keys. Two files bind the first pair; exactly four files bind both fixed pairs.
+Every digest is immutable and candidate digests are unique within/across records.
+Old/current explanatory notes must be strings and may differ only with a checked
+or hint correction; substantive selection remains independently verified by the
+original reviewer. Notes-only, missing pair, arbitrary extra entries and changed
+substantive facts refuse.
+
+Validated custody is stored in optional `preparation_failures` records and
+inherited through later states. Supply only newly claimed directories; inherited
+records are rechecked without repeating their paths in the input. `write`
+archives exact preceding failed bytes
+before LC-19 or repeated pre-handoff failure publication; unequal archive
+collisions refuse. Cleanup retains worktrees carrying this history even with
+`ALLOW_POLICY_OVERRIDE=yes` and after terminal completion. Custody never grants
+scratch deletion or terminal advancement that erases preserved history.
+
 ## Working directory
 
 Every operation, including inspection and cleanup, runs from `PRIMARY_REPOSITORY_ROOT`, which must be the physical primary Git worktree root.

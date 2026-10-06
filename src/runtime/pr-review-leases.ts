@@ -14,10 +14,12 @@ import {
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
 import { requireDirectEphemeralChild } from "./paths.js";
 import { validateSharedContextFamilyBinding } from "./play-review-shared-context.js";
+import { validatePrReviewPreparationHandoff } from "./pr-review-manifests.js";
 import {
   type PrReviewResultValidationContext,
   createPrReviewResultValidationContext,
@@ -199,6 +201,12 @@ export interface PrReviewLease {
     github_post_result: GitHubPostResult;
     github_posted_at: string | null;
   };
+  preparation_failures?: {
+    directory: string;
+    scope_sha256: string;
+    diagnostics_sha256: string;
+    second_pair?: { scope_sha256: string; diagnostics_sha256: string };
+  }[];
   cleanup?: {
     last_outcome: "removed" | "retained" | "skipped" | "failed" | null;
     last_checked_at: string | null;
@@ -1052,6 +1060,7 @@ async function terminalAdvanceCandidate(
     const lease = JSON.parse(leaseBytes) as PrReviewLease;
     validateLeaseShape(lease);
     if (
+      (lease.preparation_failures?.length ?? 0) > 0 ||
       lease.state !== candidate.state ||
       lease.lease_file !== candidate.lease_file ||
       lease.worktree_path !== candidate.worktree_path ||
@@ -1915,11 +1924,14 @@ async function discoverReviewSession(): Promise<PrReviewSessionDiscovery> {
       normalizeComparablePath(entry) ===
       normalizeComparablePath(canonicalWorktreePath),
   );
-  const active = await Promise.all(
-    activeLeaseFiles.map((leaseFile) =>
-      inspectDiscoveryCandidate(identity, leaseFile, registrations),
-    ),
-  );
+  // Canonical preparation validation temporarily enters each worktree. Keep
+  // candidate inspections sequential so their cwd and environment cannot mix.
+  const active: DiscoveryCandidate[] = [];
+  for (const leaseFile of activeLeaseFiles) {
+    active.push(
+      await inspectDiscoveryCandidate(identity, leaseFile, registrations),
+    );
+  }
   active.sort((left, right) =>
     compareDiscoveryEntries(left.lease_file, right.lease_file),
   );
@@ -2076,10 +2088,39 @@ async function inspectDiscoveryCandidate(
         unmanaged_ephemeral_artifacts: null,
       };
     }
-    const [worktreeDirty, unmanagedArtifacts] = await Promise.all([
-      isWorktreeDirty(worktreePath),
-      findUnmanagedEphemeralArtifacts(lease, worktreePath),
-    ]);
+    let inspectedLease = lease;
+    if (
+      eligiblePreparationRecovery(lease) &&
+      optionalEnv("HANDOFF_FILE") !== undefined
+    ) {
+      requiredEnv("HEAD_SHA");
+      const handoffFile = requiredEnv("HANDOFF_FILE");
+      inspectedLease = {
+        ...lease,
+        artifacts: { ...lease.artifacts, handoff_file: handoffFile },
+      };
+      const handoff = await validatePreparationHandoff(
+        inspectedLease,
+        worktreePath,
+      );
+      const scope = await preparationScope(handoff, worktreePath);
+      const records = [...(lease.preparation_failures ?? [])];
+      for (const directory of readPreparationFailureDirectories())
+        records.push(
+          await validatePreparationFailureDirectory(
+            directory,
+            scope,
+            worktreePath,
+          ),
+        );
+      validatePreparationFailureRecords(records);
+      inspectedLease = { ...inspectedLease, preparation_failures: records };
+    }
+    const worktreeDirty = await isWorktreeDirty(worktreePath);
+    const unmanagedArtifacts = await findUnmanagedEphemeralArtifacts(
+      inspectedLease,
+      worktreePath,
+    );
     const isReentry =
       (await hasPostCleanupArchiveAuthority(lease, identity)) &&
       (await inspectTerminalArchive(lease, identity, leaseFile)) === "equal";
@@ -2171,8 +2212,14 @@ export function reducePrReviewLease(
   const base = buildBaseLease(previous, identity, inputs, row);
   switch (row) {
     case "LC-01":
-    case "LC-18":
       return base;
+    case "LC-18":
+      if ((previous?.preparation_failures?.length ?? 0) > 0)
+        throw new PrReviewLeaseError(
+          "terminal recreation cannot erase preparation failure history",
+        );
+      return base;
+    case "LC-19":
     case "LC-02":
       requireInput("HANDOFF_FILE", inputs.handoffFile);
       if (previous?.artifacts.handoff_file !== null) {
@@ -2320,6 +2367,85 @@ async function writeLease(
   const archive = archivePathIfNeeded(previous, identity, inputs);
   const row = transitionId(previous, inputs);
   let reduced = reducePrReviewLease(previous, identity, inputs);
+  if (row === "LC-19") {
+    requiredEnv("HEAD_SHA");
+    if (await isWorktreeDirty(identity.worktreePath))
+      throw new PrReviewLeaseError(
+        "preparation recovery requires clean worktree source",
+      );
+    if (
+      previous === null ||
+      inputs.baseRef !== previous.base_ref ||
+      inputs.headRef !== previous.head_ref
+    )
+      throw new PrReviewLeaseError("preparation recovery ref mismatch");
+    if (Date.parse(inputs.updatedAt) <= Date.parse(previous.updated_at))
+      throw new PrReviewLeaseError(
+        "preparation recovery UPDATED_AT must advance",
+      );
+    if (
+      inputs.resultFile !== undefined ||
+      inputs.approvedReviewFile !== undefined ||
+      inputs.validatedPayloadFile !== undefined ||
+      inputs.presentedAt !== undefined ||
+      inputs.presentationStatus !== undefined ||
+      inputs.githubPostAttempted === true ||
+      inputs.githubPostedAt !== undefined
+    )
+      throw new PrReviewLeaseError(
+        "preparation recovery cannot accept review result or post evidence",
+      );
+    await validatePreparationHandoff(reduced, identity.worktreePath);
+  }
+  const suppliedDirectories = readPreparationFailureDirectories();
+  if (suppliedDirectories.length > 0) {
+    if (
+      row !== "LC-19" &&
+      !(
+        inputs.state === "failed" &&
+        inputs.failurePhase === "handoff-validation" &&
+        (previous?.state === "created" || eligiblePreparationRecovery(previous))
+      )
+    )
+      throw new PrReviewLeaseError(
+        "preparation failure custody requires pre-handoff preparation",
+      );
+    requiredEnv("HEAD_SHA");
+    const handoffFile = inputs.handoffFile;
+    if (handoffFile === undefined)
+      throw new PrReviewLeaseError(
+        "HANDOFF_FILE is required for preparation failure custody",
+      );
+    const custodyLease = {
+      ...reduced,
+      artifacts: { ...reduced.artifacts, handoff_file: handoffFile },
+    };
+    const handoff = await validatePreparationHandoff(
+      custodyLease,
+      identity.worktreePath,
+    );
+    const scope = await preparationScope(handoff, identity.worktreePath);
+    const records = [...(previous?.preparation_failures ?? [])];
+    for (const directory of suppliedDirectories)
+      records.push(
+        await validatePreparationFailureDirectory(
+          directory,
+          scope,
+          identity.worktreePath,
+        ),
+      );
+    validatePreparationFailureRecords(records);
+    reduced = { ...reduced, preparation_failures: records };
+    // A validated correction supplied for custody is not a failure's accepted handoff.
+    if (inputs.state === "failed" && previous?.artifacts.handoff_file === null)
+      reduced.artifacts.handoff_file = null;
+  }
+  if ((reduced.preparation_failures?.length ?? 0) > 0)
+    await validatePreparationFailures(
+      reduced,
+      identity.worktreePath,
+      inputs.handoffFile,
+    );
 
   if (previous !== null && inputs.state === "failed") {
     reduced = await clearInvalidFailureRecoveryArtifacts(
@@ -2739,6 +2865,13 @@ async function classifyCleanup(
       validateResultAuthority: true,
       policy: "validate-stored-lease",
     });
+    if ((lease.preparation_failures?.length ?? 0) > 0)
+      return {
+        ...base,
+        refusalReason: "preparation-failure-history",
+        message:
+          "preserved preparation failure history requires retaining worktree",
+      };
     const unmanagedArtifacts = await findUnmanagedEphemeralArtifacts(
       lease,
       identity.worktreePath,
@@ -3210,6 +3343,9 @@ function buildBaseLease(
     presentation: emptyPresentation(),
     terminal: { finished_at: null, reason: null },
     failure: { phase: null, reason: null, recoverability: null },
+    ...(previous?.preparation_failures === undefined
+      ? {}
+      : { preparation_failures: previous.preparation_failures }),
     github: {
       github_post_attempted: false,
       github_post_result: "not-attempted",
@@ -3432,7 +3568,8 @@ type TransitionId =
   | "LC-15"
   | "LC-16"
   | "LC-17"
-  | "LC-18";
+  | "LC-18"
+  | "LC-19";
 
 function transitionId(
   previous: PrReviewLease | null,
@@ -3462,6 +3599,12 @@ function transitionId(
     if (inputs.failurePhase === "github-post") return "LC-13";
     return "LC-11";
   }
+  if (
+    previousState === "failed" &&
+    inputs.state === "created" &&
+    eligiblePreparationRecovery(previous)
+  )
+    return "LC-19";
   if (previousState === "failed" && inputs.state === "gated") return "LC-14";
   if (previousState === "failed" && inputs.state === "aborted") return "LC-15";
   if (previousState === "failed" && inputs.state === "failed") return "LC-16";
@@ -3474,6 +3617,15 @@ function archivePathIfNeeded(
   identity: LeaseIdentity,
   inputs: LeaseInputs,
 ): string | null {
+  if (
+    previous !== null &&
+    eligiblePreparationRecovery(previous) &&
+    (inputs.state === "created" ||
+      (inputs.state === "failed" &&
+        inputs.failurePhase === "handoff-validation"))
+  ) {
+    return terminalArchivePath(previous, identity.prNumber);
+  }
   if (
     inputs.state !== "created" ||
     (previous?.state !== "posted" && previous?.state !== "aborted")
@@ -3570,6 +3722,7 @@ function validateLeaseShape(
     );
   }
   validateCleanupMetadata(lease.cleanup);
+  validatePreparationFailureRecords(lease.preparation_failures);
   if (
     lease.validation.result_manifest.sha256 !== null &&
     !SHA256_RE.test(lease.validation.result_manifest.sha256)
@@ -3919,6 +4072,8 @@ async function validateReferencedArtifacts(
       worktreeRoot: worktreePath,
     }));
   const policy = options.policy ?? "validate-stored-lease";
+  if ((lease.preparation_failures?.length ?? 0) > 0)
+    await validatePreparationFailures(lease, worktreePath);
   let resultReviewHead: string | null = null;
   let resultArtifact: JsonObject | null = null;
   if (lease.artifacts.handoff_file !== null) {
@@ -4327,6 +4482,11 @@ async function collectOwnedEphemeralArtifacts(
   worktreePath: string,
 ): Promise<Set<string>> {
   const owned = new Set<string>();
+  if ((lease.preparation_failures?.length ?? 0) > 0) {
+    await validatePreparationFailures(lease, worktreePath);
+    for (const record of lease.preparation_failures ?? [])
+      owned.add(record.directory);
+  }
   addOwnedPath(owned, lease.artifacts.handoff_file);
   addOwnedPath(owned, lease.artifacts.result_file);
 
@@ -4383,6 +4543,271 @@ async function collectOwnedEphemeralArtifacts(
   }
 
   return owned;
+}
+
+function eligiblePreparationRecovery(lease: PrReviewLease | null): boolean {
+  return (
+    lease !== null &&
+    lease.state === "failed" &&
+    lease.failure.phase === "handoff-validation" &&
+    lease.failure.recoverability === "recoverable" &&
+    Object.values(lease.artifacts).every((value) => value === null) &&
+    lease.presentation.presented_at === null &&
+    lease.presentation.status === null &&
+    lease.validation.result_manifest.status === null &&
+    !lease.github.github_post_attempted &&
+    lease.github.github_post_result === "not-attempted" &&
+    lease.github.github_posted_at === null
+  );
+}
+
+function readPreparationFailureDirectories(): string[] {
+  const text = optionalEnv("PREPARATION_FAILURE_DIRS");
+  if (text === undefined) return [];
+  const directories: unknown = JSON.parse(text);
+  if (
+    !Array.isArray(directories) ||
+    directories.some((value) => typeof value !== "string") ||
+    new Set(directories).size !== directories.length
+  )
+    throw new PrReviewLeaseError(
+      "PREPARATION_FAILURE_DIRS must be distinct directory strings",
+    );
+  return directories;
+}
+
+function validatePreparationFailureRecords(
+  records: PrReviewLease["preparation_failures"],
+): void {
+  if (records === undefined) return;
+  if (!Array.isArray(records))
+    throw new PrReviewLeaseError("preparation_failures must be an array");
+  const directories = new Set<string>();
+  const candidates = new Set<string>();
+  for (const record of records) {
+    if (
+      !isObject(record) ||
+      Object.keys(record).sort().join(",") !==
+        (record.second_pair === undefined
+          ? "diagnostics_sha256,directory,scope_sha256"
+          : "diagnostics_sha256,directory,scope_sha256,second_pair") ||
+      typeof record.directory !== "string" ||
+      typeof record.scope_sha256 !== "string" ||
+      typeof record.diagnostics_sha256 !== "string" ||
+      !SHA256_RE.test(record.scope_sha256) ||
+      !SHA256_RE.test(record.diagnostics_sha256)
+    )
+      throw new PrReviewLeaseError("preparation failure record mismatch");
+    validateDirectChild("preparation failure directory", record.directory);
+    if (
+      !path.posix
+        .basename(record.directory)
+        .startsWith("provider-scope-capture.")
+    )
+      throw new PrReviewLeaseError(
+        "preparation failure directory family mismatch",
+      );
+    if (
+      record.second_pair !== undefined &&
+      (!isObject(record.second_pair) ||
+        Object.keys(record.second_pair).sort().join(",") !==
+          "diagnostics_sha256,scope_sha256" ||
+        typeof record.second_pair.scope_sha256 !== "string" ||
+        typeof record.second_pair.diagnostics_sha256 !== "string" ||
+        !SHA256_RE.test(record.second_pair.scope_sha256) ||
+        !SHA256_RE.test(record.second_pair.diagnostics_sha256))
+    )
+      throw new PrReviewLeaseError("preparation failure second_pair mismatch");
+    if (directories.has(record.directory))
+      throw new PrReviewLeaseError(
+        "duplicate preparation failure directory or candidate digest",
+      );
+    directories.add(record.directory);
+    for (const pair of [
+      record,
+      ...(record.second_pair === undefined ? [] : [record.second_pair]),
+    ]) {
+      if (candidates.has(pair.scope_sha256))
+        throw new PrReviewLeaseError(
+          "duplicate preparation failure directory or candidate digest",
+        );
+      candidates.add(pair.scope_sha256);
+    }
+  }
+}
+
+async function validatePreparationHandoff(
+  lease: PrReviewLease,
+  worktreePath: string,
+): Promise<JsonObject> {
+  const handoffFile = lease.artifacts.handoff_file;
+  if (handoffFile === null)
+    throw new PrReviewLeaseError(
+      "HANDOFF_FILE is required for preparation recovery",
+    );
+  const { stdout } = await execFileAsync("git", [
+    "-C",
+    worktreePath,
+    "rev-parse",
+    "HEAD",
+  ]);
+  const head = optionalEnv("HEAD_SHA") ?? stdout.trim();
+  if (!SHA_RE.test(head))
+    throw new PrReviewLeaseError("HEAD_SHA must be a full commit SHA");
+  if (stdout.trim() !== head)
+    throw new PrReviewLeaseError("preparation recovery worktree head mismatch");
+  if (
+    !(await isRegisteredWorktree(
+      requiredEnv("PRIMARY_REPOSITORY_ROOT"),
+      worktreePath,
+    ))
+  )
+    throw new PrReviewLeaseError(
+      "preparation recovery worktree is not registered",
+    );
+  return validatePrReviewPreparationHandoff({
+    worktreeRoot: worktreePath,
+    handoffFile,
+    repository: lease.repository,
+    prNumber: lease.pr_number,
+    reviewHeadSha: head,
+    leaseBaseRef: lease.base_ref,
+    leaseHeadRef: lease.head_ref,
+  });
+}
+
+async function preparationScope(
+  handoff: JsonObject,
+  worktreePath: string,
+): Promise<JsonObject> {
+  if (!isObject(handoff.artifacts))
+    throw new PrReviewLeaseError("handoff artifacts missing");
+  return readRequiredJson<JsonObject>(
+    worktreePath,
+    stringField(handoff.artifacts, "scope_decision_file"),
+    "scope decision file",
+  );
+}
+
+async function validatePreparationFailureDirectory(
+  directory: string,
+  scope: JsonObject,
+  worktreePath: string,
+): Promise<NonNullable<PrReviewLease["preparation_failures"]>[number]> {
+  validateDirectChild("preparation failure directory", directory);
+  if (!path.posix.basename(directory).startsWith("provider-scope-capture."))
+    throw new PrReviewLeaseError(
+      "preparation failure directory family mismatch",
+    );
+  await assertEphemeralDirectory(worktreePath);
+  const full = path.join(worktreePath, directory);
+  const info = await lstat(full);
+  if (info.isSymbolicLink() || !info.isDirectory())
+    throw new PrReviewLeaseError(
+      "preparation failure scratch must be a real directory",
+    );
+  const entries = (await readdir(full)).sort().join(",");
+  const hasSecondPair =
+    entries ===
+    "failed-scope.json,second-failed-scope.json,second-validator.stderr,validator.stderr";
+  if (!hasSecondPair && entries !== "failed-scope.json,validator.stderr")
+    throw new PrReviewLeaseError(
+      "preparation failure scratch entries mismatch",
+    );
+  const pairs = hasSecondPair
+    ? ([
+        ["failed-scope.json", "validator.stderr"],
+        ["second-failed-scope.json", "second-validator.stderr"],
+      ] as const)
+    : ([["failed-scope.json", "validator.stderr"]] as const);
+  const digests: { scope_sha256: string; diagnostics_sha256: string }[] = [];
+  for (const pair of pairs) {
+    const bytes: Buffer[] = [];
+    for (const name of pair) {
+      const stat = await lstat(path.join(full, name));
+      if (stat.isSymbolicLink() || !stat.isFile())
+        throw new PrReviewLeaseError(
+          "preparation failure evidence must be regular nonsymlink files",
+        );
+      bytes.push(await readFile(path.join(full, name)));
+    }
+    const [candidateBytes, diagnostics] = bytes as [Buffer, Buffer];
+    if (diagnostics.toString("utf8").trim().length === 0)
+      throw new PrReviewLeaseError(
+        "preparation failure diagnostics must be nonempty",
+      );
+    const candidate: unknown = JSON.parse(candidateBytes.toString("utf8"));
+    if (
+      !isObject(candidate) ||
+      !isObject(candidate.semantic_decision) ||
+      !isObject(scope.semantic_decision) ||
+      typeof candidate.semantic_decision.notes !== "string" ||
+      typeof scope.semantic_decision.notes !== "string"
+    )
+      throw new PrReviewLeaseError(
+        "preparation failure candidate scope mismatch",
+      );
+    const correctableDifference =
+      !isDeepStrictEqual(
+        candidate.semantic_decision.checked,
+        scope.semantic_decision.checked,
+      ) || !isDeepStrictEqual(candidate.language_hints, scope.language_hints);
+    const corrected = {
+      ...candidate,
+      language_hints: scope.language_hints,
+      semantic_decision: {
+        ...candidate.semantic_decision,
+        checked: scope.semantic_decision.checked,
+        notes: scope.semantic_decision.notes,
+      },
+    };
+    if (!correctableDifference || !isDeepStrictEqual(corrected, scope))
+      throw new PrReviewLeaseError(
+        "preparation failure candidate exceeds mechanical custody family",
+      );
+    digests.push({
+      scope_sha256: createHash("sha256").update(candidateBytes).digest("hex"),
+      diagnostics_sha256: createHash("sha256")
+        .update(diagnostics)
+        .digest("hex"),
+    });
+  }
+  const first = digests[0];
+  if (first === undefined)
+    throw new PrReviewLeaseError("preparation failure first pair missing");
+  return {
+    directory,
+    ...first,
+    ...(hasSecondPair ? { second_pair: digests[1] } : {}),
+  };
+}
+
+async function validatePreparationFailures(
+  lease: PrReviewLease,
+  worktreePath: string,
+  suppliedHandoff?: string,
+): Promise<void> {
+  const handoffFile =
+    lease.artifacts.handoff_file ??
+    suppliedHandoff ??
+    optionalEnv("HANDOFF_FILE");
+  const custodyLease = {
+    ...lease,
+    artifacts: { ...lease.artifacts, handoff_file: handoffFile ?? null },
+  };
+  const handoff = await validatePreparationHandoff(custodyLease, worktreePath);
+  const scope = await preparationScope(handoff, worktreePath);
+  for (const record of lease.preparation_failures ?? []) {
+    const actual = await validatePreparationFailureDirectory(
+      record.directory,
+      scope,
+      worktreePath,
+    );
+    if (!isDeepStrictEqual(actual, record))
+      throw new PrReviewLeaseError(
+        "preparation failure evidence digest mismatch",
+      );
+  }
 }
 
 function collectHandoffArtifactPaths(
