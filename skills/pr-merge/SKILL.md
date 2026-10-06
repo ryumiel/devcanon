@@ -15,6 +15,23 @@ Use the adjacent [preflight-worktree-context usage](references/preflight-worktre
 
 Poll CI status on a pull request, merge when green, investigate and fix failures automatically.
 
+Consume a concrete current merge instruction from the human or existing batch
+controller under accepted delivery authority. Validate its PR, owner/host,
+branch/head, gate, route key when applicable, and allowed effects before acting.
+A standing decision may include conditional merge and scoped cleanup; changed
+head or readiness invalidates its dependent evidence and action binding, not
+that scope. Refresh current review, CI, protections, and preflight evidence and
+obtain a newly bound instruction within retained scope without generic
+reapproval. Missing scope, revocation, expansion, an unresolved choice, a
+reserved human decision, or a required exception needs its owning decision.
+PR-only intent, priming `--auto`, planning PASS, reports, and tool availability
+are not merge authority. This owner retains polling, verified merge, cleanup,
+and final reporting; routing and priming do not acquire those effects.
+
+Preserve existing cleanup guards for dirty, locked, unfinished, unpublished,
+and unrelated work. Scoped cleanup never overrides those guards; report
+retained work and unknown outcomes as unresolved obligations.
+
 Keep deterministic mechanics out of this always-loaded skill when they become
 script-scale. This skill owns orchestration, safety policy, routing, and final
 reporting; helper scripts own parseable Git context and cleanup mechanics.

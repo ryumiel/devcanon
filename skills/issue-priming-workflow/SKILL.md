@@ -808,7 +808,11 @@ new public schema or compatibility commitments; ownership or source-surface
 expansion into dependencies, workflows, or subsystems; unauthorized provider
 mutation; reviewed publication decisions; and terminal outcomes. Preserve the
 existing route-specific stop, escalation, or publication behavior for these
-gates; `--auto` does not supply missing authority.
+gates; `--auto` does not supply missing authority. A batch controller may retain
+accepted delivery scope across changed heads, but each publication or downstream
+action still requires refreshed gates and a current exact instruction. Missing
+readiness requires refresh, while an absent or reserved human decision requires
+that decision. This does not widen priming's PR-only effect endpoint.
 
 ## Phases 5-8: Autonomous Execution (`--auto` only)
 
@@ -1083,9 +1087,14 @@ with the handoff arguments that reference defines: `assignee=@me`,
 `branch_review_required=true`, the final Phase 7 approval-summary path as
 `approval_summary_file`, the same `BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN` when
 Phase 7 branch-review ran with one, and `assumptions_comment_file` or
-`nits_file` only when the corresponding artifact exists. Do NOT merge - the PR
-is the user's review gate. PR creation preserves the branch and worktree for
-review, CI, and follow-up fixes until `pr-merge` performs post-merge cleanup or
+`nits_file` only when the corresponding artifact exists. Do NOT merge:
+priming's effect endpoint is the reviewed PR, with current head and mandatory
+gate results reported to its controller. The controller may use
+retained accepted delivery authority to issue the next current instruction;
+routing validates it and `pr-merge` owns merge and scoped cleanup after required
+review, CI, and protections pass. A PR-only request remains PR-only; `--auto`
+and planning PASS are not merge authority. PR creation preserves the branch
+and worktree for review, CI, and follow-up fixes until `pr-merge` performs post-merge cleanup or
 the operator explicitly discards the work.
 
 When resolved auto-mode assumptions need reviewer visibility, prepare the
@@ -1216,6 +1225,6 @@ See [`references/red-flags.md`](references/red-flags.md) for the full list and t
 ## What This Skill Does NOT Do
 
 - **Without `--auto`:** Does not write code, create PRs, or manage implementation.
-- **With `--auto`:** Does not merge PRs (the PR is the user's review gate); does not skip phases except for the explicit durable owner referral cleanup stop; does not silently pick between equally-valid design options (stops and asks instead).
+- **With `--auto`:** Does not merge PRs (reports the reviewed PR/head to the controller for separately authorized downstream delivery); does not skip phases except for the explicit durable owner referral cleanup stop; does not silently pick between equally-valid design options (stops and asks instead).
 
 See [`references/scope.md`](references/scope.md) for the expanded list.

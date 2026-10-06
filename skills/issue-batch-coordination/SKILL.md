@@ -58,7 +58,17 @@ owners or release priming. If intent or accepted scope is missing or
 conflicting, ask only for that decision before affected effects. Publication,
 merge, recurring scheduling, destructive cleanup, and scope expansion each
 retain their applicable separate decisions, including any still-current prior
-authorization. Report an explicit host restriction or denial for the specific
+authorization. An accepted delivery decision may cover publication, conditional
+merge, and scoped cleanup through completion. Coordination interprets that
+human scope and produces a concrete current instruction for the existing effect
+owner; routing validates its exact binding. Changed head, checks, review,
+mergeability, source state, or gate evidence invalidates the dependent action
+binding and readiness, not that standing scope. Refresh the affected facts and
+required gates, then issue a new exact instruction within retained authority
+without generic reapproval. Escalate only revoked or missing scope, expansion,
+a materially unresolved choice, an explicitly reserved human decision, or a
+required exception; reports, planning PASS, and tool availability supply none
+of that authority. Report an explicit host restriction or denial for the specific
 action; do not invent an alternative permission or route around it. One
 blocked item does not hold independently eligible siblings.
 
@@ -180,13 +190,14 @@ Assess these readiness questions separately:
   explicitly authorized that scope.
 - **Publication:** compare each owner's local revision with the actual PR head
   and remote ancestry. A green local result does not make the published PR
-  green, and approval for an old remote head does not transfer to a new local
-  head. Conversely, old-head publication approval is not a reason to validate
-  obsolete code instead of the intended combined implementation. Run authorized
+  green, and an action binding or readiness evidence for an old remote head does
+  not transfer to a new local head. Conversely, a stale publication binding is
+  not a reason to validate obsolete code instead of the intended combined implementation. Run authorized
   local validation and route publication reconciliation separately. If a
   rebase leaves no normal push path, route branch-continuity recovery to the
   existing owner; preserve work, forbid force-push, and require fresh evidence
-  and the router's applicable approvals after the revision changes.
+  and a newly bound current instruction under retained scope after the revision
+  changes; request only an actually missing decision.
 - **Delivery and completion:** distinguish implementation, combined acceptance,
   publication, merge or source disposition, owner task completion, cleanup,
   and separately authorized post-merge work. An archived task or “done” report
