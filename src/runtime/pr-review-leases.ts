@@ -245,7 +245,7 @@ interface LeaseInputs {
 
 const SHA_RE = /^[0-9a-f]{40}$/u;
 const SHA256_RE = /^[0-9a-f]{64}$/u;
-const TIMESTAMP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u;
+const TIMESTAMP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/u;
 const DIRECT_SUFFIXES = {
   handoff: "-handoff.json",
   result: "-result.json",
@@ -316,7 +316,7 @@ async function sessionCreatePreflight(): Promise<RuntimeCommandOutcome> {
   if (baseRef.trim() === "" || headRef.trim() === "") {
     throw new PrReviewLeaseError("BASE_REF and HEAD_REF must be nonblank");
   }
-  const updatedAt = requiredEnv("UPDATED_AT");
+  const updatedAt = process.env.UPDATED_AT ?? nowTimestamp();
   validateTimestamp("UPDATED_AT", updatedAt);
   const allowTerminalAdvance = optionalTerminalAdvance();
   await assertPrimaryGitBinding(identity.primaryRoot);
@@ -3116,23 +3116,29 @@ async function listRegisteredWorktrees(primaryRoot: string): Promise<string[]> {
 }
 
 function readInputs(): LeaseInputs {
+  const state = parseState(requiredEnv("STATE"));
+  const updatedAt = process.env.UPDATED_AT ?? nowTimestamp();
+  const terminal =
+    state === "posted" || state === "aborted" || state === "failed";
   return {
-    state: parseState(requiredEnv("STATE")),
+    state,
     baseRef: requiredEnv("BASE_REF"),
     headRef: requiredEnv("HEAD_REF"),
-    createdAt: process.env.CREATED_AT ?? process.env.UPDATED_AT ?? "",
-    updatedAt: requiredEnv("UPDATED_AT"),
+    createdAt: process.env.CREATED_AT ?? updatedAt,
+    updatedAt,
     handoffFile: optionalEnv("HANDOFF_FILE"),
     resultFile: optionalEnv("RESULT_FILE"),
     approvedReviewFile: optionalEnv("APPROVED_REVIEW_FILE"),
     validatedPayloadFile:
       optionalEnv("VALIDATED_REVIEW_PAYLOAD_FILE") ??
       optionalEnv("VALIDATED_PAYLOAD_FILE"),
-    presentedAt: optionalEnv("PRESENTED_AT"),
-    presentationStatus: parseOptionalPresentation(
-      optionalEnv("PRESENTATION_STATUS"),
-    ),
-    finishedAt: optionalEnv("FINISHED_AT"),
+    presentedAt:
+      state === "gated" ? (process.env.PRESENTED_AT ?? updatedAt) : undefined,
+    presentationStatus:
+      state === "gated"
+        ? parseOptionalPresentation(optionalEnv("PRESENTATION_STATUS"))
+        : undefined,
+    finishedAt: terminal ? (process.env.FINISHED_AT ?? updatedAt) : undefined,
     terminalReason: optionalEnv("TERMINAL_REASON"),
     failurePhase: parseOptionalFailurePhase(optionalEnv("FAILURE_PHASE")),
     failureReason: optionalEnv("FAILURE_REASON"),
@@ -3669,7 +3675,7 @@ function validateTerminalCleanupChronology(lease: PrReviewLease): void {
   const { last_checked_at: lastCheckedAt } = lease.cleanup;
   if (
     lastCheckedAt !== null &&
-    Date.parse(lastCheckedAt) < Date.parse(finishedAt)
+    compareTimestamps(lastCheckedAt, finishedAt) < 0
   ) {
     throw new PrReviewLeaseError(
       "cleanup.last_checked_at cannot precede terminal.finished_at",
@@ -3686,12 +3692,12 @@ function validateTerminalCleanupChronology(lease: PrReviewLease): void {
       "cleanup.removed_at requires cleanup.last_checked_at",
     );
   }
-  if (Date.parse(removedAt) < Date.parse(finishedAt)) {
+  if (compareTimestamps(removedAt, finishedAt) < 0) {
     throw new PrReviewLeaseError(
       "cleanup.removed_at cannot precede terminal.finished_at",
     );
   }
-  if (Date.parse(removedAt) > Date.parse(lastCheckedAt)) {
+  if (compareTimestamps(removedAt, lastCheckedAt) > 0) {
     throw new PrReviewLeaseError(
       "cleanup.removed_at cannot follow cleanup.last_checked_at",
     );
@@ -4893,16 +4899,31 @@ function parsePositiveInteger(name: string, value: string): number {
 }
 
 function validateTimestamp(label: string, value: string): void {
-  if (!TIMESTAMP_RE.test(value) || Number.isNaN(Date.parse(value))) {
+  const wholeSeconds = value.replace(/\.\d+Z$/u, "Z");
+  if (
+    !TIMESTAMP_RE.test(value) ||
+    Number.isNaN(Date.parse(wholeSeconds)) ||
+    new Date(wholeSeconds).toISOString().replace(/\.\d{3}Z$/u, "Z") !==
+      wholeSeconds
+  ) {
     throw new PrReviewLeaseError(
       `${label} must be a UTC RFC3339 timestamp ending in Z`,
     );
   }
-  if (new Date(value).toISOString().replace(/\.\d{3}Z$/u, "Z") !== value) {
-    throw new PrReviewLeaseError(
-      `${label} must be a UTC RFC3339 timestamp ending in Z`,
-    );
-  }
+}
+
+function compareTimestamps(left: string, right: string): number {
+  // Shape validation precedes chronology. Fixed calendar fields sort by instant;
+  // zero-padding decimal tails retains precision beyond JavaScript milliseconds.
+  const leftSeconds = left.slice(0, 19);
+  const rightSeconds = right.slice(0, 19);
+  if (leftSeconds !== rightSeconds) return leftSeconds < rightSeconds ? -1 : 1;
+  const leftFraction = left.includes(".") ? left.slice(20, -1) : "";
+  const rightFraction = right.includes(".") ? right.slice(20, -1) : "";
+  const width = Math.max(leftFraction.length, rightFraction.length);
+  const leftPadded = leftFraction.padEnd(width, "0");
+  const rightPadded = rightFraction.padEnd(width, "0");
+  return leftPadded < rightPadded ? -1 : leftPadded > rightPadded ? 1 : 0;
 }
 
 function validateKnownLeaseState(value: unknown): asserts value is LeaseState {
@@ -4913,7 +4934,7 @@ function validateKnownLeaseState(value: unknown): asserts value is LeaseState {
 }
 
 function nowTimestamp(): string {
-  return new Date().toISOString().replace(/\.\d{3}Z$/u, "Z");
+  return new Date().toISOString();
 }
 
 function parseState(value: string): LeaseState {

@@ -201,8 +201,10 @@ without invoking `session-create` if it is unavailable.
 For an eligible fresh `create` with no `reentry` candidate, invoke the
 runtime-owned transaction instead of separately adding a worktree and writing
 LC-01. Set the provider-bound
-`HEAD_SHA`, `BASE_REF`, `HEAD_REF`, and one RFC 3339 UTC `UPDATED_AT` alongside
-the discovery inputs, then run `review-leases.sh session-create`. A `success`
+`HEAD_SHA`, `BASE_REF`, and `HEAD_REF` alongside
+the discovery inputs, then run `review-leases.sh session-create`. Routine
+timestamps may be omitted; the [lease usage contract](references/review-leases-usage.md#timestamp-and-presentation-applicability)
+owns defaults and explicit UTC input validation. A `success`
 result is the only verified session identity. A `conflict` leaves no claimed
 created session; follow the existing discovery or LC-18 operator route. A
 `manual-cleanup` result preserves evidence for an operator and never grants
@@ -655,7 +657,10 @@ handoff.
 ## Phase 4: Run play-review
 
 Start by validating and consuming the Phase 3 handoff manifest from the target
-worktree root. Phase 4 must not rebuild range, scope, or prior-thread facts from
+worktree root. Retain the exact producer-returned `PRIOR_THREADS_FILE` through
+construction, validation, and handoff under the [canonical path contract](references/prior-thread-artifacts-usage.md#prior-thread-construction);
+reacquire producer output instead of reconstructing a basename. Phase 4 must
+not rebuild range, scope, or prior-thread facts from
 conversation text when the manifest is present. The `pr-review/handoff/v1`
 closed schema is the controller-to-review handoff record, but it carries no
 approval state, no lease state, and no GitHub review payload.
@@ -783,8 +788,19 @@ cd "$REVIEW_CALLER_DIR" || exit 1
 ```
 
 After the initial result manifest validates, write `reviewed` with
-`RESULT_FILE="$REVIEW_RESULT_FILE"`. If this write fails, stop before Phase 5;
-do not present a review result whose lease cannot be resumed.
+`RESULT_FILE="$REVIEW_RESULT_FILE"`. If this write fails, stop before Phase 5
+and retain completed evidence.
+Result construction/validation and lease finalization are separate operations
+from the semantic review. After correcting only operation inputs, revalidate
+the same repository and immutable head, unchanged source, complete intact
+semantic findings, and any already-produced result evidence applicable to the
+failed operation. A failed construction need not have produced a result file:
+retry its writer, then validate the resulting manifest before the
+`created`-to-`reviewed` write. For validation or lease-write failures, revalidate
+the complete existing evidence family before retrying that operation. Do not
+rerun a semantic reviewer solely for an operation failure. Changed source, identity, digest, or completeness returns
+through the existing review route; no `failed`-to-`reviewed` shortcut exists,
+and approval cannot transfer. Never preview an unfinalized lease.
 The reviewed lease records validated result evidence, not presentation. The
 detailed evidence-family and freshness contract lives in
 `references/review-lease-lifecycle-contract.md`.
@@ -956,8 +972,9 @@ cd "$REVIEW_CALLER_DIR" || exit 1
 ```
 
 After the preview render and result-manifest update validate, write `gated`
-with `RESULT_FILE="$REVIEW_RESULT_FILE"`, `PRESENTED_AT`, and
-`PRESENTATION_STATUS`. Refresh lease validation for every gate cycle; never
+with `RESULT_FILE="$REVIEW_RESULT_FILE"` and `PRESENTATION_STATUS`; omitted
+`PRESENTED_AT` uses the same operation instant as `UPDATED_AT`. Refresh lease
+validation for every gate cycle; never
 treat the `RESULT_FILE` path alone as freshness evidence. If the user edits the
 body or findings and the preview is re-rendered, update the same `gated` lease
 after the manifest update succeeds. The lease gate is still not approval.
@@ -980,7 +997,6 @@ PHASE5_AUDIT_SUMMARY=$(
     bash "$PR_REVIEW_MANIFEST_HELPER" render-phase5-audit-summary
 ) || PHASE5_AUDIT_STATUS=$?
 if [ "$PHASE5_AUDIT_STATUS" -ne 0 ]; then
-  REVIEW_GATE_FINISHED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   (
     cd "$REVIEW_CALLER_DIR" || exit 1
     REPOSITORY="<owner/repo>" \
@@ -994,9 +1010,7 @@ if [ "$PHASE5_AUDIT_STATUS" -ne 0 ]; then
     EXPECTED_STATE="gated" \
     BASE_REF="$PR_BASE_REF" \
     HEAD_REF="$REVIEW_HEAD_REF" \
-    UPDATED_AT="$REVIEW_GATE_FINISHED_AT" \
     RESULT_FILE="$REVIEW_RESULT_FILE" \
-    FINISHED_AT="$REVIEW_GATE_FINISHED_AT" \
     FAILURE_PHASE="preview-render" \
     FAILURE_REASON="Phase 5 artifact audit summary failed" \
     FAILURE_RECOVERABILITY="recoverable" \
@@ -1016,7 +1030,7 @@ read-only, uses optional-lock-free git status inspection, and must not record
 cleanup metadata. If summary rendering fails after the gate write, use the
 recovery-specific `record-audit-failure` command from the primary repository
 root to record `failed` with
-`FAILURE_PHASE=preview-render`, `FINISHED_AT`, `FAILURE_REASON`, and
+`FAILURE_PHASE=preview-render`, `FAILURE_REASON`, and
 `FAILURE_RECOVERABILITY`. That command derives the worktree identity from the
 existing gated lease, so it can record the failure even when the worktree is
 missing. Preserve prior validated artifacts only when they are current and

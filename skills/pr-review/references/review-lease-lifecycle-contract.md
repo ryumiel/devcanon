@@ -44,6 +44,30 @@ Valid states are:
   terminal state; failure audit metadata is recorded and valid recovery
   artifact pointers are preserved.
 
+## Operation inputs and recovery
+
+The [usage contract](review-leases-usage.md#timestamp-and-presentation-applicability)
+owns timestamp grammar, absent-value construction, and presentation input
+applicability. Timestamp cells below name the resulting transition evidence;
+they do not require callers to supply routine timestamps explicitly.
+
+Cleanup chronology is inclusive and compares every supplied fractional digit,
+without truncation or evidence-string rewriting. For example, terminal
+`2026-10-06T00:00:00.1234567Z` followed by cleanup
+`2026-10-06T00:00:00.1234568Z` is ordered; earlier submillisecond cleanup is
+refused. Whole seconds and trailing-zero fractions can denote the same instant.
+Same-cycle validation freshness still requires exact timestamp strings.
+
+A failed result construction, validation, or reviewed lease write stops preview
+and posting while retaining completed evidence. Correct only operation inputs,
+revalidate the same repository/head, complete intact semantic findings, and any
+already-produced result evidence applicable to that operation. A failed result
+construction may have no output yet: retry its writer and validate the resulting
+manifest before LC-03. Validation or lease-write retries require the complete
+existing evidence family. Changed source, identity, digest, or completeness
+invalidates reuse; approval never transfers. This adds no
+`failed`-to-`reviewed` transition or cleanup/publication authority.
+
 ## Transition Matrix
 
 Every valid transition is listed here. Missing rows fail closed. Same-state
@@ -139,7 +163,8 @@ the platform boundary in `docs/specs/platform.md`. Its guarantees are closed:
 
 The source-owned command contract remains closed. Required inputs are
 `REPOSITORY`, `PR_NUMBER`, `PRIMARY_REPOSITORY_ROOT`, `HEAD_SHA`, `BASE_REF`,
-`HEAD_REF`, and `UPDATED_AT`. Outcomes are `success`, `conflict`, and
+`HEAD_REF`. Routine timestamp construction follows the usage contract.
+Outcomes are `success`, `conflict`, and
 `manual-cleanup`. Conflict reasons are `discovery-not-create`,
 `reservation-contended`, `worktree-create-failed`, `lease-create-failed`,
 `final-verification-failed`, `interrupted`, and
@@ -409,8 +434,9 @@ failure, GitHub, or cleanup metadata.
 
 The current optional `cleanup` object is closed: it has exactly `last_outcome`,
 `last_checked_at`, and `removed_at`; outcomes are `removed`, `retained`,
-`skipped`, `failed`, or `null`; and non-null timestamps are RFC 3339 UTC at
-second precision with valid calendar dates. For terminal `posted` and `aborted`
+`skipped`, `failed`, or `null`; and non-null timestamps follow the
+[UTC input grammar](review-leases-usage.md#timestamp-and-presentation-applicability).
+For terminal `posted` and `aborted`
 leases, terminal cleanup chronology is inclusive: non-null `last_checked_at`
 is not before `terminal.finished_at`; non-null `removed_at` requires a
 non-null `last_checked_at`; `removed_at` is not before `terminal.finished_at`;

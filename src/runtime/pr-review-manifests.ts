@@ -2375,7 +2375,13 @@ function isSha256(value: string): boolean {
 }
 
 function isTimestamp(value: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u.test(value);
+  const wholeSeconds = value.replace(/\.\d+Z$/u, "Z");
+  return (
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/u.test(value) &&
+    !Number.isNaN(Date.parse(wholeSeconds)) &&
+    new Date(wholeSeconds).toISOString().replace(/\.\d{3}Z$/u, "Z") ===
+      wholeSeconds
+  );
 }
 
 function digestMatchesNullable(file: unknown, digest: unknown): boolean {
