@@ -64,14 +64,16 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
 ## Skipping the gate for "obvious" gated issues
 
 - **Problem:** Single-module issues sometimes have hidden cross-module dependencies
-- **Fix:** When `payload.research = gated`, always run the balanced/low
-  `assessor` gate. When `payload.research = forced`, skip the gate intentionally
+- **Fix:** When Preparation Selection requires gated investigation, run the balanced/low
+  `assessor` gate with its source guards. When `payload.research = forced`, skip the gate intentionally
   and carry `forced by --research` as the research reason
 
 ## Skipping brainstorming for "trivial" issues
 
-- **Problem:** A typo fix or one-line change feels too small to brainstorm, so the phase gets dropped — but the worktree-and-PR scaffold is the value, not the deliberation depth
-- **Fix:** Always run brainstorming. For genuinely trivial issues it returns in seconds with a one-line spec; that's fine and still goes through the pipeline
+- **Problem:** Size is mistaken for settled scope, ownership, approach and proof.
+- **Fix:** Apply Preparation Selection. Use a guarded Execution Note only when
+  the facts are complete and authorized; otherwise retain needed preparation.
+  Both routes reach candidate closure, full checks and independent Phase 7.
 
 ## Dropping remaining nits or reposting resolved feedback
 
