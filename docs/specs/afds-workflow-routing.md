@@ -297,7 +297,7 @@ the exact supported owner/host compatibility. Record the existing compatible
 owner's key and retain its mapping only after that validation; missing, stale,
 conflicting, unauthorized, or incompatible facts retain the mapping and wait or
 report. This reuse creates no owner, provider priming, or initial release. Its
-existing validated owner handoff, reviewed-plan provenance, controller-held
+existing validated owner handoff, selected preparation provenance, controller-held
 approved-route identity, and sequence acknowledgement remain prerequisites to
 receipt consumption. A previously bound key continues unchanged. Only when no
 compatible owner exists, preflight task-creation capability, then create
@@ -457,7 +457,7 @@ selection rule. Direct presentation neither invokes coordination back nor
 grants additional effect authority.
 
 Active authorized owners continue on intact bindings. Interrupted or resumable
-idle continuation validates the existing approved route, plan provenance,
+idle continuation validates the existing approved route, selected preparation provenance,
 refreshed source state and head when required, acknowledged positive progress
 sequence, and unfinished non-gate evidence before consuming a receipt. Genuine
 gates take precedence; missing or stale facts follow the existing wait or
@@ -787,6 +787,49 @@ route identity belongs to the
 [routing policy](../guidelines/agent-routing-and-mutation-policy.md#active-combined-planning-route).
 This section specifies observable guarantees, not an additional result schema.
 
+### PREP-000: Select preparation by unresolved decisions
+
+After issue/worktree adoption and current authority/source validation, the issue
+root selects useful preparation. Complete accepted scope, source owners and
+affected consumers, approach, preservation/failure/side-effect constraints and
+proof permit one Execution Note. Unfamiliar behavior or unresolved interactions,
+ownership, input custody, failure/recovery or verification receive needed
+investigation and coordinated design/planning. Forced research is honored
+before note selection even when other facts are settled; current qualifying
+findings return to selection and may support a note if no uncertainty remains. Size, file count or green tests alone never select the route. Larger
+work reuses current settled decisions; actual reviewed plans retain focused
+correction, bounded review and material reassessment.
+
+The root alone writes the note headed `Execution Note` in the existing
+direct-child `.ephemeral/YYYY-MM-DD-<topic>-design.md` carrier using existing
+design write safeguards. It records scope/non-goals, source/consumer and
+implementation ownership, approach, applicable constraints, documentation impact
+and proof. The design read guard and root-held exact note-byte hash bind current
+issue/source/root/base/head/working-tree identities before use. Missing,
+malformed, stale, unreadable or contradictory inputs stop dependent execution.
+No new schema, helper, digest artifact or eligibility certificate is introduced.
+
+Auto execution stays inline with the same authorized issue owner in the isolated
+checkout; interactive execution returns the note for the existing implementation
+authority decision. Changed inputs require affected-claim revalidation; new
+uncertainty stops dependent edits for needed preparation, and permission gaps
+take the genuine gate. A note supplies no Plan notice, reviewed digest, D5 PASS,
+reviewed tier, contract tag or auto-handoff. Plan-only consumers reject it,
+including direct FULL, mechanical and reduced routes.
+
+Both issue routes enter Candidate Closure and Source Freeze, applicable
+acceptance, full checks, independent Phase 7 branch review and exact publication
+approval. Source fixes invalidate downstream evidence. Notes remain local
+context with no publication or cleanup effects. Batch owner handoffs and
+receipts echo explicit `reviewed-plan` or `execution-note` provenance in the
+legacy-named `current_reviewed_plan_handoff_provenance` controller-local slot.
+Planned work keeps real D5/auto evidence; notes carry guarded path/digest,
+current issue validation and existing owner identity. The router compares kind,
+exact identity, original key, repository, owner/host, controller-refreshed source
+state, head and acknowledged sequence; changed kind or identity changes route
+facts. Missing or mixed evidence fails closed. A receipt never originates
+binding or approval; publication and terminal precedence remain unchanged.
+
 ### PLAN-001: Complete independent planning judgment
 
 One independent reviewer covers correctness and executability for the entire
@@ -935,6 +978,17 @@ gates remain unchanged except for the limited parent approval-satisfaction
 decision in PLAN-003.
 No global one-agent rule, simple/complex router, model comparison claim,
 automatic budget-limit approval or user-home installation is introduced.
+
+### Acceptance scenarios for proportional issue preparation
+
+| Scenario                                                                                 | Required behavior                                                                                                                                                                 |
+| ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Settled instruction edit names source owner, accepted intent, consumers and verification | One guarded Execution Note, same-owner inline implementation, candidate closure/full checks/independent Phase 7; no D5 or auto-handoff claims.                                    |
+| Provider/device findings expose unresolved input custody                                 | Needed investigation and coordinated design/planning resolve custody before dependent edits; reuse current settled decisions and retain focused correction/material reassessment. |
+| Note claims a D5 producer without an actual reviewed plan                                | Planned consumer refuses fabricated provenance; note identity is not approval.                                                                                                    |
+| Note bytes change while the retained hash stays old                                      | Inline consumer stops for stale note identity before dependent edits.                                                                                                             |
+| Otherwise settled work still has unresolved custody                                      | Selection requires the needed preparation even with green checks.                                                                                                                 |
+| Otherwise valid note requests unauthorized provider mutation                             | Genuine authority gate stops the mutation; neither note nor receipt grants permission.                                                                                            |
 
 ### Acceptance scenarios for the active contract
 

@@ -141,7 +141,7 @@ require an explicit provider boundary.
 | `current_head_sha`                             | Current branch or PR head SHA, optional until known.                                                                                                                               |
 | `current_gate_kind`                            | Waiting gate such as `issue-priming`, `plan-approval`, `review-response`, `ci-fix`, `merge-conflict`, `merge-routing`, `source-issue-reporting`, or `archival`.                    |
 | `current_approved_owner_route_identity`        | Current approved owner-route identity required to validate progress receipts.                                                                                                      |
-| `current_reviewed_plan_handoff_provenance`     | Current reviewed-plan handoff provenance required to validate progress receipts.                                                                                                   |
+| `current_reviewed_plan_handoff_provenance`     | Selected preparation provenance (`reviewed-plan` or `execution-note`); legacy field name retained for receipt compatibility.                                                       |
 | `source_issue_state_snapshot_digest`           | Digest of the provider-supported source-issue state snapshot used for the last decision.                                                                                           |
 | `last_owner_thread_report_digest`              | Digest of the last owner-thread gate report integrated by the parent.                                                                                                              |
 | `consumed_progress_receipt_sequences_by_route` | Controller-local bounded map of each owner route observed during this task's lifetime to its highest accepted positive sequence; distinct from gate-report and approval-gate keys. |
@@ -175,9 +175,14 @@ confirmed owner mapping.
 
 For receipt validation, the router holds controller approval, validated initial
 owner-handoff, and resumed-route facts: provider, issue, owner ID, approved
-route identity, reviewed-plan digest, auto-handoff identity, refreshed
-source-state digest, and current head when a branch or PR exists. Auto-handoff
-identity is non-authorizing provenance. Before any receipt, record an initial
+route identity, selected preparation kind/path/digest and its provenance,
+refreshed source-state digest, and current head when a branch or PR exists.
+`reviewed-plan` retains the actual reviewed digest, real D5 producer and
+non-authorizing auto-handoff identity. `execution-note` retains the guarded note
+path/digest, current issue-authority validation and existing owner identity,
+without D5 or auto-handoff claims. Missing, mixed, stale or fabricated provenance
+fails closed; neither variant grants publication or provider-mutation authority.
+Before any receipt, record an initial
 handoff only from the recorded owner, matching current provider/issue, with the
 controller-validated tuple. Only router source refresh supplies the source-state
 digest; an owner handoff cannot initialize or refresh it. A receipt cannot
@@ -194,7 +199,8 @@ the binding from changed input, checkout, report, or receipt.
 
 `current_approved_owner_route_identity` is the controller-derived current
 issue-authority identity: provider, issue, owner ID, issue-authority approval,
-reviewed-plan digest, auto-handoff identity, and refreshed source-state digest.
+selected preparation kind and exact identity/provenance, and refreshed
+source-state digest. A changed kind or preparation identity changes route facts.
 Record it before a receipt; changed components create a new identity. It is not
 owner- or receipt-supplied. Its approval identity is the complete
 `last_routed_issue_priming_route_key` recorded before or at source-specific
@@ -310,7 +316,7 @@ For each open batch item:
    and wait or report. A compatible mapped owner records that existing complete
    key while retaining its binding; it does not create an owner, begin provider
    priming, or release an initial continuation. It proceeds through the existing
-   validated owner-handoff, reviewed-plan provenance, controller-held approved
+   validated owner-handoff, selected preparation provenance, controller-held approved
    route identity, and sequence-acknowledgement prerequisites before any receipt
    consumption. Only for an item whose `owner_thread_id` remains missing after
    that reconciliation, use this owner-dispatch sequence: validate the complete
@@ -440,8 +446,10 @@ For each open batch item:
    `current_approved_owner_route_identity`, including the refreshed
    source-issue state snapshot digest. Keep the refreshed current head SHA as a
    separate mandatory receipt comparison whenever a branch or PR exists. Record
-   `current_reviewed_plan_handoff_provenance` from the reviewed plan digest and
-   non-authorizing auto-handoff identity. Only the router records or refreshes
+   `current_reviewed_plan_handoff_provenance` from the explicit preparation
+   variant defined above. This legacy-named controller-local slot accepts an
+   Execution Note identity, never fabricated planning approval; no ledger
+   schema or durable field is renamed. Only the router records or refreshes
    these bindings from those controller-held facts. A receipt must not
    initialize, refresh, authenticate, or validate either current binding.
    Missing controller-held facts fail closed rather than being inferred from a
@@ -457,7 +465,7 @@ For each open batch item:
    proven expected repository to the retained confirmed-owner/host binding, then
    validate every unfinished non-gate progress receipt fact against the current
    item: the same approved route
-   (`current_approved_owner_route_identity`), reviewed-plan provenance
+   (`current_approved_owner_route_identity`), selected preparation provenance
    (`current_reviewed_plan_handoff_provenance`), refreshed source-issue state
    snapshot digest, current head when required (the receipt must carry the
    current head SHA and it must match the refreshed controller-held head), and
@@ -620,7 +628,7 @@ they do not authorize live task creation during fixture evaluation.
 | The same monitor-only item has no compatible owner                                                                                                                                                                                                                           | Report without creation, start-work, route-key, or priming effect.                                                                                                                                                                                                                                                                              |
 | The same monitor-only item has unknown discovery capability                                                                                                                                                                                                                  | Wait or report without creation, start-work, route-key, or priming effect.                                                                                                                                                                                                                                                                      |
 | The same monitor-only item has unknown or ambiguous owner identity                                                                                                                                                                                                           | Wait or report without creation, start-work, route-key, or priming effect.                                                                                                                                                                                                                                                                      |
-| A later active start-work pass has that discovery-only mapping for owner O on host H, no pending creation or recorded key, a complete current controller tuple including the observed missing-owner/discovery state, applicable effect authority, and O/H remains compatible | Record the existing complete key while retaining O/H's mapping; do not create, prime, or initially release O. Use the existing validated owner-handoff, reviewed-plan provenance, approved-route identity, and sequence acknowledgement before consuming a receipt.                                                                             |
+| A later active start-work pass has that discovery-only mapping for owner O on host H, no pending creation or recorded key, a complete current controller tuple including the observed missing-owner/discovery state, applicable effect authority, and O/H remains compatible | Record the existing complete key while retaining O/H's mapping; do not create, prime, or initially release O. Use the existing validated owner-handoff, selected preparation provenance, approved-route identity, and sequence acknowledgement before consuming a receipt.                                                                      |
 | The same discovered mapping has exactly one absent active effect-authority fact                                                                                                                                                                                              | Retain the mapping and wait or report with no key, creation, priming, or release.                                                                                                                                                                                                                                                               |
 | The same discovered mapping has active authority but exactly one missing or stale complete-tuple fact                                                                                                                                                                        | Retain the mapping and wait or report with no key, creation, priming, or release.                                                                                                                                                                                                                                                               |
 | The same discovered mapping has a complete authorized tuple but O/H is incompatible                                                                                                                                                                                          | Retain the mapping and wait or report with no key, creation, priming, or release.                                                                                                                                                                                                                                                               |

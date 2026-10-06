@@ -24,6 +24,12 @@ Use the adjacent [inspect-plan-projection usage](references/inspect-plan-project
 
 Do not select this workflow from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language; the explicit-invocation rule itself is owned by this skill's frontmatter (`description` and `codex_sidecar` policy).
 
+Reject an Execution Note before projection, fallback, inline execution or
+dispatch: it is not `Plan:` input, direct unreviewed FULL, mechanical or reduced
+route evidence. `issue-priming-workflow` owns its separate same-owner inline
+route. A note digest supplies no combined D5 provenance or auto attestation;
+missing or invalid planned provenance retains the existing refusal behavior.
+
 Execute plan by dispatching fresh subagent per task. Multi-task plans use
 executor-owned risk-based per-task review routing; hard-risk or unclear tasks
 use `spec-and-quality`: dispatch separate D14 specification and D15 quality

@@ -22,6 +22,7 @@ import {
   type PrReviewResultCommandAuthorityInput,
   type PrReviewResultValidationContext,
   createPrReviewResultValidationContext,
+  readPrReviewResultForBaseline,
   validatePrReviewHandoffFacts,
   validatePrReviewHandoffObject,
   validatePrReviewResultCommandAuthority,
@@ -102,6 +103,18 @@ export async function runPrReviewManifestsCommand(
       case "validate-result":
         await validateResultCommand();
         return ok("");
+      case "read-result-for-baseline":
+        requireNoCommandArgs(commandName, args);
+        return ok(
+          `${json(
+            await readPrReviewResultForBaseline({
+              worktreeRoot: process.cwd(),
+              resultFile: requiredEnv("RESULT_FILE"),
+              repository: requiredEnv("REPOSITORY"),
+              prNumber: readPrNumber(),
+            }),
+          )}\n`,
+        );
       case "read-result-for-preview":
         requireNoCommandArgs(commandName, args);
         return ok(`${await readResultForPreview()}\n`);
@@ -127,7 +140,7 @@ export async function runPrReviewManifestsCommand(
         );
       default:
         throw new PrReviewManifestError(
-          "usage: review-manifests.sh prepare-handoff-write|write-handoff|validate-handoff|prepare-result-write|write-result|validate-result|read-result-for-preview|write-review-body|recover-review-body-publication|replace-findings|render-phase5-audit-summary|extract-pre-findings-markdown",
+          "usage: review-manifests.sh prepare-handoff-write|write-handoff|validate-handoff|prepare-result-write|write-result|validate-result|read-result-for-baseline|read-result-for-preview|write-review-body|recover-review-body-publication|replace-findings|render-phase5-audit-summary|extract-pre-findings-markdown",
         );
     }
   } catch (err) {

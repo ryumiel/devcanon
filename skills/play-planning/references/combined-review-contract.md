@@ -156,6 +156,12 @@ D10 as a planning route.
 
 ## Handoff and compatibility
 
+This contract applies to actual plans. Issue priming may instead select its
+Execution Note route for settled work; that note is consumed inline by the
+issue owner, never as a plan or combined PASS. No review notices, contract tag,
+reviewed tier or auto-handoff are synthesized for a note. Existing planned
+consumers and the review budget remain unchanged.
+
 After a valid current combined PASS, retain producer identity, contract tag,
 plan path, digest, coverage and successful cleanup in controller-local state.
 Emit the existing `Plan written to <path>.` and `Reviewed digest: <sha256>`

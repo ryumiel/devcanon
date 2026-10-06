@@ -18,7 +18,16 @@ architectural choice.
 
 ## Decision
 
-Retain closed readiness before drafting and exact-byte SHA-256 identity. Replace
+Select initial issue preparation by unresolved decisions, not size or passing
+checks. When current accepted scope, source/consumer ownership, approach and
+proof are fully specified and authorized, the issue controller writes one
+Execution Note in the existing guarded design carrier and implements inline.
+The note is local execution context and exact identity, never planning approval.
+Unresolved behavior, interactions, custody, failure or proof receive needed
+investigation and planning; explicit research requests remain honored.
+
+For actual plans, retain closed readiness before drafting and exact-byte
+SHA-256 identity. Replace
 the two planning sessions with one independent reviewer responsible for both
 remits. Require explicit complete coverage rather than inferring executability
 from a correctness PASS. Permit one comprehensive initial review and at most
@@ -45,7 +54,12 @@ owns observable requirements and evaluation limits.
 Activate the planning producer and all coupled consumers together. Distinguish
 combined review with explicit controller-local provenance; do not create a
 persisted result registry or reinterpret legacy PASS results. Preserve separate
-exact-digest user approval and all external authority gates.
+exact-digest user approval and all external authority gates. The note route
+never enters plan-only helpers, mechanical/reduced executor routes or D5/auto
+handoff contracts. Batch continuation distinguishes preparation kind and exact
+identity in existing controller-local provenance. Both issue routes retain
+source protection, candidate closure, full checks, independent final branch
+review and exact publication authority; changed source invalidates later evidence.
 
 ## Consequences
 

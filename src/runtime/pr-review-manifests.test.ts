@@ -114,6 +114,132 @@ afterAll(async () => {
   await commandHarness.dispose();
 });
 
+// Historical consumption owns coverage evidence; terminal completion remains wrapper policy.
+describe("pr-review historical baseline consumption", () => {
+  it("reads a relocated local docs finding after a repair without current publication authority", async () => {
+    const workspace = await makeManifestWorkspace("baseline-", [
+      {
+        ...auditFinding("F1", "Documentation blocker"),
+        category: "Documentation",
+        body: String(auditFinding("F1", "Documentation blocker").body).replace(
+          "| Tests",
+          "| Documentation",
+        ),
+      },
+    ]);
+    setSummaryEnv(workspace);
+    process.chdir(workspace.worktree);
+    const result = JSON.parse(await readFile(workspace.resultFile, "utf8"));
+    result.presentation = { notes: "finalization failed" };
+    result.approval = "historical approval must not escape";
+    result.review_body_file = ".ephemeral/missing.md";
+    const relocated = ".ephemeral/retained-local-review.json";
+    await writeFile(relocated, JSON.stringify(result));
+    await writeFile("README.md", "Documentation repair\n");
+    await commandHarness.run("git", ["add", "README.md"]);
+    await commandHarness.run("git", ["commit", "-m", "docs repair"]);
+    const repairedHead = (
+      await commandHarness.run("git", ["rev-parse", "HEAD"])
+    ).stdout.trim();
+    process.env.RESULT_FILE = relocated;
+    Reflect.deleteProperty(process.env, "HEAD_SHA");
+
+    const outcome = await runManifestCommand(["read-result-for-baseline"]);
+    expect(outcome.exitCode, outcome.stderr).toBe(0);
+    const evidence = JSON.parse(outcome.stdout);
+    expect(evidence.review_head_sha).toBe(workspace.headSha);
+    expect(evidence.findings.findings[0]).toMatchObject({
+      category: "Documentation",
+      id: "F1",
+    });
+    expect(evidence).not.toHaveProperty("approval");
+    expect(evidence).not.toHaveProperty("presentation");
+    expect(await readFile(relocated, "utf8")).toBe(JSON.stringify(result));
+    await expect(
+      commandHarness.run("git", [
+        "merge-base",
+        "--is-ancestor",
+        evidence.review_head_sha,
+        repairedHead,
+      ]),
+    ).resolves.toMatchObject({ stdout: "" });
+    expect(
+      (
+        await commandHarness.run("git", [
+          "diff",
+          "--name-only",
+          `${evidence.review_head_sha}..${repairedHead}`,
+        ])
+      ).stdout.trim(),
+    ).toBe("README.md");
+    process.env.HEAD_SHA = repairedHead;
+    const preview = await runManifestCommand(["read-result-for-preview"]);
+    expect(preview.exitCode).toBe(1);
+  });
+
+  it.each([
+    ["repository", "result repository mismatch"],
+    ["pr", "result PR number mismatch"],
+    ["commit", "reviewed commit unavailable"],
+    ["findings-missing", "findings file missing"],
+    ["findings-digest", "findings digest mismatch"],
+    ["scope-digest", "scope decision digest mismatch"],
+    ["incomplete", "incomplete review routes"],
+    ["findings-head", "findings review head mismatch"],
+    ["symlink", "must not be a symlink"],
+  ])(
+    "refuses historical %s evidence without writes",
+    async (dimension, diagnostic) => {
+      const workspace = await makeManifestWorkspace(
+        "baseline-invalid-",
+        dimension === "incomplete" ? [] : undefined,
+      );
+      setSummaryEnv(workspace);
+      process.chdir(workspace.worktree);
+      const result = JSON.parse(await readFile(workspace.resultFile, "utf8"));
+      if (dimension === "repository") process.env.REPOSITORY = "other/repo";
+      if (dimension === "pr") process.env.PR_NUMBER = "433";
+      if (dimension === "commit") result.review_head_sha = "f".repeat(40);
+      if (dimension === "findings-missing") await rm(workspace.findingsFile);
+      if (dimension === "findings-digest")
+        await writeFile(
+          workspace.findingsFile,
+          `${await readFile(workspace.findingsFile, "utf8")}\n`,
+        );
+      if (dimension === "scope-digest") {
+        const scopeFile = result.artifacts.scope_decision_file;
+        await writeFile(scopeFile, `${await readFile(scopeFile, "utf8")}\n`);
+      }
+      if (dimension === "incomplete" || dimension === "findings-head") {
+        const findings = JSON.parse(
+          await readFile(workspace.findingsFile, "utf8"),
+        );
+        if (dimension === "incomplete")
+          findings.incomplete_review_routes = [
+            { route: "D7", disposition: "FAILED" },
+          ];
+        else findings.review_head_sha = "f".repeat(40);
+        await writeJson(workspace.worktree, workspace.findingsFile, findings);
+        result.digests.findings_sha256 = await sha256File(
+          workspace.findingsFile,
+        );
+      }
+      if (dimension === "symlink") {
+        const link = ".ephemeral/linked.json";
+        await symlink(path.basename(workspace.resultFile), link);
+        process.env.RESULT_FILE = link;
+      }
+      await writeJson(workspace.worktree, workspace.resultFile, result);
+      const before = await readFile(workspace.resultFile, "utf8");
+      const outcome = await runManifestCommand(["read-result-for-baseline"]);
+      expect(outcome.exitCode).toBe(1);
+      expect(outcome.stdout).toBe("");
+      expect(outcome.stderr).toContain(diagnostic);
+      expect(await readFile(workspace.resultFile, "utf8")).toBe(before);
+    },
+  );
+});
+
 describe("pr-review manifest handoff validation", () => {
   it.each([
     {

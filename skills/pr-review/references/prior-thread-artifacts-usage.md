@@ -69,6 +69,26 @@ existing custody path. The adapter prepares the destination and validates the
 written file; the controller owns its bounded content write. Existing cleanup
 remains unchanged.
 
+## Local prior coverage
+
+Completed local PR findings enter the existing untrusted prior-review context
+with substantive finding IDs and origin commits for resolution checks. They are
+not provider threads: do not fabricate thread IDs/locations, populate an empty
+provider envelope as proof of local completion, or use branch-findings on the
+PR surface. Supply the retained local result/findings reference as an existing
+optional prior-review input before ordinary shared-context preparation. Under
+the [shared review context](../../play-review/references/shared-review-context.md)
+owner, retain original evidence identity/bytes separately and construct bounded
+`prior_review_context.records` with the local source reference, substantive IDs
+and origin commits in the sanitized summary, and `untrusted: true`. This uses
+the existing open source-kind/reference fields, not a new manifest or provider
+thread. Actual provider capture keeps the existing envelope contract.
+Establish baseline identity, independent terminal completion, applicable findings,
+coverage chain, and comparison before preparing scope. The existing scope
+schema prior-context pair continues to describe only actual provider threads;
+local claims are carried separately through shared review context. Preserve both
+on full escalation, and recompute hints after final scope selection.
+
 ## Scope-decision construction
 
 The runtime validator is the sole schema and acceptance authority. After

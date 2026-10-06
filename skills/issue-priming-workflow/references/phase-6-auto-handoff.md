@@ -5,6 +5,15 @@ read and [write-auto-handoff usage](write-auto-handoff-usage.md) for handoff
 creation. A nonzero helper result stops Phase 6 before executor dispatch; this
 workflow does not provide an inline fallback.
 
+## Applicability
+
+This is the reviewed-plan route only. Preparation Selection's Execution Note
+route executes inline in the issue owner and emits no auto-handoff or planning
+approval. It cannot use executor fallback, direct FULL, mechanical or reduced
+routes. Missing planned provenance stops planned execution rather than becoming
+note eligibility. Both routes share Candidate Closure and Source Freeze,
+full checks and the Phase 7 Final-Review Guarantee below.
+
 ## Artifact Schema
 
 The handoff artifact has schema `issue-priming/auto-handoff/v1`, identifies
