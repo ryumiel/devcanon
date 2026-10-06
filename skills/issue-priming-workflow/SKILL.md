@@ -24,7 +24,7 @@ codex_sidecar:
 
 Use the adjacent [phase-artifacts usage](references/phase-artifacts-usage.md), [source-immutability usage](references/source-immutability-usage.md), [write-research-brief usage](references/write-research-brief-usage.md), [write-auto-handoff usage](references/write-auto-handoff-usage.md), and [write-assumptions-comment usage](references/write-assumptions-comment-usage.md) for reusable helper mechanics. This workflow owns phase decisions and provider continuation.
 
-Continue an issue-priming workflow handed off by `linear-issue-priming` or `github-issue-priming`. The source entrypoint has already fetched the issue, provisioned or reused the issue worktree, and written the issue body to `.ephemeral/`. This workflow gates complexity, optionally researches, brainstorms, and (in `--auto` mode) plans, implements, reviews, and creates a PR.
+Continue an issue-priming workflow handed off by `linear-issue-priming` or `github-issue-priming`. The source entrypoint has already fetched the issue, provisioned or reused the issue worktree, and written the issue body to `.ephemeral/`. This workflow selects useful preparation from current accepted scope and source authority, then (in `--auto` mode) implements, reviews, and creates a PR. Unresolved decisions receive the needed investigation, design and reviewed planning; fully specified work uses the execution-note route below.
 
 ## Inputs
 
@@ -258,6 +258,79 @@ missing or unreadable.
 
 **If brainstorming concludes "don't implement":** Clean up the worktree with `play-branch-finish` (option: discard). A durable owner referral notice is a "don't implement" conclusion for this workflow.
 
+## Preparation Selection
+
+After Phase 1, the issue root validates current issue authority and inspects the
+named source owners, accepted outcome/scope, approach, affected consumers and
+required verification. Apply Preparation Provenance before selecting a route;
+optional comment evidence supports interpretation but grants no authority.
+Honor `payload.research = forced` before selecting a note, even when other
+facts are settled: use Phase 3 and its qualifying-evidence requirements. After
+that research, return to selection with its current findings; if all decisions
+remain settled, a note may reference them without a separate design or plan.
+Do not repeat an already satisfied research request with unchanged inputs.
+
+- When these facts are complete, compatible and authorized, use one Execution
+  Note. Omit separate assessor, research, brainstorm and planning dispatches
+  that would only restate settled decisions.
+- Unfamiliar behavior or unresolved interactions, ownership, input custody,
+  failure/recovery or proof require the relevant investigation and coordinated
+  design/planning. Use Phases 2–5 as needed, preserving their dispatch guards
+  whenever invoked. Reuse settled decisions and current evidence; reviewed-plan revisions retain the planning owner's
+  focused correction, review budget and material reassessment rules.
+- Missing product, policy or mutation authority takes the existing genuine
+  gate. File count, issue size, green checks and impatience never establish
+  eligibility. A large issue can be settled; a single instruction edit can
+  require design. Do not create an eligibility score or certificate.
+
+When omitting a settled stage on the planned route, retain the current accepted
+artifact inputs required by the next consumer, with Preparation Provenance
+validation. Planning still needs an actual accepted design: reuse its guarded
+path and retained producer provenance, or invoke brainstorming to author the
+missing design. Do not invent a design notice, assessor result or review PASS.
+
+### Execution Note: guarded local context
+
+The issue root alone writes one direct-child
+`.ephemeral/YYYY-MM-DD-<topic>-design.md`, headed `# Execution Note`, using
+`play-brainstorm`'s **After the Design / Save** write safeguards before writing.
+This existing carrier is the sole execution-preparation artifact for this route,
+without a duplicate brainstorm design or plan. Retain needed research briefs
+and current prior evidence as references; do not discard them on note selection.
+Record accepted outcome/scope and non-goals; source authority and affected
+surfaces/consumers; responsible implementation owner and approach; preservation,
+failure and side-effect constraints; documentation impact and required proof.
+Reference settled decisions rather than reproducing them.
+
+Before reading or using the note, invoke `phase-artifacts validate-read design`
+under the adjacent usage contract. The root checks semantic completeness and
+retains the exact note-byte hash in controller-local state with current issue
+validation, source references/content identities, repository root, base/head
+and working-tree state. No new helper, schema or persistent digest artifact is
+introduced. Missing, malformed, unreadable, stale or contradictory inputs stop
+before dependent execution and return to selection or the missing owner.
+
+The note is execution context and identity, never approval. Emit no `Plan
+written`, `Reviewed digest`, planning-review tag, D5 PASS, reviewed tier or
+auto-handoff for it. Do not pass it as `Design:` to planning or `Plan:` to the
+executor, including direct unreviewed FULL, mechanical skip-dispatch or reduced
+routes. It supplies no publication, provider-mutation or cleanup authority;
+preserve the note and worktree under their existing lifecycle owners.
+
+Without `--auto`, return the note path and bounded decision summary for the
+user's existing implementation authority decision; do not implement. With
+`--auto`, the same authorized issue owner executes inline within the isolated
+checkout and accepted scope. Compare guarded exact note bytes and current
+issue/source/root/base/head/dirty-state identity immediately before execution
+and after changed inputs. Account for authorized implementation edits and
+commits explicitly; never reset others' changes or treat changed state as
+unchanged preparation. Revalidate affected claims; uncertainty stops dependent
+edits for needed preparation, and permission gaps take the genuine gate.
+Bounded implementation choices remain with the owner. Completion enters
+Candidate Closure and Source Freeze, applicable acceptance, full repository
+checks, mandatory independent Phase 7 review and exact publication approval.
+Every later source fix invalidates downstream evidence as on the planned route.
+
 ## Subagent Lifecycle
 
 Use `subagent-lifecycle` before dispatching the Phase 2 assessor, Phase 3 investigator leaves, or any other direct subagent.
@@ -283,8 +356,9 @@ Phase 3 investigator, run
 
 ## Phase 2: Complexity Gate
 
-The gate is evaluated for `payload.research = gated`. Only the research phase
-(Phase 3) is conditional based on the gate's output.
+When Preparation Selection requires investigation with `payload.research = gated`,
+run this gate. Its output decides Phase 3 research, not execution-note
+eligibility. Forced research follows the existing Phase 3 route.
 
 Dispatch one response-only `assessor`, balanced/low and source-immutable,
 using the prompt template in `references/gate-agent-prompt.md`. The assessor
@@ -694,7 +768,9 @@ RESEARCH_BRIEF_PATH=$(
 
 ## Phase 4: Invoke Brainstorming
 
-Invoke the `play-brainstorm` skill with the combined context below.
+After research, return to Preparation Selection. Invoke `play-brainstorm`
+with the combined context below only when design/planning remains needed;
+settled findings may instead support a guarded Execution Note.
 
 `<source-noun>` below is `Linear` when `payload.source` is `linear` and `GitHub` when `payload.source` is `github`.
 
@@ -728,7 +804,7 @@ Issue body: <repo-relative-path from payload.issue-body-path>
 Comment evidence: <repo-relative-path from payload.comment-evidence-path>
 
 ## Research Brief
-Skipped — <reason from assessor>. Proceed with codebase exploration in brainstorming.
+Skipped — <actual assessor reason, or root source-grounded selection reason when no assessor ran>. Proceed with codebase exploration in brainstorming.
 ```
 
 **Args format when internal research failed:**
@@ -781,8 +857,9 @@ gates.
 
 This section is the sole normative owner of the closed genuine-gate/non-gate
 vocabulary for an exact approved `--auto` route. An exact approved route has
-the current issue authority, the reviewed plan handoff, and the existing owner
-route identity; absent that evidence, do not classify work as continuation.
+the current issue authority, the selected preparation handoff (Execution Note
+or actual reviewed plan), and the existing owner route identity; absent that
+evidence, do not classify work as continuation.
 Consumers reference this section and must not define a competing list.
 
 The following are non-gate continuation work on that route and continue without
@@ -812,13 +889,19 @@ gates; `--auto` does not supply missing authority.
 
 ## Phases 5-8: Autonomous Execution (`--auto` only)
 
-These phases run only when `--auto` is set. They chain automatically after brainstorming.
+These phases run only when `--auto` is set. The reviewed-plan route chains after
+brainstorming through Phases 5–6; the Execution Note route implements inline
+under Preparation Selection and joins Candidate Closure and Source Freeze.
 
-**`--auto` removes user checkpoints. It does not remove phases.** The full pipeline runs end-to-end unless `play-brainstorm` emits the explicit durable owner referral notice, which first takes the Phase 1 "don't implement" cleanup path and then stops. Only the gates between phases are bypassed. Phases are never skipped, streamlined, or short-circuited because an issue "looks simple," because a teammate is impatient, or because CI is green.
+**`--auto` preserves assurance and authority gates.** Preparation Selection
+determines useful initial preparation, never apparent simplicity or green CI.
+Both executable routes retain candidate closure, full checks, independent
+Phase 7 review and exact publication authority. A durable owner referral from
+brainstorming still takes the Phase 1 "don't implement" cleanup path and stops.
 
-### Phase 5: Write Plan
+### Phase 5: Write Plan (reviewed-plan route)
 
-After `play-brainstorm` returns, first check whether it emitted the literal
+For a fresh design, after `play-brainstorm` returns, first check whether it emitted the literal
 durable owner referral notice:
 
 ```
@@ -829,7 +912,9 @@ When this notice is present, do not fall through to design-path validation or
 later phases. Clean up the adopted issue worktree through `play-branch-finish`
 option 4 (discard), then stop `--auto` and report the referral plus cleanup
 result. When no durable owner referral notice is present, capture the literal
-`Design written to <path>.` notice line it emitted. Validate the captured path
+`Design written to <path>.` notice line it emitted. When Selection reuses an
+accepted design instead, retain its actual guarded path and validated producer
+provenance without claiming a new notice. Validate the selected path
 before reading it:
 
 ```bash
@@ -856,7 +941,7 @@ Comment evidence: <repo-relative-path from payload.comment-evidence-path>
 
 Do not wait for user review of the plan — proceed directly to implementation after `play-planning` returns. The plan path is captured from the producer notice line emitted by `play-planning`.
 
-### Phase 6: Implement
+### Phase 6: Implement (reviewed-plan route)
 
 After `play-planning` returns, capture its literal
 `Plan written to <path>.`, `Reviewed digest: <sha256>`, and
@@ -962,7 +1047,7 @@ Phase 7 final-review guarantee, both defined in
 [`references/phase-6-auto-handoff.md`](references/phase-6-auto-handoff.md)
 §§ "Single-Task Final-Review Carve-Out" and "Phase 7 Final-Review Guarantee".
 
-`play-subagent-execution` may execute trivial single-task plans inline (skip-dispatch path; see its [skip-dispatch policy](../play-subagent-execution/references/skip-dispatch-policy.md)). Phase 6 itself remains "invoke `play-subagent-execution`" — the inline optimization is internal to that skill. Four runtime guardrails (single-task, `**Mode:** mechanical`, structural task-contract gate satisfied, no TDD expectations or legacy TDD step-pair markers) plus one upstream precondition (current combined D5 provenance from Phase 5) gate the path; the runtime guardrails are checked by the skill's controller after plan extraction. A missing or invalid required contract checklist stops before implementation rather than falling back to mechanical dispatch.
+`play-subagent-execution` may execute trivial single-task plans inline (skip-dispatch path; see its [skip-dispatch policy](../play-subagent-execution/references/skip-dispatch-policy.md)). On the reviewed-plan route, Phase 6 remains "invoke `play-subagent-execution`" — the inline optimization is internal to that skill. Four runtime guardrails (single-task, `**Mode:** mechanical`, structural task-contract gate satisfied, no TDD expectations or legacy TDD step-pair markers) plus one upstream precondition (current combined D5 provenance from Phase 5) gate the path; the runtime guardrails are checked by the skill's controller after plan extraction. A missing or invalid required contract checklist stops before implementation rather than falling back to mechanical dispatch.
 
 Successful `play-subagent-execution` completion returns control to this owning
 workflow. Phase 6 completion is not terminal; it enters Candidate Closure and
@@ -977,7 +1062,8 @@ guidance does not prescribe repository-specific fixtures or wrappers.
 ### Candidate Closure and Source Freeze
 
 The shared workflow owns one proportional **Candidate Closure and Source
-Freeze** checkpoint between Phase 6 and downstream evidence. It is the only
+Freeze** checkpoint between completed implementation (inline note or Phase 6) and
+downstream evidence. It is the only
 route from completed implementation, or any later source mutation, to
 acceptance, full validation, or Phase 7. It records no artifact, schema,
 registry, cache, helper result, or persistent lifecycle state: the controller
@@ -1116,14 +1202,18 @@ blockers; Phase 8 PR readiness, creation, or update blockers; created PR and
 current head result reports; terminal owner-thread state; and source-issue
 reporting gates surfaced from implementation. Before the first non-gate
 progress receipt on a batch-routed `--auto` route, it also sends an initial
-owner-handoff report after the Phase 6 route validation. This is an existing
+owner-handoff report after selected preparation route validation. This is an existing
 controller report with report kind `owner-handoff`, not a receipt or a gate
 report. It carries the source provider and issue identifier, delegated owner
 thread identity, exact approved route identity, current issue-authority
-validation, reviewed plan digest, non-authorizing auto-handoff identity, and
+validation, explicit preparation kind/path/digest and its provenance, and
 the refreshed current head SHA whenever a branch or PR exists. The batch
 controller retains the refreshed source-issue state snapshot digest from its
 own source refresh; the owner-handoff cannot originate or refresh that fact.
+For `reviewed-plan`, preserve the actual reviewed digest, real D5 producer and
+non-authorizing auto-handoff identity. For `execution-note`, report the guarded
+note path/digest, current issue validation and existing owner identity without
+D5, reviewed-plan or auto-handoff claims. These variants are never interchangeable.
 For batch-routed handoffs, it reports the received canonical
 `batch-source-issue-identifier`, not the provider-native payload identifier.
 It also echoes the complete `issue-priming` route key received as
@@ -1165,8 +1255,10 @@ during this task's bounded controller lifetime, so a changed binding selects a
 different retained entry without clearing the earlier one. Only after that may
 a producer emit a receipt. An unfinished non-gate progress receipt must identify the exact
 approved owner route, the source provider and source issue identifier, the
-delegated owner-thread identity, and the current reviewed-plan handoff
-provenance. It must also carry a positive, strictly increasing per-route
+delegated owner-thread identity, and the selected preparation kind and exact
+handoff provenance described above. A changed kind or identity changes route
+facts; missing or mixed provenance uses the incomplete or gate path. It must
+also carry a positive, strictly increasing per-route
 progress sequence. Before the first receipt and after every accepted receipt,
 the controller's continuation dispatch supplies the route's acknowledged next
 required sequence and refreshed source-issue state snapshot digest; echo both
@@ -1196,7 +1288,7 @@ progress receipt.
 
 ## Common Mistakes
 
-See [`references/common-mistakes.md`](references/common-mistakes.md) for failure-mode write-ups (writing specs outside the worktree, nested worktrees, skipping the gate / brainstorming / nit classification, shared PR authoring bypass, and treating out-of-band authorization as merge consent).
+See [`references/common-mistakes.md`](references/common-mistakes.md) for failure-mode write-ups (writing specs outside the worktree, nested worktrees, bypassing needed preparation / nit classification, shared PR authoring bypass, and treating out-of-band authorization as merge consent).
 
 ## Red Flags — You Are Violating This Skill
 
@@ -1216,6 +1308,6 @@ See [`references/red-flags.md`](references/red-flags.md) for the full list and t
 ## What This Skill Does NOT Do
 
 - **Without `--auto`:** Does not write code, create PRs, or manage implementation.
-- **With `--auto`:** Does not merge PRs (the PR is the user's review gate); does not skip phases except for the explicit durable owner referral cleanup stop; does not silently pick between equally-valid design options (stops and asks instead).
+- **With `--auto`:** Does not merge PRs (the PR is the user's review gate); selects initial preparation under Preparation Selection and preserves common assurance gates; does not silently pick between equally-valid design options (stops and asks instead).
 
 See [`references/scope.md`](references/scope.md) for the expanded list.

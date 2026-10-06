@@ -19,6 +19,13 @@ Help turn ideas into fully formed designs through natural collaborative dialogue
 
 Start by understanding the current project context, then ask questions one at a time to refine the idea. Once you understand what you're building, present the design and get user approval.
 
+For issue-controller preparation, `issue-priming-workflow` owns selection by
+actual unresolved decisions. A fully specified, authorized edit may use its
+Execution Note route without invoking this skill. Once invoked for needed
+design or explicitly requested brainstorming, the requirements below apply;
+issue size or green checks never waive them. Reuse current accepted decisions
+and investigate unresolved ones rather than restating settled material.
+
 ## Inputs
 
 This skill accepts an issue body and, optionally, a research brief and comment

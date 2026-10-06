@@ -27,6 +27,13 @@ approve the combined-contract migration itself.
 
 Do not select this workflow from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language; the explicit-invocation rule itself is owned by this skill's frontmatter (`description` and `codex_sidecar` policy).
 
+Issue preparation applicability belongs to `issue-priming-workflow` Preparation
+Selection. Its Execution Note is local context, not this skill's design/plan
+input or review result. Needed planning consumes unresolved decisions and
+current accepted sources; unchanged decisions can be referenced under current
+freshness rules. Once planning is invoked, readiness, projection, combined D5,
+exact digest, correction budget and material reassessment remain mandatory.
+
 ## Overview
 
 Write comprehensive task-spec plans assuming the engineer has zero context for

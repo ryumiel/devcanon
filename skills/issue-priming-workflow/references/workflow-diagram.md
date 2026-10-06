@@ -9,6 +9,9 @@ digraph priming {
   worktree [label="1. Worktree\nAdopt handed-off\nworktree + issue body"];
   helpers [label="Helper guards\nphase-artifacts.mjs\nwrite-* helpers", shape=box];
   immutable_guard [label="D1-D3 source-immutable guard\nresolve configured full model + independent effort; validate complete tuple\nfresh Codex fork_turns:none; response-only; zero handoffs\ncapture -> spawn -> verify -> validate -> cleanup -> apply", shape=note];
+  selection [label="Preparation Selection\nCurrent authority + sources\nSettled scope, owner, approach, proof?", shape=diamond];
+  note [label="Guarded Execution Note\nExisting design carrier; no approval"];
+  inline [label="Same-owner inline implementation\nRevalidate note + inputs; stop on uncertainty"];
   gate [label="2. Gate\nassessor balanced/low\nfresh history-free child\nassesses complexity"];
   decide [label="Research?", shape=diamond];
   external_policy [label="Root dispatches zero or one conditional external investigator total\nImmediate and late paths are mutually exclusive\nexternal dispatch names network access", shape=note];
@@ -37,7 +40,15 @@ digraph priming {
   downstream_evidence [label="Applicable acceptance + full validation\nonly for frozen candidate"];
   stop_interactive [label="STOP\nReturn to user"];
 
-  worktree -> helpers -> immutable_guard -> gate -> decide;
+  worktree -> helpers -> selection;
+  selection -> note [label="complete + authorized; forced research satisfied"];
+  selection -> immutable_guard -> gate -> decide [label="needed investigation"];
+  selection -> external_policy [label="forced research; D2-D3 guards apply"];
+  selection -> brainstorm [label="needed design; investigation settled"];
+  selection -> plan [label="--auto; current accepted design; planning needed"];
+  note -> inline [label="--auto"];
+  note -> stop_interactive [label="interactive"];
+  inline -> candidate_closure;
   decide -> external_policy [label="yes"];
   decide -> brainstorm [label="no"];
   external_policy -> immediate_external_decide;
@@ -58,7 +69,7 @@ digraph priming {
   research_outcome -> research_synthesize [label="full success or useful external failure\nwith bounded uncertainty"];
   research_internal_inline -> brainstorm;
   research_synthesize -> research_persist;
-  research_persist -> brainstorm;
+  research_persist -> selection [label="current qualifying findings"];
   brainstorm -> referral_check;
   referral_check -> cleanup [label="yes"];
   cleanup -> referral;
