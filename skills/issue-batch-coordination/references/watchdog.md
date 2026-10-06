@@ -10,17 +10,34 @@ authority. Do not create a custom scheduler or require a watcher agent.
 Before an effect, confirm applicable retained scheduling and messaging
 authority, accepted batch scope, verified controller and existing owner/host
 and repository bindings, readable canonical skill policy, and the host's
-supported schedule and task controls. Inspect existing schedules and local
-notification state for this batch, including target and status. Missing or
-ambiguous authority, recipient, target, policy, or capability holds the affected
-action with the concrete missing fact; independently authorized owner reports
-can continue. Model, effort, cadence, and repository post-merge commands are
-user-configured within host limits; do not choose a universal setting.
+supported controls for the selected mode. For a separate watcher, also validate
+separate task, schedule, observation, messaging, and task-model controls.
+Inspect any existing watcher and schedule against the batch,
+repository, controller, known recipients, identity, target, status, retained
+authority, and local notification state before reuse. Missing or ambiguous
+authority, recipient, target, policy, or capability holds the affected action
+with the concrete missing fact; independently authorized owner reports can
+continue. Reuse a compatible monitor with its applicable model, effort, and
+cadence intact, including an existing three-minute cadence or explicit model
+override. Do not impose a universal interval or reset existing settings to new
+watcher defaults. Honor a recorded explicit user stop: it blocks automatic
+recreation unless later explicit scheduling authority supersedes it.
+
+For requested new monitoring, default to a supported, separately authorized
+watcher. Use the main skill's already-rendered `WATCHER_MODEL` in the host task's
+supported model setting, unless an applicable explicit user model override
+takes precedence. Effort is independently user-configured within host limits;
+the model binding supplies no effort. Missing, unresolved, or rejected binding
+or model control holds activation with the concrete limitation. Do not
+rediscover source or ambient configuration, substitute a model, or silently
+fall back to a heartbeat. Independently authorized owner-driven coordination
+continues when monitoring is unavailable. Repository post-merge commands remain
+separately authorized and user-configured.
 
 Choose one active mode for the batch:
 
-- **Coordinator heartbeat:** reuse an applicable existing schedule, attached to
-  the current controller where supported. Its prompt invokes
+- **Coordinator heartbeat (explicitly selected):** reuse an applicable existing
+  schedule, attached to the current controller where supported. Its prompt invokes
   `issue-batch-coordination`, which retains ledger and routing authority. Start
   the prompt with the target's explicit invocation instruction:
   - Codex: `Use $issue-batch-coordination for this controller's existing batch.`
@@ -51,10 +68,11 @@ Choose one active mode for the batch:
   owner, write the batch ledger, or route work. It must report missing authority
   or capability rather than substitute coordinator behavior.
 
-Reuse an applicable existing schedule for the selected mode. To switch modes,
-pause or retire the old schedule through its host control and verify the
-observed stop before activating the competing mode. Unknown stop status holds
-activation. If inspection finds competing active monitors, reconcile them
+Reuse an applicable existing schedule for the selected mode after the binding
+and stop checks above. To switch modes or replace a monitor, pause or retire
+the old schedule through its host control and verify the observed stop before
+activating the competing mode. Unknown stop status holds activation. If
+inspection finds competing active monitors, reconcile them
 through authorized host controls and verify one active mode before continuing.
 The prompt selects canonical policy; it does not copy policy or
 grant provider mutation. Keep policy revision or fingerprint evidence in the
@@ -116,8 +134,9 @@ The router verifies completion of every accepted item and all separately
 authorized post-merge obligations. No open PR is not completion. Preserve
 required evidence before removing a worktree. Then stop or pause the schedule
 through the owning host control and record the observed result separately from
-chat archival. Honor an explicit user stop. If the control is unavailable,
-report the unresolved stop rather than claiming shutdown. If scheduling is
+chat archival. Honor an explicit user stop and retain it to prevent automatic
+recreation unless superseded by later explicit scheduling authority. If the
+control is unavailable, report the unresolved stop rather than claiming shutdown. If scheduling is
 unavailable, continue owner-driven coordination and report that no later
 wakeup is armed. A scheduled local task still depends on its host, controller,
 skill bundle, and working directory remaining available.

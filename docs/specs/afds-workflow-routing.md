@@ -477,13 +477,32 @@ configurable within host limits. Missing authority, ambiguous binding, unreadabl
 policy, or unsupported control holds the affected action with a concrete reason;
 independently authorized owner reports continue.
 
-Exactly one monitoring mode may be active for a batch: a heartbeat waking the
-existing coordinator, or a separately authorized watcher restricted to external
-observation and notification. Inspect and reuse a matching existing schedule.
-Before changing modes, pause or retire the predecessor and verify its state;
-unknown stop status holds competing activation. A heartbeat invokes coordination
-with its existing ledger and routing authority. A separate watcher may retain
-only local notification state and notify existing recipients. It cannot approve,
+Exactly one monitoring mode may be active for a batch. When monitoring is
+requested and separate task, schedule, observation, messaging, and task-model
+controls are supported and authorized, default to a separate watcher restricted
+to external observation and notification. A coordinator heartbeat requires
+explicit selection; unsupported or rejected watcher controls never silently
+select a heartbeat. Independently authorized owner-driven coordination continues
+when monitoring is unavailable.
+
+A new watcher uses the already-rendered target-native `efficient` model binding
+from the coordinator skill in the host task's supported model setting, unless an
+applicable explicit user model override takes precedence. Effort remains an
+independent explicit setting. Missing, unresolved, or rejected bindings or model
+controls hold watcher activation with the concrete limitation; do not substitute
+an ambient model or rediscover configuration.
+
+Inspect an existing watcher and schedule against the batch, repository,
+controller, recipients, identity, target, status, authority, and notification
+state before reuse. Preserve compatible settings and cadence, including an
+existing three-minute cadence or explicit model override; the default applies
+to new watchers and does not impose a universal interval. An explicit user stop
+blocks automatic recreation unless later explicit scheduling authority supersedes
+it. Before changing modes or replacing a monitor, pause or retire the predecessor
+and verify its state; unknown stop status holds competing activation.
+A heartbeat invokes coordination with its existing ledger and routing authority.
+A separate watcher may retain only local notification state and notify existing
+recipients. It cannot approve,
 implement, merge, mutate a provider, create or replace an owner, or write the
 batch ledger. Neither mode introduces a custom scheduler or mandatory agent.
 

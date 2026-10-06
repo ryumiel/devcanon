@@ -34,7 +34,7 @@ manifest:
 capabilityProfiles:
   efficient:
     claude: claude-haiku-4-5-20251001
-    codex: gpt-5.6-luna
+    codex: gpt-6-luna
   balanced:
     claude: claude-sonnet-5
     codex: gpt-6.1-sol

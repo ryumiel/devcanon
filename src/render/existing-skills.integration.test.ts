@@ -254,6 +254,34 @@ describe("shipped skill rendering", () => {
     }
   });
 
+  // ROUTE-007-MONITOR owns the new-watcher model default. Generic placeholder
+  // tests do not prove that the shipped coordinator exposes the task binding.
+  it("binds the shipped watcher model to the configured target-native efficient profile", async () => {
+    const efficient = {
+      claude: "claude-watcher-custom",
+      codex: "gpt-watcher-custom",
+    };
+    const { outputs } = await renderAll(
+      {
+        ...shippedSkillsConfig,
+        capabilityProfiles: {
+          ...shippedSkillsConfig.capabilityProfiles,
+          efficient,
+        },
+      },
+      false,
+      true,
+    );
+
+    for (const target of TARGETS) {
+      const { body } = parseFrontmatter(
+        getSkillOutput(outputs, "issue-batch-coordination", target).content,
+      );
+      const binding = body.match(/`WATCHER_MODEL` = `([^`]+)`/u);
+      expect(binding?.[1]).toBe(efficient[target]);
+    }
+  });
+
   it("keeps rendered workflow model consumers bound to their owner-supplied models", async () => {
     const config = await loadConfig(
       path.join(process.cwd(), "devcanon.config.yaml"),
