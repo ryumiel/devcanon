@@ -1118,6 +1118,8 @@ export async function validatePrReviewPreparationHandoff(input: {
     REPOSITORY: input.repository,
     PR_NUMBER: String(input.prNumber),
     HEAD_SHA: input.reviewHeadSha,
+    // Bind the initiating helper identity before entering the artifact worktree.
+    PR_REVIEW_DIR: path.resolve(await resolvePrReviewDir()),
   };
   const previous = new Map(
     Object.keys(env).map((key) => [key, process.env[key]]),
