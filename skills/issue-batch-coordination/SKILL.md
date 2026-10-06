@@ -4,6 +4,7 @@ description: Coordinates issue batches across existing owners, dependencies, rea
 requires:
   - issue-batch-routing
   - play-review-response
+  - pr-review
 codex:
   license: MIT
   metadata:
