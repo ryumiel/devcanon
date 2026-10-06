@@ -410,8 +410,10 @@ the reference's approval, refetch, and resolution rules.
 When invoked by `issue-batch-routing` or an owning workflow, read
 [`references/batch-reporting.md`](references/batch-reporting.md) before
 producing a review-response approval-gate, blocker, pushed-head, verification,
-or thread-disposition report. Include provider-tagged source identity and the
-complete relevant route key. This entry remains the normative workflow owner;
+or thread-disposition report. Select coordinator delivery under that procedure;
+keep routine work local and combine related results where possible. Include
+provider-tagged source identity in the delta and retain the complete relevant
+route key in accessible supporting evidence, validated before dependent action. This entry remains the normative workflow owner;
 the reference is its subordinate procedure and cannot override the entry. If
 it is unavailable, stop before producing the report and report the blocker.
 

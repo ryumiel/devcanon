@@ -1237,13 +1237,19 @@ must wait or report rather than emit an owner-handoff. The batch controller
 records these controller-held facts before it consumes a receipt; a later
 receipt cannot initialize or authenticate them.
 
-Produce these complete controller reports when their existing trigger occurs,
-even if coordination selects no user notice. An active owner does not wait for
-acknowledgement of routine internal progress before continuing authorized
-non-gate work. Do not invent a controller acknowledgement or source-state
-digest to make a receipt appear complete.
+Retain complete supporting reports locally. Deliver a compact delta under
+`issue-batch-routing`'s Delivery and evidence contract only for a distinct
+coordinator action, dependency readiness, exhausted recovery, a material change
+affecting pending action or recorded readiness, or verified completion. Initial
+owner-handoff still establishes the required routing facts; it may reference
+complete evidence that the controller resolves and validates before use.
+Routine fixes, intermediate checks, preparation, recoverable failures and
+unchanged waits stay local, even when no user notice is selected. Combine
+related result reports where possible without delaying readiness invalidation.
+An active owner continues authorized work without routine acknowledgement.
+Do not invent acknowledgement or source-state evidence for a recovery receipt.
 
-Every gate report should include the source provider and source issue identifier
+Every complete supporting gate report should include the source provider and source issue identifier
 from the payload, except batch-routed reports must use the unchanged canonical
 `payload.batch-source-issue-identifier` rather than `payload.identifier`,
 delegated owner-thread identity when known, branch name when known, PR provider
@@ -1260,6 +1266,12 @@ reporting without an available provider-specific workflow becomes a
 parent/manual-action report.
 
 ## Issue Batch Routing Progress Receipts
+
+Use receipts for interrupted-owner continuation and recovery, not routine
+per-step reporting or acknowledgement checkpoints. An active authorized owner
+keeps intermediate evidence local and continues work. When recovery needs a
+receipt, all identity, freshness, provenance and sequence requirements below
+remain mandatory, including when complete evidence travels by reference.
 
 Before initial continuation, the controller records the current route binding
 from its existing approved-route facts. Before resumed continuation, the
