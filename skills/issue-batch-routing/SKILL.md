@@ -872,8 +872,9 @@ reapproval. Missing, stale, or overly broad action evidence may update only
 `last_reported_approval_waiting_key`; it must not consume the actual approval
 route key. Once a matching current instruction and evidence are available,
 re-evaluate the owner/host, head, route key, and allowed effect before routing
-and updating `last_routed_approval_gate_key`. Historical approvals, route keys,
-receipt sequences, continuity, and terminal safeguards remain intact.
+and updating `last_routed_approval_gate_key`. Preserve applicable standing
+authority, continuity and terminal safeguards, retaining only still-needed
+operational markers under [Operational retention](#operational-retention).
 
 ## Safe Approval Templates
 
