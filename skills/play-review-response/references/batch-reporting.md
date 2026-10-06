@@ -20,8 +20,16 @@ workflow. After a no-code reply, the owner decides whether a fresh-review
 request is needed and whether current authority and host capability support it.
 Report a concrete missing authority or capability when they do not. A posted
 reply does not mean a new review is running; do not imply a watcher will repeat
-requests or a reviewer will respond. A thumbs-up is review evidence for the
-owner and router to reconcile, not merge authority or proof that current-head,
+requests or a reviewer will respond. Confirmed Connector quota/unavailability
+is forwarded to the coordinator for one reconciled independent fallback under
+ROUTE-007-REVIEW; pending eyes alone is insufficient. Report the complete
+current verdict or the precise missing evidence, not task creation as approval.
+For a changed head, report classification, retained covered authority, concrete
+pre-push summary, validation, local/pushed head, and the needed or completed
+independent scope-selected follow-up so the router refreshes its action binding.
+Do not request generic renewed publication/merge permission for a covered
+in-scope correction; genuine scope/authority gaps still stop. A thumbs-up is
+review evidence for the owner and router to reconcile, not merge authority or proof that current-head,
 CI, protection, and unresolved-feedback checks passed. Keep those checks with
 the owning merge and routing workflows.
 

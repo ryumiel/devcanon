@@ -67,8 +67,12 @@ A separate watcher retains only the provider event identity, observed PR head,
 known recipient binding, and observed delivery outcome required to suppress
 duplicate or unchanged observations. It does not infer a recipient from a PR
 alone. New review comments and applicable current-head review signals go to
-the known owner. Failed delivery, ambiguous ownership, or completion needing
-coordination goes to the existing controller. A failed delivery remains
+the known owner. Confirmed Connector review quota or unavailability goes to
+the existing coordinator for policy/head validation and independent fallback
+under ROUTE-007-REVIEW; slow eyes alone does not establish that event. The
+watcher neither dispatches fallback nor decides review readiness. Failed
+delivery, ambiguous ownership, or completion needing coordination goes to the
+existing controller. A failed delivery remains
 actionable; never record it as successful deduplication. Missing recipient or
 messaging permission holds delivery with a concrete report, never a replacement
 task.

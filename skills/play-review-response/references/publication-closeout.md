@@ -6,8 +6,11 @@ Read this procedure before any push, GitHub reply, resolve, or comment side effe
 
 Before any push, GitHub reply, GitHub resolve, or GitHub comment side effect for
 review-response work, stop at the Pre-Push Review Gate and wait for explicit
-approval unless an active owning workflow already has an approved posting gate
-that covers the same side effects.
+approval unless current retained publication authority from the active owning
+workflow covers the same in-scope correction and listed side effects. Its
+approved posting gate may supply that authority. Covered correction publication
+does not require a generic renewed permission request; missing or stale
+authority, scope expansion, new choices, or exceptions use the existing gate.
 
 The gate summary must include:
 
@@ -22,8 +25,17 @@ The gate summary must include:
 
 Do not treat "push it", "respond", or "looks good" as permission to skip this
 gate when the workflow has not yet seen the local-state, verification, and
-intended-action summary. After approval, perform only the listed side effects;
+intended-action summary. Present that summary even with retained authority.
+After the gate is satisfied, perform only the listed side effects;
 new side effects require another gate summary.
+
+A changed candidate requires validation and independent current follow-up under
+`pr-review`'s existing full-versus-narrow scope policy before review readiness
+or merge. Prior coverage is context, never changed-head approval. Report the
+new local/pushed head so the router can refresh the affected action binding.
+Retained publication authority grants neither thread reply/resolve permission
+nor merge readiness; apply their separate current gates. Reviewer nits remain
+report-only unless a separately qualified scoped correction is authorized.
 
 ## Pushed-Fix and Outcome Thread Closure
 

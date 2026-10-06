@@ -549,7 +549,13 @@ after matching approval evidence has been routed to the owner thread.
 For PR providers that expose these signals, evaluate gates in this order:
 
 1. Draft PRs wait unless the owner thread reports that draft status is stale.
-2. Active blocking review-bot signals block merge.
+2. Reconcile supported current PR/head review evidence under the accepted
+   conditional policy in ROUTE-007-REVIEW. Applicable thumbs-up may satisfy its
+   review condition after findings/nits disposition; eyes blocks only while
+   genuinely pending. A completed current provider result overrides lingering
+   reactions. Active blocking results still block merge. Missing, ambiguous,
+   stale, or incomplete required evidence waits; without accepted policy,
+   preserve configured gates.
 3. Stale approval signals tied to an older head SHA do not count.
 4. Merge conflicts route to the owner thread for the PR's current base branch when a PR exists, or for configured/default base evidence when no PR base is known. Unknown base evidence waits instead of assuming `origin/main`; do not assume `origin/main` unless it is proven as the current or configured base.
 5. Unresolved inline review threads route to the review-response workflow unless already routed for the same complete review-response route key, including source provider, source issue identifier, PR provider, PR identifier, head SHA, and unresolved-thread-set digest.
@@ -559,8 +565,8 @@ For PR providers that expose these signals, evaluate gates in this order:
    non-draft, CI-green or pending CI, conflict-free, no unresolved review
    threads, no active blocking bot signal, branch protection permits merge or
    is compatible with waiting for CI, any required human merge approval is
-   present, and any configured approving bot signal is fresh for the current
-   head SHA.
+   present, and the configured review condition is satisfied by fresh current-head
+   evidence, including an accepted conditional result when applicable.
 
 Pending CI that is already inside the merge path belongs to `pr-merge` polling,
 not a separate CI-fix route. A provider that does not expose one signal should
@@ -570,10 +576,30 @@ Pending CI routes to `pr-merge` for polling only after every non-CI merge gate
 is satisfied. Non-CI merge gates include non-draft status, conflict-free or
 mergeable state, no unresolved review threads, no active blocking bot signal,
 branch protection and review state compatible with waiting for CI, required
-human merge approval when policy requires it, and any configured approving bot
-signal fresh for the current head SHA. `pr-merge` may merge only after pending
-CI becomes green and current merge protections still pass. Failing CI that
+human merge approval when policy requires it, and the configured review
+condition satisfied by fresh current-head evidence under the applicable policy.
+`pr-merge` may merge only after pending CI becomes green and current merge protections still pass. Failing CI that
 requires repair is not pending merge-path polling.
+
+Confirmed Connector quota/unavailability under an accepted conditional policy
+routes observation to the coordinator's independent `pr-review` fallback.
+Retain the existing complete `bot-review-signal` key and context; reconcile and
+reuse or suppress the unchanged fallback rather than duplicate tasks or review
+requests. Validate current recipient/reviewer independence and PR/head bindings.
+Only a complete current passing review with required verification passes the
+review condition, never task creation, partial evidence, or same-account GitHub
+APPROVE. Findings return to the implementation owner; missing authority,
+control, bindings, or verdict waits or reports.
+
+For authorized in-scope corrections, preserve covered fix/publication authority
+without a generic renewed request, while requiring the review-response concrete
+pre-push summary. A changed local or remote head invalidates old-head approval:
+require validation and independent current follow-up under `pr-review`'s
+existing scope selector, carrying applicable prior coverage only as context.
+Refresh the existing affected action/route binding against the new head before
+its effect. Scope expansion, new choices, exceptions, or missing authority use
+the existing owner/approval gate. This does not change report-only reviewer nits,
+thread permissions/refetches, feedback, CI, or protection requirements.
 
 ## Source-Issue State
 

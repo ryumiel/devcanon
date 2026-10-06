@@ -82,7 +82,29 @@ Classify output:
 
 ## Step 3: Preflighted Merge
 
-Before any merge command, gather PR metadata:
+Immediately before any merge command, refetch the current PR/head, feedback,
+review state, CI, and protections. For an accepted batch/router handoff, verify
+its required existing current merge action binding.
+
+Under an accepted conditional policy in ROUTE-007-REVIEW, applicable supported
+current-head thumbs-up or a complete current passing independent fallback
+verdict with required verification may satisfy the review condition. Genuinely
+pending eyes waits; a completed current provider result overrides lingering
+reactions. Missing, ambiguous, stale, partial, or task-only evidence cannot
+approve, and same-account GitHub APPROVE is not independent fallback evidence.
+Without accepted policy, configured gates remain unchanged.
+
+For an authorized in-scope correction, require validation, independent current
+follow-up selected by `pr-review`'s existing full-versus-narrow policy, and a
+refreshed applicable action binding for the changed head. Prior coverage is
+context, never old-head approval. Covered conditional merge authority needs no
+generic renewed
+permission; missing authority, scope expansion, new choices, or exceptions stop
+at the existing gate. Remaining feedback, required human approval, green CI,
+and current branch protections must still pass. Do not merge if the head changes
+again before execution.
+
+Gather PR metadata:
 
 - `headRefName`
 - `baseRefName`

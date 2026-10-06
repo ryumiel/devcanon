@@ -162,6 +162,22 @@ fix, or a successful experiment into scope authority. Keep acceptance and
 validation proportional to the approved behavior; do not add a general repair
 or proof framework to clear a batch.
 
+For confirmed Connector review quota or unavailability, apply the accepted
+conditional policy in ROUTE-007-REVIEW.
+Validate supported provider evidence, policy, current PR/head, and independent
+recipient/reviewer bindings before dispatch. Slow eyes alone is not this event.
+Use the router's existing complete `bot-review-signal` context to reconcile and
+reuse an existing independent `pr-review` task or create one when supported and
+authorized; suppress duplicate unchanged fallback tasks and review requests.
+Keep route eligibility and keys with the router and review lifecycle with
+`pr-review`. Only its complete current passing verdict, including all required
+verification, satisfies the conditional review gate; task creation, partial
+results, and same-account GitHub APPROVE do not. Return findings to the existing
+implementation owner for classified correction, validation, and independent
+scope-selected changed-head follow-up. Missing authority, host control,
+bindings, or complete verdict holds the affected handoff and reports the gap;
+never invent an owner or review approval.
+
 Track actual producer/consumer dependencies separately from shared-file
 conflicts. Two issues editing one registry may need publication sequencing or
 conflict resolution without one requiring the other's behavior. Use a stack

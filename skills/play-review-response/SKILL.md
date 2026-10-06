@@ -330,8 +330,10 @@ review-response work, read
 [`references/publication-closeout.md`](references/publication-closeout.md)
 and apply its complete Pre-Push Review Gate, current-thread refetch sequence,
 and separate resolution eligibility. Stop for explicit approval unless an active
-owning workflow already has an approved posting gate covering the same listed
-side effects. Reply permission does not grant resolution permission; human
+owning workflow retains current publication authority covering the same
+in-scope correction and listed side effects, as specified by that gate. Always
+present its concrete summary; covered publication needs no generic renewed
+request. Reply permission does not grant resolution permission; human
 threads stay unresolved by default without the reference's current-list
 approval, reviewer confirmation, or repository-policy delegation. This entry
 remains the normative workflow owner; the reference is its subordinate
