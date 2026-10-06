@@ -196,6 +196,37 @@ function runPlayReviewSharedContextCommand(
   );
 }
 
+it("refuses terminal recreation that would erase preparation failure custody", () => {
+  const created = reducePrReviewLease(null, identity, {
+    state: "created",
+    baseRef: "main",
+    headRef: "topic",
+    createdAt: "2026-06-11T00:00:00Z",
+    updatedAt: "2026-06-11T00:00:00Z",
+  });
+  const terminal: PrReviewLease = {
+    ...created,
+    state: "aborted",
+    terminal: { finished_at: "2026-06-11T00:01:00Z", reason: "user abandoned" },
+    preparation_failures: [
+      {
+        directory: ".ephemeral/provider-scope-capture.retained",
+        scope_sha256: "a".repeat(64),
+        diagnostics_sha256: "b".repeat(64),
+      },
+    ],
+  };
+  expect(() =>
+    reducePrReviewLease(terminal, identity, {
+      state: "created",
+      baseRef: "main",
+      headRef: "topic",
+      createdAt: "2026-06-11T00:02:00Z",
+      updatedAt: "2026-06-11T00:02:00Z",
+    }),
+  ).toThrow("preparation failure history");
+});
+
 interface DiscoveryResult {
   disposition: string;
   canonical_worktree_present: boolean;

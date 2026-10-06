@@ -93,10 +93,66 @@ updates are valid only when the matching row says so.
 | LC-16 | `record-failure`              | `failed`              | `failed`   | `FINISHED_AT`, `FAILURE_PHASE`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, `UPDATED_AT`                                                                                                |
 | LC-17 | `retry-post-success`          | `failed`              | `posted`   | Prior failure is `github-post`, `FINISHED_AT`, `GITHUB_POSTED_AT`, `UPDATED_AT`                                                                                                         |
 | LC-18 | `archive-terminal-and-create` | `posted` or `aborted` | `created`  | `CREATED_AT`, `UPDATED_AT`                                                                                                                                                              |
+| LC-19 | `recover-preparation`         | `failed`              | `created`  | Fully validated current `HANDOFF_FILE`, `HEAD_SHA`, `UPDATED_AT`; eligible pre-handoff failure only                                                                                     |
 
 All other transitions are forbidden. `stale-head` is a valid failure phase for
 post-freeze refusal, but it is not eligible for LC-17 retry-to-post; it must
 return through review discovery or a fresh approval path before posting.
+
+## Preparation recovery and retained custody
+
+LC-19 is available only to the existing owner of a `failed` lease whose
+failure is `handoff-validation` and `recoverable`, with no accepted handoff,
+result, approval, payload, presentation, or GitHub post evidence. It attaches
+a fully validated current handoff and creates no semantic result. Preserve
+repository, PR, registered physical worktree, base/head refs, and original
+`created_at`; recheck exact supplied `HEAD_SHA` against the worktree head and
+full canonical handoff, scope, provider, and prior validation. Existing strict
+chronology applies. There is no failed-to-reviewed transition.
+
+Before LC-19 publication, exclusively archive the exact old failed lease bytes
+in the existing timestamped `failed` archive family. Unequal archive collisions
+refuse. Repeated pre-handoff failure recording also archives the previous failed
+lease. Validation or archive refusal preserves the active lease and evidence.
+
+Optional `PREPARATION_FAILURE_DIRS` is a JSON array of exact repo-relative
+controller-owned direct-child `provider-scope-capture.*` scratch directories.
+The optional backward-compatible `preparation_failures` lease array contains
+closed `{directory, scope_sha256, diagnostics_sha256, second_pair?}` records.
+`second_pair`, when present, is closed `{scope_sha256, diagnostics_sha256}`.
+Each real nonsymlink directory contains exactly regular nonsymlink
+`failed-scope.json` and nonempty `validator.stderr`, or those files plus fixed
+`second-failed-scope.json` and nonempty `second-validator.stderr`. No arbitrary
+pair names, missing pair member, fifth file, nested path or symlink qualifies.
+Absence of `second_pair` binds exactly two files; presence binds exactly four.
+Record and recheck every pair's exact byte digests. Directories and candidate
+digests must be unique within and across all records. Distinct records inherit
+through all subsequent states, including both pairs unchanged.
+
+Custody requires a fully validated corrected scope and handoff. Each failed
+candidate must equal that scope after replacing `semantic_decision.checked`,
+`language_hints`, and accompanying explanatory `semantic_decision.notes` with
+its validated values. At least checked or hints must differ; notes-only
+candidates refuse. Both old/current notes must be strings. All identity,
+provider path/digest, ranges, prior inputs, ambiguous flags, selected mode,
+mechanical facts and every remaining substantive field must match exactly.
+The original reviewer independently confirms that note evolution explains the
+same already-selected scope and does not substitute a new substantive decision;
+helpers cannot certify judgment from note wording. Original note bytes remain
+hashed in the failed candidate. Actual completed semantic assessment remains
+owner judgment. This closed demonstrated family does not enroll arbitrary
+malformed evidence. Explicit original-owner legacy paths use the same checks;
+names alone grant no custody. Full validation precedes every lease write
+claiming custody.
+
+Recovery never deletes, moves, or rewrites failed bytes or diagnostics.
+Discovery may read explicit current recovery handoff/scratch inputs to prove
+this same eligible lease's custody and offer resume; it remains read-only and
+refuses dirty source, unrelated artifacts, ambiguity, and broken registration.
+Only fully validated candidate/provider/prior inputs become ordinary handoff
+ownership. Cleanup always retains a worktree with preparation-failure history,
+even after terminal completion or with policy override. Terminal advancement
+cannot erase that history. Custody grants preservation, never deletion.
 
 ## Session creation boundary
 

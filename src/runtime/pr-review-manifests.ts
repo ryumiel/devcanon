@@ -1117,6 +1117,42 @@ function formatMarkdownCodeSpan(value: string): string {
   return `${delimiter} ${value} ${delimiter}`;
 }
 
+/** Full preparation authority, evaluated in the registered review worktree. */
+export async function validatePrReviewPreparationHandoff(input: {
+  worktreeRoot: string;
+  handoffFile: string;
+  repository: string;
+  prNumber: number;
+  reviewHeadSha: string;
+  leaseBaseRef: string;
+  leaseHeadRef: string;
+}): Promise<JsonObject> {
+  const env = {
+    REPOSITORY: input.repository,
+    PR_NUMBER: String(input.prNumber),
+    HEAD_SHA: input.reviewHeadSha,
+    // Bind the initiating helper identity before entering the artifact worktree.
+    PR_REVIEW_DIR: path.resolve(await resolvePrReviewDir()),
+  };
+  const previous = new Map(
+    Object.keys(env).map((key) => [key, process.env[key]]),
+  );
+  Object.assign(process.env, env);
+  try {
+    return await withCwd(input.worktreeRoot, async () => {
+      await validateHandoffFile(input.handoffFile);
+      const handoff = await readJsonObject(input.handoffFile, "handoff file");
+      await validatePrReviewHandoffFacts(handoff, input.handoffFile, input);
+      return handoff;
+    });
+  } finally {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
+
 async function validateHandoffFile(file: string, identityFile = file) {
   await requireRepoRoot();
   readPrNumber();
@@ -1795,17 +1831,16 @@ async function resolvePrReviewDir(): Promise<string> {
   const candidates: string[] = [];
   if (process.env.PR_REVIEW_DIR !== undefined) {
     candidates.push(process.env.PR_REVIEW_DIR);
-  } else if (process.env.PR_REVIEW_MANIFEST_HELPER_SCRIPT !== undefined) {
-    candidates.push(
-      path.dirname(path.dirname(process.env.PR_REVIEW_MANIFEST_HELPER_SCRIPT)),
-    );
-    candidates.push(
-      path.dirname(
-        path.dirname(
-          await realpath(process.env.PR_REVIEW_MANIFEST_HELPER_SCRIPT),
-        ),
-      ),
-    );
+  } else {
+    for (const script of [
+      process.env.PR_REVIEW_MANIFEST_HELPER_SCRIPT,
+      process.env.PR_REVIEW_LEASE_HELPER_SCRIPT,
+    ]) {
+      if (script !== undefined) {
+        candidates.push(path.dirname(path.dirname(script)));
+        candidates.push(path.dirname(path.dirname(await realpath(script))));
+      }
+    }
   }
   for (const candidate of candidates) {
     const helper = path.join(candidate, "scripts/prior-thread-artifacts.sh");

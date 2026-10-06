@@ -1001,6 +1001,17 @@ setup failure, not product evidence. These requirements use
 existing validators and owners; they add no path guessing, fixture convention,
 approval gate, review budget, or semantic-review substitute.
 
+For PR-review preparation, the existing owner may correct distinct mechanically
+determinable never-accepted input errors under the original authorization,
+preserving failed bytes and diagnostics before each replacement and proving
+controller-local digest/error progress. Full canonical validation remains
+required before handoff or semantic dispatch. The
+[review lease lifecycle owner](../../skills/pr-review/references/review-lease-lifecycle-contract.md#preparation-recovery-and-retained-custody)
+defines same-head LC-19 recovery and its narrow retained-custody family. Recovery
+preserves failed lease history and cannot supply semantic completion or erase
+preparation failure evidence through cleanup. No-progress, stale identity,
+broken custody or substantive ambiguity stops through the existing owner.
+
 D18 remains the semantic review-context owner on every invocation that currently
 requires it. Research does not replace D18 and this proposal does not authorize
 cross-invocation reuse of D18 results. `play-review` owns context preparation and

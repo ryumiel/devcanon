@@ -567,21 +567,46 @@ cd "$REVIEW_CALLER_DIR" || exit 1
 ```
 
 The scope decision remains an **unaccepted candidate** until this full
-`validate-scope-decision` call succeeds. If it fails on a positively identified
-shape error in the controller's own newly written candidate, and that
-candidate has never passed validation or entered a handoff, the controller may
-make **one** manual correction. First preserve the exact failed file bytes and
-validator stderr as separate regular files in one fresh controller-owned
-private `.ephemeral` scratch directory, using the adapter's
-`create-provider-scope-scratch` and `remove-provider-scope-scratch` lifecycle.
-Do not replace the canonical file if either preservation fails. Recheck the
-current verified head, provider evidence path and digest, range and prior facts,
-and semantic/mechanical inputs against those used for construction. Only if
-they are unchanged, replace that same canonical candidate path once and run
-the full validator again. A second failure stops; retain the failed bytes,
-stderr, and current inputs for diagnosis. On success, clean only that exact
-owned scratch directory; cleanup failure stops before handoff. The
-`validate-scope-decision` result is the sole continuation gate.
+`validate-scope-decision` call succeeds. The existing owner may correct distinct,
+positively identified mechanically determinable errors in its own never-accepted
+candidate under the original review authorization. No coordinator approval or
+replacement reviewer is needed for each routine correction.
+
+Before every replacement, preserve exact failed bytes and validator stderr as
+`failed-scope.json` and `validator.stderr`, regular nonsymlink files in one fresh
+controller-owned directory returned by `create-provider-scope-scratch`. Preserve
+these directories on success too; remove only a successful validation attempt's
+scratch that contains no retained failure evidence. Do not replace the candidate if preservation fails. Recheck
+current verified head, provider evidence path/digest, full and active ranges,
+prior inputs, and completed substantive semantic/mechanical decisions. Reconstruct
+through the [canonical input owner](references/prior-thread-artifacts-usage.md),
+correct only the identified mechanically derivable error, and run the full
+validator after every correction and before handoff or semantic dispatch.
+
+Track attempted candidate digests and corrected error/field identities in
+controller-local context. Stop with a concrete blocker on an unchanged candidate,
+a repeated unresolved error, a reused candidate/cycle, inability to prove
+progress, substantive ambiguity, or an actual runtime limitation. Two distinct
+correctable errors alone do not stop recovery. This progress boundary adds no
+persistent retry counter or automatic loop and does not change semantic budgets
+or completeness requirements.
+
+For an existing recoverable pre-handoff failed lease, construct and fully validate
+the current handoff first, then use LC-19 from the physical primary root:
+`STATE=created`, `EXPECTED_STATE=failed`, exact current `HEAD_SHA`, `HANDOFF_FILE`,
+unchanged `BASE_REF`/`HEAD_REF`, and fresh `UPDATED_AT`. Supply
+`PREPARATION_FAILURE_DIRS` as the JSON array of exact preserved scratch paths.
+Discovery may read these same explicit inputs before publication. The
+[lifecycle owner](references/review-lease-lifecycle-contract.md#preparation-recovery-and-retained-custody)
+defines the closed two-file or fixed four-file/two-pair custody family, full validation,
+byte-exact archive, and permanent worktree retention. When an original scratch contains both fixed candidate/stderr pairs, retain and
+bind both pairs in place. Explanatory semantic notes may evolve only alongside
+checked/hint correction, with both notes strings and independently confirmed
+unchanged substantive selection. Notes-only candidates or changes to meaningful
+decisions refuse. Other malformed or
+unprovable evidence remains unmanaged and blocks this route. Recovery attaches
+preparation only; an incomplete result never supplies semantic completion,
+fallback-review completion, or merge readiness.
 
 This correction route does not apply to an accepted artifact, stale head or
 base, provider or source mismatch, missing accepted evidence, broken custody,
