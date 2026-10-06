@@ -512,8 +512,10 @@ Owner reports remain the primary continuation signal. A separate watcher keeps
 the observed provider event identity, PR head, known recipient binding, and
 delivery outcome needed to suppress duplicate or unchanged observations. New
 comments and applicable current-head review signals reach the known owner;
-failed delivery, ambiguous ownership, and completion needing coordination reach
-the controller. A failed delivery remains actionable rather than counting as a
+confirmed Connector review quota or unavailability, failed delivery, ambiguous
+ownership, and completion needing coordination reach the controller. Slow or
+lingering eyes alone do not establish quota or unavailability. A failed delivery
+remains actionable rather than counting as a
 successful notification. Missing recipient or permission holds delivery; it
 does not authorize replacement creation. Notification proves neither action nor
 completion nor route, approval, or current-head authority. Receivers reconcile
@@ -527,9 +529,37 @@ request is needed, supported, and authorized. Every review wait names an
 expected external event or a supported authorized trigger, or reports the
 concrete missing authority or capability. The reply itself does not start a
 review. Monitoring does not repeatedly request reviews or guarantee a reviewer
-response. A thumbs-up is evidence only under an applicable retained human merge
-decision; the merge owner still applies its current-head, CI, protection,
-unresolved-feedback, and other owning checks.
+response.
+
+Under an accepted conditional review/merge policy, supported provider evidence
+associated unambiguously with the current PR and head may satisfy the review
+condition: an applicable thumbs-up passes that condition after applicable
+findings and nits are dispositioned; eyes waits only while review is genuinely
+pending. A completed current provider result takes precedence over a lingering
+reaction. Missing, ambiguous, or stale association waits. Without an accepted
+policy, configured review and approval gates remain unchanged.
+
+Confirmed Connector quota or unavailability under that policy goes to the
+coordinator, which reconciles the existing bot-review-signal context and reuses
+or creates one independent `pr-review` task bound to the current recipient,
+reviewer, PR, and head. A complete current passing verdict with all required
+verification satisfies the review condition. Task creation, a partial result,
+missing required verification, or same-account GitHub APPROVE does not. Findings
+return to the implementation owner; missing authority, host control, or verdict
+waits or reports without duplicate tasks or review requests.
+
+An authorized in-scope correction retains covered fix and publication authority,
+including a scoped nit correction, without generic renewed permission. The
+owner classifies the finding, validates the changed candidate, and presents the
+concrete changes, verification, disposition, and intended-action summary before
+push. Changed code requires independent current follow-up review selected by
+`pr-review` and its full-versus-narrow scope policy; applicable prior coverage is
+context, never old-head approval. The router refreshes the action binding for
+the changed local/remote head before the affected effect. Scope expansion, new
+choices, exceptions, or missing authority stop at the existing owner/approval
+gate. Reviewer nits remain report-only by default. Reply and resolve permissions,
+human-thread rules, and refetches remain separate. The merge owner still checks
+remaining feedback, current head, CI, protections, and every other owning gate.
 
 #### ROUTE-007-RECOVERY: Handoff and terminal shutdown
 
@@ -554,6 +584,22 @@ merge inference, claimed automatic review rerun, authority reconstructed from a
 notification, no-open-PR completion inference, or archival claimed as timer
 shutdown. Verify these cases against the operational procedure and rendered
 target guidance without activating a live schedule.
+
+Conditional-review acceptance additionally requires this valid sequence: accepted
+policy at head H, confirmed quota, one reused independent review task, complete
+passing H verdict, authorized in-scope nit correction to H2, validation and
+covered publication with its concrete summary, independent scope-selected H2
+follow-up using applicable prior coverage, refreshed action binding, then
+remaining-feedback, CI, and protection checks before merge. Reject each
+single-dimension variant: absent accepted policy cannot enable the conditional
+path; stale association cannot pass; pending eyes cannot trigger quota fallback;
+a task or partial verdict cannot replace the complete result; omitted H2
+follow-up cannot carry H approval; omitted feedback or protection checks cannot
+permit merge. Repeated unchanged fallback reuses or suppresses the existing
+task. Current applicable thumbs-up reaches review readiness, genuinely pending
+eyes waits, and a completed current result overrides lingering eyes. Verify
+these outcomes against source and both rendered target procedures; generated
+evidence supplies no authority.
 
 Evidence pointer: [GitHub issue #783](https://github.com/ryumiel/devcanon/issues/783)
 records the accepted monitor boundary and acceptance cases for ROUTE-007-MONITOR
