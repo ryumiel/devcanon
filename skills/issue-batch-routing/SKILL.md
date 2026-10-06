@@ -116,9 +116,11 @@ parent/controller thread.
 
 ## Batch Ledger
 
-Maintain a compact controller-local ledger. The ledger is monitor state, not a
-tracker substitute and not durable source authority. Carry it across monitor
-passes and automation resumes when possible.
+Maintain one compact current-state ledger with evidence references under
+ROUTE-007-STATE. It has no history section, append-only log, execution diary or
+coordinator archive. It is monitor state, not a tracker substitute or durable
+source authority. Carry the current state across resumes; derive summaries
+from its items instead of maintaining independent narrative state.
 
 Before direct or coordinated creation, establish or recover this existing
 ledger and the complete dispatch tuple. A fresh accepted route may initialize
@@ -129,34 +131,34 @@ keys, digests, approvals, or bindings.
 Allowed values: `source_provider: github | linear`. Additional providers
 require an explicit provider boundary.
 
-| Field                                          | Meaning                                                                                                                                                                            |
-| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `source_provider`                              | Provider family for the source issue record.                                                                                                                                       |
-| `source_issue_identifier`                      | Provider-native issue identity, such as `github:owner/repo#123` or `linear:ENG-123`.                                                                                               |
-| `source_issue_title`                           | Latest known source issue title.                                                                                                                                                   |
-| `owner_thread_id`                              | Delegated owner thread that owns implementation or source-specific follow-up.                                                                                                      |
-| `branch_name`                                  | Current owner branch, when known.                                                                                                                                                  |
-| `pr_provider`                                  | PR provider, initially `github`; optional until a PR exists.                                                                                                                       |
-| `pr_identifier`                                | Provider-native PR identity, optional until a PR exists.                                                                                                                           |
-| `current_head_sha`                             | Current branch or PR head SHA, optional until known.                                                                                                                               |
-| `current_gate_kind`                            | Waiting gate such as `issue-priming`, `plan-approval`, `review-response`, `ci-fix`, `merge-conflict`, `merge-routing`, `source-issue-reporting`, or `archival`.                    |
-| `current_approved_owner_route_identity`        | Current approved owner-route identity required to validate progress receipts.                                                                                                      |
-| `current_reviewed_plan_handoff_provenance`     | Selected preparation provenance (`reviewed-plan` or `execution-note`); legacy field name retained for receipt compatibility.                                                       |
-| `source_issue_state_snapshot_digest`           | Digest of the provider-supported source-issue state snapshot used for the last decision.                                                                                           |
-| `last_owner_thread_report_digest`              | Digest of the last owner-thread gate report integrated by the parent.                                                                                                              |
-| `consumed_progress_receipt_sequences_by_route` | Controller-local bounded map of each owner route observed during this task's lifetime to its highest accepted positive sequence; distinct from gate-report and approval-gate keys. |
-| `last_routed_issue_priming_route_key`          | Full replay-sensitive issue-priming route key last sent.                                                                                                                           |
-| `last_routed_review_thread_set_digest`         | Digest for the last unresolved review-thread set routed.                                                                                                                           |
-| `last_routed_review_response_route_key`        | Full replay-sensitive review-response route key last sent.                                                                                                                         |
-| `last_routed_ci_run_check_identifier`          | Check run, job, or workflow identifier for the last CI route. Diagnostic only and not authoritative for de-duplication.                                                            |
-| `last_routed_ci_fix_route_key`                 | Full replay-sensitive CI-fix route key last sent.                                                                                                                                  |
-| `last_routed_merge_conflict_key`               | Merge-conflict route key last sent.                                                                                                                                                |
-| `last_routed_bot_review_signal_key`            | Review-bot signal route key last handled.                                                                                                                                          |
-| `last_routed_source_issue_reporting_route_key` | Full replay-sensitive source-issue reporting route key last sent.                                                                                                                  |
-| `last_reported_approval_waiting_key`           | Waiting or report-only approval-gate key recorded when approval evidence is missing, stale, or too broad.                                                                          |
-| `last_routed_approval_gate_key`                | Approval-gate route key last sent after matching approval evidence is present.                                                                                                     |
-| `last_routed_merge_routing_key`                | Merge-ready route key last sent to `pr-merge`.                                                                                                                                     |
-| `last_routed_archival_key`                     | Terminal archival route key last confirmed or sent.                                                                                                                                |
+| Field                                          | Meaning                                                                                                                                                            |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `source_provider`                              | Provider family for the source issue record.                                                                                                                       |
+| `source_issue_identifier`                      | Provider-native issue identity, such as `github:owner/repo#123` or `linear:ENG-123`.                                                                               |
+| `source_issue_title`                           | Latest known source issue title.                                                                                                                                   |
+| `owner_thread_id`                              | Delegated owner thread that owns implementation or source-specific follow-up.                                                                                      |
+| `branch_name`                                  | Current owner branch, when known.                                                                                                                                  |
+| `pr_provider`                                  | PR provider, initially `github`; optional until a PR exists.                                                                                                       |
+| `pr_identifier`                                | Provider-native PR identity, optional until a PR exists.                                                                                                           |
+| `current_head_sha`                             | Current branch or PR head SHA, optional until known.                                                                                                               |
+| `current_gate_kind`                            | Waiting gate such as `issue-priming`, `plan-approval`, `review-response`, `ci-fix`, `merge-conflict`, `merge-routing`, `source-issue-reporting`, or `archival`.    |
+| `current_approved_owner_route_identity`        | Current approved owner-route identity required to validate progress receipts.                                                                                      |
+| `current_reviewed_plan_handoff_provenance`     | Selected preparation provenance (`reviewed-plan` or `execution-note`); legacy field name retained for receipt compatibility.                                       |
+| `source_issue_state_snapshot_digest`           | Digest of the provider-supported source-issue state snapshot used for the last decision.                                                                           |
+| `last_owner_thread_report_digest`              | Digest of the last owner-thread gate report integrated by the parent.                                                                                              |
+| `consumed_progress_receipt_sequences_by_route` | Bounded map of still-needed owner-route guards to highest accepted positive sequence; retire only under Operational retention, separately from approval/gate keys. |
+| `last_routed_issue_priming_route_key`          | Full replay-sensitive issue-priming route key last sent.                                                                                                           |
+| `last_routed_review_thread_set_digest`         | Digest for the last unresolved review-thread set routed.                                                                                                           |
+| `last_routed_review_response_route_key`        | Full replay-sensitive review-response route key last sent.                                                                                                         |
+| `last_routed_ci_run_check_identifier`          | Check run, job, or workflow identifier for the last CI route. Diagnostic only and not authoritative for de-duplication.                                            |
+| `last_routed_ci_fix_route_key`                 | Full replay-sensitive CI-fix route key last sent.                                                                                                                  |
+| `last_routed_merge_conflict_key`               | Merge-conflict route key last sent.                                                                                                                                |
+| `last_routed_bot_review_signal_key`            | Review-bot signal route key last handled.                                                                                                                          |
+| `last_routed_source_issue_reporting_route_key` | Full replay-sensitive source-issue reporting route key last sent.                                                                                                  |
+| `last_reported_approval_waiting_key`           | Waiting or report-only approval-gate key recorded when approval evidence is missing, stale, or too broad.                                                          |
+| `last_routed_approval_gate_key`                | Approval-gate route key last sent after matching approval evidence is present.                                                                                     |
+| `last_routed_merge_routing_key`                | Merge-ready route key last sent to `pr-merge`.                                                                                                                     |
+| `last_routed_archival_key`                     | Terminal archival route key last confirmed or sent.                                                                                                                |
 
 `last_routed_ci_run_check_identifier` is diagnostic, never authoritative for
 de-duplication; replay-sensitive review-response and CI-fix use full keys.
@@ -170,6 +172,62 @@ route-key replacement, schema field, or durable notice. A source refresh,
 including one with a changed digest, must reconcile that pending creation before
 another dispatch and must not erase it or treat the provisional identifier as a
 confirmed owner mapping.
+
+## Operational retention
+
+This section applies ROUTE-007-STATE to the existing fields above; it introduces
+no schema or replacement persistence mechanism. Each retained value must serve
+a current decision or one of these operational purposes:
+
+- **Authority:** keep accepted scope and applicable authority references plus
+  the current exact action/owner binding. Replace superseded approvals and
+  head-dependent readiness; retain an old authority identity/reference only
+  when required to reconcile an unresolved effect. A changed head does not
+  revoke compatible standing scope. There is no approval history.
+- **Pending effects:** keep the original complete route key, owner/host and
+  repository binding, provisional creation identifier if any, and supported
+  delivery/result reference until the operation is reconciled. Unknown results
+  remain pending and prohibit blind retry. Once resolved, replace the pending
+  marker with the verified outcome and any still-needed duplicate guard.
+- **Route and receipt guards:** keep complete keys and each route's highest
+  accepted sequence and acknowledged next sequence while delayed delivery,
+  resumed reconciliation or route eligibility still requires them. A binding
+  change alone never removes another route's guard. Retire an entry only after
+  all its effects/obligations resolve and that route cannot become eligible
+  again under retained authority. A retired or unknown route cannot initialize
+  authority, reset its sequence or continue from a delayed receipt: hold it for
+  authoritative reconciliation. No transcript reconstruction is allowed.
+- **Notices and monitors:** retain the event/head/recipient and actual delivery
+  outcome needed for duplicate suppression, unresolved delivery, current
+  schedule/controller binding and applicable explicit stop. Replace superseded
+  observations after delivery reconciliation; remove resolved guards only when
+  delayed input cannot repeat notice or recreate a stopped monitor. An explicit
+  stop survives until later scheduling authority supersedes it.
+
+Remove resolved waiting keys and completed queued actions after accepting their
+verified replacement; never retain them as current work. Replace superseded
+model/install observations without treating unknown outcomes as successful.
+Terminal items keep identity, disposition/evidence links, remaining accepted
+obligations and only still-needed operational markers. Review findings,
+diagnostics and recovery records remain at their existing owners; the ledger
+links to them and neither copies nor deletes them. Resume compacts legacy
+content by these same rules after authoritative reconciliation, then derives
+summaries from the items. Missing evidence blocks the affected action.
+
+### Current-state scenarios
+
+These hypothetical cases exercise operational retention; they do not add fields
+or replace source/provider verification.
+
+| Input                                                                                                        | Required current result                                                                                                                                      |
+| ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Verified merge at H; old summary says review wait; merge remains queued; cleanup pending                     | Remove obsolete wait/queue, derive merged summary, retain cleanup obligation and verified merge reference. Do not repeat merge.                              |
+| Authorized H2 replaces H; standing scope remains; H2 gates unavailable                                       | Replace head/readiness and exact binding; retain compatible standing scope. H evidence cannot pass H2 gates; unavailable evidence holds the affected action. |
+| A receipt 1 consumed, B receipt 33 consumed, delayed A receipt 1; A can still recur                          | Retain A and B high-water guards. Reject duplicate A without continuation or approval-key update.                                                            |
+| Owner completion conflicts with provider unresolved review                                                   | Keep conflict/evidence references explicit and refresh affected authority before action; do not claim completion.                                            |
+| Legacy resume has stale summary/history, resolved blocker, uncertain creation K and review-owner diagnostics | Remove positively superseded claims/history, derive summary, retain K and provisional result until reconciled; preserve diagnostics at their owner.          |
+| Completed C has no obligations and cannot regain eligibility; delayed C receipt arrives after retirement     | Remove unnecessary narrative/receipt state; retain compact terminal evidence. Delayed C cannot initialize authority or restart sequence numbering.           |
+| Notice delivery is unknown when the provider event becomes superseded                                        | Keep unresolved delivery identity/outcome until reconciled; do not infer successful delivery, repeat blindly or drop required deduplication state.           |
 
 ## Controller-Held Approved-Route Facts
 
@@ -256,8 +314,8 @@ resolved blocker, trigger a notification, or consume or repeat a route key.
 For conflicting or incomparable observations, refresh only the affected
 authoritative owner or provider state, then classify from the reconciled
 current facts. Missing identity, required head, or freshness evidence holds
-the affected action. Keep historical approvals, route keys, receipt sequences,
-and pending creation facts while replacing obsolete current claims.
+the affected action. Replace obsolete claims and apply Operational retention
+to the compact authority, route, receipt and pending-effect markers.
 
 On resume after an observation may have been interrupted before its record,
 refresh the affected authoritative state before consuming it. If an effect may
@@ -453,9 +511,9 @@ For each open batch item:
    these bindings from those controller-held facts. A receipt must not
    initialize, refresh, authenticate, or validate either current binding.
    Missing controller-held facts fail closed rather than being inferred from a
-   receipt. Retain the highest accepted progress sequence for every route
-   observed during this task's bounded controller lifetime; a changed current
-   binding selects a different map entry and never clears an earlier one. This
+   receipt. Retain the highest accepted progress sequence for every route still
+   required under Operational retention; a changed binding selects a different
+   map entry and cannot by itself clear an earlier guard. This
    controller-local replay state is not a generalized event store or new
    persistence system. Before the first receipt on a route, the
    controller's continuation dispatch acknowledges that route's initial
@@ -486,7 +544,8 @@ For each open batch item:
    sequence 1 is older than A's retained map entry and is a repeat: do not
    continue the route again or update any approval key. Missing, repeated,
    non-positive, or non-increasing progress sequences fail closed; route
-   changes must not evict their earlier replay state. Missing identity, route
+   changes alone must not evict still-needed guards. Retired or unknown routes
+   cannot restart from a delayed receipt. Missing identity, route
    provenance, or unfinished non-gate evidence fails closed to waiting or
    manual action. A genuine gate does not qualify as progress.
 9. For an item without receipt continuation, classify any remaining gate using
@@ -630,7 +689,7 @@ the named dimension; other facts remain consistent.
 | Case                                                                                      | Required outcome                                                                                                                                                                                                                          |
 | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Valid family progresses from reviewed H publication to merge readiness                    | Coordination issues current concrete instructions within retained scope; router validates each binding and routes merge/cleanup to `pr-merge` once under existing keys. Priming finishes mandatory phases at the reviewed PR/head report. |
-| An authorized correction produces H2, with H2 gates and a new exact instruction refreshed | Reject H bindings, retain delivery scope and O/T, and route the current H2 action without generic human reapproval; preserve historical keys and deduplication.                                                                           |
+| An authorized correction produces H2, with H2 gates and a new exact instruction refreshed | Reject H bindings, retain delivery scope and O/T, and route the current H2 action without generic human reapproval; retain only still-needed operational keys for recovery and deduplication.                                             |
 | H2 is current but only H readiness and binding exist                                      | Hold the action for H2 evidence and instruction refresh, without revoking scope or consuming its approval route key.                                                                                                                      |
 | Human scope is PR-only                                                                    | Stop at publication; merge requires the missing delivery decision.                                                                                                                                                                        |
 | Human explicitly revokes the accepted scope                                               | Hold further effects for the owning decision; current green evidence does not restore authority.                                                                                                                                          |
@@ -851,8 +910,9 @@ reapproval. Missing, stale, or overly broad action evidence may update only
 `last_reported_approval_waiting_key`; it must not consume the actual approval
 route key. Once a matching current instruction and evidence are available,
 re-evaluate the owner/host, head, route key, and allowed effect before routing
-and updating `last_routed_approval_gate_key`. Historical approvals, route keys,
-receipt sequences, continuity, and terminal safeguards remain intact.
+and updating `last_routed_approval_gate_key`. Preserve applicable standing
+authority, continuity and terminal safeguards, retaining only still-needed
+operational markers under [Operational retention](#operational-retention).
 
 ## Safe Approval Templates
 
@@ -949,24 +1009,26 @@ evidence. Do not archive based only on a thread's claim that work is complete.
 
 ## Monitor Pass Reports
 
-Every monitor pass records a complete controller-local summary:
+Every monitor pass derives a complete current summary from reconciled ledger
+items; replace the previous summary rather than accumulating pass reports:
 
 - merged or closed items
 - routed items
 - approval/thread-state actions
 - waiting items with reasons
-- owner-thread reports received
+- current owner evidence references
 - source-issue status actions requested
 - archived threads
 - next check time
 
-Keep this summary available for coordination and recovery even when no user
+Keep this derived summary available for coordination and recovery even when no user
 notice is selected. On a coordinated handoff, make the complete summary
 available by evidence reference to `issue-batch-coordination`; send only the
 coordination-relevant delta under Delivery and evidence above. The receiver
 resolves required evidence before routing or selecting a user notice. Routine
 owner progress stays in the owner, without an unsolicited coordinator copy.
 On direct bounded invocation, present the
+
 current requested result from this summary, including a read-only status
 answer, actionable decisions or blockers with complete known gate facts, and
 verified terminal batch completion without delivery. Apply the coordinator's
@@ -996,7 +1058,9 @@ When the host provides recurring automation or thread-management tools:
 On resume, refetch source issue, owner-thread, branch, PR, CI, review-thread,
 mergeability, branch-protection, and bot-signal state before sending approvals
 or reusing a route. Treat ledger entries as hints until current live state
-revalidates their route keys.
+revalidates their route keys. Apply Operational retention to remove positively
+superseded claims and regenerate summaries, preserving unresolved operations
+and evidence references at their owners.
 
 ## Common Mistakes
 

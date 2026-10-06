@@ -73,24 +73,28 @@ of that authority. Report an explicit host restriction or denial for the specifi
 action; do not invent an alternative permission or route around it. One
 blocked item does not hold independently eligible siblings.
 
-Keep one current view beside the ledger: dependencies, acceptance/owner,
-validation, gate/blocker/next action, controller/successor, policy
-revision/fingerprint, and router-required replay facts. Compare an incoming
-observation with retained facts for the same item and operation before using
-it. Identity, applicable head or revision, and verification evidence establish
-whether it is current; delivery or observation time alone does not order it.
-A comparable duplicate or superseded observation leaves verified current state
-and routed effects unchanged. Conflicting or incomparable observations require
-a bounded refresh from the affected authoritative owner or provider before an
-action or report uses them. Reconcile accepted facts into both the item and
-batch summary, so gate, blocker, next action, and evidence agree. Approval
-provenance and replay history survive current-view replacement; neither
-refreshes source state. Missing, unavailable, stale, or conflicting evidence
-holds only its action. Preserve unknown and unrelated facts; clear only
-positive obsolete or inapplicable current facts. Prefer needed-evidence
-pointers over detail. These local recovery facts are not a schema, event store,
-tracker substitute, or approval source. Store them stably, never only in a
-removable owner worktree.
+Keep the ledger as the single current view: provider identity, accepted scope
+and applicable authority, dependencies, owner/host/repository, current head,
+validation/readiness, gate/blocker/next action and evidence references. Keep
+controller/successor, policy revision and monitor state as current batch facts.
+There is no separate current view, history section, append-only event log or
+coordinator archive. Derive batch summaries from the current items.
+
+Compare observations for the same item and operation using supported identity,
+applicable head/revision and verification evidence; timestamps alone do not
+order effects. A duplicate or superseded observation leaves verified facts and
+routed effects unchanged. Refresh conflicting or incomparable evidence from
+the affected authoritative owner/provider before action or reporting. Missing
+or conflicting evidence holds only its action. Replace obsolete observations,
+resolved blockers and completed queue entries; keep unknown facts explicit.
+
+Apply the router's [operational retention](../issue-batch-routing/SKILL.md#operational-retention)
+rules to authority, pending effects, route/receipt guards and notifications.
+A head change invalidates affected readiness and exact action bindings without
+revoking compatible standing authority. Keep review and recovery evidence at
+its owning workflow and link only what the current decision needs; never copy
+an execution diary or delete owner evidence while compacting the ledger.
+Store the ledger stably, never only in a removable owner worktree.
 
 ## Coordination cycle
 
@@ -117,18 +121,18 @@ removable owner worktree.
    queued work within authorization without a generic “proceed” request. A
    blocked item need not stop independent eligible siblings.
 4. **Record and yield.** Reconcile the router's outcome into the affected
-   current ledger item and its batch summary in the same transition. Before
+   current ledger item, then derive the batch summary from the updated items. Before
    treating facts as current or using them for an action, compare the incoming
    observation with retained current facts as above, then make the current
    gate, blocker, next action, evidence, and any retained snapshot, digest and
    observation time agree. Replace the prior monitor summary and clear only
    positively obsolete or inapplicable fields; preserve unrelated items and
-   router-required authority and replay facts without copying its contracts.
+   router-required operational markers under its retention rules.
    Missing, unavailable, stale or conflicting required evidence holds the
    affected action with its references rather than concealing the gap or
    refreshing stale facts. For a terminal item, retain its disposition,
-   verified terminal evidence, unresolved obligations and required replay
-   facts; a closed source issue alone does not authorize archival. After an
+   verified terminal evidence references, unresolved obligations and still-needed
+   operational markers; a closed source issue alone does not authorize archival. After an
    already-authorized cleanup, replace location and availability claims with
    the observed result; an unknown result remains unresolved. Select the
    audience after reconciliation. Owners retain routine commits, intermediate
@@ -235,7 +239,9 @@ Assess these readiness questions separately:
 
 On resume, validate controller and owner locations. Use existing host recovery
 for a stale or deleted checkout; never silently use another repository. Restore
-the stable ledger and revalidate its hints. Report lost authority or replay
+the stable ledger and revalidate its hints. Remove positively superseded
+content and regenerate summaries from reconciled items, retaining unresolved
+effects and obligations under the router’s retention rules. Report lost authority or replay
 evidence; a receipt or archived transcript cannot reconstruct approval.
 
 For an authorized successor, transfer the existing context and require its
