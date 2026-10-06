@@ -408,8 +408,12 @@ LC-18 is the only transition that replaces a terminal active lease with a fresh
 archive, snapshots it to:
 
 ```text
-.ephemeral/pr-${PR_NUMBER}-${WORKTREE_DIGEST}-${YYYYMMDDTHHMMSS}-${STATE}-archived-lease.json
+.ephemeral/pr-${PR_NUMBER}-${WORKTREE_DIGEST}-${TIMESTAMP_STAMP}-${STATE}-archived-lease.json
 ```
+
+`TIMESTAMP_STAMP` is `terminal.finished_at`, falling back to `updated_at`, with
+`-`, `:`, and `Z` removed. Any fractional component is preserved; for example,
+`2026-10-06T00:00:00.1234567Z` becomes `20261006T000000.1234567`.
 
 The helper retains the valid terminal lease until the fresh `created` lease is
 atomically installed. Terminal archive creation is exclusive: an existing
