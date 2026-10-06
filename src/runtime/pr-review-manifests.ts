@@ -1816,17 +1816,16 @@ async function resolvePrReviewDir(): Promise<string> {
   const candidates: string[] = [];
   if (process.env.PR_REVIEW_DIR !== undefined) {
     candidates.push(process.env.PR_REVIEW_DIR);
-  } else if (process.env.PR_REVIEW_MANIFEST_HELPER_SCRIPT !== undefined) {
-    candidates.push(
-      path.dirname(path.dirname(process.env.PR_REVIEW_MANIFEST_HELPER_SCRIPT)),
-    );
-    candidates.push(
-      path.dirname(
-        path.dirname(
-          await realpath(process.env.PR_REVIEW_MANIFEST_HELPER_SCRIPT),
-        ),
-      ),
-    );
+  } else {
+    for (const script of [
+      process.env.PR_REVIEW_MANIFEST_HELPER_SCRIPT,
+      process.env.PR_REVIEW_LEASE_HELPER_SCRIPT,
+    ]) {
+      if (script !== undefined) {
+        candidates.push(path.dirname(path.dirname(script)));
+        candidates.push(path.dirname(path.dirname(await realpath(script))));
+      }
+    }
   }
   for (const candidate of candidates) {
     const helper = path.join(candidate, "scripts/prior-thread-artifacts.sh");

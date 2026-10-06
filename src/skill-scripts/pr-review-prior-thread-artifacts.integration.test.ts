@@ -2613,6 +2613,47 @@ describe("pre-handoff preparation recovery", () => {
       await cleanupTempDir(cwd);
     }
   }, 60_000);
+  it("discovers and recovers through the public lease adapter without optional directory or manifest exports", async () => {
+    const { cwd, leaseHelper, leaseFile, failedBytes, recovery } =
+      await makePreparationRecoveryFixture(true);
+    try {
+      const runPublicLease = (command: string) =>
+        execFileAsync(
+          "bash",
+          [
+            "-c",
+            'unset PR_REVIEW_DIR PR_REVIEW_MANIFEST_HELPER_SCRIPT; exec bash "$1" "$2"',
+            "public-lease",
+            leaseHelper,
+            command,
+          ],
+          { cwd, env: { ...process.env, ...recovery }, maxBuffer: 1024 * 1024 },
+        );
+      const discovery = JSON.parse((await runPublicLease("discover")).stdout);
+      expect(discovery).toMatchObject({
+        disposition: "resume",
+        resume: {
+          lease_file: leaseFile,
+          worktree_path: recovery.WORKTREE_PATH,
+        },
+      });
+      expect(await readFile(path.join(cwd, leaseFile), "utf8")).toBe(
+        failedBytes,
+      );
+      await runPublicLease("write");
+      await runPublicLease("validate");
+      const lease = JSON.parse(
+        await readFile(path.join(cwd, leaseFile), "utf8"),
+      );
+      expect(lease).toMatchObject({
+        state: "created",
+        artifacts: { handoff_file: recovery.HANDOFF_FILE, result_file: null },
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  }, 30_000);
+
   it("recovers the exact four-file legacy family with explanatory note evolution", async () => {
     const {
       cwd,
