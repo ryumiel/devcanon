@@ -15,7 +15,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { cleanupTempDir } from "../__test-helpers__/fixtures.js";
 
 const execFileAsync = promisify(execFile);
@@ -2368,40 +2368,123 @@ async function makePreparationRecoveryFixture(fourFileFamily = false) {
   }
 }
 
+// These refusal families are serial: only setup is shared. Each command under
+// test still invokes the real adapter, validator and runtime against a restored
+// failed-preparation baseline, including exact retained diagnostics and leases.
+function serialPreparationRecoveryFixture(fourFileFamily = false) {
+  let fixture: Awaited<ReturnType<typeof makePreparationRecoveryFixture>>;
+  let primaryArtifacts: Awaited<ReturnType<typeof artifactSnapshot>>;
+  let worktreeArtifacts: Awaited<ReturnType<typeof artifactSnapshot>>;
+  let readme: Buffer;
+
+  async function artifactSnapshot(directory: string) {
+    const files: Record<string, Buffer> = {};
+    const directories: string[] = [];
+    async function visit(relative: string) {
+      const entries = await readdir(path.join(directory, relative), {
+        withFileTypes: true,
+      });
+      for (const entry of entries) {
+        const name = path.join(relative, entry.name);
+        if (entry.isDirectory()) {
+          directories.push(name);
+          await visit(name);
+        } else {
+          expect(entry.isFile(), name).toBe(true);
+          files[name] = await readFile(path.join(directory, name));
+        }
+      }
+    }
+    await visit("");
+    return { directories: directories.sort(), files };
+  }
+
+  async function restoreArtifacts(
+    directory: string,
+    snapshot: Awaited<ReturnType<typeof artifactSnapshot>>,
+  ) {
+    // Removing the whole tree also removes extra entries and symlinks without
+    // following them, and recreates any missing candidate/diagnostic files.
+    await rm(directory, { recursive: true, force: true });
+    await mkdir(directory);
+    for (const name of snapshot.directories)
+      await mkdir(path.join(directory, name), { recursive: true });
+    for (const [name, bytes] of Object.entries(snapshot.files))
+      await writeFile(path.join(directory, name), bytes);
+    expect(await artifactSnapshot(directory)).toEqual(snapshot);
+  }
+
+  beforeAll(async () => {
+    fixture = await makePreparationRecoveryFixture(fourFileFamily);
+    primaryArtifacts = await artifactSnapshot(
+      path.join(fixture.cwd, ".ephemeral"),
+    );
+    worktreeArtifacts = await artifactSnapshot(
+      path.join(fixture.worktree, ".ephemeral"),
+    );
+    readme = await readFile(path.join(fixture.worktree, "README.md"));
+  });
+  afterEach(async () => {
+    await restoreArtifacts(
+      path.join(fixture.cwd, ".ephemeral"),
+      primaryArtifacts,
+    );
+    await restoreArtifacts(
+      path.join(fixture.worktree, ".ephemeral"),
+      worktreeArtifacts,
+    );
+    await writeFile(path.join(fixture.worktree, "README.md"), readme);
+    expect(await readFile(path.join(fixture.worktree, "README.md"))).toEqual(
+      readme,
+    );
+    expect(await git(fixture.cwd, "status", "--porcelain")).toBe("");
+    expect(await git(fixture.worktree, "status", "--porcelain")).toBe("");
+    expect(await git(fixture.cwd, "rev-parse", "HEAD")).toBe(fixture.baseSha);
+    expect(await git(fixture.worktree, "rev-parse", "HEAD")).toBe(
+      fixture.headSha,
+    );
+  });
+  afterAll(async () => {
+    if (fixture) await cleanupTempDir(fixture.cwd);
+  });
+  return () => fixture;
+}
+
 describe("pre-handoff preparation recovery", () => {
-  it.each([
-    "stale-head",
-    "missing-head",
-    "identity",
-    "phase",
-    "accepted-handoff",
-    "duplicate",
-    "duplicate-candidate",
-    "no-progress",
-    "substantive",
-    "extra-entry",
-    "symlink",
-    "dirty",
-  ])(
-    "preserves state and refuses %s recovery",
-    async (fault) => {
-      const fixture = await makePreparationRecoveryFixture();
-      const {
-        cwd,
-        baseSha,
-        headSha,
-        worktree,
-        scopeFile,
-        validScope,
-        dirs,
-        failures,
-        handoffFile,
-        leaseHelper,
-        leaseFile,
-        failedBytes,
-        recovery,
-      } = fixture;
-      try {
+  describe.sequential("two-directory refusals", () => {
+    const getFixture = serialPreparationRecoveryFixture();
+    it.each([
+      "stale-head",
+      "missing-head",
+      "identity",
+      "phase",
+      "accepted-handoff",
+      "duplicate",
+      "duplicate-candidate",
+      "no-progress",
+      "substantive",
+      "extra-entry",
+      "symlink",
+      "dirty",
+    ])(
+      "preserves state and refuses %s recovery",
+      async (fault) => {
+        const fixture = getFixture();
+        const {
+          cwd,
+          baseSha,
+          headSha,
+          worktree,
+          scopeFile,
+          validScope,
+          dirs,
+          failures,
+          handoffFile,
+          leaseHelper,
+          leaseFile,
+          failedBytes,
+          recovery,
+        } = fixture;
         const scratchFile = path.join(worktree, dirs[0], "failed-scope.json");
         const scratchBytes = await readFile(scratchFile, "utf8");
         let invocation = recovery;
@@ -2457,12 +2540,10 @@ describe("pre-handoff preparation recovery", () => {
           (await runHelper(cwd, leaseHelper, "discover", invocation)).stdout,
         );
         expect(invalidDiscovery.resume, fault).toBeNull();
-      } finally {
-        await cleanupTempDir(cwd);
-      }
-    },
-    30_000,
-  );
+      },
+      30_000,
+    );
+  });
   it("recovers two distinct scope failures with exact history and retained custody", async () => {
     const fixture = await makePreparationRecoveryFixture();
     const {
@@ -2758,27 +2839,28 @@ describe("pre-handoff preparation recovery", () => {
     }
   }, 30_000);
 
-  it.each([
-    "fifth-file",
-    "missing-second-diagnostics",
-    "duplicate-pair",
-    "changed-ambiguity",
-    "notes-only",
-    "nonstring-notes",
-  ])(
-    "refuses %s in the fixed four-file family",
-    async (fault) => {
-      const {
-        cwd,
-        worktree,
-        dirs,
-        leaseHelper,
-        leaseFile,
-        recovery,
-        validScope,
-        failedBytes,
-      } = await makePreparationRecoveryFixture(true);
-      try {
+  describe.sequential("four-file refusals", () => {
+    const getFixture = serialPreparationRecoveryFixture(true);
+    it.each([
+      "fifth-file",
+      "missing-second-diagnostics",
+      "duplicate-pair",
+      "changed-ambiguity",
+      "notes-only",
+      "nonstring-notes",
+    ])(
+      "refuses %s in the fixed four-file family",
+      async (fault) => {
+        const {
+          cwd,
+          worktree,
+          dirs,
+          leaseHelper,
+          leaseFile,
+          recovery,
+          validScope,
+          failedBytes,
+        } = getFixture();
         const first = path.join(worktree, dirs[0], "failed-scope.json");
         const second = path.join(worktree, dirs[0], "second-failed-scope.json");
         const candidate = JSON.parse(await readFile(first, "utf8"));
@@ -2817,10 +2899,8 @@ describe("pre-handoff preparation recovery", () => {
             (await runHelper(cwd, leaseHelper, "discover", recovery)).stdout,
           ).resume,
         ).toBeNull();
-      } finally {
-        await cleanupTempDir(cwd);
-      }
-    },
-    20_000,
-  );
+      },
+      20_000,
+    );
+  });
 });
