@@ -422,9 +422,9 @@ Duplicate or superseded delivery cannot regress a verified outcome, reopen a
 resolved blocker, notify misleadingly, or repeat a route effect. Conflict or
 incomparable evidence triggers a bounded refresh of the affected authoritative
 owner or provider; missing identity or freshness holds that action. Accepted
-facts update the item and batch summary together so the current gate, blocker,
-next action, and evidence agree while historical approvals and replay facts
-remain retained. After interrupted observation, refresh before consumption;
+facts replace the item’s current values; batch summaries are derived from those
+items, so the gate, blocker, next action, and evidence cannot evolve separately.
+Retention follows ROUTE-007-STATE below. After interrupted observation, refresh before consumption;
 after a possible effect without a retained record, reconcile its supported
 result and original route identity before retrying. Unknown results wait.
 Authorization, dispatch or delivery, observed owner start, and verified
@@ -465,6 +465,57 @@ manual-action path and expose any needed decision. Intact facts may be reused
 with changed facts and evidence pointers, while required complete gate and
 recovery evidence is never abbreviated. No new route state or authority follows
 from quiet reporting.
+
+#### ROUTE-007-STATE: Current-state retention
+
+The coordinator ledger is one authoritative current view per accepted item,
+with evidence links. It contains no history section, append-only event log,
+execution diary, or coordinator history archive. The routing skill owns exact
+operational fields and route keys; this contract defines their retention, not a
+new schema or persistence system.
+
+Current items retain provider identity, accepted scope and applicable authority,
+owner/host and repository binding, current branch/PR/head when present,
+dependencies, gate/blocker, next action, readiness and evidence references.
+Controller/successor, policy revision and active monitor identity/settings are
+current batch context. Replace superseded values; remove resolved waits and
+completed queue entries. Derive every batch or monitor summary from these
+current items. Unknown facts and unresolved obligations remain explicit.
+
+Only the following bounded operational markers survive value replacement:
+
+| Operational purpose                        | Retain while needed                                                                                                                                                                                 | Replacement or removal condition                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Applicable authority                       | Accepted scope, authority evidence reference and exact current action binding                                                                                                                       | Refresh head-dependent bindings and readiness when their inputs change without revoking compatible standing scope. Replace superseded or revoked authority; retain only its identity/reference if an unresolved effect still requires it. Never keep an approval chronology.                                                                                                      |
+| Pending or uncertain effects               | Original complete route key, confirmed owner/host/repository binding, provisional creation identifier where applicable, and supported delivery/result reference                                     | Reconcile the original operation before retry. Replace uncertainty with its verified result; remove the pending marker only when resolved and any still-needed duplicate guard is retained. Missing evidence holds the action.                                                                                                                                                    |
+| Duplicate suppression and receipt recovery | Exact route identities still eligible for reconciliation or delayed delivery, highest accepted receipt sequence per such route, acknowledged next sequence, and required current handoff provenance | Binding changes alone cannot evict a needed guard. Retire a route entry only when its effects and obligations are resolved and it cannot become eligible again under the retained authority; delayed delivery for a retired or unknown route fails closed and cannot initialize authority or restart sequence numbering. Keep guards for unresolved routes across resume/handoff. |
+| Notification and monitor control           | Current event/head/recipient and delivery outcome needed to suppress repeat notice, failed or uncertain delivery, applicable explicit monitor stop and verified shutdown state                      | Replace superseded observations only after reconciling delivery; successful delivery is not inferred from an attempt. Retire resolved markers only when delayed input cannot repeat notice or recreate a stopped monitor. Retain an explicit stop until later scheduling authority supersedes it.                                                                                 |
+
+A terminal item keeps only identity, verified disposition/evidence references,
+remaining cleanup or other accepted obligations, and operational markers still
+needed by these rules. A verified merge removes obsolete review waits and
+queued merge actions while preserving outstanding cleanup. A changed head
+replaces readiness and invalidates affected evidence; older readiness is not
+kept as current. Superseded model or installation observations are replaced,
+without converting an unknown outcome into success.
+
+Review results, diagnostics and recovery evidence remain with their existing
+owning workflows. Reference evidence needed for a current decision instead of
+copying it; ledger compaction does not delete that evidence. Resume applies the
+same contract to existing ledgers: refresh conflicting facts from authoritative
+owners/providers, remove positively superseded content, and regenerate summaries
+from reconciled items. Do not infer missing authority, route keys or completion
+from transcripts. If a marker cannot yet be safely retired, keep its compact
+operational identity and unresolved obligation, not an event narrative.
+
+Verification uses semantic scenarios: verified merge with cleanup remaining;
+head replacement under standing authority; delayed duplicate after another route;
+conflicting owner/provider evidence; and resume with a stale summary, resolved
+blocker and unresolved effect. Check the resulting current decision, retained
+minimal guards and forbidden repeated effect, rather than matching prose words.
+GitHub [issue #821](https://github.com/ryumiel/devcanon/issues/821) records the
+accepted current-state-only direction for this contract; implementation proof
+belongs to the routing/coordination verification owners.
 
 #### ROUTE-007-MONITOR: Optional batch monitoring lifecycle
 

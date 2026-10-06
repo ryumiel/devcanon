@@ -119,7 +119,11 @@ run notification. State the host limitation accurately.
 For delayed or conflicting observations, apply the coordinator's current-view
 comparison and the router's observation recovery before deciding that a wakeup
 has an actionable delta. The timer prompt does not carry a separate replay
-policy.
+policy. Consume the ledger’s current items and derived summary, not a retained
+pass history. Notification markers follow the router’s Operational retention:
+keep unresolved delivery and still-needed duplicate guards; replace superseded
+observations only after reconciliation. Do not copy review or recovery history
+into watcher state.
 
 ## Recover, hand off, and stop
 

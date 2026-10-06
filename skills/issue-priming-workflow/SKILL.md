@@ -1264,9 +1264,10 @@ parent/manual-action report.
 Before initial continuation, the controller records the current route binding
 from its existing approved-route facts. Before resumed continuation, the
 controller refreshes that binding from its current approved-route facts. It
-retains the highest accepted progress sequence for every exact route observed
-during this task's bounded controller lifetime, so a changed binding selects a
-different retained entry without clearing the earlier one. Only after that may
+retains the highest accepted progress sequence for each exact route still needed
+under issue-batch-routing’s Operational retention rules. A changed binding alone
+cannot clear an earlier guard; a delayed receipt for a retired or unknown route
+cannot recreate authority or reset its sequence. Only after that may
 a producer emit a receipt. An unfinished non-gate progress receipt must identify the exact
 approved owner route, the source provider and source issue identifier, the
 delegated owner-thread identity, and the selected preparation kind and exact
