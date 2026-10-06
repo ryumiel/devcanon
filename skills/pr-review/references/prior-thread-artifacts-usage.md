@@ -29,7 +29,11 @@ An empty `provider_files`/`local_files` pair may retain `github-provider-diff/v1
 From the target review worktree root, set `HEAD_SHA` to the current full head
 SHA and `PR_NUMBER` to the verified positive GitHub PR number. Run
 `prepare-prior-threads-write` and retain its exact returned path as
-`PRIOR_THREADS_FILE`. The controller writes a closed
+`PRIOR_THREADS_FILE`; retain it unchanged for construction, validation, and
+handoff. Never reconstruct the basename or alias an artifact to a guessed path.
+If a path was guessed incorrectly, reacquire the producer output and use only
+correctly bound content. Missing or malformed content fails before use; arbitrary
+historical evidence gains no authority. The controller writes a closed
 `pr-review/prior-threads/v1` object with exactly `schema`, `provider`,
 `pr_number`, `head_sha`, `threads`, and `dropped`; then it runs
 `validate-prior-threads` with that unchanged path before handoff. The runtime

@@ -395,6 +395,35 @@ describe("pr-review manifest handoff validation", () => {
 });
 
 describe("pr-review Phase 5 audit summary renderer", () => {
+  // Lease usage owns UTC grammar; this consumer previously refused fractional
+  // read-status timestamps independently of runtime lease validation.
+  it("accepts fractional lease audit timestamps without weakening exact freshness", async () => {
+    const workspace = await makeManifestWorkspace(
+      "pr-review-summary-fractions-",
+    );
+    setSummaryEnv(workspace);
+    const timestamp = "2026-10-06T00:00:00.1234567Z";
+    vi.doMock("./pr-review-leases.js", () => ({
+      runPrReviewLeasesCommand: vi.fn(async () => ({
+        exitCode: 0,
+        stdout: JSON.stringify({
+          ...validStatus(workspace),
+          result_validated_at: timestamp,
+          lease_updated_at: timestamp,
+          presented_at: timestamp,
+        }),
+        stderr: "",
+      })),
+    }));
+    try {
+      const result = await runManifestCommand(["render-phase5-audit-summary"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+    } finally {
+      vi.doUnmock("./pr-review-leases.js");
+      vi.resetModules();
+    }
+  });
+
   it("refuses extraneous arguments before reading a result preview", async () => {
     const outcome = await runManifestCommand([
       "read-result-for-preview",
@@ -723,6 +752,18 @@ describe("pr-review Phase 5 audit summary renderer", () => {
       name: "stale-status",
       stdout: (workspace: ManifestWorkspace) =>
         `${JSON.stringify({ ...validStatus(workspace), result_validated_at: "2026-06-11T00:01:00Z" })}\n`,
+      expectStderr: "validation timestamp is stale",
+    },
+    {
+      name: "malformed-calendar",
+      stdout: (workspace: ManifestWorkspace) =>
+        `${JSON.stringify({ ...validStatus(workspace), presented_at: "2026-02-30T00:00:00Z" })}\n`,
+      expectStderr: "timestamp mismatch",
+    },
+    {
+      name: "equivalent-instant-different-string",
+      stdout: (workspace: ManifestWorkspace) =>
+        `${JSON.stringify({ ...validStatus(workspace), result_validated_at: "2026-06-11T00:02:00.0Z" })}\n`,
       expectStderr: "validation timestamp is stale",
     },
     {

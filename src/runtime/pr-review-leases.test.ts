@@ -1034,6 +1034,103 @@ describe("pr-review lease reducer", () => {
 });
 
 describe("pr-review lease command validation", () => {
+  // Usage owns omission-only timestamp defaults; command tests cover construction
+  // and explicit invalidity absent from the reducer's already-built inputs.
+  it("constructs one operation timestamp for omitted creation and terminal inputs", async () => {
+    const workspace = await makeRegisteredWorkspace("lease-default-time-");
+    try {
+      process.chdir(workspace.physicalPrimary);
+      setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+      const derived = await runPrReviewLeasesCommand(["derive-path"]);
+      process.env.LEASE_FILE = derived.stdout.trim();
+      process.env.STATE = "created";
+      process.env.BASE_REF = "main";
+      process.env.HEAD_REF = "topic";
+      for (const key of ["UPDATED_AT", "CREATED_AT"] as const) {
+        for (const invalid of [
+          "",
+          "2026-02-30T00:00:00Z",
+          "2026-10-06T00:00:00.Z",
+          "2026-10-06T00:00:00+00:00",
+          "2026-10-06T00:00:60Z",
+          " 2026-10-06T00:00:00Z",
+        ]) {
+          process.env[key] = invalid;
+          const refused = await runPrReviewLeasesCommand(["write"]);
+          expect(refused.exitCode, `${key}: ${invalid}`).toBe(1);
+          await expect(
+            lstat(path.join(workspace.primary, derived.stdout.trim())),
+          ).rejects.toMatchObject({ code: "ENOENT" });
+        }
+        delete process.env[key];
+      }
+      const result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      const created = await readLease(workspace.primary, derived.stdout.trim());
+      expect(created.created_at).toBe(created.updated_at);
+      expect(created.updated_at).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/u,
+      );
+      process.env.STATE = "failed";
+      process.env.FAILURE_PHASE = "review";
+      process.env.FAILURE_REASON = "review interrupted";
+      process.env.FAILURE_RECOVERABILITY = "recoverable";
+      const failedResult = await runPrReviewLeasesCommand(["write"]);
+      expect(failedResult.exitCode, failedResult.stderr).toBe(0);
+      const failed = await readLease(workspace.primary, derived.stdout.trim());
+      expect(failed.terminal.finished_at).toBe(failed.updated_at);
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("defaults omitted gated timestamps but refuses explicitly empty applicable timestamps", async () => {
+    const workspace = await makeGatedStatusWorkspace(
+      "lease-gate-default-time-",
+    );
+    try {
+      setReadStatusEnv(workspace);
+      process.env.STATE = "gated";
+      process.env.BASE_REF = "main";
+      process.env.HEAD_REF = "topic";
+      process.env.PRESENTATION_STATUS = "preview-current";
+      for (const key of [
+        "UPDATED_AT",
+        "PRESENTED_AT",
+        "FINISHED_AT",
+      ] as const) {
+        process.env.STATE = key === "FINISHED_AT" ? "aborted" : "gated";
+        process.env.TERMINAL_REASON = "not posting";
+        process.env[key] = "";
+        const before = await readFile(
+          path.join(workspace.primary, workspace.leaseFile),
+          "utf8",
+        );
+        const result = await runPrReviewLeasesCommand(["write"]);
+        expect(result.exitCode, key).toBe(1);
+        expect(
+          await readFile(
+            path.join(workspace.primary, workspace.leaseFile),
+            "utf8",
+          ),
+        ).toBe(before);
+        delete process.env[key];
+      }
+      process.env.STATE = "gated";
+      const result = await runPrReviewLeasesCommand(["write"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      const gated = await readLease(workspace.primary, workspace.leaseFile);
+      expect(gated.presentation.presented_at).toBe(gated.updated_at);
+      expect(gated.validation.result_manifest.validated_at).toBe(
+        gated.updated_at,
+      );
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("rejects a linked worktree presented as the primary repository root", async () => {
     const workspace = await makeRegisteredWorkspace("linked-primary");
     const { stdout } = await execFileAsync("git", [
@@ -1094,92 +1191,98 @@ describe("pr-review lease command validation", () => {
     ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("creates one verified detached canonical session from frozen inputs", async () => {
-    const repository = await commandHarness.createReviewRepository();
-    const { stdout: headOutput } = await execFileAsync("git", [
-      "-C",
-      repository.physicalRepository,
-      "rev-parse",
-      "HEAD",
-    ]);
-    const head = headOutput.trim();
-    process.chdir(repository.physicalRepository);
-    process.env.REPOSITORY = "owner/repo";
-    process.env.PR_NUMBER = "432";
-    process.env.PRIMARY_REPOSITORY_ROOT = repository.physicalRepository;
-    process.env.HEAD_SHA = head;
-    process.env.BASE_REF = "main";
-    process.env.HEAD_REF = "topic";
-    process.env.UPDATED_AT = "2026-07-31T00:00:00Z";
-
-    const result = await runPrReviewLeasesCommand(["session-create"]);
-
-    expect(result.exitCode, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout)).toEqual({
-      schema: "pr-review/session-create/v1",
-      outcome: "success",
-      repository: "owner/repo",
-      pr_number: 432,
-      primary_repository_root: repository.physicalRepository,
-      common_git_directory: path.join(repository.physicalRepository, ".git"),
-      canonical_worktree_path: path.join(
+  it.each([undefined, "2026-07-31T00:00:00Z", "2026-10-06T00:00:00.1234567Z"])(
+    "creates one verified detached canonical session with timestamp %s",
+    async (updatedAt) => {
+      const repository = await commandHarness.createReviewRepository();
+      const { stdout: headOutput } = await execFileAsync("git", [
+        "-C",
         repository.physicalRepository,
-        ".worktrees",
-        "pr-432-review",
-      ),
-      immutable_head: head,
-      lease_file: expect.stringMatching(
-        /^\.ephemeral\/pr-432-[0-9a-f]{64}-lease\.json$/u,
-      ),
-      lease_sha256: expect.stringMatching(/^[0-9a-f]{64}$/u),
-    });
-    const session = JSON.parse(result.stdout) as {
-      lease_file: string;
-      lease_sha256: string;
-    };
-    const leaseBytes = await readFile(
-      path.join(repository.physicalRepository, session.lease_file),
-      "utf8",
-    );
-    expect(leaseBytes).toBe(
-      `${JSON.stringify(
-        reducePrReviewLease(
-          null,
-          {
-            repository: "owner/repo",
-            prNumber: 432,
-            worktreePath: path.join(
-              repository.physicalRepository,
-              ".worktrees",
-              "pr-432-review",
-            ),
-            worktreeDigest: discoveryWorktreeDigest(
-              path.join(
+        "rev-parse",
+        "HEAD",
+      ]);
+      const head = headOutput.trim();
+      process.chdir(repository.physicalRepository);
+      process.env.REPOSITORY = "owner/repo";
+      process.env.PR_NUMBER = "432";
+      process.env.PRIMARY_REPOSITORY_ROOT = repository.physicalRepository;
+      process.env.HEAD_SHA = head;
+      process.env.BASE_REF = "main";
+      process.env.HEAD_REF = "topic";
+      if (updatedAt !== undefined) process.env.UPDATED_AT = updatedAt;
+
+      const result = await runPrReviewLeasesCommand(["session-create"]);
+
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toEqual({
+        schema: "pr-review/session-create/v1",
+        outcome: "success",
+        repository: "owner/repo",
+        pr_number: 432,
+        primary_repository_root: repository.physicalRepository,
+        common_git_directory: path.join(repository.physicalRepository, ".git"),
+        canonical_worktree_path: path.join(
+          repository.physicalRepository,
+          ".worktrees",
+          "pr-432-review",
+        ),
+        immutable_head: head,
+        lease_file: expect.stringMatching(
+          /^\.ephemeral\/pr-432-[0-9a-f]{64}-lease\.json$/u,
+        ),
+        lease_sha256: expect.stringMatching(/^[0-9a-f]{64}$/u),
+      });
+      const session = JSON.parse(result.stdout) as {
+        lease_file: string;
+        lease_sha256: string;
+      };
+      const leaseBytes = await readFile(
+        path.join(repository.physicalRepository, session.lease_file),
+        "utf8",
+      );
+      const stored = JSON.parse(leaseBytes) as PrReviewLease;
+      expect(stored.created_at).toBe(stored.updated_at);
+      if (updatedAt !== undefined) expect(stored.updated_at).toBe(updatedAt);
+      expect(leaseBytes).toBe(
+        `${JSON.stringify(
+          reducePrReviewLease(
+            null,
+            {
+              repository: "owner/repo",
+              prNumber: 432,
+              worktreePath: path.join(
                 repository.physicalRepository,
                 ".worktrees",
                 "pr-432-review",
               ),
-            ),
-            leaseFile: session.lease_file,
-          },
-          {
-            state: "created",
-            baseRef: "main",
-            headRef: "topic",
-            createdAt: "2026-07-31T00:00:00Z",
-            updatedAt: "2026-07-31T00:00:00Z",
-          },
+              worktreeDigest: discoveryWorktreeDigest(
+                path.join(
+                  repository.physicalRepository,
+                  ".worktrees",
+                  "pr-432-review",
+                ),
+              ),
+              leaseFile: session.lease_file,
+            },
+            {
+              state: "created",
+              baseRef: "main",
+              headRef: "topic",
+              createdAt: stored.created_at,
+              updatedAt: stored.updated_at,
+            },
+          ),
+          null,
+          2,
+        )}\n`,
+      );
+      expect(
+        await sha256File(
+          path.join(repository.physicalRepository, session.lease_file),
         ),
-        null,
-        2,
-      )}\n`,
-    );
-    expect(
-      await sha256File(
-        path.join(repository.physicalRepository, session.lease_file),
-      ),
-    ).toBe(session.lease_sha256);
-  });
+      ).toBe(session.lease_sha256);
+    },
+  );
 
   it("leaves retained terminals unchanged without exact terminal-advance opt-in", async () => {
     const fixture = await makeTerminalAdvanceRefusalFixture({
@@ -3780,7 +3883,7 @@ describe("pr-review lease command validation", () => {
     const resultFile = `.ephemeral/pr-432-${reviewHead}-result.json`;
 
     try {
-      await writeResultArtifact(
+      const { findingsFile } = await writeResultArtifact(
         worktree,
         physicalWorktree,
         resultFile,
@@ -3806,10 +3909,41 @@ describe("pr-review lease command validation", () => {
       });
 
       process.env.RESULT_FILE = resultFile;
+      // Usage partitions presentation inputs; lifecycle allows operation-only
+      // retry without rerunning semantic review or rewriting its evidence.
+      process.env.STATE = "reviewed";
+      process.env.PRESENTATION_STATUS = "not-presented";
+      process.env.PRESENTED_AT = "unrelated result input";
+      process.env.UPDATED_AT = "2026-02-30T00:01:00Z";
+      const resultBefore = await readFile(
+        path.join(worktree, resultFile),
+        "utf8",
+      );
+      const findingsBefore = await readFile(
+        path.join(worktree, findingsFile),
+        "utf8",
+      );
+      const leaseBefore = await readFile(path.join(primary, leaseFile), "utf8");
+      const refused = await runPrReviewLeasesCommand(["write"]);
+      expect(refused.exitCode).toBe(1);
+      expect(refused.stderr).toContain("UTC RFC3339");
+      expect(await readFile(path.join(primary, leaseFile), "utf8")).toBe(
+        leaseBefore,
+      );
       await writeLeaseCommandState({
         state: "reviewed",
         updatedAt: "2026-06-11T00:01:00Z",
       });
+      expect(await readFile(path.join(worktree, resultFile), "utf8")).toBe(
+        resultBefore,
+      );
+      expect(await readFile(path.join(worktree, findingsFile), "utf8")).toBe(
+        findingsBefore,
+      );
+      process.env.STATE = "gated";
+      const gatedRefusal = await runPrReviewLeasesCommand(["write"]);
+      expect(gatedRefusal.exitCode).toBe(1);
+      expect(gatedRefusal.stderr).toContain("presentation status");
 
       const reviewed = await readLease(primary, leaseFile);
       expect(reviewed).toMatchObject({
@@ -4792,6 +4926,45 @@ describe("pr-review lease command validation", () => {
     }
   });
 
+  // Lifecycle chronology owns this observation: truncating the runtime clock
+  // falsely places cleanup before an earlier fractional terminal in one second.
+  it("records cleanup observation after a fractional terminal in the same second", async () => {
+    const workspace = await makeRegisteredWorkspace("cleanup-fraction-clock-");
+    try {
+      process.chdir(workspace.physicalPrimary);
+      setLeaseCommandEnv(workspace.physicalPrimary, workspace.physicalWorktree);
+      const derived = await runPrReviewLeasesCommand(["derive-path"]);
+      const leaseFile = derived.stdout.trim();
+      process.env.LEASE_FILE = leaseFile;
+      const dynamic = identityFromLeaseFile(
+        leaseFile,
+        workspace.physicalWorktree,
+      );
+      const terminal = abortedCommandLease(
+        leaseFile,
+        workspace.physicalWorktree,
+        dynamic.worktreeDigest,
+      );
+      terminal.terminal.finished_at = "2026-10-06T00:00:00.1234567Z";
+      await writeFile(
+        path.join(workspace.primary, leaseFile),
+        `${JSON.stringify(terminal)}\n`,
+      );
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-10-06T00:00:00.456Z"));
+      const result = await runPrReviewLeasesCommand(["inspect-worktree"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      const observed = await readLease(workspace.primary, leaseFile);
+      expect(observed.cleanup?.last_checked_at).toBe(
+        "2026-10-06T00:00:00.456Z",
+      );
+    } finally {
+      vi.useRealTimers();
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("accepts inclusive terminal cleanup chronology for posted and aborted leases", async () => {
     for (const state of ["posted", "aborted"] as const) {
       const workspace = await makeGatedStatusWorkspace(
@@ -4826,21 +4999,42 @@ describe("pr-review lease command validation", () => {
             workspace.reviewHead,
           );
         }
-        const finishedAt = terminal.terminal.finished_at ?? "";
-        terminal.cleanup = {
-          last_outcome: "removed",
-          last_checked_at: finishedAt,
-          removed_at: finishedAt,
-        };
-        await writeFile(
-          path.join(workspace.primary, workspace.leaseFile),
-          `${JSON.stringify(terminal, null, 2)}\n`,
-        );
-
         process.chdir(workspace.physicalPrimary);
         setReadStatusEnv(workspace);
-        const result = await runPrReviewLeasesCommand(["validate"]);
-        expect(result.exitCode, state).toBe(0);
+        for (const [finishedAt, checkedAt, removedAt] of [
+          [
+            "2026-10-06T00:00:00.1234567Z",
+            "2026-10-06T00:00:00.1234568Z",
+            "2026-10-06T00:00:00.1234567Z",
+          ],
+          [
+            "2026-10-06T00:00:00.1234567Z",
+            "2026-10-06T00:00:00.1234567Z",
+            "2026-10-06T00:00:00.1234567Z",
+          ],
+          [
+            "2026-10-06T00:00:00Z",
+            "2026-10-06T00:00:00.0000Z",
+            "2026-10-06T00:00:00.0Z",
+          ],
+        ]) {
+          terminal.terminal.finished_at = finishedAt;
+          terminal.cleanup = {
+            last_outcome: "removed",
+            last_checked_at: checkedAt,
+            removed_at: removedAt,
+          };
+          await writeFile(
+            path.join(workspace.primary, workspace.leaseFile),
+            `${JSON.stringify(terminal, null, 2)}\n`,
+          );
+          const result = await runPrReviewLeasesCommand(["validate"]);
+          expect(result.exitCode, `${state}: ${result.stderr}`).toBe(0);
+          expect(
+            (await readLease(workspace.primary, workspace.leaseFile)).terminal
+              .finished_at,
+          ).toBe(finishedAt);
+        }
       } finally {
         process.chdir(originalCwd);
         await rm(workspace.tempRoot, { recursive: true, force: true });
@@ -4882,8 +5076,34 @@ describe("pr-review lease command validation", () => {
             workspace.reviewHead,
           );
         }
-        const finishedAt = terminal.terminal.finished_at ?? "";
+        const finishedAt = "2026-10-06T00:00:00.1234567Z";
+        terminal.terminal.finished_at = finishedAt;
         const invalidCleanup = [
+          {
+            cleanup: {
+              last_outcome: "removed" as const,
+              last_checked_at: finishedAt,
+              removed_at: "2026-10-06T00:00:00.1234566Z",
+            },
+            error: "cleanup.removed_at cannot precede terminal.finished_at",
+          },
+          {
+            cleanup: {
+              last_outcome: "retained" as const,
+              last_checked_at: "2026-10-06T00:00:00.1234566Z",
+              removed_at: null,
+            },
+            error:
+              "cleanup.last_checked_at cannot precede terminal.finished_at",
+          },
+          {
+            cleanup: {
+              last_outcome: "removed" as const,
+              last_checked_at: finishedAt,
+              removed_at: "2026-10-06T00:00:00.1234568Z",
+            },
+            error: "cleanup.removed_at cannot follow cleanup.last_checked_at",
+          },
           {
             cleanup: {
               last_outcome: "retained" as const,
@@ -4904,7 +5124,7 @@ describe("pr-review lease command validation", () => {
           {
             cleanup: {
               last_outcome: "removed" as const,
-              last_checked_at: "2026-06-11T00:04:00Z",
+              last_checked_at: "2026-10-06T00:04:00Z",
               removed_at: "2026-06-11T00:00:00Z",
             },
             error: "cleanup.removed_at cannot precede terminal.finished_at",
@@ -4912,8 +5132,8 @@ describe("pr-review lease command validation", () => {
           {
             cleanup: {
               last_outcome: "removed" as const,
-              last_checked_at: "2026-06-11T00:04:00Z",
-              removed_at: "2026-06-11T00:05:00Z",
+              last_checked_at: "2026-10-06T00:04:00Z",
+              removed_at: "2026-10-06T00:05:00Z",
             },
             error: "cleanup.removed_at cannot follow cleanup.last_checked_at",
           },
@@ -6182,7 +6402,7 @@ describe("pr-review lease Git cleanup safety", () => {
       );
       expect(lease.cleanup?.last_outcome).toBe("skipped");
       expect(lease.cleanup?.last_checked_at).toMatch(
-        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u,
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/u,
       );
     } finally {
       process.chdir(originalCwd);
@@ -6447,7 +6667,7 @@ describe("pr-review lease Git cleanup safety", () => {
         );
         expect(removedLease.cleanup).toMatchObject({ last_outcome: "removed" });
         expect(removedLease.cleanup?.removed_at).toMatch(
-          /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u,
+          /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/u,
         );
         const removedAt = removedLease.cleanup?.removed_at;
         const retry = await runPrReviewLeasesCommand(["cleanup-worktree"]);
@@ -6829,7 +7049,7 @@ describe("pr-review lease Git cleanup safety", () => {
       );
       expect(lease.cleanup?.last_outcome).toBe("skipped");
       expect(lease.cleanup?.last_checked_at).toMatch(
-        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u,
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/u,
       );
     } finally {
       process.chdir(originalCwd);

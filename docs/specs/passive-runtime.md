@@ -24,6 +24,21 @@ This specification does not choose a bundler, change the public runtime command
 surface, change managed-install identity, or make generated or installed
 artifacts authoritative source.
 
+## PR-review helper guarantees
+
+The [review-leases usage](../../skills/pr-review/references/review-leases-usage.md)
+owns routine timestamp defaults and applicable presentation inputs. The
+[lease lifecycle contract](../../skills/pr-review/references/review-lease-lifecycle-contract.md)
+owns transitions, full-precision inclusive cleanup chronology, and exact-string
+validation freshness. The mandatory result audit consumes that UTC timestamp
+grammar while retaining identity, integrity, and freshness refusal.
+[Prior-thread usage](../../skills/pr-review/references/prior-thread-artifacts-usage.md)
+owns canonical producer-path consumption. The
+[PR-review procedure](../../skills/pr-review/SKILL.md) owns operation-only
+finalization retry against complete intact same-head evidence applicable to the
+failed operation; it preserves existing review, approval, provider, and cleanup
+authority.
+
 ## Terms
 
 - **Authored adapters:** the source-controlled shell compatibility adapter and

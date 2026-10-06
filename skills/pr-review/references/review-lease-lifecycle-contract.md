@@ -44,6 +44,30 @@ Valid states are:
   terminal state; failure audit metadata is recorded and valid recovery
   artifact pointers are preserved.
 
+## Operation inputs and recovery
+
+The [usage contract](review-leases-usage.md#timestamp-and-presentation-applicability)
+owns timestamp grammar, absent-value construction, and presentation input
+applicability. Timestamp cells below name the resulting transition evidence;
+they do not require callers to supply routine timestamps explicitly.
+
+Cleanup chronology is inclusive and compares every supplied fractional digit,
+without truncation or evidence-string rewriting. For example, terminal
+`2026-10-06T00:00:00.1234567Z` followed by cleanup
+`2026-10-06T00:00:00.1234568Z` is ordered; earlier submillisecond cleanup is
+refused. Whole seconds and trailing-zero fractions can denote the same instant.
+Same-cycle validation freshness still requires exact timestamp strings.
+
+A failed result construction, validation, or reviewed lease write stops preview
+and posting while retaining completed evidence. Correct only operation inputs,
+revalidate the same repository/head, complete intact semantic findings, and any
+already-produced result evidence applicable to that operation. A failed result
+construction may have no output yet: retry its writer and validate the resulting
+manifest before LC-03. Validation or lease-write retries require the complete
+existing evidence family. Changed source, identity, digest, or completeness
+invalidates reuse; approval never transfers. This adds no
+`failed`-to-`reviewed` transition or cleanup/publication authority.
+
 ## Transition Matrix
 
 Every valid transition is listed here. Missing rows fail closed. Same-state
@@ -139,7 +163,8 @@ the platform boundary in `docs/specs/platform.md`. Its guarantees are closed:
 
 The source-owned command contract remains closed. Required inputs are
 `REPOSITORY`, `PR_NUMBER`, `PRIMARY_REPOSITORY_ROOT`, `HEAD_SHA`, `BASE_REF`,
-`HEAD_REF`, and `UPDATED_AT`. Outcomes are `success`, `conflict`, and
+`HEAD_REF`. Routine timestamp construction follows the usage contract.
+Outcomes are `success`, `conflict`, and
 `manual-cleanup`. Conflict reasons are `discovery-not-create`,
 `reservation-contended`, `worktree-create-failed`, `lease-create-failed`,
 `final-verification-failed`, `interrupted`, and
@@ -254,13 +279,16 @@ terminal, missing, or unregistered leases remain `cleanup-required`.
 
 ## Field Contract
 
-`UPDATED_AT` is required on every write. `created_at`, `base_ref`, `head_ref`,
-`worktree_path`, `worktree_digest`, and `lease_file` are immutable after lease
-creation.
+Every write requires resulting `updated_at` evidence, and terminal writes
+require resulting `terminal.finished_at` evidence. Callers may omit
+`UPDATED_AT` and `FINISHED_AT`: the runtime constructs absent values under the
+[usage contract](review-leases-usage.md#timestamp-and-presentation-applicability),
+while explicitly invalid applicable values fail. `created_at`, `base_ref`,
+`head_ref`, `worktree_path`, `worktree_digest`, and `lease_file` are immutable
+after lease creation.
 
-Terminal writes require `FINISHED_AT`. `aborted` writes also require
-`TERMINAL_REASON`. `failed` writes require `FAILURE_PHASE`, `FAILURE_REASON`,
-and `FAILURE_RECOVERABILITY`.
+`aborted` writes require `TERMINAL_REASON`. `failed` writes require
+`FAILURE_PHASE`, `FAILURE_REASON`, and `FAILURE_RECOVERABILITY`.
 
 `reviewed` and later states that preserve a result manifest must also preserve
 `validation.result_manifest.status=valid`, the timestamp at which the helper
@@ -380,8 +408,12 @@ LC-18 is the only transition that replaces a terminal active lease with a fresh
 archive, snapshots it to:
 
 ```text
-.ephemeral/pr-${PR_NUMBER}-${WORKTREE_DIGEST}-${YYYYMMDDTHHMMSS}-${STATE}-archived-lease.json
+.ephemeral/pr-${PR_NUMBER}-${WORKTREE_DIGEST}-${TIMESTAMP_STAMP}-${STATE}-archived-lease.json
 ```
+
+`TIMESTAMP_STAMP` is `terminal.finished_at`, falling back to `updated_at`, with
+`-`, `:`, and `Z` removed. Any fractional component is preserved; for example,
+`2026-10-06T00:00:00.1234567Z` becomes `20261006T000000.1234567`.
 
 The helper retains the valid terminal lease until the fresh `created` lease is
 atomically installed. Terminal archive creation is exclusive: an existing
@@ -409,8 +441,9 @@ failure, GitHub, or cleanup metadata.
 
 The current optional `cleanup` object is closed: it has exactly `last_outcome`,
 `last_checked_at`, and `removed_at`; outcomes are `removed`, `retained`,
-`skipped`, `failed`, or `null`; and non-null timestamps are RFC 3339 UTC at
-second precision with valid calendar dates. For terminal `posted` and `aborted`
+`skipped`, `failed`, or `null`; and non-null timestamps follow the
+[UTC input grammar](review-leases-usage.md#timestamp-and-presentation-applicability).
+For terminal `posted` and `aborted`
 leases, terminal cleanup chronology is inclusive: non-null `last_checked_at`
 is not before `terminal.finished_at`; non-null `removed_at` requires a
 non-null `last_checked_at`; `removed_at` is not before `terminal.finished_at`;
