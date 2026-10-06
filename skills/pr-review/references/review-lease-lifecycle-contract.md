@@ -279,13 +279,16 @@ terminal, missing, or unregistered leases remain `cleanup-required`.
 
 ## Field Contract
 
-`UPDATED_AT` is required on every write. `created_at`, `base_ref`, `head_ref`,
-`worktree_path`, `worktree_digest`, and `lease_file` are immutable after lease
-creation.
+Every write requires resulting `updated_at` evidence, and terminal writes
+require resulting `terminal.finished_at` evidence. Callers may omit
+`UPDATED_AT` and `FINISHED_AT`: the runtime constructs absent values under the
+[usage contract](review-leases-usage.md#timestamp-and-presentation-applicability),
+while explicitly invalid applicable values fail. `created_at`, `base_ref`,
+`head_ref`, `worktree_path`, `worktree_digest`, and `lease_file` are immutable
+after lease creation.
 
-Terminal writes require `FINISHED_AT`. `aborted` writes also require
-`TERMINAL_REASON`. `failed` writes require `FAILURE_PHASE`, `FAILURE_REASON`,
-and `FAILURE_RECOVERABILITY`.
+`aborted` writes require `TERMINAL_REASON`. `failed` writes require
+`FAILURE_PHASE`, `FAILURE_REASON`, and `FAILURE_RECOVERABILITY`.
 
 `reviewed` and later states that preserve a result manifest must also preserve
 `validation.result_manifest.status=valid`, the timestamp at which the helper
