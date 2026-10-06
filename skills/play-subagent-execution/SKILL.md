@@ -106,7 +106,13 @@ A nonzero helper/runtime status or any malformed, unknown, inconsistent, or
 channel-violating success, including unavailable usage, returns
 `BLOCKED/NEEDS_CONTEXT` before skip evaluation, inline execution,
 implementer/reviewer dispatch, or final review. There is no repair, fallback,
-or partial use; do not infer or fall back to a delimiter parser.
+or partial use; do not infer or fall back to a delimiter parser. Return failed
+intake to planning without execution or changing the plan, expected digest,
+review history, or reviewed provenance. Only
+[planning](../play-planning/SKILL.md#producer-owned-unreviewed-draft-correction)
+owns eligible unreviewed producer correction and fresh preflight. A reviewed
+handoff gains no draft-correction permission and cannot be downgraded to
+unreviewed input.
 
 Direct-inline plan intake retains the existing controller-owned structural
 procedure. Require one literal Markdown H2 `## Execution Projection` outside

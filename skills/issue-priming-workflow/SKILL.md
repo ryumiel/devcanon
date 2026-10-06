@@ -865,7 +865,12 @@ means one complete combined D5 review passed. Preserve the reviewed digest and
 combined producer provenance in controller-local state, validate them, and stop
 if any value is missing or malformed. Invalid planning provenance must stop
 inside `play-planning` and must not reach this phase. Validate
-the captured path:
+the captured path. Planning's
+[unreviewed draft correction](../play-planning/SKILL.md#producer-owned-unreviewed-draft-correction)
+is local producer work, never a successful reviewed return. Failed or incomplete
+intake returns to planning without substituting a digest, rewriting review
+history, or downgrading provenance; retain the successful producer's exact
+path/digest/tag and current combined review provenance for the executor.
 
 ```bash
 node "$PHASE_ARTIFACTS_HELPER" validate-read plan "$PLAN_PATH"

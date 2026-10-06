@@ -773,6 +773,24 @@ proportionality, traceability and independent source verification remain.
 
 ### PLAN-002: Bounded correction and honest failure
 
+Before independent semantic review and accepted-plan handoff, the planning
+producer may correct its own unreviewed draft's required Task ID paragraph
+separation or place identical bytes at a compliant safely guarded plan path,
+under unchanged authority, scope, requirements, meaning, Task IDs and acceptance.
+Each correction requires fresh canonical path validation, exact-byte hashing,
+closed projection intake and a matching rehash before review capture or dispatch.
+Failed output remains unusable. A second distinct mechanical defect alone
+requires no reapproval or restart when those conditions hold and progress is
+made; pre-dispatch failures consume no semantic pass. Missing tasks, conflicting
+identifiers, genuinely unresolved references, uncertain meaning, lack of
+progress, integrity conflicts or scope choices stop at the existing decision
+owner without semantic invention. Consumers refuse invalid handoffs and return
+to planning; they cannot edit reviewed input, substitute expected digests,
+rewrite review history or downgrade provenance. Previously reviewed or accepted
+plans retain the existing mutation and approval rules below. Detailed recovery
+procedure belongs to
+[planning](../../skills/play-planning/SKILL.md#producer-owned-unreviewed-draft-correction).
+
 The accepted scope receives one comprehensive initial pass and at most one
 further pass. Nonblocking feedback alone does not require another session.
 Focused correction checks prior blockers, the complete plan diff and affected

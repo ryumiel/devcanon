@@ -91,8 +91,15 @@ extra key, wrong nested type, bad identifier, empty affected surfaces, or invali
 path mismatch, reference inconsistency, or inconsistent result, to
 `BLOCKED/NEEDS_CONTEXT`. It also maps a zero-status
 channel violation, including extra stdout bytes or nonempty success stderr, to
-`BLOCKED/NEEDS_CONTEXT` before every path-backed consumer. There is no repair,
-fallback, or partial use.
+`BLOCKED/NEEDS_CONTEXT` before every path-backed consumer. No failed or
+inconsistent result may be repaired, used partially, or replaced by a fallback.
+An optional diagnostic guides navigation only; it does not classify a defect as
+mechanical or authorize a semantic change.
+
+[Planning's producer-owned unreviewed draft correction](../../play-planning/SKILL.md#producer-owned-unreviewed-draft-correction)
+may correct eligible input and request fresh canonical intake. This read-only
+helper owns no correction or retry; executor refusal returns to planning and
+does not authorize editing reviewed input.
 
 ## Side effects
 
