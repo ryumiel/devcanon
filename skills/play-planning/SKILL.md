@@ -662,11 +662,49 @@ missing planning contracts. Do not broaden proof obligations beyond the Scope
 Envelope. Recompute task and traceability coverage after any authorized edit,
 then continue to combined review.
 
+## Producer-owned unreviewed draft correction
+
+Before independent semantic review and accepted-plan handoff, the planning
+controller may correct its own saved draft when existing accepted issue/design
+authority, scope, requirements, meaning, stable Task IDs, and acceptance remain
+unchanged. Required blank lines separating a Task ID paragraph, or placing
+identical draft bytes at a compliant guarded plan path, are eligible mechanical
+corrections. Apply the canonical write guard above before any corrected write.
+An inspection diagnostic may locate a defect; its code alone never establishes
+that a correction preserves meaning or supplies authority.
+
+Discard failed inspection output; correcting the producer's input is distinct
+from repairing or partially consuming a result. After each correction, rerun
+all canonical preflight gates below on the saved input before D5 capture or
+dispatch. A second distinct mechanical defect alone requires neither
+coordinator/user reapproval nor a workflow restart when unchanged meaning and
+authority are established and correction makes progress. Pre-dispatch intake
+failures consume no semantic review pass.
+
+Missing tasks, conflicting identifiers, genuinely unresolved references,
+uncertain meaning, missing authority, lack of progress, integrity conflicts, or a needed
+scope/semantic choice stop at the existing decision owner. Do not invent a
+mapping, task, or acceptance change. Unsafe or unreadable inputs remain
+unusable. This permission does not apply to previously reviewed or accepted
+plans: their mutation invalidation, approval, correction coverage, and pass
+budgets remain owned by the
+[combined-review contract](references/combined-review-contract.md#budget-and-correction-coverage).
+Renaming or relocating a reviewed plan does not reset that history.
+
 ## Exact Digest and Combined Review Orchestration
 
 Immediately before each combined review pass and every handoff, validate the
-saved plan path as a guarded readable regular file, compute SHA-256 over its
-exact bytes, and validate the lowercase 64-hex digest. Resolve
+saved plan path with the existing `issue-priming-workflow` phase-artifact
+helper before hashing or inspection. Resolve `ISSUE_PRIMING_WORKFLOW_DIR` to
+the installed skill bundle and invoke it from the target repository root:
+
+```bash
+node "$ISSUE_PRIMING_WORKFLOW_DIR/scripts/phase-artifacts.mjs" validate-read plan "$PLAN_PATH"
+```
+
+Require silent success for the compliant direct-child `.ephemeral/*-plan.md`
+readable regular file; nonzero status stops intake. Then compute SHA-256 over
+its exact bytes and validate the lowercase 64-hex digest. Resolve
 `PLAY_SUBAGENT_EXECUTION_DIR` from the installed `play-subagent-execution` skill
 bundle, not from the target repository or current working directory. Read its
 [inspect-plan-projection usage](../play-subagent-execution/references/inspect-plan-projection-usage.md)
@@ -678,8 +716,11 @@ bash "$PLAY_SUBAGENT_EXECUTION_DIR/scripts/inspect-plan-projection.sh" --path <r
 ```
 
 An unavailable bundle, helper, or usage reference, or any malformed, stale,
-unreadable, or inconsistent projection output stops the route. Rehash after
-inspection, after guard cleanup, and immediately before handoff. A changed byte invalidates all prior approval.
+unreadable, or inconsistent projection output stops intake without result
+consumption. Only eligible producer input correction above permits fresh
+preflight; no failed result reaches review. Accept only the closed success
+envelope, then rehash and require the exact pre-inspection digest before
+capture or dispatch. Rehash after guard cleanup, and immediately before handoff. A changed byte invalidates all prior approval.
 
 Select the design input before freezing the tuple: a valid `Design: <path>`
 wins whenever both forms were supplied; otherwise preserve the direct
