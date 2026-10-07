@@ -74,15 +74,13 @@ export async function runPrMergeWorktreeCommand(
           stdout: formatPreflight(await preflight()),
           stderr: "",
         };
-      case "cleanup":
+      case "cleanup": {
         if (rest.length > 0) {
           throw new CleanupUsageError("cleanup does not accept arguments");
         }
-        return {
-          exitCode: 0,
-          stdout: formatCleanup(await cleanup(readCleanupEnv())),
-          stderr: "",
-        };
+        const { report, stderr } = await cleanup(readCleanupEnv());
+        return { exitCode: 0, stdout: formatCleanup(report), stderr };
+      }
       default:
         throw new CleanupUsageError(
           "usage: pr-merge-worktree preflight|cleanup",
@@ -460,7 +458,9 @@ async function validatePreflightMetadata(
   return { valid: true };
 }
 
-async function cleanup(env: CleanupEnv): Promise<CleanupReport> {
+async function cleanup(
+  env: CleanupEnv,
+): Promise<{ report: CleanupReport; stderr: string }> {
   for (const [name, value] of [
     ["PR_HEAD_BRANCH", env.prHeadBranch],
     ["PR_BASE_BRANCH", env.prBaseBranch],
@@ -486,6 +486,7 @@ async function cleanup(env: CleanupEnv): Promise<CleanupReport> {
   let headBranchProtected = false;
   let headBranchProtectedReason = "";
   let worktreeRemoveFailed = false;
+  let stderr = "";
   let baseUpdateFailed = false;
   let localDeleteFailed = false;
   let remoteDeleteFailed = false;
@@ -526,6 +527,8 @@ async function cleanup(env: CleanupEnv): Promise<CleanupReport> {
     );
     worktreeRemoveFailed = removeResult.exitCode !== 0;
     if (worktreeRemoveFailed) {
+      stderr = `git worktree remove failed for ${JSON.stringify(headWorktreeReal)} (exit code ${removeResult.exitCode})\n${removeResult.stderr}`;
+      if (!stderr.endsWith("\n")) stderr += "\n";
       headBranchProtected = true;
       headBranchProtectedReason = "worktree-cleanup-failed";
     }
@@ -621,7 +624,7 @@ async function cleanup(env: CleanupEnv): Promise<CleanupReport> {
     }
   }
 
-  return reduceCleanup({
+  const report = reduceCleanup({
     prState: env.prState,
     headWorktreeReal,
     primaryWorktreeReal,
@@ -647,6 +650,7 @@ async function cleanup(env: CleanupEnv): Promise<CleanupReport> {
     localDeleteFailed,
     remoteDeleteFailed,
   });
+  return { report, stderr };
 }
 
 function readCleanupEnv(): CleanupEnv {

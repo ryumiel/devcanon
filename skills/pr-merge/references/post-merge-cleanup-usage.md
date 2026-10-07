@@ -18,7 +18,7 @@ Run from the repository context selected by the preflight result.
 
 ## Outputs
 
-Its primary result channel is structured `KEY=VALUE` stdout: `WORKTREE_CLEANUP`, `BASE_UPDATE`, `LOCAL_BRANCH_CLEANUP`, and `REMOTE_BRANCH_CLEANUP`, each with a corresponding `_REASON`, plus `MANUAL_ACTION`. Thrown input or runtime errors are emitted on stderr.
+Its primary result channel is structured `KEY=VALUE` stdout: `WORKTREE_CLEANUP`, `BASE_UPDATE`, `LOCAL_BRANCH_CLEANUP`, and `REMOTE_BRANCH_CLEANUP`, each with a corresponding `_REASON`, plus `MANUAL_ACTION`. A failed `git worktree remove` also emits its worktree target, Git exit code, and Git stderr on the diagnostic stderr channel without changing those stdout fields or the cleanup command's exit-zero outcome. Successful removal emits no failure diagnostic. Thrown input or runtime errors are emitted on stderr.
 
 ## Refusal and failures
 

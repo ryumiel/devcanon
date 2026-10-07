@@ -434,6 +434,72 @@ describe("pr-merge worktree helper scripts", { timeout: TEST_TIMEOUT }, () => {
     },
   );
 
+  it.skipIf(isWindows)(
+    "reports a failed removal diagnostic and retains the local branch",
+    async () => {
+      const rootDir = await createTempDir();
+      tempDirs.push(rootDir);
+      const { originDir, primaryDir } = await createOriginRepo(rootDir);
+      const headSha = await createFeatureBranch(primaryDir);
+      const featureDir = await createFeatureWorktree(primaryDir, rootDir);
+      const { stdout: gitPathOutput } = await runCommand(
+        "sh",
+        ["-c", "command -v git"],
+        rootDir,
+      );
+      const envDir = path.join(rootDir, "env");
+      await mkdir(envDir);
+      const wrapper = path.join(envDir, "git");
+      await writeFile(
+        wrapper,
+        [
+          "#!/usr/bin/env bash",
+          `REAL_GIT=${JSON.stringify(gitPathOutput.trim())}`,
+          'if [ "$3" = worktree ] && [ "$4" = remove ]; then',
+          "  printf '%s\\n' 'fatal: simulated removal failure' >&2",
+          "  exit 128",
+          "fi",
+          'exec "$REAL_GIT" "$@"',
+          "",
+        ].join("\n"),
+      );
+      await runCommand("chmod", ["+x", wrapper], rootDir);
+
+      const result = await runScript(cleanupScript, primaryDir, {
+        ...cleanupEnv({
+          primaryDir,
+          featureDir,
+          headSha,
+          baseRemoteUrl: originDir,
+        }),
+        ...prependPathEnv(envDir),
+      });
+      const output = parseKeyValueOutput(result.stdout);
+      expect(result.code).toBe(0);
+      expect(result.stderr).toBe(
+        `git worktree remove failed for ${JSON.stringify(await realpath(featureDir))} (exit code 128)\nfatal: simulated removal failure\n`,
+      );
+      expect(output).toEqual({
+        WORKTREE_CLEANUP: "failed",
+        WORKTREE_CLEANUP_REASON: "git-worktree-remove-failed",
+        BASE_UPDATE: "updated",
+        BASE_UPDATE_REASON: "main",
+        LOCAL_BRANCH_CLEANUP: "retained",
+        LOCAL_BRANCH_CLEANUP_REASON: "worktree-cleanup-failed",
+        REMOTE_BRANCH_CLEANUP: "deleted",
+        REMOTE_BRANCH_CLEANUP_REASON: "feature/pr-merge-helper",
+        MANUAL_ACTION: expect.stringMatching(/remove worktree manually/i),
+      });
+      expect(await pathExists(featureDir)).toBe(true);
+      expect(
+        await runGit(
+          ["rev-parse", "refs/heads/feature/pr-merge-helper"],
+          primaryDir,
+        ),
+      ).toBe(headSha);
+    },
+  );
+
   it("removes a clean feature worktree from inside that worktree and deletes matching local and remote branches", async () => {
     const rootDir = await createTempDir();
     tempDirs.push(rootDir);
@@ -459,6 +525,7 @@ describe("pr-merge worktree helper scripts", { timeout: TEST_TIMEOUT }, () => {
       expect(output.MANUAL_ACTION).toMatch(/remove worktree manually/i);
       expect(await pathExists(featureDir)).toBe(true);
     } else {
+      expect(result.stderr).toBe("");
       expect(output.WORKTREE_CLEANUP).toBe("removed");
       expect(output.BASE_UPDATE).toBe("updated");
       expect(output.LOCAL_BRANCH_CLEANUP).toBe("deleted");
