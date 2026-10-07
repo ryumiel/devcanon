@@ -10,21 +10,28 @@ applicable documentation checks. There is no separate exhaustive, scheduled,
 manual, or main-only test lane. Hosted Ubuntu CI runs the four existing Vitest
 projects as parallel required legs, with the unit and POSIX integration
 projects each split into two disjoint Vitest shards. Both shards of each project
-are required; together they run every project file once. Each Ubuntu leg has a
-75-second runtime budget. The
-focused Windows PR-review lane runs its 54 actual lifecycle, lease, manifest,
+are required; together they run every project file once. Ordinary Ubuntu legs
+have a 75-second runtime budget. The POSIX integration shard `2/2` has a
+180-second runtime budget to accommodate retained serial prior-thread
+integration coverage. The focused Windows PR-review lane runs its 54 actual
+lifecycle, lease, manifest,
 and source-immutability behaviors; its Ubuntu unit contract proves that exact
 lane selection. A separate focused Windows setup lane proves native CLI
 registration. Each test job—including checkout, setup, dependency installation,
-and cleanup—has a three-minute hard limit.
+and cleanup—has a three-minute hard limit, except POSIX integration shard `2/2`,
+which has a four-minute hard limit. These lane budgets are defined in the
+[CI workflow](../../.github/workflows/ci.yml).
 
-Each Ubuntu test command receives `SIGTERM` when its 75-second budget expires
+Each Ubuntu test command receives `SIGTERM` when its lane-specific budget expires
 and `SIGKILL` five seconds later if it has not exited, so a trapped or ignored
 termination signal cannot extend execution to the job-level timeout.
 
 The practical required PR test wall-clock target is 60 seconds or less,
-excluding runner queueing. The 75-second per-Ubuntu-leg budget and three-minute
-job hard cap bound normal variance and cleanup without replacing the target.
+excluding runner queueing. The ordinary 75-second Ubuntu command budget and
+three-minute job hard cap bound normal variance and cleanup without replacing
+the target.
+The POSIX integration shard `2/2` exception exceeds this ordinary target while
+retaining finite command and job limits and all required coverage.
 
 An individual required test should normally finish within one second. Vitest
 reports tests above that threshold as slow. Longer tests require a documented
