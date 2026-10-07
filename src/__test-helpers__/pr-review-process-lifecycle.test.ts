@@ -406,7 +406,9 @@ describe("pr-review process lifecycle", () => {
   it("restores controller cwd before generated-root disposition", async () => {
     const root = await generatedRoot();
     const beforeCwd = process.cwd();
-    const processLifecycle = await lifecycle(root, "process.exit(0);");
+    const processLifecycle = await lifecycle(root, "process.exit(0);", {
+      deadlineMs: 5_000,
+    });
     process.chdir(root.path);
 
     const result = await processLifecycle.finish();
@@ -416,7 +418,9 @@ describe("pr-review process lifecycle", () => {
     expect(result.generatedRoot, JSON.stringify(result)).toBe("removed");
     const failedRoot = await generatedRoot();
     const originalCwd = process.cwd();
-    const failedLifecycle = await lifecycle(failedRoot, "process.exit(0);");
+    const failedLifecycle = await lifecycle(failedRoot, "process.exit(0);", {
+      deadlineMs: 5_000,
+    });
     process.chdir(failedRoot.path);
     const chdir = vi.spyOn(process, "chdir").mockImplementation(() => {
       throw new Error("injected restoration failure");
