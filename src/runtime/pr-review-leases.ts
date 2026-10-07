@@ -4520,6 +4520,14 @@ async function collectOwnedEphemeralArtifacts(
     addOwnedPath(owned, sharedContext.input_file);
     addOwnedPath(owned, sharedContext.context_file);
     collectResultArtifactPaths(owned, result);
+    const auditFile = `.ephemeral/pr-${lease.pr_number}-${stringField(result, "review_head_sha")}-phase5-audit.md`;
+    const auditStat = await lstat(path.join(worktreePath, auditFile)).catch(
+      (err: NodeJS.ErrnoException) => {
+        if (err.code === "ENOENT") return null;
+        throw err;
+      },
+    );
+    if (auditStat?.isFile()) addOwnedPath(owned, auditFile);
   }
   if (lease.artifacts.approved_review_file !== null) {
     const result = await readRequiredJson<JsonObject>(

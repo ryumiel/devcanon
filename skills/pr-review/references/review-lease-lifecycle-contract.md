@@ -555,8 +555,11 @@ Classifier fields:
 - `metadata_outcome`
 - `force_remove_allowed`
 
-Cleanup may preserve only lease-referenced artifacts and schema-declared
-artifact fields from those artifacts. Arbitrary strings in JSON content,
+Cleanup may preserve only lease-referenced artifacts, schema-declared
+artifact fields from those artifacts, and the optional regular Phase 5 audit
+at `.ephemeral/pr-<PR_NUMBER>-<HEAD_SHA>-phase5-audit.md` for the validated
+result's PR/head. That audit remains non-authorizing local evidence; unrelated
+names, symlinks, and directories do not gain ownership. Arbitrary strings in JSON content,
 findings bodies, review text, payload bodies, or other user-authored content do
 not prove cleanup ownership for `.ephemeral` files.
 
