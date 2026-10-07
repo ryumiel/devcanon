@@ -172,7 +172,9 @@ bash "$PR_MERGE_DIR/scripts/post-merge-cleanup.sh" --help
 ```
 
 If the helper reports `retained`, `skipped`, or `failed`, do not hide it behind
-the successful remote merge. Report the remaining manual action.
+the successful remote merge. Report the remaining manual action. For failed
+worktree removal, include the helper diagnostic with the worktree target, Git
+exit code, and error so the cause can be diagnosed.
 
 ### Final report contract
 
