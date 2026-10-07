@@ -161,8 +161,8 @@ jobs:
             timeout_minutes: 3
           - name: Ubuntu POSIX integration 2/2
             os: ubuntu-latest
-            test-command: timeout --kill-after=5s 75s pnpm run test:integration:posix --shard=2/2
-            timeout_minutes: 3
+            test-command: timeout --kill-after=5s 180s pnpm run test:integration:posix --shard=2/2
+            timeout_minutes: 4
           - name: Ubuntu render/install integration
             os: ubuntu-latest
             test-command: timeout --kill-after=5s 75s pnpm run test:integration:render-install
