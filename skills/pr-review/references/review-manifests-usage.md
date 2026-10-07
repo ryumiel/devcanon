@@ -42,6 +42,32 @@ Use the target review worktree root for result and findings operations and the p
 
 It emits validated manifest paths or structured results on stdout and diagnostics on stderr. `extract-pre-findings-markdown` emits the Markdown preceding the first `## Findings` heading, or nothing when the output has no pre-findings text.
 
+## Phase 5 audit retention
+
+`render-phase5-audit-summary` remains read-only and emits the full Markdown
+audit on stdout. After it succeeds, the Phase 5 caller saves that exact output
+as `.ephemeral/pr-<PR_NUMBER>-<HEAD_SHA>-phase5-audit.md` in the target review
+worktree, beside the current result and preview. Use the validated PR number
+and trusted review head already supplied to the renderer.
+
+Apply the existing local artifact-write conventions before writing: require a
+real nonsymlink `.ephemeral` directory, create it if absent, and require the
+computed target to be a direct child with no traversal. Unlink a target symlink
+before writing; reject directories and other nonregular existing targets.
+Replace the prior audit for this PR/head only after the new render succeeds.
+Read back the saved file to confirm it is readable and contains the complete
+current output before presenting its absolute local link at the approval gate.
+A retention failure stops presentation; report it without using an older audit.
+
+Refresh this file after every successful gated audit render, including edited
+previews. It is human-readable local evidence, not a result-manifest field,
+approval input, or freshness authority. The caller derives the short summary
+from the current validated evidence; review completeness still comes from the
+validated findings envelope, not an inference from the audit's counts or
+validation status. Existing lease/worktree lifecycle handling owns retention
+and cleanup with the other review artifacts. Do not publish this local audit
+or its machine-local inventory as GitHub review content.
+
 ## Refusal and failures
 
 Unknown operations, malformed stdin, invalid manifests, stale evidence, unsafe paths, unavailable runtime, a pre-findings block whose first non-blank line is a level-2 heading, or an existing findings-publication guard exit nonzero. A retained guard after a failed findings publication requires manual recovery before a later `replace-findings` call.
