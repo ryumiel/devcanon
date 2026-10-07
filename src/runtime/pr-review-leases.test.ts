@@ -7188,6 +7188,51 @@ describe("pr-review lease Git cleanup safety", () => {
     }
   });
 
+  it("cleans up a retained Phase 5 audit owned by the validated result", async () => {
+    const workspace = await makeGatedStatusWorkspace("pr-review-owned-audit-");
+
+    try {
+      await writeFile(
+        path.join(workspace.primary, ".git", "info", "exclude"),
+        ".ephemeral/\n",
+      );
+      await writeFile(
+        path.join(
+          workspace.worktree,
+          `.ephemeral/pr-432-${workspace.reviewHead}-phase5-audit.md`,
+        ),
+        "# Full audit\n",
+      );
+      process.chdir(workspace.physicalPrimary);
+      setReadStatusEnv(workspace);
+      process.env.STATE = "aborted";
+      process.env.EXPECTED_STATE = "gated";
+      process.env.TERMINAL_REASON = "user-aborted";
+      process.env.BASE_REF = "main";
+      process.env.HEAD_REF = "topic";
+      process.env.FINISHED_AT = "2026-06-11T00:04:00Z";
+      process.env.UPDATED_AT = "2026-06-11T00:04:00Z";
+      const aborted = await runPrReviewLeasesCommand(["write"]);
+      expect(aborted.exitCode, aborted.stderr).toBe(0);
+      const unrelatedAudit = path.join(
+        workspace.worktree,
+        `.ephemeral/pr-432-${"f".repeat(40)}-phase5-audit.md`,
+      );
+      await writeFile(unrelatedAudit, "# Other review audit\n");
+      const refused = await runPrReviewLeasesCommand(["inspect-worktree"]);
+      expect(refused.stdout).toContain(
+        "REFUSAL_REASON=unmanaged-ephemeral-artifacts",
+      );
+      await rm(unrelatedAudit);
+      const result = await runPrReviewLeasesCommand(["cleanup-worktree"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(result.stdout).toContain("OUTCOME=removed");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(workspace.tempRoot, { recursive: true, force: true });
+    }
+  });
+
   it("refuses cleanup when ignored worktree ephemeral artifacts are unmanaged", async () => {
     const { tempRoot, primary, worktree, physicalPrimary, physicalWorktree } =
       await makeRegisteredWorkspace("pr-review-cleanup-");

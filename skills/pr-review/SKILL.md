@@ -1042,8 +1042,10 @@ body or findings and the preview is re-rendered, update the same `gated` lease
 after the manifest update succeeds. The lease gate is still not approval.
 
 After every successful `gated` write, including edited previews, render the
-mandatory Phase 5 artifact audit summary before asking for user action. The
-audit renderer validates the result manifest and then derives the summary only
+full Phase 5 artifact audit before asking for user action. Retain its exact
+stdout beside the current review artifacts using the
+[audit retention procedure](references/review-manifests-usage.md#phase-5-audit-retention)
+after successful rendering on every gate cycle. The audit renderer validates the result manifest and then derives the summary only
 from that validated manifest plus the current read-only lease/worktree status:
 
 ```bash
@@ -1104,12 +1106,26 @@ transition authority are trustworthy.
 
 Present the existing artifact-backed review preview stdout first. It is the
 sole presentation of the reviewed head, findings path, every finding body and
-evidence snippet, critic state, and carry-forward entry. Follow it with exactly
-that mandatory dense audit summary, which presents the validated review scope,
-artifacts and finding counts, presentation/lifecycle state, and Phase 5 cleanup
-state without repeating the preview-owned reviewed-head or findings-path
-identity. Then present the complete thread resolution list for follow-up
-reviews when applicable, before the unchanged user actions:
+evidence snippet, critic state, and carry-forward entry. Do not shorten or
+rewrite the proposed GitHub publication. Follow it with a concise audit summary:
+
+- Scope: full review or the selected follow-up scope and any coverage limitation.
+- Findings: active and carry-forward counts from the validated audit.
+- Completeness: the validated findings envelope's review completeness, including
+  any incomplete route and its reason. Artifact validation success and zero
+  findings never establish semantic review completion.
+- Lifecycle/cleanup: actionable problems or warnings from the current audit and
+  review evidence, including dirty worktree status when present. Otherwise say
+  cleanup is pending approval and has not been attempted; do not imply failure
+  merely because cleanup is pending at this gate.
+- A clickable **Full audit** link to the retained local artifact, available
+  during approval. Keep the path/digest/timestamp inventory in that artifact.
+
+Use a short paragraph or a few bullets, without repeating the preview-owned
+reviewed-head or findings-path identity. If audit rendering or retention fails,
+do not present a successful approval gate; preserve the existing failure
+handling and report the failure. Then present the complete thread resolution
+list for follow-up reviews when applicable, before the unchanged user actions:
 
 ```
 ### Previous Threads
