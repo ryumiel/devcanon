@@ -413,7 +413,7 @@ describe("pr-review process lifecycle", () => {
 
     expect(process.cwd()).toBe(beforeCwd);
     expect(result.restoration).toBe("restored");
-    expect(result.generatedRoot).toBe("removed");
+    expect(result.generatedRoot, JSON.stringify(result)).toBe("removed");
     const failedRoot = await generatedRoot();
     const originalCwd = process.cwd();
     const failedLifecycle = await lifecycle(failedRoot, "process.exit(0);");
