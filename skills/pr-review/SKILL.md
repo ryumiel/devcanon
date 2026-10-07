@@ -44,7 +44,8 @@ Load these only at the loading site that names the trigger; that site states the
 
 - [`references/review-lease-lifecycle-contract.md`](references/review-lease-lifecycle-contract.md) — Phase 2 terminal `posted` or `aborted` candidate or LC-18 `reentry`; resume, retry, failure-atomicity, or Phase 7 cleanup-authority questions.
 - [`references/edited-preview-recovery.md`](references/edited-preview-recovery.md) — Phase 5 recognized body edit, `drop #N`, severity or category change, or an interruption between `write-review-body` and body-publication recovery.
-- [`references/approved-review-artifacts-usage.md`](references/approved-review-artifacts-usage.md) — Phase 6 first approved-review helper use on fresh or resumed posting.
+- [`references/post-approval-procedure.md`](references/post-approval-procedure.md) — Phase 6 authorized fresh or resumed posting; Phase 7 lifecycle-permitted fresh or resumed cleanup, including abort/failure.
+- [`references/approved-review-artifacts-usage.md`](references/approved-review-artifacts-usage.md) — first approved-review helper use inside the Phase 6 procedure on fresh or resumed posting.
 
 Scripts under `scripts/` and `play-review`'s `review-artifacts.sh` are executed, not read; their usage documents above are the prompt-side surface.
 
@@ -682,7 +683,6 @@ write_pr_review_handoff_manifest() {
     REVIEW_SCOPE_BASE_REF="$REVIEW_SCOPE_BASE_REF" \
     ACTIVE_DIFF_RANGE="$active_diff_range" \
     FULL_PR_DIFF_RANGE="$FULL_PR_DIFF_RANGE" \
-    MODE="github-post" \
     LANGUAGE_HINTS_JSON='<json-array>' \
     FOLLOW_UP_STATE="<initial|follow-up-full|follow-up-narrow>" \
     LAST_REVIEWED_SHA="${last_reviewed_sha:-}" \
@@ -1042,8 +1042,10 @@ body or findings and the preview is re-rendered, update the same `gated` lease
 after the manifest update succeeds. The lease gate is still not approval.
 
 After every successful `gated` write, including edited previews, render the
-mandatory Phase 5 artifact audit summary before asking for user action. The
-audit renderer validates the result manifest and then derives the summary only
+full Phase 5 artifact audit before asking for user action. Retain its exact
+stdout beside the current review artifacts using the
+[audit retention procedure](references/review-manifests-usage.md#phase-5-audit-retention)
+after successful rendering on every gate cycle. The audit renderer validates the result manifest and then derives the summary only
 from that validated manifest plus the current read-only lease/worktree status:
 
 ```bash
@@ -1104,12 +1106,26 @@ transition authority are trustworthy.
 
 Present the existing artifact-backed review preview stdout first. It is the
 sole presentation of the reviewed head, findings path, every finding body and
-evidence snippet, critic state, and carry-forward entry. Follow it with exactly
-that mandatory dense audit summary, which presents the validated review scope,
-artifacts and finding counts, presentation/lifecycle state, and Phase 5 cleanup
-state without repeating the preview-owned reviewed-head or findings-path
-identity. Then present the complete thread resolution list for follow-up
-reviews when applicable, before the unchanged user actions:
+evidence snippet, critic state, and carry-forward entry. Do not shorten or
+rewrite the proposed GitHub publication. Follow it with a concise audit summary:
+
+- Scope: full review or the selected follow-up scope and any coverage limitation.
+- Findings: active and carry-forward counts from the validated audit.
+- Completeness: the validated findings envelope's review completeness, including
+  any incomplete route and its reason. Artifact validation success and zero
+  findings never establish semantic review completion.
+- Lifecycle/cleanup: actionable problems or warnings from the current audit and
+  review evidence, including dirty worktree status when present. Otherwise say
+  cleanup is pending approval and has not been attempted; do not imply failure
+  merely because cleanup is pending at this gate.
+- A clickable **Full audit** link to the retained local artifact, available
+  during approval. Keep the path/digest/timestamp inventory in that artifact.
+
+Use a short paragraph or a few bullets, without repeating the preview-owned
+reviewed-head or findings-path identity. If audit rendering or retention fails,
+do not present a successful approval gate; preserve the existing failure
+handling and report the failure. Then present the complete thread resolution
+list for follow-up reviews when applicable, before the unchanged user actions:
 
 ```
 ### Previous Threads
@@ -1164,239 +1180,54 @@ requires validation plus independent review of the changed candidate.
 
 ## Phase 6: Post
 
-Only after user approval:
+Only after explicit Phase 5 approval of the latest exact preview, load
+[post-approval procedure](references/post-approval-procedure.md) in full from
+the installed `pr-review` bundle before the first Phase 6 action. On every
+fresh or resumed posting continuation, explicitly read it again; do not assume
+it survived earlier context. If it is missing, blank, unreadable, or unavailable,
+stop before revalidation, approval-event derivation, artifact materialization,
+or any GitHub mutation. This main skill remains the normative owner of approval
+and continuation policy; the reference is its subordinate operating procedure.
+Existing helper usage and lease lifecycle contracts retain their ownership.
 
-1. **Revalidate the approved preview before binding approval intent.** Re-run
-   the Phase 5 `read-result-for-preview` consumption against the same trusted
-   `REVIEW_HEAD_SHA` and `REVIEW_RESULT_FILE`; it rebinds the approved findings,
-   body, scope-decision, and optional artifact paths only if their digests still
-   validate. Any post-preview mutation fails before event derivation, payload
-   materialization, or GitHub mutation. This revalidation is not approval.
-
-   ```bash
-   APPROVAL_REVALIDATION_STATUS=0
-   read_pr_review_result_manifest_for_preview || APPROVAL_REVALIDATION_STATUS=$?
-   cd "$REVIEW_CALLER_DIR" || exit 1
-   [ "$APPROVAL_REVALIDATION_STATUS" -eq 0 ] || exit "$APPROVAL_REVALIDATION_STATUS"
-   ```
-
-2. **Verify the latest result remains the user-gated lease result.** From the
-   primary repository root, invoke the existing `review-leases.sh read-status`
-   contract with the revalidated result. Its lease digest gate prevents a
-   coordinated replacement of the result and its artifacts from inheriting
-   prior approval. Any nonzero status fails closed before event derivation,
-   payload materialization, or GitHub mutation.
-
-   ```bash
-   (
-     cd "$REVIEW_CALLER_DIR" || exit 1
-     REPOSITORY="<owner/repo>" \
-     PR_NUMBER="$PR_NUMBER" \
-     PRIMARY_REPOSITORY_ROOT="$REVIEW_CALLER_DIR" \
-     WORKTREE_PATH="$WORKING_DIRECTORY" \
-     LEASE_FILE="$LEASE_FILE" \
-     RESULT_FILE="$REVIEW_RESULT_FILE" \
-     HEAD_SHA="$REVIEW_HEAD_SHA" \
-       bash "$PR_REVIEW_LEASE_HELPER" read-status >/dev/null
-   ) || exit 1
-   ```
-
-3. **Bind the approved review event from the user-approved intent.** Do not
-   reuse an ambient or previously exported `REVIEW_EVENT`; unset it first, then
-   derive it from the explicit Phase 5 approval that applies to the latest
-   rendered preview. Approval intent maps to GitHub review events as follows:
-   approve => `APPROVE`; request-changes or blocking review => `REQUEST_CHANGES`;
-   post as comment, comment-only review, or no-verdict review => `COMMENT`.
-   Any unrecognized approval intent is a contract failure; stop before payload
-   construction.
-
-   ```bash
-   unset REVIEW_EVENT
-   case "$APPROVED_REVIEW_INTENT" in
-     approve) REVIEW_EVENT="APPROVE" ;;
-     request-changes | blocking | blocking-review) REVIEW_EVENT="REQUEST_CHANGES" ;;
-     post-as-comment | comment | comment-only | no-verdict) REVIEW_EVENT="COMMENT" ;;
-     *) echo "unrecognized approved review intent: $APPROVED_REVIEW_INTENT" >&2; exit 1 ;;
-   esac
-   ```
-
-4. **Materialize and freeze the approved payload artifact before posting.** On
-   fresh or resumed posting, before the first approved-review helper invocation
-   or result interpretation in Phase 6, read
-   [approved-review-artifacts usage](references/approved-review-artifacts-usage.md)
-   in full from the installed `pr-review` skill bundle. If the guidance is
-   missing, blank, unreadable, or unavailable, stop before that dependent helper
-   action; do not invoke the helper or interpret its result. The reference owns
-   invocation mechanics, inputs, outputs, and refusals; this workflow owns
-   approval, command selection, interpretation, and continuation.
-
-   Use the approved Phase 5 artifacts; do not rebuild findings or the review body
-   from conversation text. `PR_REVIEW_DIR` must resolve to the installed
-   `pr-review` skill bundle, not the repository under review. Bind
-   `PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"`.
-   `materialize-review-payload` receives the caller-provided
-   `REVIEW_SURFACE=pr-review` and `REVIEW_EVENT`, plus the approved findings and
-   body inputs, and writes the deterministic payload. Then freeze it. Run this as a
-   caller-shell function, not a subshell, so `APPROVED_REVIEW_FILE` remains
-   bound for the stale-head, validation, and posting steps below. Save and
-   restore the starting directory before those later repo-root-relative steps:
-
-   ```bash
-   PR_REVIEW_DIR="<installed-pr-review-skill-bundle>"
-   PR_REVIEW_HELPER="$PR_REVIEW_DIR/scripts/approved-review-artifacts.sh"
-   REVIEW_CALLER_DIR="$(pwd -P)" || exit 1
-   : "${REVIEW_SCOPE_BASE_REF:?Phase 3 scope base ref missing}"
-   : "${REVIEW_SCOPE_DECISION_FILE:?Phase 3 scope-decision artifact path missing}"
-
-   build_and_freeze_approved_review() {
-     cd "$WORKING_DIRECTORY" || return 1
-     HEAD_SHA="$REVIEW_HEAD_SHA"  # immutable Phase 4 review head; current HEAD may differ before posting
-     REVIEW_PAYLOAD_FILE=$(
-       HEAD_SHA="$REVIEW_HEAD_SHA" \
-       PR_NUMBER="$PR_NUMBER" \
-       FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
-       REVIEW_SURFACE="pr-review" \
-       REVIEW_BODY_FILE="$REVIEW_BODY_FILE" \
-       REVIEW_EVENT="$REVIEW_EVENT" \
-         bash "$PR_REVIEW_HELPER" materialize-review-payload
-     ) || return 1
-     APPROVED_REVIEW_FILE=$(
-       HEAD_SHA="$REVIEW_HEAD_SHA" \
-       PR_NUMBER="$PR_NUMBER" \
-       FINDINGS_FILE="$REVIEW_FINDINGS_FILE" \
-       REVIEW_BODY_FILE="$REVIEW_BODY_FILE" \
-       REVIEW_PAYLOAD_FILE="$REVIEW_PAYLOAD_FILE" \
-       BASE_REF="$REVIEW_SCOPE_BASE_REF" \
-       SCOPE_DECISION_FILE="$REVIEW_SCOPE_DECISION_FILE" \
-         bash "$PR_REVIEW_HELPER" freeze-approved-review || return 1
-     ) || return 1
-     [ -n "$APPROVED_REVIEW_FILE" ] || { echo "approved review artifact path missing" >&2; return 1; }
-   }
-
-   BUILD_AND_FREEZE_STATUS=0
-   build_and_freeze_approved_review || BUILD_AND_FREEZE_STATUS=$?
-   cd "$REVIEW_CALLER_DIR" || exit 1
-   [ "$BUILD_AND_FREEZE_STATUS" -eq 0 ] || exit "$BUILD_AND_FREEZE_STATUS"
-   ```
-
-   The frozen artifact schema is `pr-review/approved-review/v1`. It stores the
-   approved `review_head_sha`, findings path, review body path, review payload
-   path, Phase 3 scope-decision path, SHA-256 digests for all four source
-   artifacts including the scope-decision artifact, and the exact payload
-   object. The helper validates the stored scope-decision artifact and digest
-   before posting. The helper ensures `commit_id`, `event`, `body`, and `comments` all land in the JSON body,
-   and requires ranged inline comments to pair `start_line` with
-   `start_side: "RIGHT"` while single-line comments omit both fields.
-   Any nonzero helper exit is a contract failure; fail closed before posting.
-
-5. **Refuse stale heads before posting.** Re-read the PR head SHA from GitHub
-   immediately before posting. If it differs from `REVIEW_HEAD_SHA`, stop and
-   return to Phase 1; do not post an approved artifact against a stale head.
-
-   ```sh
-   CURRENT_HEAD_SHA="$(gh pr view <N> --json headRefOid -q .headRefOid)"
-   [ "$CURRENT_HEAD_SHA" = "$REVIEW_HEAD_SHA" ] || {
-     echo "PR head changed since review; refusing to post stale approved review" >&2
-     exit 1
-   }
-   ```
-
-6. **Post exactly the validated approved payload.** After the stale-head guard
-   passes, have the approved-review helper materialize the guarded canonical
-   payload and bind its returned path. Only invoke `{{tool:github-cli}} api`
-   after materialization exits zero. Do not call `build-github-review-payload` again after user approval.
-   Do not edit, reformat, filter, or reconstruct the payload between validation
-   and posting.
-
-   ```sh
-   VALIDATED_REVIEW_PAYLOAD_FILE=$( (
-     cd "$WORKING_DIRECTORY" || exit 1
-     HEAD_SHA="$REVIEW_HEAD_SHA" \
-       PR_NUMBER="$PR_NUMBER" \
-       BASE_REF="$REVIEW_SCOPE_BASE_REF" \
-       APPROVED_REVIEW_FILE="$APPROVED_REVIEW_FILE" \
-       bash "$PR_REVIEW_HELPER" materialize-validated-review-payload
-   ) ) || exit 1
-   [ -n "$VALIDATED_REVIEW_PAYLOAD_FILE" ] || exit 1
-   (
-     cd "$WORKING_DIRECTORY" || exit 1
-     gh api repos/{owner}/{repo}/pulls/<N>/reviews \
-       --method POST \
-       --silent \
-       --input "$VALIDATED_REVIEW_PAYLOAD_FILE"
-   )
-   ```
-
-7. Resolve threads via GraphQL only after the approved review post succeeds and
-   only for threads the user approved for resolution:
-
-   ```sh
-   gh api graphql --silent -f query='mutation { resolveReviewThread(input: {threadId: "<id>"}) { thread { isResolved } } }'
-   ```
-
-8. Verify each API response succeeded. Report failures, stop on error.
-
-After the GitHub review post succeeds, write `posted` with
-`APPROVED_REVIEW_FILE`, `VALIDATED_REVIEW_PAYLOAD_FILE`, `FINISHED_AT`, and `GITHUB_POSTED_AT`. If
-approved-review validation, stale-head verification, or GitHub posting fails
-after the approval freeze, write `failed` with `FINISHED_AT`, `FAILURE_PHASE`,
-`FAILURE_REASON`, and `FAILURE_RECOVERABILITY` before any cleanup decision.
-Preserve the result manifest, findings file, review body, rendered preview,
-approved-review artifact, and validated payload file when available. Do not
-retry or reconstruct a GitHub mutation from conversation text.
+Follow the reference's Phase 6 sequence. Revalidate the exact approved preview
+and user-gated lease result before binding the user-approved event. Freeze the
+approved artifacts, refuse a changed provider head by returning to Phase 1,
+and post exactly the validated payload. Resolve only user-approved threads
+after successful posting. Verify API responses and stop/report failures;
+record the existing `posted` or `failed` lease transition and preserve the
+existing evidence before any cleanup decision. Never reconstruct a mutation
+from conversation text. The Phase 5 gate and targeted review evidence gate
+remain binding throughout resumed continuation.
 
 ## Phase 7: Cleanup
 
-Before a lease-gated cleanup attempt that may remove the review worktree or its
-owned artifacts, apply Phase 2 validation/extraction, then clear the live family
-and association. Retain bounded detached navigation only after successful
-same-PR continuation. A failed or refused cleanup discards pending candidates
-and does not restore live custody.
+When the existing lifecycle permits a cleanup decision after posting, abort,
+or failure, load [post-approval procedure](references/post-approval-procedure.md)
+before the first dependent cleanup action. Explicitly read it on resumed
+cleanup as well. If it is missing, blank, unreadable, or unavailable, stop
+before inspection, custody changes, or removal and preserve the worktree and
+artifacts. This main skill owns cleanup routing and invariants; the reference
+supplies the subordinate Phase 7 procedure, while the existing lease lifecycle
+and helper contracts retain cleanup authority and mechanics. A cleanup-only
+continuation does not authorize Phase 6 or any GitHub mutation.
 
-Never remove a review worktree directly. Use `review-leases.sh
-inspect-worktree` before every cleanup decision and `review-leases.sh
-cleanup-worktree` for every removal attempt. The helper owns safety mechanics
-and removes worktrees only after all checks pass. Dirty worktrees, unmanaged
-`.ephemeral` artifacts, identity mismatches, invalid lease mechanics,
-non-worktree paths, and missing paths remain removal refusals or skipped
-outcomes.
-
-Cleanup prints fixed keys: `OUTCOME` and `MESSAGE`. It also prints classifier
-keys for inspection and cleanup decisions: `CAN_REMOVE`, `REFUSAL_REASON`,
-`DIRTY`, `LEASE_STATE`, `IDENTITY_MATCH`, `REQUIRES_CONFIRMATION`,
-`METADATA_OUTCOME`, and `FORCE_REMOVE_ALLOWED`. Treat `failed` or a nonzero
-exit as a cleanup failure and report the lease path, worktree path, classifier
-fields, and message for manual recovery. Do not run a broad `.ephemeral` sweep.
+Apply Phase 2 live-family validation/extraction and custody clearing before
+lease-gated removal. Never remove a review worktree directly: use the existing
+lease inspection and cleanup helpers, preserve their refusals, and report
+failures for manual recovery. Do not run a broad `.ephemeral` sweep.
 
 ## GitHub API Reference
 
-For the `{{tool:github-cli}} api` flag conventions used here, see [docs/guidelines/gh-api-hygiene.md](../../docs/guidelines/gh-api-hygiene.md).
-
-**Posting boundary reference:** the only review-creation path in this skill is
-Phase 6's explicitly user-approved artifact flow: after approval,
-caller-derived review event, `materialize-review-payload`,
-`freeze-approved-review`, stale-head refusal,
-`materialize-validated-review-payload`, and then `{{tool:github-cli}} api --input
-"$VALIDATED_REVIEW_PAYLOAD_FILE"`. Do not manually construct a `jq` payload
-here, do not fetch `commit_id` from live `{{tool:github-cli}} pr view` for posting, and do not
-call `{{tool:github-cli}} api` until the approved artifact has validated successfully.
-
-The sealed payload uses `line` (absolute file line in HEAD), not `position`
-(diff offset). `side` is `"RIGHT"` for PR head lines.
-
-**Reply to inline comment** (use the correct endpoint):
-
-```sh
-gh api repos/{owner}/{repo}/pulls/<N>/comments/<comment-id>/replies --jq '.id' -f body="<text>"
-```
-
-Verify the response includes the new comment ID. Do not assume success.
+Thread lookup remains available before approval for the Phase 5 resolution
+preview. Posting and reply examples live in the conditionally loaded procedure;
+they confer no authority beyond the Phase 5 approval gate.
 
 **Fetch thread IDs for resolution:**
 
 ```sh
 # Bare body intentional: response is consumed for content-keyed thread-ID lookup
-# (resolveReviewThread mutation at the snippet above). See docs/guidelines/gh-api-hygiene.md § 3.
+# (resolveReviewThread mutation in the post-approval procedure). See docs/guidelines/gh-api-hygiene.md § 3.
 gh api graphql -f query='{ repository(owner: "O", name: "R") {
   pullRequest(number: N) { reviewThreads(first: 50) { nodes {
     id isResolved comments(first: 5) { nodes { body author { login } path originalLine } }

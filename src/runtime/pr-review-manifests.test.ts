@@ -351,6 +351,45 @@ describe("pr-review manifest handoff validation", () => {
     );
   });
 
+  it.each([undefined, "initial"])(
+    "writes the fixed publication mode with ambient MODE=%s",
+    async (mode) => {
+      const workspace = await makeManifestWorkspace("pr-review-handoff-mode-");
+      const handoffFile = `.ephemeral/pr-432-${workspace.headSha}-handoff.json`;
+      setSummaryEnv(workspace);
+      Object.assign(process.env, {
+        EXECUTION_WORKING_DIRECTORY: workspace.physicalWorktree,
+        BASE_REF: "main",
+        HEAD_REF: "topic",
+        REVIEW_SCOPE_BASE_REF: workspace.baseSha,
+        ACTIVE_DIFF_RANGE: `${workspace.baseSha}..${workspace.headSha}`,
+        FULL_PR_DIFF_RANGE: `${workspace.baseSha}..${workspace.headSha}`,
+        LANGUAGE_HINTS_JSON: "[]",
+        FOLLOW_UP_STATE: "initial",
+        IS_FOLLOWUP_NARROW: "false",
+        SCOPE_DECISION_FILE: `.ephemeral/topic-${workspace.headSha}-scope-decision.json`,
+      });
+      if (mode === undefined) Reflect.deleteProperty(process.env, "MODE");
+      else process.env.MODE = mode;
+      process.chdir(workspace.worktree);
+      await rm(handoffFile);
+
+      const outcome = await runManifestCommand(["write-handoff"]);
+
+      expect(outcome.exitCode, outcome.stderr).toBe(0);
+      expect(outcome.stdout).toBe(`${handoffFile}\n`);
+      const handoff = JSON.parse(await readFile(handoffFile, "utf8"));
+      expect(handoff.mode).toBe("github-post");
+      expect(handoff.follow_up.state).toBe("initial");
+      process.env.HANDOFF_FILE = handoffFile;
+      await expect(runManifestCommand(["validate-handoff"])).resolves.toEqual({
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+      });
+    },
+  );
+
   it("does not write a handoff when retained scope authority refuses it", async () => {
     const workspace = await makeManifestWorkspace("pr-review-handoff-refuse-");
     const handoffFile = `.ephemeral/pr-432-${workspace.headSha}-handoff.json`;
@@ -369,7 +408,6 @@ describe("pr-review manifest handoff validation", () => {
       REVIEW_SCOPE_BASE_REF: workspace.baseSha,
       ACTIVE_DIFF_RANGE: `${workspace.baseSha}..${workspace.headSha}`,
       FULL_PR_DIFF_RANGE: `${workspace.baseSha}..${workspace.headSha}`,
-      MODE: "github-post",
       LANGUAGE_HINTS_JSON: "[]",
       FOLLOW_UP_STATE: "initial",
       IS_FOLLOWUP_NARROW: "false",

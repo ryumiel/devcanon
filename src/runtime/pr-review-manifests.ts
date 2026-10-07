@@ -222,7 +222,7 @@ async function writeHandoff(): Promise<string> {
     active_diff_range: requiredEnv("ACTIVE_DIFF_RANGE"),
     full_pr_diff_range: requiredEnv("FULL_PR_DIFF_RANGE"),
     review_head_sha: headSha,
-    mode: requiredEnv("MODE"),
+    mode: "github-post",
     language_hints: parseJsonEnv("LANGUAGE_HINTS_JSON"),
     follow_up: {
       state: requiredEnv("FOLLOW_UP_STATE"),
@@ -2128,7 +2128,6 @@ function requireHandoffWriteEnv() {
     "REVIEW_SCOPE_BASE_REF",
     "ACTIVE_DIFF_RANGE",
     "FULL_PR_DIFF_RANGE",
-    "MODE",
     "LANGUAGE_HINTS_JSON",
     "FOLLOW_UP_STATE",
     "IS_FOLLOWUP_NARROW",
