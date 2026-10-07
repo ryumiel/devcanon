@@ -682,7 +682,6 @@ write_pr_review_handoff_manifest() {
     REVIEW_SCOPE_BASE_REF="$REVIEW_SCOPE_BASE_REF" \
     ACTIVE_DIFF_RANGE="$active_diff_range" \
     FULL_PR_DIFF_RANGE="$FULL_PR_DIFF_RANGE" \
-    MODE="github-post" \
     LANGUAGE_HINTS_JSON='<json-array>' \
     FOLLOW_UP_STATE="<initial|follow-up-full|follow-up-narrow>" \
     LAST_REVIEWED_SHA="${last_reviewed_sha:-}" \
