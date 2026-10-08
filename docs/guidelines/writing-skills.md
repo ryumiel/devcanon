@@ -131,7 +131,7 @@ Use to set Codex-specific frontmatter that ships in the rendered Codex
 codex:
   license: MIT
   metadata:
-    short-description: Prime a GitHub issue into a research-backed implementation workflow
+    short-description: Adaptively prepare or implement a GitHub issue
 ```
 
 ### `codex_sidecar:` for Codex UI

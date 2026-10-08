@@ -415,12 +415,12 @@ claude:
 codex:
   license: MIT
   metadata:
-    short-description: Prime a GitHub issue into a research-backed implementation workflow
+    short-description: Adaptively prepare or implement a GitHub issue
 
 codex_sidecar:
   interface:
     display_name: GitHub Issue Priming
-    short_description: Research and stage a GitHub issue for implementation
+    short_description: Adaptively prepare or implement a GitHub issue
     brand_color: "#24292f"
 ```
 

@@ -1,6 +1,6 @@
 ---
 name: issue-priming-workflow
-description: Adaptively prepares a normalized issue payload, returning preparation for the existing interactive authority decision or implementing, verifying, independently reviewing and creating an authorized PR under --auto. Settled work may use an Execution Note and execute inline; forced research, genuine authority gates and no-merge behavior remain. Use when `linear-issue-priming` or `github-issue-priming` hands off a normalized issue payload. Do not use when starting from a raw Linear identifier or GitHub issue number — invoke the entrypoint instead.
+description: Adaptively prepares a normalized issue payload. Use when `linear-issue-priming` or `github-issue-priming` hands off a normalized issue payload. Do not use when starting from a raw Linear identifier or GitHub issue number — invoke the entrypoint instead.
 requires:
   - branch-review
   - play-agent-dispatch

@@ -1,6 +1,6 @@
 ---
 name: github-issue-priming
-description: Prepares a GitHub issue adaptively in an isolated worktree, returning preparation for an interactive authority decision or implementing, verifying, independently reviewing and creating an authorized PR under --auto. Settled work may use an Execution Note and execute inline; forced research and genuine authority gates remain, and merge is excluded. Use when starting work on a GitHub issue — triggers on issue numbers, issue URLs, or phrases like "start issue", "work on issue", "prime issue".
+description: Prepares a GitHub issue adaptively in an isolated worktree. Use when starting work on a GitHub issue — triggers on issue numbers, issue URLs, or phrases like "start issue", "work on issue", "prime issue".
 requires:
   - issue-priming-workflow
   - issue-worktree-setup
