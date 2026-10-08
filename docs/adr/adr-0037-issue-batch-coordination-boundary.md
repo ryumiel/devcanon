@@ -39,12 +39,36 @@ reports, explicit status requests, or concrete uncertain-operation recovery.
 Initial setup establishes a supported reporting path and recipient-verifiable
 human messaging authority where the sending host requires it. Compatible
 reporting authority is retained rather than requested again at every gate.
-The optional watchdog observes external events without becoming a second
+The watchdog, when enabled, observes external events without becoming a second
 coordinator or substituting progress polling for delivery.
 
-Canonical policy refresh is part of coordination. An optional, authorized host
-watchdog may prompt refresh and recovery; it adds no DevCanon scheduler and
-does not guarantee compliance. Invocation restrictions and timer behavior must
+Canonical policy refresh is part of coordination. Concrete execution defaults
+new eligible owners to autonomous execution and requests one separate host
+watchdog with an active timer, within actual host authorization. Explicit
+interactive-owner and no-monitor choices are independent; status-only intent
+remains read-only and compatible resumed settings and explicit stops survive.
+Select requested effects before permission, preference or capability inquiries.
+No-monitor and retained stops exclude watcher creation, monitor-specific messaging
+authorization, capability/model/cadence inquiries and activation; independent
+authorized owner work continues in its selected mode. Generic resume preserves
+stops. An explicitly requested active-timer stop retains its bounded host
+control/permission checks and observed shutdown, without replacement authority.
+The initial authorization check reuses verifiable human decisions and collects
+only missing host permissions/preferences before affected effects. Startup also
+establishes separately scoped delivery authority for publication, conditional
+merge and scoped cleanup. Compatible human scope survives changed heads, while
+readiness and exact action bindings are refreshed before the existing effect
+owner executes a satisfied covered action without generic reapproval. Initial
+PR publication retains implementation, validation and independent Phase 7
+branch review. Under ROUTE-007-REVIEW, covered existing-PR corrections instead
+require classified dispositions, local validation, the concrete pre-push summary
+and exact plain-update binding, then successful publication and independent
+published-current-head full-versus-narrow follow-up before readiness or merge.
+Old-head approval never transfers; feedback, current CI, protection, mergeability
+and exact bindings remain required at their owning gates. The watchdog
+observes external events and reports to known authorized recipients; periodic
+owner-progress polling is prohibited. It adds no DevCanon scheduler and does not
+guarantee compliance. Invocation restrictions and timer behavior must
 be described according to each host's actual capabilities.
 
 [ROUTE-007](../specs/afds-workflow-routing.md#route-007-batch-coordination-and-explicit-routing)

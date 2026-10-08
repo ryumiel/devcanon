@@ -383,6 +383,34 @@ reports/resume. External-event watchdog observation remains separate.
 [ADR-0037](../adr/adr-0037-issue-batch-coordination-boundary.md) records the
 durable ownership decision, consequences, and rejected alternatives.
 
+Concrete execution defaults new eligible owners to autonomous work and one
+separate host watchdog/timer; inspection remains read-only. Independent
+interactive/no-monitor overrides, compatible resumed settings and explicit stops
+remain effective. Select requested effects before permission, preference or
+capability inquiries.
+No-monitor and retained stops exclude watcher creation, monitor-specific messaging
+authorization, capability/model/cadence inquiries and activation; independent
+authorized owner work continues in its selected mode. Generic resume preserves
+stops. An explicitly requested active-timer stop retains its bounded host
+control/permission checks and observed shutdown, without replacement authority.
+Startup reuses verifiable human decisions, requests only missing host
+permissions/preferences and verifies each selected component separately.
+It also establishes separately scoped publication, conditional merge and scoped
+cleanup authority. Compatible standing human scope survives changed commits;
+fresh readiness and exact action bindings precede covered effects through their
+existing owners, without repeated human approval for satisfied conditions. Initial
+PR publication retains implementation, validation and independent Phase 7
+branch review. Under ROUTE-007-REVIEW, covered existing-PR corrections instead
+require classified dispositions, local validation, the concrete pre-push summary
+and exact plain-update binding, then successful publication and independent
+published-current-head full-versus-narrow follow-up before readiness or merge.
+Old-head approval never transfers; feedback, current CI, protection, mergeability
+and exact bindings remain required at their owning gates.
+The efficient tier resolves through existing target bindings; model, effort and
+cadence are independent. External-event notifications reuse the reporting
+boundary; coordinator owner-progress polling is prohibited. These defaults add
+no task identity, scheduler or authority beyond supported host controls.
+
 Provider context is issue batches with existing owner workflows, including
 GitHub and Linear. Agent gate and source/runtime proof are `not applicable`:
 the method travels as skill prose, using existing invocation metadata and host

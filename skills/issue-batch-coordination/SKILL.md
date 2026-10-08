@@ -57,7 +57,7 @@ grants execution nor discards established work intent. A status or inspection
 request remains read-only: discover and report, but do not create or message
 owners or release priming. If intent or accepted scope is missing or
 conflicting, ask only for that decision before affected effects. Publication,
-merge, recurring scheduling, destructive cleanup, and scope expansion each
+merge, destructive cleanup, and scope expansion each
 retain their applicable separate decisions, including any still-current prior
 authorization. An accepted delivery decision may cover publication, conditional
 merge, and scoped cleanup through completion. Coordination interprets that
@@ -95,6 +95,97 @@ revoking compatible standing authority. Keep review and recovery evidence at
 its owning workflow and link only what the current decision needs; never copy
 an execution diary or delete owner evidence while compacting the ledger.
 Store the ledger stably, never only in a removable owner worktree.
+
+## Execution startup and authorization
+
+For a concrete accepted execution request, default eligible new provider-owner
+invocations to `--auto` and select one separate watchdog with an active host
+timer as the requested setup. Status-only intent permits no creation, messaging,
+scheduling or priming. An explicit interactive-owner choice and an explicit
+no-monitor choice are independent: either can override its own default without
+changing the other. Preserve already-bound owner modes, compatible monitor
+settings and retained explicit stops on resume; a generic resume does not
+supersede a stop. Read [Watchdog operation](references/watchdog.md) before startup.
+
+Select requested effects from intent, independent owner/monitor overrides,
+already-bound modes/settings and retained explicit stops before authorization,
+preference or supported-control inquiries. No-monitor or a retained stop excludes
+watchdog creation, monitor-specific messaging authorization, capability, model
+or cadence inquiries and activation from startup. These are absent requirements,
+not failed gates; independently authorized owners continue in their selected mode.
+An explicit request to stop an existing active timer selects only that bounded
+monitor lifecycle action: retain its necessary host control/permission checks and
+verify observed shutdown, without selecting replacement monitoring. Conflicting
+authority or unresolved existing state holds only the affected action; preserve
+existing resources and name the missing evidence.
+
+Before selected task creation, owner release, messaging or timer activation,
+perform one initial authorization check against applicable human decisions
+already visible here or verifiable through supported host evidence. Enumerate
+only selected effects: accepted issues' owner-chat creation, coordinator-to-owner
+instructions and owner-to-coordinator gates/completion/required readiness reports;
+when monitoring is enabled, add one watchdog chat, watchdog-to-owner external
+updates, watchdog-to-coordinator exceptions and recurring activation with cadence.
+A selected stop includes only its required shutdown controls.
+The default selects requested setup, never fabricates a host permission.
+Alongside these permissions, establish separately scoped publication, conditional
+merge and scoped cleanup authority for the accepted delivery, reusing existing
+actual human decisions and obtaining only missing scope before its affected effect.
+
+Reuse valid decisions and batch only uncovered permissions into one concise
+request where the host permits it. Identify the accepted batch, roles,
+selected notification directions and timer operation/cadence where applicable,
+and the actual host restriction requiring each permission. For enabled
+monitoring, request a genuinely missing cadence preference under the watchdog
+procedure before activation. Distinguish publication, conditional merge and
+scoped cleanup decisions explicitly from creation, messaging and timer
+permissions; collect only missing delivery
+decisions without silently expanding scope or provider-mutation authority.
+If all effects and preferences are already covered by verifiable human decisions,
+proceed without another approval question.
+
+Retain scope and human authorization provenance in the existing stable controller
+state, bind them to actual selected owner/watchdog recipients as host identities
+become known, and deliver the recipient-visible reporting evidence required by the
+router's handoff contract. A copied assertion by the controller is not direct
+human authority. Where the host requires a human decision in the recipient's own
+conversation, arrange that specific human step before unattended messaging.
+Inaccessible evidence holds only the affected effect and names one concrete
+missing-evidence action; it is neither refusal nor a reason to reapprove unrelated
+work. Reuse compatible authority across continuation, resume and changed commits.
+Refresh the current issue/PR/head and exact owner/action binding with the
+prerequisites of the selected action below. A changed head invalidates dependent
+readiness and evidence, not standing human scope; downstream review and merge
+gates are not prerequisites for the covered correction push that produces their
+published head.
+
+Execute a covered action through its existing effect owner after all conditions
+pass. Initial PR publication permits non-force push, PR creation and required
+sanitized summaries after implementation, validation and independent Phase 7
+branch review. For an authorized correction to an existing PR, follow
+[ROUTE-007-REVIEW](../../docs/specs/afds-workflow-routing.md#route-007-review-review-waits-and-merge-evidence):
+classify findings/dispositions, validate the local candidate, present the exact
+concrete pre-push summary under retained human scope, and bind the covered plain
+update before publication. After successful publication, obtain independent
+current-head follow-up under `pr-review`'s full-versus-narrow scope selector
+before review readiness or merge; prior coverage is context, never new-head
+approval. A failed push leaves the candidate unpublished; neither a summary nor
+a requested follow-up proves success. Refresh the new head's dependent evidence
+and exact bindings. Conditional merge remains with `pr-merge` after genuine current-head review, CI, protection,
+mergeability and thread disposition, with no waiver. Scoped cleanup follows
+verified merge and outstanding accepted work, preserving required evidence,
+unrelated work, the controller ledger and resources needed by dependencies.
+Request a new human decision only for missing/revoked authority, scope expansion,
+an unresolved choice, required-gate exception or actual host restriction; a
+satisfied authorized gate is not another permission request.
+
+For enabled monitoring, verify owner bindings, watchdog identity and selected
+model, timer target and activation, and permitted notification recipients
+separately before claiming monitored operation. Reuse authorized compatible components and create only what
+is missing. Pending or unknown creation/activation/stop outcomes hold duplicate
+effects. Retain partial startup and unresolved limitations in existing monitor
+state; independent authorized owner work continues without an acknowledgement
+wait. Do not silently switch to a coordinator heartbeat when watchdog setup fails.
 
 ## Reporting path and bounded observation
 
@@ -327,11 +418,11 @@ supported host controls. Confirm only one dispatcher before successor dispatch.
 Timer retirement or retargeting does not prove owner reporting readiness;
 archiving the predecessor does not transfer or stop its timer.
 
-Read [Watchdog operation](references/watchdog.md) when a timer is requested,
+Read [Watchdog operation](references/watchdog.md) for execution startup or when a timer is requested,
 already exists, when a separate watcher is authorized, or when either mode
 needs recovery or shutdown. Use its one-mode startup, observation, handoff,
-and verified-stop procedure; owner reports remain primary. For requested new
-monitoring, default to a supported, separately authorized watcher; a coordinator
+and verified-stop procedure; owner reports remain primary. For accepted execution, default to a supported, separately authorized watcher and
+its host timer unless overridden; a coordinator
 heartbeat requires explicit selection. Unsupported watcher controls never
 silently select a heartbeat. Preserve a compatible existing monitor's settings
 and cadence, and do not recreate an explicitly stopped monitor without later
@@ -344,7 +435,7 @@ independent of this binding. Missing, unresolved, or rejected bindings or contro
 hold activation with the concrete limitation; do not rediscover source or ambient
 configuration or substitute a model.
 
-Scheduling is optional host functionality; this skill creates no timer by
-itself. Missing scheduling support does not prevent independently authorized
+Scheduling requires supported host functionality and actual authorization; this
+skill creates no timer by itself. Missing scheduling support does not prevent independently authorized
 owner-driven coordination. A refresh can reveal drift, but neither prose nor a
 timer guarantees policy compliance.

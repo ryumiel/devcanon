@@ -1,13 +1,28 @@
 # Watchdog operation
 
-Use this procedure for optional monitoring of an accepted batch.
-Owner reports remain the primary continuation signal. A host schedule is a
-fallback for an accepted batch, not a second controller or a source of action
-authority. Do not create a custom scheduler or require a watcher agent.
+Use this procedure for the default watchdog setup of an accepted execution batch
+and for explicitly selected monitoring. Inspection and explicit no-monitor
+choices create no monitor. Owner reports remain the primary continuation signal.
+A host schedule wakes external-event observation; it is not a second controller
+or a source of action authority. Do not create a custom scheduler or require a
+watcher agent.
 
 ## Start or change monitoring mode
 
-Before an effect, confirm applicable retained scheduling and messaging
+First consume the main skill's requested-effect selection from intent, independent
+overrides, bound modes/settings and retained explicit stops. Select before any
+authorization, preference or supported-control inquiry. Inspection, no-monitor
+and retained-stop startup exclude watcher creation, monitor-specific messaging
+authorization, capability/model/cadence inquiries and activation. Independently
+authorized owner work continues in its selected mode; generic resume cannot
+recreate monitoring. An explicitly requested stop of an existing active timer
+selects only shutdown: check its necessary host control/permission and verify
+the observed result, preserving an unknown outcome for reconciliation. Do not
+select replacement setup or its model/cadence checks from that stop.
+
+For enabled monitoring, apply the main skill's initial authorization check
+before affected effects; reuse its retained human evidence and actual recipient
+bindings. Before an effect, confirm applicable retained scheduling and messaging
 authority, accepted batch scope, verified controller and existing owner/host
 and repository bindings, readable canonical skill policy, and the host's
 supported controls for the selected mode. For a separate watcher, also validate
@@ -23,18 +38,31 @@ override. Do not impose a universal interval or reset existing settings to new
 watcher defaults. Honor a recorded explicit user stop: it blocks automatic
 recreation unless later explicit scheduling authority supersedes it.
 
-For requested new monitoring, default to a supported, separately authorized
-watcher. Use the main skill's already-rendered `WATCHER_MODEL` in the host task's
+For accepted execution with monitoring selected and no effective retained stop,
+default to one supported, separately authorized watcher and an active timer
+targeted to that watcher chat.
+Reuse compatible components and create only the missing authorized ones; pending
+or unknown creation or activation prevents a duplicate. Verify task identity,
+model selection, timer target/active status and each permitted notification
+recipient independently. Retain partial startup in existing controller monitor
+state and expose the exact unresolved control rather than claiming monitoring.
+Use the main skill's already-rendered `WATCHER_MODEL` in the host task's
 supported model setting, unless an applicable explicit user model override
-takes precedence. Effort is independently user-configured within host limits;
-the model binding supplies no effort. Missing, unresolved, or rejected binding
+takes precedence. Effort follows an applicable user setting or the supported
+host default
+independently of model; the model binding supplies no effort. Preserve applicable
+user-selected or saved cadence, otherwise use a supported configured host default.
+If neither exists, request that bounded preference before timer activation. Do
+not invent an interval or effort from the efficient tier. The timer targets the
+verified watcher chat, not periodic coordinator owner observation. Missing,
+unresolved, or rejected binding
 or model control holds activation with the concrete limitation. Do not
 rediscover source or ambient configuration, substitute a model, or silently
 fall back to a heartbeat. Independently authorized owner-driven coordination
 continues when monitoring is unavailable. Repository post-merge commands remain
 separately authorized and user-configured.
 
-Choose one active mode for the batch:
+For enabled monitoring, choose one active mode for the batch:
 
 - **Coordinator heartbeat (explicitly selected):** reuse an applicable existing
   schedule, attached to the current controller where supported. Its prompt invokes
@@ -65,7 +93,9 @@ Choose one active mode for the batch:
   messaging effects are authorized and supported. Bind its prompt to the
   verified batch, repository, controller, known recipients, and canonical
   policy. It may observe external PR events and send authorized notifications
-  to those existing recipients. It may retain local notification state only;
+  to those existing recipients. Its tick inspects external events, never owner
+  progress. Unchanged or non-actionable events are quiet. It may retain local
+  notification state only;
   it cannot approve, implement, merge, mutate a provider, create or replace an
   owner, write the batch ledger, or route work. It must report missing authority
   or capability rather than substitute coordinator behavior.

@@ -254,10 +254,57 @@ decision; an independent eligible sibling continues. Routing consumes that
 decision and scope without a generic reapproval, then applies its existing
 complete route, identity, recovery, receipt, and host gates before each effect.
 An explicit host denial reports the specific unavailable action without an
-invented permission or workaround. Publication, merge, recurring scheduling,
+invented permission or workaround. Publication, merge,
 destructive cleanup, and scope expansion retain separate applicable decisions,
 including still-current prior authority; routine orchestration grants none of
 them. Source-status effects and archival retain their existing owner gates.
+
+A concrete accepted execution request defaults eligible new provider-owner
+invocations to `--auto` and requests one separate watchdog with its active host
+timer, subject to actual host authorization. Status-only intent causes no task
+creation, messaging, scheduling or priming. Interactive-owner and no-monitor
+overrides are independent. Preserve compatible already-bound owner modes and
+monitor settings; a generic resume does not override an explicit stop.
+
+Intent, independent overrides, bound modes/settings and retained explicit stops
+select requested effects before authorization, preference or capability
+inquiries. No-monitor or a retained stop excludes watcher creation,
+monitor-specific messaging authorization, capability/model/cadence inquiries and
+activation from startup; disabled requirements are absent, not failed gates.
+Independently authorized owners continue in their selected mode. An explicitly
+requested stop of an existing active timer retains only its necessary host
+control/permission checks and observed shutdown, with no replacement authority.
+Conflicting authority or unresolved state holds the affected action while
+existing resources are preserved and the concrete evidence gap is escalated.
+
+Before selected creation, owner release, messaging or timer activation, one
+initial check inspects applicable human decisions visible in the controller or
+verifiable through supported evidence. It enumerates only selected effects:
+owner-chat creation, coordinator-to-owner instructions and owner-to-coordinator
+gates/completion/required readiness; enabled monitoring adds one watchdog chat,
+watchdog-to-owner updates, watchdog-to-coordinator exceptions and recurring
+scheduling with cadence. A selected stop includes only required shutdown controls.
+Alongside setup permissions, establish separately scoped publication, conditional
+merge and scoped cleanup authority, reusing actual human decisions and collecting
+only missing scope or authority before affected effects.
+Retain accepted scope and authorization provenance in existing controller state,
+bind actual recipients as they become known and supply recipient-visible
+reporting evidence through the existing handoff contract. Where direct human
+authorization in the recipient conversation is required, arrange that specific
+step; a forwarded controller assertion cannot substitute for it.
+
+Reuse valid decisions across compatible continuation and ask only for uncovered
+effects or, for enabled monitoring, genuinely missing timer preferences,
+together where the host permits.
+The request identifies batch, roles, selected notification directions, applicable
+timer operation and cadence, and each actual host restriction. It explicitly
+distinguishes
+publication, conditional merge and scoped cleanup decisions from task, messaging
+and timer permissions without silently expanding scope or provider effects. Complete verifiable authorization
+proceeds without another approval. Inaccessible evidence yields one specific
+missing-evidence action, not presumed refusal or generic workflow reapproval.
+A partial permission or setup failure holds only affected effects while
+independently authorized owner work continues.
 
 An accepted human delivery decision may include publication, conditional merge,
 and scoped cleanup through completion. Coordination retains its provenance,
@@ -271,7 +318,23 @@ receipt sequences, deduplication, continuity, and terminal checks stay intact.
 Missing readiness waits for refresh. Missing or conflicting scope, revocation,
 expansion, an unresolved material choice, an explicitly reserved human decision,
 or a required exception escalates only its specific decision. Reports, planning
-PASS, and tool availability are evidence, never authority.
+PASS, and tool availability are evidence, never authority. After fresh conditions
+and exact owner/action bindings pass, execute the covered action through its
+existing effect owner without another human permission request. Refresh only the
+prerequisites of that selected action: initial PR publication requires
+implementation, validation and independent Phase 7 branch review before
+non-force push, PR creation and sanitized required summaries. Authorized
+existing-PR correction publication follows ROUTE-007-REVIEW below: classified
+findings/dispositions, local candidate validation, the concrete pre-push gate and
+exact covered plain-update binding precede publication; independent published
+current-head follow-up precedes review readiness and merge. Do not turn those
+downstream gates into a requirement to review the unpublished correction head.
+Conditional merge requires
+current-head CI, genuine independent reviews, protection, mergeability and
+review-thread disposition through `pr-merge`. Scoped cleanup follows verified
+merge and outstanding accepted work, preserving required evidence, unrelated
+work, the controller ledger and dependent resources. Terminal completion and
+verified timer shutdown include outstanding authorized cleanup obligations.
 
 Priming retains every mandatory phase and ends its effects at the reviewed
 current PR/head report. The controller consumes that result under retained
@@ -646,9 +709,18 @@ GitHub [issue #821](https://github.com/ryumiel/devcanon/issues/821) records the
 accepted current-state-only direction for this contract; implementation proof
 belongs to the routing/coordination verification owners.
 
-#### ROUTE-007-MONITOR: Optional batch monitoring lifecycle
+#### ROUTE-007-MONITOR: Execution monitoring lifecycle
 
-Monitoring is optional for an accepted batch and requires retained applicable
+Select monitoring from intent, independent overrides and retained state before
+its authority, preference or capability inquiries. No-monitor or retained stops
+exclude new monitoring setup and its messaging/model/cadence/control inquiries;
+generic resume preserves the stop and independent owner mode. An explicit
+active-timer stop instead requires its bounded host control/permission check and
+observed shutdown without replacement setup.
+
+Enabled monitoring defaults to one separate watchdog and timer for concrete
+accepted execution unless explicitly overridden, and requires retained
+applicable
 scheduling and messaging authority, a verified controller, existing owner and
 repository bindings, readable canonical policy, and inspectable schedule and
 notification state. The host's supported controls own scheduling. User-selected
@@ -657,8 +729,9 @@ configurable within host limits. Missing authority, ambiguous binding, unreadabl
 policy, or unsupported control holds the affected action with a concrete reason;
 independently authorized owner reports continue.
 
-Exactly one monitoring mode may be active for a batch. When monitoring is
-requested and separate task, schedule, observation, messaging, and task-model
+Exactly one monitoring mode may be active for a batch. When execution selects
+monitoring or it is explicitly requested, and separate task, schedule,
+observation, messaging, and task-model
 controls are supported and authorized, default to a separate watcher restricted
 to external observation and notification. A coordinator heartbeat requires
 explicit selection; unsupported or rejected watcher controls never silently
@@ -668,9 +741,24 @@ when monitoring is unavailable.
 A new watcher uses the already-rendered target-native `efficient` model binding
 from the coordinator skill in the host task's supported model setting, unless an
 applicable explicit user model override takes precedence. Effort remains an
-independent explicit setting. Missing, unresolved, or rejected bindings or model
+independent user setting or supported host default. Cadence preserves an
+applicable user/saved setting, otherwise a supported configured host default;
+when neither exists, request that bounded preference before activation. The
+model tier supplies no universal cadence or effort. Missing, unresolved, or
+rejected bindings or model
 controls hold watcher activation with the concrete limitation; do not substitute
 an ambient model or rediscover configuration.
+
+Before claiming monitored operation, separately verify actual owner bindings,
+watchdog task identity and model, timer target and active status, and permitted
+notification recipients. The timer wakes the watchdog chat to inspect external
+events, not the coordinator for periodic owner observation. A selected heartbeat
+may handle bounded events/recovery but must not periodically discover owner
+progress. Reuse compatible components, create only missing authorized ones, and
+retain partial startup in existing state. Pending or unknown creation, activation
+or stop outcomes prevent duplicate activation. Missing/rejected task, model,
+timer or messaging controls expose their exact limitation; no custom scheduler,
+ambient-model substitution or implicit heartbeat fallback is permitted.
 
 Inspect an existing watcher and schedule against the batch, repository,
 controller, recipients, identity, target, status, authority, and notification
@@ -743,10 +831,19 @@ An authorized in-scope correction retains covered fix and publication authority,
 including a scoped nit correction, without generic renewed permission. The
 owner classifies the finding, validates the changed candidate, and presents the
 concrete changes, verification, disposition, and intended-action summary before
-push. Changed code requires independent current follow-up review selected by
-`pr-review` and its full-versus-narrow scope policy; applicable prior coverage is
-context, never old-head approval. The router refreshes the action binding for
-the changed local/remote head before the affected effect. Scope expansion, new
+push. Include the exact local changes and follow-up commit when present,
+verification results, each concern's classified disposition, and intended
+external actions; present this summary even when retained authority covers the
+push. After this concrete pre-push gate is satisfied and the exact branch/head
+update binding is refreshed, the existing publication owner may plain-push the
+covered correction to the existing PR branch. Then obtain independent current
+published-head follow-up review selected by `pr-review` and its full-versus-narrow
+scope policy before review readiness or merge; applicable prior coverage is
+context, never changed-head approval. A failed push leaves the new candidate
+unpublished; a summary or requested follow-up never proves publication success.
+Changed local or remote heads invalidate affected head-bound evidence. The
+router refreshes the new head's action binding before each affected effect;
+standing compatible human scope survives. Scope expansion, new
 choices, exceptions, or missing authority stop at the existing owner/approval
 gate. Reviewer nits remain report-only by default. Reply and resolve permissions,
 human-thread rules, and refetches remain separate. The merge owner still checks
@@ -787,6 +884,18 @@ cleanup. Stop or pause monitoring through its owning host control and verify
 the observed result separately from chat archival; unavailable control remains
 an explicit unresolved obligation. Honor an explicit user stop.
 
+Startup acceptance covers fresh execution, read-only inspection, independent
+interactive/no-monitor overrides, preserved resumed settings/stops, complete and
+partial authorization, zero monitor inquiries/effects for disabled startup with
+independent owners continuing, bounded explicit active-timer shutdown without
+replacement authority, verifiable existing human decisions, missing recipient
+evidence, cadence/effort precedence, unavailable controls, and partial/unknown
+startup without duplicate activation. Verify efficient model resolution in fresh
+Claude/Codex projections without hard-coding a target model in portable source.
+Focused hypothetical scenarios and render inspection do not prove live scheduled
+delivery. Timer ticks inspect external events and leave unchanged observations
+quiet; coordinator owner-progress polling is prohibited.
+
 Acceptance requires an authorized reused schedule with one active mode,
 duplicate suppression, an explicit event or authorized trigger after a no-code
 reply, acknowledged handoff with retained notification state, continued
@@ -800,15 +909,19 @@ target guidance without activating a live schedule.
 
 Conditional-review acceptance additionally requires this valid sequence: accepted
 policy at head H, confirmed quota, one reused independent review task, complete
-passing H verdict, authorized in-scope nit correction to H2, validation and
-covered publication with its concrete summary, independent scope-selected H2
+passing H verdict, authorized in-scope nit correction to H2, local validation,
+concrete pre-push summary and exact covered plain-update binding, successful H2
+publication, independent scope-selected H2
 follow-up using applicable prior coverage, refreshed action binding, then
 remaining-feedback, CI, and protection checks before merge. Reject each
 single-dimension variant: absent accepted policy cannot enable the conditional
 path; stale association cannot pass; pending eyes cannot trigger quota fallback;
 a task or partial verdict cannot replace the complete result; omitted H2
-follow-up cannot carry H approval; omitted feedback or protection checks cannot
-permit merge. Repeated unchanged fallback reuses or suppresses the existing
+follow-up cannot carry H approval; requiring published-H2 review before H2
+publication creates a rejected cycle; omitted feedback, current CI, protection
+or mergeability checks cannot permit merge. Initial publication separately
+retains implementation, validation and independent Phase 7 branch review before
+PR creation. A failed correction push cannot be reported as published H2. Repeated unchanged fallback reuses or suppresses the existing
 task. Current applicable thumbs-up reaches review readiness, genuinely pending
 eyes waits, and a completed current result overrides lingering eyes. Verify
 these outcomes against source and both rendered target procedures; generated

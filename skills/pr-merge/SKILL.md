@@ -29,7 +29,12 @@ are not merge authority. This owner retains polling, verified merge, cleanup,
 and final reporting; routing and priming do not acquire those effects.
 
 Preserve existing cleanup guards for dirty, locked, unfinished, unpublished,
-and unrelated work. Scoped cleanup never overrides those guards; report
+and unrelated work, required evidence, the stable controller ledger and resources
+needed by dependent items. Initial batch setup may establish separately scoped
+conditional merge and cleanup authority through actual human decisions; retain
+it across compatible continuation and changed commits. After fresh required
+conditions and exact bindings pass, execute the covered action without another
+human permission request. Scoped cleanup never overrides those guards; report
 retained work and unknown outcomes as unresolved obligations.
 
 Keep deterministic mechanics out of this always-loaded skill when they become

@@ -18,6 +18,7 @@ import {
   parseRenderedMarkdownArtifact,
   parseRenderedTomlArtifact,
 } from "../__test-helpers__/render.js";
+import { loadConfigAtPath } from "../config/load.js";
 import type { ResolvedConfig } from "../config/schema.js";
 import type { RenderedAgent } from "../models/types.js";
 import type { AcceptedProvider } from "../runtime-build/provider.js";
@@ -1817,6 +1818,78 @@ describe("renderLoaded", () => {
         (output) => !output.content.includes("requires"),
       ),
     ).toBe(true);
+  });
+
+  it("requires the shipped router's coordinator before selected-output writes", async () => {
+    const shippedConfig = await loadConfigAtPath(
+      path.resolve("devcanon.config.yaml"),
+    );
+    const sourceConfig: ResolvedConfig = {
+      ...shippedConfig,
+      library: {
+        ...shippedConfig.library,
+        generatedDir: config.library.generatedDir,
+      },
+    };
+    const validatedSkills = await loadAndValidateSkills(
+      sourceConfig.library.skillsDir,
+    );
+    const withoutCoordinator = validatedSkills.filter(
+      (skill) => skill.name !== "issue-batch-coordination",
+    );
+
+    for (const target of ["claude", "codex"] as const) {
+      const routerDir = path.join(
+        config.library.generatedDir,
+        target,
+        "skills",
+        "issue-batch-routing",
+      );
+      const sentinel = path.join(routerDir, "sentinel.txt");
+      const staleDir = path.join(path.dirname(routerDir), "stale-skill");
+      const staleSentinel = path.join(staleDir, "sentinel.txt");
+      await mkdir(routerDir, { recursive: true });
+      await mkdir(staleDir, { recursive: true });
+      await writeFile(sentinel, "must survive\n", "utf-8");
+      await writeFile(staleSentinel, "must survive cleanup\n", "utf-8");
+
+      await expect(
+        renderLoaded({
+          config: sourceConfig,
+          skills: withoutCoordinator,
+          validatedSkills,
+          agents: [],
+          writeToGenerated: true,
+          targetFilter: target,
+        }),
+      ).rejects.toThrow(/issue-batch-routing.*issue-batch-coordination/i);
+
+      expect(await readFile(sentinel, "utf-8")).toBe("must survive\n");
+      expect(await readFile(staleSentinel, "utf-8")).toBe(
+        "must survive cleanup\n",
+      );
+      expect(await pathExists(path.join(routerDir, "SKILL.md"))).toBe(false);
+    }
+
+    const result = await renderLoaded({
+      config: sourceConfig,
+      skills: validatedSkills,
+      agents: [],
+    });
+    for (const name of ["issue-batch-routing", "issue-batch-coordination"]) {
+      const outputs = result.outputs.filter(
+        (output) => output.type === "skill" && output.name === name,
+      );
+      expect(outputs.map((output) => output.target).sort()).toEqual([
+        "claude",
+        "codex",
+      ]);
+      for (const output of outputs) {
+        expect(
+          parseRenderedMarkdownArtifact(output.content).frontmatter,
+        ).not.toHaveProperty("requires");
+      }
+    }
   });
 
   it("does not require selected siblings when no render target is enabled", async () => {
