@@ -33,9 +33,16 @@ mapping cannot supply a route key or effect authority. That reuse retains the
 existing owner boundary and does not add a coordinator-owned creation, priming,
 or release protocol.
 
-Canonical policy refresh is part of coordination. An optional, authorized host
-watchdog may prompt refresh and recovery; it adds no DevCanon scheduler and
-does not guarantee compliance. Invocation restrictions and timer behavior must
+Canonical policy refresh is part of coordination. Concrete execution defaults
+new eligible owners to autonomous execution and requests one separate host
+watchdog with an active timer, within actual host authorization. Explicit
+interactive-owner and no-monitor choices are independent; status-only intent
+remains read-only and compatible resumed settings and explicit stops survive.
+The initial authorization check reuses verifiable human decisions and collects
+only missing host permissions/preferences before affected effects. The watchdog
+observes external events and reports to known authorized recipients; periodic
+owner-progress polling is prohibited. It adds no DevCanon scheduler and does not
+guarantee compliance. Invocation restrictions and timer behavior must
 be described according to each host's actual capabilities.
 
 [ROUTE-007](../specs/afds-workflow-routing.md#route-007-batch-coordination-and-explicit-routing)

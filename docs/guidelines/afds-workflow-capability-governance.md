@@ -376,6 +376,16 @@ or add a creation, priming, or release path.
 [ADR-0037](../adr/adr-0037-issue-batch-coordination-boundary.md) records the
 durable ownership decision, consequences, and rejected alternatives.
 
+Concrete execution defaults new eligible owners to autonomous work and one
+separate host watchdog/timer; inspection remains read-only. Independent
+interactive/no-monitor overrides, compatible resumed settings and explicit stops
+remain effective. Startup reuses verifiable human decisions, requests only
+missing host permissions/preferences and verifies each component separately.
+The efficient tier resolves through existing target bindings; model, effort and
+cadence are independent. External-event notifications reuse the reporting
+boundary; coordinator owner-progress polling is prohibited. These defaults add
+no task identity, scheduler or authority beyond supported host controls.
+
 Provider context is issue batches with existing owner workflows, including
 GitHub and Linear. Agent gate and source/runtime proof are `not applicable`:
 the method travels as skill prose, using existing invocation metadata and host

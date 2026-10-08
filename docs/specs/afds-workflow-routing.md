@@ -254,10 +254,39 @@ decision; an independent eligible sibling continues. Routing consumes that
 decision and scope without a generic reapproval, then applies its existing
 complete route, identity, recovery, receipt, and host gates before each effect.
 An explicit host denial reports the specific unavailable action without an
-invented permission or workaround. Publication, merge, recurring scheduling,
+invented permission or workaround. Publication, merge,
 destructive cleanup, and scope expansion retain separate applicable decisions,
 including still-current prior authority; routine orchestration grants none of
 them. Source-status effects and archival retain their existing owner gates.
+
+A concrete accepted execution request defaults eligible new provider-owner
+invocations to `--auto` and requests one separate watchdog with its active host
+timer, subject to actual host authorization. Status-only intent causes no task
+creation, messaging, scheduling or priming. Interactive-owner and no-monitor
+overrides are independent. Preserve compatible already-bound owner modes and
+monitor settings; a generic resume does not override an explicit stop.
+
+Before affected creation, owner release, messaging or timer activation, one
+initial check inspects applicable human decisions visible in the controller or
+verifiable through supported evidence. It enumerates owner-chat and one
+watchdog-chat creation, coordinator-to-owner instructions, owner-to-coordinator
+gates/completion/required readiness, watchdog-to-owner updates,
+watchdog-to-coordinator exceptions, and recurring scheduling with cadence.
+Retain accepted scope and authorization provenance in existing controller state,
+bind actual recipients as they become known and supply recipient-visible
+reporting evidence through the existing handoff contract. Where direct human
+authorization in the recipient conversation is required, arrange that specific
+step; a forwarded controller assertion cannot substitute for it.
+
+Reuse valid decisions across compatible continuation and ask only for uncovered
+effects or genuinely missing timer preferences, together where the host permits.
+The request identifies batch, roles, notification directions, timer operation
+and cadence, and each actual host restriction; it excludes publication, merge,
+provider mutation and destructive cleanup. Complete verifiable authorization
+proceeds without another approval. Inaccessible evidence yields one specific
+missing-evidence action, not presumed refusal or generic workflow reapproval.
+A partial permission or setup failure holds only affected effects while
+independently authorized owner work continues.
 
 An accepted human delivery decision may include publication, conditional merge,
 and scoped cleanup through completion. Coordination retains its provenance,
@@ -547,9 +576,10 @@ GitHub [issue #821](https://github.com/ryumiel/devcanon/issues/821) records the
 accepted current-state-only direction for this contract; implementation proof
 belongs to the routing/coordination verification owners.
 
-#### ROUTE-007-MONITOR: Optional batch monitoring lifecycle
+#### ROUTE-007-MONITOR: Execution monitoring lifecycle
 
-Monitoring is optional for an accepted batch and requires retained applicable
+Monitoring defaults to one separate watchdog and timer for concrete accepted
+execution unless explicitly overridden, and requires retained applicable
 scheduling and messaging authority, a verified controller, existing owner and
 repository bindings, readable canonical policy, and inspectable schedule and
 notification state. The host's supported controls own scheduling. User-selected
@@ -558,8 +588,9 @@ configurable within host limits. Missing authority, ambiguous binding, unreadabl
 policy, or unsupported control holds the affected action with a concrete reason;
 independently authorized owner reports continue.
 
-Exactly one monitoring mode may be active for a batch. When monitoring is
-requested and separate task, schedule, observation, messaging, and task-model
+Exactly one monitoring mode may be active for a batch. When execution selects
+monitoring or it is explicitly requested, and separate task, schedule,
+observation, messaging, and task-model
 controls are supported and authorized, default to a separate watcher restricted
 to external observation and notification. A coordinator heartbeat requires
 explicit selection; unsupported or rejected watcher controls never silently
@@ -569,9 +600,24 @@ when monitoring is unavailable.
 A new watcher uses the already-rendered target-native `efficient` model binding
 from the coordinator skill in the host task's supported model setting, unless an
 applicable explicit user model override takes precedence. Effort remains an
-independent explicit setting. Missing, unresolved, or rejected bindings or model
+independent user setting or supported host default. Cadence preserves an
+applicable user/saved setting, otherwise a supported configured host default;
+when neither exists, request that bounded preference before activation. The
+model tier supplies no universal cadence or effort. Missing, unresolved, or
+rejected bindings or model
 controls hold watcher activation with the concrete limitation; do not substitute
 an ambient model or rediscover configuration.
+
+Before claiming monitored operation, separately verify actual owner bindings,
+watchdog task identity and model, timer target and active status, and permitted
+notification recipients. The timer wakes the watchdog chat to inspect external
+events, not the coordinator for periodic owner observation. A selected heartbeat
+may handle bounded events/recovery but must not periodically discover owner
+progress. Reuse compatible components, create only missing authorized ones, and
+retain partial startup in existing state. Pending or unknown creation, activation
+or stop outcomes prevent duplicate activation. Missing/rejected task, model,
+timer or messaging controls expose their exact limitation; no custom scheduler,
+ambient-model substitution or implicit heartbeat fallback is permitted.
 
 Inspect an existing watcher and schedule against the batch, repository,
 controller, recipients, identity, target, status, authority, and notification
@@ -663,6 +709,16 @@ obligation to be complete. Preserve required evidence before removable-worktree
 cleanup. Stop or pause monitoring through its owning host control and verify
 the observed result separately from chat archival; unavailable control remains
 an explicit unresolved obligation. Honor an explicit user stop.
+
+Startup acceptance covers fresh execution, read-only inspection, independent
+interactive/no-monitor overrides, preserved resumed settings/stops, complete and
+partial authorization, verifiable existing human decisions, missing recipient
+evidence, cadence/effort precedence, unavailable controls, and partial/unknown
+startup without duplicate activation. Verify efficient model resolution in fresh
+Claude/Codex projections without hard-coding a target model in portable source.
+Focused hypothetical scenarios and render inspection do not prove live scheduled
+delivery. Timer ticks inspect external events and leave unchanged observations
+quiet; coordinator owner-progress polling is prohibited.
 
 Acceptance requires an authorized reused schedule with one active mode,
 duplicate suppression, an explicit event or authorized trigger after a no-code

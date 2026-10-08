@@ -44,7 +44,17 @@ orchestration permission; the coordinator owns that interpretation. For a
 direct route, interpret the user's bounded request and surrounding decisions
 under the same inspect/start-work distinction below. Preserve still-current
 prior authority, and validate each requested effect against the current facts
-and host restrictions.
+and host restrictions. For accepted concrete execution, select `--auto` for
+eligible new provider-owner invocations unless interactive work was selected;
+never silently change an already-bound owner's mode. Status-only routing has no
+creation, messaging, scheduling or priming effects. Consume the coordinator's
+initial authorization check and recipient-visible evidence for task creation,
+each messaging direction and recurring timer setup; missing host permission
+holds only its affected effect. A direct route applies the same bounded check
+before its affected effects. Execution selects the separate-watchdog/timer
+default under the companion's watchdog procedure, preserving independent
+no-monitor overrides, compatible settings and explicit stops. It supplies no
+publication, merge, source-mutation or cleanup authority.
 
 Codex disables implicit invocation through its sidecar policy. Claude retains
 workflow calls and direct user invocation: its manual-only setting would block
@@ -1041,7 +1051,8 @@ agent-local decision trails into shared PR or issue comments.
 
 ## Automation And Resume
 
-For an optional coordinator heartbeat or separately authorized watcher, use
+For default execution watchdog setup or an explicitly selected coordinator
+heartbeat, use
 the coordinator's [watchdog operation](../issue-batch-coordination/references/watchdog.md)
 for supported schedule and notification mechanics. A watcher observation is
 non-authorizing evidence; this router retains its complete route, approval,

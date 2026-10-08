@@ -340,6 +340,16 @@ is the entrypoint and explicitly calls
 routes. The [routing spec](../specs/afds-workflow-routing.md#route-007-batch-coordination-and-explicit-routing)
 owns their boundary. This composition preserves the individual issue owners
 and their approval gates; users do not need to invoke the router by name.
+A concrete execution request defaults new eligible owners to autonomous work
+and one separate watchdog with a host timer. Choose interactive owners or
+no monitoring independently when desired; a status request remains read-only.
+Compatible resumed settings and explicit stops remain in effect. Setup reuses
+verifiable human permissions and asks only for missing host permissions or a
+cadence when no user/saved value or supported configured host default exists.
+Model tier, effort and cadence stay independent. Host restrictions hold the
+affected setup while independently authorized owner work continues. The watchdog
+observes external events; the coordinator does not periodically poll owner
+progress. Publication, merge and cleanup keep their existing gates.
 
 Persona journeys use the canonical work-origin procedures above. They do not
 redefine owner rules.

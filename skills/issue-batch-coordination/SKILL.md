@@ -57,7 +57,7 @@ grants execution nor discards established work intent. A status or inspection
 request remains read-only: discover and report, but do not create or message
 owners or release priming. If intent or accepted scope is missing or
 conflicting, ask only for that decision before affected effects. Publication,
-merge, recurring scheduling, destructive cleanup, and scope expansion each
+merge, destructive cleanup, and scope expansion each
 retain their applicable separate decisions, including any still-current prior
 authorization. An accepted delivery decision may cover publication, conditional
 merge, and scoped cleanup through completion. Coordination interprets that
@@ -95,6 +95,53 @@ revoking compatible standing authority. Keep review and recovery evidence at
 its owning workflow and link only what the current decision needs; never copy
 an execution diary or delete owner evidence while compacting the ledger.
 Store the ledger stably, never only in a removable owner worktree.
+
+## Execution startup and authorization
+
+For a concrete accepted execution request, default eligible new provider-owner
+invocations to `--auto` and select one separate watchdog with an active host
+timer as the requested setup. Status-only intent permits no creation, messaging,
+scheduling or priming. An explicit interactive-owner choice and an explicit
+no-monitor choice are independent: either can override its own default without
+changing the other. Preserve already-bound owner modes, compatible monitor
+settings and retained explicit stops on resume; a generic resume does not
+supersede a stop. Read [Watchdog operation](references/watchdog.md) before startup.
+
+Before affected task creation, owner release, messaging or timer activation,
+perform one initial authorization check against applicable human decisions
+already visible here or verifiable through supported host evidence. Enumerate
+creation of the accepted issues' owner chats and one watchdog chat;
+coordinator-to-owner instructions; owner-to-coordinator gates, completion and
+required readiness reports; watchdog-to-owner external updates and
+watchdog-to-coordinator exceptions; and recurring timer activation with cadence.
+The default selects requested setup, never fabricates a host permission.
+
+Reuse valid decisions and batch only uncovered permissions into one concise
+request where the host permits it. Identify the accepted batch, roles,
+notification directions, timer operation/cadence, and the actual host restriction
+requiring each permission. Request a genuinely missing cadence preference under
+the watchdog procedure before activation. Do not include publication, merge,
+provider mutation, destructive cleanup or scope expansion in this setup request.
+If all effects and preferences are already covered by verifiable human decisions,
+proceed without another approval question.
+
+Retain scope and human authorization provenance in the existing stable controller
+state, bind them to actual owner/watchdog recipients as host identities become
+known, and deliver the recipient-visible reporting evidence required by the
+router's handoff contract. A copied assertion by the controller is not direct
+human authority. Where the host requires a human decision in the recipient's own
+conversation, arrange that specific human step before unattended messaging.
+Inaccessible evidence holds only the affected effect and names one concrete
+missing-evidence action; it is neither refusal nor a reason to reapprove unrelated
+work. Reuse compatible authority across continuation and resume.
+
+Verify owner bindings, watchdog identity and selected model, timer target and
+activation, and permitted notification recipients separately before claiming
+monitored operation. Reuse authorized compatible components and create only what
+is missing. Pending or unknown creation/activation/stop outcomes hold duplicate
+effects. Retain partial startup and unresolved limitations in existing monitor
+state; independent authorized owner work continues without an acknowledgement
+wait. Do not silently switch to a coordinator heartbeat when watchdog setup fails.
 
 ## Coordination cycle
 
@@ -249,11 +296,11 @@ acknowledgement before it dispatches. When a watchdog exists, also reconcile
 its target and status through supported host controls before successor
 dispatch. Archiving the predecessor does not transfer or stop the timer.
 
-Read [Watchdog operation](references/watchdog.md) when a timer is requested,
+Read [Watchdog operation](references/watchdog.md) for execution startup or when a timer is requested,
 already exists, when a separate watcher is authorized, or when either mode
 needs recovery or shutdown. Use its one-mode startup, observation, handoff,
-and verified-stop procedure; owner reports remain primary. For requested new
-monitoring, default to a supported, separately authorized watcher; a coordinator
+and verified-stop procedure; owner reports remain primary. For accepted execution, default to a supported, separately authorized watcher and
+its host timer unless overridden; a coordinator
 heartbeat requires explicit selection. Unsupported watcher controls never
 silently select a heartbeat. Preserve a compatible existing monitor's settings
 and cadence, and do not recreate an explicitly stopped monitor without later
@@ -266,7 +313,7 @@ independent of this binding. Missing, unresolved, or rejected bindings or contro
 hold activation with the concrete limitation; do not rediscover source or ambient
 configuration or substitute a model.
 
-Scheduling is optional host functionality; this skill creates no timer by
-itself. Missing scheduling support does not prevent independently authorized
+Scheduling requires supported host functionality and actual authorization; this
+skill creates no timer by itself. Missing scheduling support does not prevent independently authorized
 owner-driven coordination. A refresh can reveal drift, but neither prose nor a
 timer guarantees policy compliance.
