@@ -66,7 +66,13 @@ replacement authority. Preserve unresolved state and resources, and escalate the
 concrete conflicting authority or missing evidence before the affected action.
 Startup also establishes separately scoped publication, conditional merge and
 scoped cleanup authority from actual human decisions; the execution default
-itself grants none of these effects or source-status mutation.
+itself grants none of these effects or source-status mutation. Select action
+prerequisites by publication branch: initial PR publication retains
+implementation, validation and independent Phase 7 branch review; a covered
+existing-PR correction uses classification, local validation and the concrete
+pre-push gate before its plain update, then independent published-current-head
+follow-up before readiness or merge, as defined below. Never require that
+published-head follow-up before the push that makes the head available.
 
 Codex disables implicit invocation through its sidecar policy. Claude retains
 workflow calls and direct user invocation: its manual-only setting would block
@@ -674,11 +680,16 @@ control, bindings, or verdict waits or reports.
 
 For authorized in-scope corrections, preserve covered fix/publication authority
 without a generic renewed request, while requiring the review-response concrete
-pre-push summary. A changed local or remote head invalidates old-head approval:
-require validation and independent current follow-up under `pr-review`'s
-existing scope selector, carrying applicable prior coverage only as context.
-Refresh the existing affected action/route binding against the new head before
-its effect. Scope expansion, new choices, exceptions, or missing authority use
+pre-push summary of exact changes/commit, verification, classified dispositions
+and intended actions. Validate the local candidate and refresh the exact
+branch/head binding for the covered plain update before its publication. After
+successful publication, require independent current published-head follow-up
+under `pr-review`'s existing full-versus-narrow scope selector before review
+readiness or merge. A changed local or remote head invalidates old-head approval;
+carry applicable prior coverage only as context. Refresh the existing affected
+action/route binding against the new head before each effect. A failed push
+leaves the candidate unpublished; neither the summary nor a follow-up request
+establishes publication success. Scope expansion, new choices, exceptions, or missing authority use
 the existing owner/approval gate. This does not change report-only reviewer nits,
 thread permissions/refetches, feedback, CI, or protection requirements.
 
@@ -708,17 +719,17 @@ and scoped cleanup; exact owner O/host T; current PR P/head H; and all required
 review, CI, protection, route and owner evidence. Invalid variants change only
 the named dimension; other facts remain consistent.
 
-| Case                                                                                      | Required outcome                                                                                                                                                                                                                          |
-| ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Valid family progresses from reviewed H publication to merge readiness                    | Coordination issues current concrete instructions within retained scope; router validates each binding and routes merge/cleanup to `pr-merge` once under existing keys. Priming finishes mandatory phases at the reviewed PR/head report. |
-| An authorized correction produces H2, with H2 gates and a new exact instruction refreshed | Reject H bindings, retain delivery scope and O/T, and route the current H2 action without generic human reapproval; retain only still-needed operational keys for recovery and deduplication.                                             |
-| H2 is current but only H readiness and binding exist                                      | Hold the action for H2 evidence and instruction refresh, without revoking scope or consuming its approval route key.                                                                                                                      |
-| Human scope is PR-only                                                                    | Stop at publication; merge requires the missing delivery decision.                                                                                                                                                                        |
-| Human explicitly revokes the accepted scope                                               | Hold further effects for the owning decision; current green evidence does not restore authority.                                                                                                                                          |
-| Human reserves the merge decision and has not supplied it                                 | Wait for that specific human decision; conditional readiness cannot replace it.                                                                                                                                                           |
-| Requested effect expands beyond the accepted scope                                        | Escalate only that expansion before its effect.                                                                                                                                                                                           |
-| Host denies the otherwise eligible action                                                 | Report the specific unavailable action; no alternate host or workflow workaround.                                                                                                                                                         |
-| Verified merge has unrelated unfinished work present during scoped cleanup                | Existing cleanup guards retain that work and report the remaining obligation; merge success does not authorize deletion or terminal archival.                                                                                             |
+| Case                                                                                      | Required outcome                                                                                                                                                                                                                                                                                                                                                                |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Valid family progresses from reviewed H publication to merge readiness                    | Coordination issues current concrete instructions within retained scope; router validates each binding and routes merge/cleanup to `pr-merge` once under existing keys. Priming finishes mandatory phases at the reviewed PR/head report.                                                                                                                                       |
+| An authorized correction produces H2, with H2 gates and a new exact instruction refreshed | Reject H bindings, retain delivery scope and O/T; after classification, local validation and the concrete pre-push gate, bind and perform the covered plain update, then independent published-H2 scope-selected follow-up before readiness/merge. Refresh genuine H2 gates and exact instructions without generic human reapproval; retain needed recovery/deduplication keys. |
+| H2 is current but only H readiness and binding exist                                      | Hold the action for H2 evidence and instruction refresh, without revoking scope or consuming its approval route key.                                                                                                                                                                                                                                                            |
+| Human scope is PR-only                                                                    | Stop at publication; merge requires the missing delivery decision.                                                                                                                                                                                                                                                                                                              |
+| Human explicitly revokes the accepted scope                                               | Hold further effects for the owning decision; current green evidence does not restore authority.                                                                                                                                                                                                                                                                                |
+| Human reserves the merge decision and has not supplied it                                 | Wait for that specific human decision; conditional readiness cannot replace it.                                                                                                                                                                                                                                                                                                 |
+| Requested effect expands beyond the accepted scope                                        | Escalate only that expansion before its effect.                                                                                                                                                                                                                                                                                                                                 |
+| Host denies the otherwise eligible action                                                 | Report the specific unavailable action; no alternate host or workflow workaround.                                                                                                                                                                                                                                                                                               |
+| Verified merge has unrelated unfinished work present during scoped cleanup                | Existing cleanup guards retain that work and report the remaining obligation; merge success does not authorize deletion or terminal archival.                                                                                                                                                                                                                                   |
 
 ### Owner dispatch and checkout adoption
 
@@ -922,7 +933,8 @@ Changes to PR head, unresolved threads, failing CI run/check, mergeability,
 source-issue state, or a newer owner gate invalidate dependent readiness and
 current action bindings. They do not automatically revoke an accepted delivery
 decision. Reject the stale binding, refresh the affected authoritative facts
-and required review, CI, protection, and owner gates, then consume a new exact
+and the review, CI, protection and owner gates required for the selected action
+under the distinct initial-publication/correction sequence, then consume a new exact
 instruction from coordination within retained scope. For direct routing,
 derive that instruction only from the user's retained bounded decision and
 current facts. Never reuse stale review or approval evidence as current.

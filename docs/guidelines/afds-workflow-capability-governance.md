@@ -391,7 +391,14 @@ permissions/preferences and verifies each selected component separately.
 It also establishes separately scoped publication, conditional merge and scoped
 cleanup authority. Compatible standing human scope survives changed commits;
 fresh readiness and exact action bindings precede covered effects through their
-existing owners, without repeated human approval for satisfied conditions.
+existing owners, without repeated human approval for satisfied conditions. Initial
+PR publication retains implementation, validation and independent Phase 7
+branch review. Under ROUTE-007-REVIEW, covered existing-PR corrections instead
+require classified dispositions, local validation, the concrete pre-push summary
+and exact plain-update binding, then successful publication and independent
+published-current-head full-versus-narrow follow-up before readiness or merge.
+Old-head approval never transfers; feedback, current CI, protection, mergeability
+and exact bindings remain required at their owning gates.
 The efficient tier resolves through existing target bindings; model, effort and
 cadence are independent. External-event notifications reuse the reporting
 boundary; coordinator owner-progress polling is prohibited. These defaults add

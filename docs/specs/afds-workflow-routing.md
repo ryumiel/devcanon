@@ -320,9 +320,16 @@ expansion, an unresolved material choice, an explicitly reserved human decision,
 or a required exception escalates only its specific decision. Reports, planning
 PASS, and tool availability are evidence, never authority. After fresh conditions
 and exact owner/action bindings pass, execute the covered action through its
-existing effect owner without another human permission request. Publication is
-non-force push, PR creation/update and sanitized required summaries after
-implementation, validation and independent review. Conditional merge requires
+existing effect owner without another human permission request. Refresh only the
+prerequisites of that selected action: initial PR publication requires
+implementation, validation and independent Phase 7 branch review before
+non-force push, PR creation and sanitized required summaries. Authorized
+existing-PR correction publication follows ROUTE-007-REVIEW below: classified
+findings/dispositions, local candidate validation, the concrete pre-push gate and
+exact covered plain-update binding precede publication; independent published
+current-head follow-up precedes review readiness and merge. Do not turn those
+downstream gates into a requirement to review the unpublished correction head.
+Conditional merge requires
 current-head CI, genuine independent reviews, protection, mergeability and
 review-thread disposition through `pr-merge`. Scoped cleanup follows verified
 merge and outstanding accepted work, preserving required evidence, unrelated
@@ -723,10 +730,19 @@ An authorized in-scope correction retains covered fix and publication authority,
 including a scoped nit correction, without generic renewed permission. The
 owner classifies the finding, validates the changed candidate, and presents the
 concrete changes, verification, disposition, and intended-action summary before
-push. Changed code requires independent current follow-up review selected by
-`pr-review` and its full-versus-narrow scope policy; applicable prior coverage is
-context, never old-head approval. The router refreshes the action binding for
-the changed local/remote head before the affected effect. Scope expansion, new
+push. Include the exact local changes and follow-up commit when present,
+verification results, each concern's classified disposition, and intended
+external actions; present this summary even when retained authority covers the
+push. After this concrete pre-push gate is satisfied and the exact branch/head
+update binding is refreshed, the existing publication owner may plain-push the
+covered correction to the existing PR branch. Then obtain independent current
+published-head follow-up review selected by `pr-review` and its full-versus-narrow
+scope policy before review readiness or merge; applicable prior coverage is
+context, never changed-head approval. A failed push leaves the new candidate
+unpublished; a summary or requested follow-up never proves publication success.
+Changed local or remote heads invalidate affected head-bound evidence. The
+router refreshes the new head's action binding before each affected effect;
+standing compatible human scope survives. Scope expansion, new
 choices, exceptions, or missing authority stop at the existing owner/approval
 gate. Reviewer nits remain report-only by default. Reply and resolve permissions,
 human-thread rules, and refetches remain separate. The merge owner still checks
@@ -770,15 +786,19 @@ target guidance without activating a live schedule.
 
 Conditional-review acceptance additionally requires this valid sequence: accepted
 policy at head H, confirmed quota, one reused independent review task, complete
-passing H verdict, authorized in-scope nit correction to H2, validation and
-covered publication with its concrete summary, independent scope-selected H2
+passing H verdict, authorized in-scope nit correction to H2, local validation,
+concrete pre-push summary and exact covered plain-update binding, successful H2
+publication, independent scope-selected H2
 follow-up using applicable prior coverage, refreshed action binding, then
 remaining-feedback, CI, and protection checks before merge. Reject each
 single-dimension variant: absent accepted policy cannot enable the conditional
 path; stale association cannot pass; pending eyes cannot trigger quota fallback;
 a task or partial verdict cannot replace the complete result; omitted H2
-follow-up cannot carry H approval; omitted feedback or protection checks cannot
-permit merge. Repeated unchanged fallback reuses or suppresses the existing
+follow-up cannot carry H approval; requiring published-H2 review before H2
+publication creates a rejected cycle; omitted feedback, current CI, protection
+or mergeability checks cannot permit merge. Initial publication separately
+retains implementation, validation and independent Phase 7 branch review before
+PR creation. A failed correction push cannot be reported as published H2. Repeated unchanged fallback reuses or suppresses the existing
 task. Current applicable thumbs-up reaches review readiness, genuinely pending
 eyes waits, and a completed current result overrides lingering eyes. Verify
 these outcomes against source and both rendered target procedures; generated

@@ -360,7 +360,14 @@ progress. Initial setup also establishes separately scoped publication, conditio
 merge and scoped cleanup authority, reusing actual human decisions and asking
 only for missing scope. Compatible authority survives changed commits; current
 readiness and action bindings must be refreshed. Covered effects execute through
-their existing owners after genuine gates pass, without generic reapproval.
+their existing owners after genuine gates pass, without generic reapproval. Initial
+PR publication retains implementation, validation and independent Phase 7
+branch review. Under ROUTE-007-REVIEW, covered existing-PR corrections instead
+require classified dispositions, local validation, the concrete pre-push summary
+and exact plain-update binding, then successful publication and independent
+published-current-head full-versus-narrow follow-up before readiness or merge.
+Old-head approval never transfers; feedback, current CI, protection, mergeability
+and exact bindings remain required at their owning gates.
 Cleanup preserves dependency resources and required evidence; timer shutdown
 follows terminal completion and outstanding authorized cleanup.
 

@@ -1159,6 +1159,16 @@ read files from disk for the rerun rather than using snapshot content.
 
 ### Phase 8: Create PR
 
+This is initial PR publication: implementation, validation and independent
+Phase 7 branch review precede creation. An authorized correction to an existing
+published PR instead follows
+[ROUTE-007-REVIEW](../../docs/specs/afds-workflow-routing.md#route-007-review-review-waits-and-merge-evidence)
+and review-response's concrete pre-push gate: classify dispositions, validate the
+candidate, present the exact summary and bind the covered plain update, publish,
+then obtain independent published-current-head follow-up under `pr-review`'s
+full-versus-narrow selector before readiness or merge. That correction sequence
+does not waive initial Phase 7 review or transfer old-head approval.
+
 Phase 7 owns branch review before Phase 8. Phase 8 may start only after Phase 7
 `branch-review --fix` completion criteria pass on the final Phase 7 run: zero
 blocking findings auto-fixed, no unresolved remaining `Blocking` findings

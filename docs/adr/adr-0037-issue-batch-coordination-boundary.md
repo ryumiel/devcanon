@@ -49,7 +49,14 @@ only missing host permissions/preferences before affected effects. Startup also
 establishes separately scoped delivery authority for publication, conditional
 merge and scoped cleanup. Compatible human scope survives changed heads, while
 readiness and exact action bindings are refreshed before the existing effect
-owner executes a satisfied covered action without generic reapproval. The watchdog
+owner executes a satisfied covered action without generic reapproval. Initial
+PR publication retains implementation, validation and independent Phase 7
+branch review. Under ROUTE-007-REVIEW, covered existing-PR corrections instead
+require classified dispositions, local validation, the concrete pre-push summary
+and exact plain-update binding, then successful publication and independent
+published-current-head full-versus-narrow follow-up before readiness or merge.
+Old-head approval never transfers; feedback, current CI, protection, mergeability
+and exact bindings remain required at their owning gates. The watchdog
 observes external events and reports to known authorized recipients; periodic
 owner-progress polling is prohibited. It adds no DevCanon scheduler and does not
 guarantee compliance. Invocation restrictions and timer behavior must

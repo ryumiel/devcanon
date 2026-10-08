@@ -153,14 +153,25 @@ conversation, arrange that specific human step before unattended messaging.
 Inaccessible evidence holds only the affected effect and names one concrete
 missing-evidence action; it is neither refusal nor a reason to reapprove unrelated
 work. Reuse compatible authority across continuation, resume and changed commits.
-Refresh current issue/PR/head, validation, independent review, CI, protection,
-mergeability, review-thread disposition and exact owner/action bindings before
-execution. A changed head invalidates dependent evidence, not standing human scope.
+Refresh the current issue/PR/head and exact owner/action binding with the
+prerequisites of the selected action below. A changed head invalidates dependent
+readiness and evidence, not standing human scope; downstream review and merge
+gates are not prerequisites for the covered correction push that produces their
+published head.
 
 Execute a covered action through its existing effect owner after all conditions
-pass. Publication permits non-force push, PR creation/update and required sanitized
-summaries after implementation, validation and independent review. Conditional
-merge remains with `pr-merge` after genuine current-head review, CI, protection,
+pass. Initial PR publication permits non-force push, PR creation and required
+sanitized summaries after implementation, validation and independent Phase 7
+branch review. For an authorized correction to an existing PR, follow
+[ROUTE-007-REVIEW](../../docs/specs/afds-workflow-routing.md#route-007-review-review-waits-and-merge-evidence):
+classify findings/dispositions, validate the local candidate, present the exact
+concrete pre-push summary under retained human scope, and bind the covered plain
+update before publication. After successful publication, obtain independent
+current-head follow-up under `pr-review`'s full-versus-narrow scope selector
+before review readiness or merge; prior coverage is context, never new-head
+approval. A failed push leaves the candidate unpublished; neither a summary nor
+a requested follow-up proves success. Refresh the new head's dependent evidence
+and exact bindings. Conditional merge remains with `pr-merge` after genuine current-head review, CI, protection,
 mergeability and thread disposition, with no waiver. Scoped cleanup follows
 verified merge and outstanding accepted work, preserving required evidence,
 unrelated work, the controller ledger and resources needed by dependencies.
