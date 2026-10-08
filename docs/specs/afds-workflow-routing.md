@@ -1401,6 +1401,48 @@ discovery uses an available index or bounded tracked search without assuming a
 fixed index name or widening the selected review range. This does not add a
 public artifact, stage, schema or notice.
 
+### REVIEW-LIFE-001: Purpose-based retirement and review supersession
+
+The [review lifecycle target contract](../../skills/pr-review/references/review-lease-lifecycle-contract.md#target-retention-and-supersession-contract)
+owns retention purpose, exact artifact retirement eligibility, completed unposted
+review supersession and migration constraints. Invoking review/merge owners retain
+applicable human authority and refresh exact current evidence; artifact producers
+prove custody; shared review owns current-head independent judgment; the router
+owns current coordination and unresolved/replay obligations. Consumers reference
+that policy and do not maintain competing retention matrices.
+
+Observable acceptance requires supported retirement of proven task-owned unused
+diagnostics under already-covered scoped cleanup authority, truthful replacement
+of a completed unposted old-head review during authorized correction, accessible
+minimal continuity evidence for remaining consumers, and fresh independent review
+of new bytes. No blanket evidence-tree copy or repeated generic permission is
+required. Unknown ownership, active consumers, dirty/unrelated work, concurrent
+owners, uncertain effects and explicit mandatory preparation-failure history and retained failed-validation
+scratch stay protected. Durable Git/PR records cannot replace local-only evidence they lack.
+
+The target is a contract design, not a new executable permission. Existing closed
+state/transition and cleanup mechanics remain applicable until their owning
+implementation proves exact ownership, collision-safe replacement, interrupted
+reconciliation, delayed replay protection and cleared successor authority. No live
+cleanup, abort, posting, migration or schema mutation is authorized by this spec.
+
+Verification compares equivalent baseline/target cases for unused diagnostics,
+unknown custody, active old-review consumer, completed gated changed-head review,
+interrupted cleanup/replacement and preparation-failure history, plus ordinary
+success and recovery. Expected outcomes stay outside consumer inputs. Contract
+review, simulation and executable/live-host proof have distinct result labels;
+only executable proof can activate changed mechanics. Count required decisions,
+repeated human intervention, duplicated current facts and mandatory full-tree
+copies, not documentation length. Unsupported reductions preserve the needed rule.
+
+Evidence: [GitHub lifecycle shaping issue](https://github.com/ryumiel/devcanon/issues/846)
+identifies the checked retirement/supersession boundary and required comparison;
+contract design is specified here and at the linked source owner. Executable target
+proof is not run by this contract change; follow-up remains with the review
+lifecycle runtime and artifact-owner regression tests. Existing
+[`pr-review-leases` tests](../../src/runtime/pr-review-leases.test.ts) cover current
+refusal, terminal replacement and recovery behavior; they do not prove the target.
+
 ### PLAN-004: Preserved boundaries
 
 Model/effort bindings, D14–D16, source protection, lifecycle cleanup,

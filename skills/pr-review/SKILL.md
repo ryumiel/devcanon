@@ -13,6 +13,11 @@ codex_sidecar:
 
 # PR Review
 
+The [lifecycle target contract](references/review-lease-lifecycle-contract.md#target-retention-and-supersession-contract)
+owns artifact purpose/retirement and completed unposted review supersession.
+This wrapper checks current authority and scope, preserves needed continuity
+through its existing artifact owners, and uses only supported lifecycle events.
+
 ## Public helper mechanics
 
 Use the adjacent [review-leases usage](references/review-leases-usage.md), [prior-thread-artifacts usage](references/prior-thread-artifacts-usage.md), [review-manifests usage](references/review-manifests-usage.md), and [play-review review-artifacts usage](../play-review/references/review-artifacts-usage.md). Phase 6 first approved-review helper use on fresh or resumed posting requires [approved-review-artifacts usage](references/approved-review-artifacts-usage.md) at that loading site. This workflow retains lifecycle, provider, and review decisions.
@@ -575,9 +580,10 @@ replacement reviewer is needed for each routine correction.
 
 Before every replacement, preserve exact failed bytes and validator stderr as
 `failed-scope.json` and `validator.stderr`, regular nonsymlink files in one fresh
-controller-owned directory returned by `create-provider-scope-scratch`. Preserve
-these directories on success too; remove only a successful validation attempt's
-scratch that contains no retained failure evidence. Do not replace the candidate if preservation fails. Recheck
+controller-owned directory returned by `create-provider-scope-scratch`. The
+[lifecycle retention owner](references/review-lease-lifecycle-contract.md#failed-validation-scratch-outside-enrolled-custody)
+defines preservation after success and exclusion from disposable cleanup; remove
+only a successful attempt's scratch with no retained failure evidence. Do not replace the candidate if preservation fails. Recheck
 current verified head, provider evidence path/digest, full and active ranges,
 prior inputs, and completed substantive semantic/mechanical decisions. Reconstruct
 through the [canonical input owner](references/prior-thread-artifacts-usage.md),

@@ -41,6 +41,11 @@ Keep deterministic mechanics out of this always-loaded skill when they become
 script-scale. This skill owns orchestration, safety policy, routing, and final
 reporting; helper scripts own parseable Git context and cleanup mechanics.
 
+Review artifact retention and retirement policy is owned by the
+[review lifecycle contract](../pr-review/references/review-lease-lifecycle-contract.md#target-retention-and-supersession-contract).
+This merge owner validates scoped cleanup authority and dependencies; supported
+cleanup guards remain in force until target mechanics are implemented.
+
 ## Step 1: Resolve PR Number
 
 Auto-detect from current branch if no PR number provided:
