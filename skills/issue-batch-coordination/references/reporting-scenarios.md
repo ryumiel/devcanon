@@ -24,6 +24,97 @@ provider mutation or notification is needed for this evaluation.
 | Explicit status          | The user requests status while work is unchanged.                                                                                                        | Answer from current evidence; quiet reporting does not hide a substantive blocker or invent readiness.                                                                                                     |
 | Interrupted continuation | An owner is actually interrupted with authorized unfinished non-gate work.                                                                               | Validate existing route/provenance/source/head/acknowledged positive sequence and unfinished evidence before continuation; do not infer receipt acknowledgement from silence or bypass replay checks.      |
 
+## Ledger reconciliation regression cases
+
+These hypothetical cases exercise the existing Record and yield procedure and
+router [operational retention](../../issue-batch-routing/SKILL.md#operational-retention).
+Use disposable ledgers; do not resume a completed batch, contact its owners,
+change provider state or create a timer. Ordinary updates cover the affected
+item and dependent facts; the terminal-report case includes every accepted item.
+This is bounded scenario coverage, not a new ledger schema or reconciliation
+checklist.
+
+### Consumer inputs
+
+Start each case from the same two accepted items and retained markers. Item A
+is verified merged at H, but its current disposition, gate, blocker and next
+action still claim that dependent integration and cleanup remain. It retains a
+worktree and branch as available, a cleanup evidence link inside that worktree,
+merge and dependent-notification queue entries, and an execution narrative.
+Item B is merged with its own cleanup verified, but still carries an A-related
+integration hold. The batch summary repeats the outstanding integration and
+cleanup claims.
+
+Retain A's original complete route key and preparation path/digest, routes A
+and B's consumed/acknowledged-next sequences (4/5 and 33/34), applicable human
+authority and standing scope, event D's recipient and delivery evidence, and an
+explicit monitor stop with its recreation guard. Delayed input remains possible,
+so those operational markers still have a purpose. D's current status says
+awaiting verification.
+
+| Case                      | Supplied supported evidence and event                                                                                                                                                                                                                                                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stale cleanup             | A cleanup completion arrives before terminal reporting. Exact-head consumer acceptance and cleanup completion are verified; the worktree and branch are absent. A verified preservation mapping supplies equal original/retained cleanup-artifact hashes. D is delivered to its bound recipient and recipient validation is verified. |
+| Unresolved cleanup        | Recover an interrupted cleanup before using the ledger for an action. Cleanup and D delivery outcomes are unknown, exact consumer acceptance is missing, and the candidate preserved cleanup copy has a different digest with no verified mapping. Retain the original complete pending cleanup effect and its owner binding.         |
+| Delayed report and replay | Recover with the stale ledger plus the verified evidence from the first case. A report for the same cleanup operation has only explicitly superseded-head support; consumed receipt A/4 and a duplicate D/recipient notice arrive. Delivery time alone supplies no freshness.                                                         |
+
+Repeat each event with unchanged evidence after applying its first reconciled
+state. The preservation mapping covers only cleanup evidence; it supplies no
+replacement for the original preparation binding. Owner terminal-state and
+archival evidence are absent in all three cases.
+
+### Held-out outcomes
+
+Keep this section, the existing router scenario outcome tables, the issue's
+acceptance criteria and prior evaluation results outside consumer inputs. Give
+fresh consumers only the normative guidance and the input state/evidence above.
+For source and fresh Claude/Codex targets, exclude only embedded scenario
+outcome sections from otherwise equivalent normative guidance. Record the full
+guidance and excerpt identities, fixture identities, resulting field changes,
+selected actions, evidence consumption and unchanged-repeat decisions before
+comparing to these outcomes. Inspect fresh full rendered files separately.
+A candidate instruction change repeats the same conditions; if baseline guidance
+suffices, retain coverage and report that no instruction change is needed.
+
+| Case                         | Required resulting decisions                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stale cleanup                | Replace disposition, resource location/availability, gate, blocker, next action and obligations from verified results. Clear B's resolved dependent hold and A's completed queue/narrative, reconcile D's stale verification status, then derive a consistent terminal summary from every accepted item. Rebind the current cleanup link only through its verified matching-copy mapping. Retain the immutable preparation path/digest as a historical/replay identity, not live custody, accessibility or approval. |
+| Unresolved cleanup           | Remove the verified completed merge entry, but keep integration, cleanup and delivery gaps explicit. Availability is unknown; neither existence nor removal is invented. The mismatched copy cannot replace current evidence. Keep the original pending-effect binding, held dependent work and all still-needed markers. Hold only affected actions; no blind retry, completion claim, archival, monitor recreation or generic approval request.                                                                    |
+| Delayed report and replay    | Reconcile current verified facts and dependent holds before deriving the summary. Reject the positively superseded report without reopening work; reject consumed A/4 without resetting either route's guard or changing approval keys; suppress D's verified duplicate without resending. If freshness is instead conflicting or incomparable, retain the exact gap and use bounded authoritative reconciliation rather than timestamp ordering.                                                                    |
+| Unchanged repeat, every case | No repeated merge, cleanup, delivery, continuation, monitor activation or history entry. Keep completed outcomes complete and unresolved effects unresolved; preserve compatible authority, original complete route keys, required sequence guards, delivery deduplication and explicit stops while their operational purpose remains. A repeated unchanged notice is suppressed.                                                                                                                                    |
+
+Keep owner evidence at its owning artifacts; reconciliation neither copies it
+wholesale into the ledger nor deletes it. A verified cleanup copy does not prove
+preservation of a different design artifact. Missing owner terminal evidence
+holds archival without inventing another accepted integration/cleanup obligation.
+Missing evidence for an unrelated item does not justify reopening completed work
+or scanning unrelated evidence on every ordinary update.
+
+### Baseline observation and limits
+
+At source commit `f7bc3103770fa4ef04747d7f5ded330f58e9fcb4`, fresh independent
+consumers evaluated these three case families using source, fresh Claude and
+fresh Codex normative guidance with embedded outcome tables excluded. All nine
+case decisions reconciled verified cleanup and delivery, retained unresolved
+effects and mismatched-copy gaps, preserved applicable replay/authority/stop
+markers, and rejected delayed duplicates. Consumers cleared reciprocal dependent
+holds; retaining a discharged structural dependency or removing its resolved edge
+were equivalent when neither remained a live wait. Their unchanged-repeat
+decisions selected no duplicate effect or new history entry. The baseline did
+not demonstrate a need to change the instructions.
+
+These observations are agent-driven simulations: consumers returned field
+operations and action decisions, and the evaluation owner applied selected
+operations to disposable post-states and checked them against held-out outcomes.
+They are not native Claude-model versus Codex-model execution or actual
+asynchronous host delivery, resource cleanup, archival, timer or replay proof.
+The same evaluator role consumed all three guidance surfaces. Contract inspection
+and render parity are separate checks and do not establish behavioral proof.
+The three initial attempts exposed embedded outcome tables and were excluded;
+fresh consumers produced the observations above. Retain detailed run identities,
+selected decisions, post-states and checks locally rather than publishing private
+controller state or raw evaluation transcripts.
+
 ## Execution startup scenarios
 
 Evaluate these startup decisions with the reporting cases above; timer ticks
