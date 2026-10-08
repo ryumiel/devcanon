@@ -31,3 +31,6 @@ Validation is read-only.
 ## Workflow boundary
 
 [Issue priming workflow context](../SKILL.md) owns the phase that consumes the validated artifact.
+
+For the bounded PREP-000 scenario map and semantic evaluation limits, see
+[proportional preparation coverage](preparation-coverage.md).
