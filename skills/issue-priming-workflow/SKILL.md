@@ -1209,6 +1209,28 @@ PR handoff rules above remain authoritative.
 
 ## Issue Batch Routing Reports
 
+On a batch-routed handoff, retain the verified coordinator recipient/host,
+sending owner/host, reporting scope, and supported reference to actual human
+messaging authorization delivered at coordinator setup. Before relying on
+unattended reporting, verify that this owner can access or otherwise validate
+that evidence under its sending host's requirements. Chat creation, skill
+invocation, a forwarded controller prompt, or inaccessible side-chat approval
+cannot authorize a return message. Report the specific missing recipient-visible
+human instruction or transport gap through a supported surface; do not fabricate
+consent or fall back to coordinator polling. Reuse validated reporting authority
+across compatible reports, continuation and resume. Request a new decision only
+for missing/unverifiable evidence, revocation, uncovered recipient/effect, or an
+actual host requirement; routine gates and changed heads alone require none.
+
+This owner sends the required initial handoff, hard gates needing coordinator
+routing/decision, dependency readiness, material invalidation, and one verified
+completion of its accepted job through the router's Delivery and evidence
+contract. Hold the hard gate's affected action while independent authorized work
+continues. Successful completion delivery needs no routine acknowledgement and
+is not proof of terminal batch completion. The coordinator validates delivered
+reports using bounded evidence reads and yields after routing; repeated reads,
+snapshots or wait loops to discover owner progress or a gate are prohibited.
+
 When invoked after a source entrypoint handoff, this workflow produces
 issue-batch-routing reports for research, brainstorming, or design ambiguity
 stops; user or parent approval gates; implementation blockers; branch-review

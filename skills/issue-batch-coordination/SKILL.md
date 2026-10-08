@@ -96,14 +96,65 @@ its owning workflow and link only what the current decision needs; never copy
 an execution diary or delete owner evidence while compacting the ledger.
 Store the ledger stably, never only in a removable owner worktree.
 
+## Reporting path and bounded observation
+
+During initial setup, before releasing an owner into unattended work, establish
+an actual supported return-report path. Reuse the setup decision for execution
+and monitoring; do not add a recurring reporting-approval phase. Retain the
+verified coordinator recipient/host, sending owner/host, covered reporting
+scope, and a supported reference to the actual human authorization when the
+sender's host requires it. Deliver those facts in the owner handoff and verify
+that the recipient can access or otherwise validate the human evidence. Chat
+creation, skill invocation, a copied controller instruction, or approval in an
+inaccessible side conversation supplies no human messaging permission.
+
+Request only missing recipient-visible authorization through a supported
+surface. A transport or permission gap holds unattended release/reporting with
+that specific limitation; do not claim a reporting path or substitute polling.
+Retain and reuse valid authorization across reports, continuation, and
+compatible resume. A routine gate or head change alone needs no reapproval;
+request a new decision only for missing/unverifiable evidence, revocation,
+uncovered recipient/effect, or an actual host requirement.
+
+Owners deliver the required initial handoff, hard gates requiring coordinator
+routing/decision, dependency readiness, material readiness invalidation, and
+one verified completion of their accepted job. Delivery uses the router's
+[Delivery and evidence](../issue-batch-routing/SKILL.md#delivery-and-evidence)
+contract. At a hard gate hold its affected action; independent authorized work
+may continue. A successful completion delivery needs no routine acknowledgement
+and does not by itself establish terminal batch completion.
+
+Do not poll owner progress: repeated reads, snapshots, or wait loops to discover
+ordinary progress or whether a gate appeared are prohibited, including
+`read_thread`, `wait_threads`, and equivalent tools. Longer intervals do not
+change the boundary. End a routing pass by yielding for delivered reports.
+A watchdog observes external events, never owner progress.
+
+Bounded purpose-specific owner reads are allowed:
+
+- **Initial binding:** confirm the exact created/located owner and initial
+  waiting state for release; stop at confirmation or the specific unknown fact.
+  Await the owner's required handoff after release, without a progress loop.
+- **Received report:** resolve its evidence and current route/owner/head/authority
+  before dependent routing; stop at validation or the exact missing/stale fact.
+- **Explicit user status:** read the named owner's current evidence to answer
+  that request; stop after the answer, without arming repeated status reads.
+- **Concrete recovery:** reconcile the supported result of a named uncertain
+  creation, delivery, or interrupted operation under the router's recovery rules;
+  stop at the established outcome or exhausted supported recovery/gap. Do not
+  use recovery as a pretext to watch ordinary progress.
+
+These reads create no unattended discovery loop or polling fallback. Missing
+facts hold the affected action and expose the required evidence/intervention.
+
 ## Coordination cycle
 
 1. **Refresh.** On entry, watchdog wake, resume, or controller handoff, reread
    this skill's canonical file and the references required by the current
    action. Use the active library bundle, not a remembered summary or policy
    copied into a timer prompt. Record its revision or fingerprint in existing
-   local state. Refresh the affected owner and provider evidence through the
-   router. Before a material routing action, recheck the applicable policy and
+   local state. Validate affected received owner reports and provider evidence through the
+   router, within the bounded observation purposes above. Before a material routing action, recheck the applicable policy and
    live bindings even if the timer has not elapsed.
 2. **Classify.** Keep running work, verified unfinished non-gate work, genuine
    gates, and terminal outcomes distinct. An idle owner is not automatically
@@ -157,11 +208,11 @@ Store the ledger stably, never only in a removable owner worktree.
    status; retain exact notices required by an owning phase or other consumer.
    Missing authority or required evidence holds the affected action and
    surfaces the concrete missing decision or evidence when user action is
-   needed. Creation or a sent binding is not readiness: first observe
-   the owner's existing response or gate report through supported host evidence.
-   Suppress repeated unchanged waits. Owner gate reports are the
-   primary continuation signal; use supported waits or the optional watchdog,
-   not repeated messages asking running owners to continue.
+   needed. Creation or a sent binding is not readiness: consume the owner's
+   delivered initial handoff or gate report and validate its supported evidence.
+   Yield for reports after routing; do not repeatedly inspect or wait for owner
+   progress, and do not ask running owners to continue. The optional watchdog
+   checks external events under its separate notification boundary.
 
 Use the [reporting scenarios](references/reporting-scenarios.md) to verify
 quiet local work, actionable delivery, evidence resolution and deduplication.

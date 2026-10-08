@@ -433,6 +433,38 @@ never reconstructed from status or transcript. The router's existing route
 keys, receipt and approval gates, pending-creation recovery, and source owners
 remain authoritative for effects.
 
+Coordination is event-driven: owners deliver reports through a supported host
+path, the coordinator validates current referenced evidence, routes an authorized
+next action, and yields. Repeated coordinator reads, snapshots, or wait loops to
+discover ordinary owner progress or whether a gate appeared are prohibited,
+regardless of tool names or interval. This includes repeated `read_thread`,
+`wait_threads`, and equivalents. The watchdog observes external events, not
+owner progress; unsupported delivery never permits a polling fallback.
+
+Bounded owner reads may confirm initial binding before release, validate a
+received report, answer an explicit user status request, or reconcile the
+supported result of a concrete uncertain creation/delivery/interrupted operation.
+Each names the fact/operation and ends at its confirmation/validation/result or
+specific unresolved gap after supported recovery. Initial binding stops at the
+confirmed owner/waiting state; release awaits delivered handoff without a loop.
+A status read ends with the requested answer. Received-evidence reads hold stale
+or missing facts before routing; recovery cannot become ordinary-progress watch.
+
+Before unattended owner release, initial coordinator setup establishes a
+supported reporting path with verified coordinator/owner identities and scoped
+hosts. Reuse the execution/monitoring setup decision rather than introducing a
+recurring reporting approval. Carry an accessible host-supported reference to
+actual human reporting authorization in reporting handoffs where the sending
+host requires it; verify the receiving owner can access or otherwise validate
+that evidence. Chat creation, invocation, a controller-authored prompt, copied
+policy, or inaccessible approval in an ephemeral side conversation is not
+human permission. Expose the specific transport or permission gap and obtain
+only missing recipient-visible human instruction through a supported surface
+before claiming unattended reporting. Retain and reuse valid authorization
+across compatible reports, continuation and resume; routine gates/head changes
+alone do not require reapproval. Missing/unverifiable evidence, revocation,
+uncovered recipient/effect, or an actual host requirement needs its own decision.
+
 Coordination selects the audience after reconciling owner and router evidence.
 Routine corrections, intermediate checks, review preparation, recoverable errors
 and unchanged waits remain in the owning task without coordinator messages or
@@ -441,7 +473,13 @@ Coordinator delivery is limited to a required routing or decision action,
 dependency readiness, exhausted recovery requiring intervention, a material
 head/scope/ownership/readiness change affecting a pending action or invalidating
 recorded readiness, and one verified completion even without further routing.
-Required initial owner-handoff remains available to establish routing facts.
+The active owner produces and sends the required initial handoff, hard gate,
+dependency readiness, material readiness invalidation, and one verified job
+completion to its verified coordinator. Initial handoff establishes routing
+facts under the existing provenance contract. A hard gate holds its affected
+action while independent already-authorized work may continue. Successful
+completion delivery needs no routine acknowledgement, but delivery alone does
+not certify terminal batch completion or all accepted obligations.
 Quiet reporting never establishes readiness or preserves stale-head approval.
 
 Deliver a compact delta with provider-tagged issue/PR identity, owner, applicable
@@ -495,6 +533,14 @@ against source and fresh rendered target guidance. Evidence pointer:
 [GitHub issue #816](https://github.com/ryumiel/devcanon/issues/816) records the
 accepted reporting boundary; result: accepted behavior evidence. The
 coordination and routing skills own verification follow-up.
+[GitHub issue #835](https://github.com/ryumiel/devcanon/issues/835) supplies the
+accepted event-driven reporting and recipient-visible authorization requirements.
+Evaluate initial binding and bounded read stopping conditions, a yielding
+coordinator receiving a hard gate and routing only after validation, inaccessible
+side-chat authority, retained authorization, and prohibited progress polling
+against source and fresh Claude/Codex guidance. Record expected and observed
+actions separately for contract review, simulated behavior, and actual host
+execution; unavailable host execution is unexecuted, never PASS.
 
 #### ROUTE-007-STATE: Current-state retention
 
@@ -589,7 +635,9 @@ batch ledger. Neither mode introduces a custom scheduler or mandatory agent.
 
 #### ROUTE-007-EVENT: Observation is non-authorizing evidence
 
-Owner reports remain the primary continuation signal. A separate watcher keeps
+Owner reports wake the coordinator through the established reporting path.
+The coordinator validates required current evidence before routing, then yields;
+watchers cannot poll owner progress or act as a second coordinator. A separate watcher keeps
 the observed provider event identity, PR head, known recipient binding, and
 delivery outcome needed to suppress duplicate or unchanged observations. New
 comments and applicable current-head review signals reach the known owner;
@@ -652,6 +700,13 @@ human-thread rules, and refetches remain separate. The merge owner still checks
 remaining feedback, current head, CI, protections, and every other owning gate.
 
 #### ROUTE-007-RECOVERY: Handoff and terminal shutdown
+
+Recovery of a concrete uncertain operation uses bounded purpose-specific reads
+and stops at an established result or exhausted supported recovery with a
+specific evidence/intervention gap; it never arms an unattended progress loop.
+Retain recipient/host bindings and accessible human reporting authority across
+compatible resume and successor handoff. Notifications and copied controller
+claims cannot reconstruct missing permission.
 
 Recovery revalidates existing controller and owner bindings, schedule identity,
 target and status, and notification state. Successor acknowledgement and

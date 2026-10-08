@@ -373,6 +373,13 @@ existing route key and continue its existing handoff, approved-route, and
 receipt prerequisites. Coordination does not turn the mapping into permission
 or add a creation, priming, or release path.
 
+Owner reports drive coordinator wakeup and routing. Routine coordinator polling
+of owner progress is prohibited; bounded initial-binding, received-evidence,
+explicit-status and concrete-recovery reads remain available. Setup verifies
+reporting recipients and recipient-verifiable actual human messaging authority
+where the sender's host requires it, retaining valid scope across compatible
+reports/resume. External-event watchdog observation remains separate.
+
 [ADR-0037](../adr/adr-0037-issue-batch-coordination-boundary.md) records the
 durable ownership decision, consequences, and rejected alternatives.
 

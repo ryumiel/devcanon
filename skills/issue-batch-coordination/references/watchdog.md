@@ -49,8 +49,10 @@ Choose one active mode for the batch:
   controller/ledger context when the host requires pointers:
 
   > Reread the skill's canonical file and references required for this pass.
-  > Reconcile current user decisions and the existing ledger with live owner and
-  > provider evidence. Take at most the next authorized action per affected item
+  > Reconcile current user decisions and the existing ledger with delivered owner
+  > reports and current provider evidence. Use bounded owner reads only for
+  > initial binding, received-report validation, explicit status, or concrete
+  > uncertain-operation recovery; never poll ordinary progress or discover gates. Take at most the next authorized action per affected item
   > through the skill's owning workflows. Retain routine progress and monitor
   > reports internally; notify only for an actionable decision, blocker or
   > failure, meaningful delivery milestone, verified terminal batch completion
@@ -80,6 +82,14 @@ existing controller-local state. The main skill owns refresh and conflict
 handling.
 
 ## Observe and notify
+
+Observe external issue/PR events only. Do not read or wait on owner chats to
+poll ordinary progress or discover gates; repeated snapshots and longer
+intervals remain polling. Owners deliver their job reports through the supported
+setup reporting path. A watchdog cannot replace a missing owner return-message
+permission or transport with progress observation or become a second coordinator.
+Coordinator heartbeat prompts also obey the main skill's bounded observation
+purposes and stopping conditions: no owner-progress discovery loop.
 
 A separate watcher retains only the provider event identity, observed PR head,
 known recipient binding, and observed delivery outcome required to suppress
@@ -148,6 +158,13 @@ observations only after reconciliation. Do not copy review or recovery history
 into watcher state.
 
 ## Recover, hand off, and stop
+
+A bounded owner read may reconcile a named uncertain operation's supported
+result or validate a received report; stop when its outcome is established or
+supported recovery is exhausted with the specific gap. Do not convert recovery
+into an unattended progress loop. Carry retained recipient/host bindings and
+recipient-verifiable human reporting authority into compatible handoffs; a
+notification or copied controller claim cannot reconstruct permission.
 
 On recovery, verify existing controller and owner bindings, schedule identity,
 target and status, and watcher notification state before continuation. Preserve

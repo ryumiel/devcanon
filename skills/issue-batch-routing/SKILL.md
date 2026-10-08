@@ -330,7 +330,32 @@ reconciliation; it grants no new effect authority.
 
 ## Monitor Loop
 
-For each open batch item:
+This is one bounded reconciliation pass for an explicit request or delivered
+report/event, not an unattended owner-progress loop. Apply the coordinator's
+[bounded observation boundary](../issue-batch-coordination/SKILL.md#reporting-path-and-bounded-observation)
+without invoking it back: repeated owner reads, snapshots, or waits to discover
+ordinary progress or a gate are prohibited, regardless of tool or interval.
+Initial binding, received-report validation, explicit user status, and recovery
+of a concrete uncertain operation end at the named fact/result or its specific
+unresolved gap. After routing, yield for owner reports; watchdog external-event
+observation does not discover owner progress.
+
+Before unattended owner release, require a supported return-report path with
+verified coordinator and sender identities/hosts and recipient-verifiable
+actual human reporting authority where required by the sending host. Reuse the
+coordinator's initial setup decision. Carry that recipient binding and accessible
+host evidence reference into each reporting handoff, alongside the unchanged
+route binding; do not invent a new route key or message schema. The recipient
+must verify the human evidence once and retain it for compatible reports and
+resume. Creation or a forwarded controller prompt is not human authorization.
+An inaccessible side-chat approval holds release for only the missing supported
+recipient-visible human instruction. Unsupported delivery names the transport
+gap; unauthorized delivery names the permission gap. Neither permits polling.
+Valid authority persists across routine gates/head changes; recheck only actual
+missing/unverifiable evidence, revocation, uncovered recipients/effects, or host
+requirements.
+
+For each affected batch item:
 
 1. Refresh source-issue state through the provider surface when available.
 2. Classify source-issue state before deciding whether missing-owner issue
@@ -479,11 +504,13 @@ For each open batch item:
    assigned to that variable. Missing recovery evidence waits or reports the
    unresolved fact, and a mismatch stops the affected route. Keep repository,
    checkout, and action-permission gates before effects.
-5. After an initial binding, refresh or wait for supported owner state and
-   integrate its existing validated initial-handoff or gate report. Creation, a
-   worktree, a queued task, or a sent continuation is not readiness. Retain
-   missing or unknown delivery or response evidence; wait or report for
-   reconciliation, not a blind resend or readiness claim.
+5. After an initial binding, yield for the required delivered initial owner
+   handoff or gate report, then validate it through supported evidence before
+   consumption. Creation, a worktree, a queued task, or a sent continuation is
+   not readiness. A concrete uncertain delivery uses bounded result recovery;
+   retain an unresolved outcome and expose its gap when recovery is exhausted.
+   Do not repeatedly refresh owner state or wait to discover progress, blindly
+   resend, or infer readiness from silence.
 6. Refresh current source and PR state, and reconcile incoming observations
    under the observation and uncertain-effect recovery rule before replacing
    current facts or routing. Apply the canonical
@@ -793,6 +820,20 @@ produce the route-specific report fields, the router waits or reports manual
 action instead of assuming a report exists.
 
 ### Delivery and evidence
+
+The active owner is the producer of initial handoff, hard-gate, dependency-ready,
+material readiness-invalidation, and verified job-completion reports; its
+verified coordinator is the recipient. Use the established supported reporting
+path and retained actual human authority under Monitor Loop before delivery.
+A skill call or agent-authored instruction cannot fabricate that authority.
+The owner sends at the hard gate and holds only its affected action; independent
+already-authorized work continues. Successful completion delivery needs no
+routine acknowledgement, but the coordinator must validate completion evidence
+and all accepted obligations before declaring batch completion. Receivers wake
+on supported report delivery, validate referenced current evidence, route at most
+the next authorized action per affected item, and yield. If the host cannot
+deliver/wake the recipient, expose that specific transport limitation before
+relying on unattended continuation; never replace delivery with polling.
 
 Keep routine corrections, intermediate checks, review preparation, recoverable
 errors and unchanged waits in the owning task. Send the coordinator a delta
