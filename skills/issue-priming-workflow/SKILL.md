@@ -1,6 +1,6 @@
 ---
 name: issue-priming-workflow
-description: Continues a normalized issue-priming workflow into design and implementation readiness, with optional autonomous execution to a reviewable PR. Use when `linear-issue-priming` or `github-issue-priming` hands off a normalized issue payload. Do not use when starting from a raw Linear identifier or GitHub issue number — invoke the entrypoint instead.
+description: Adaptively prepares a normalized issue payload. Use when `linear-issue-priming` or `github-issue-priming` hands off a normalized issue payload. Do not use when starting from a raw Linear identifier or GitHub issue number — invoke the entrypoint instead.
 requires:
   - branch-review
   - play-agent-dispatch
@@ -24,7 +24,7 @@ codex_sidecar:
 
 Use the adjacent [phase-artifacts usage](references/phase-artifacts-usage.md), [source-immutability usage](references/source-immutability-usage.md), [write-research-brief usage](references/write-research-brief-usage.md), [write-auto-handoff usage](references/write-auto-handoff-usage.md), and [write-assumptions-comment usage](references/write-assumptions-comment-usage.md) for reusable helper mechanics. This workflow owns phase decisions and provider continuation.
 
-Continue an issue-priming workflow handed off by `linear-issue-priming` or `github-issue-priming`. The source entrypoint has already fetched the issue, provisioned or reused the issue worktree, and written the issue body to `.ephemeral/`. This workflow selects useful preparation from current accepted scope and source authority, then (in `--auto` mode) implements, reviews, and creates a PR. Unresolved decisions receive the needed investigation, design and reviewed planning; fully specified work uses the execution-note route below.
+Continue an issue-priming workflow handed off by `linear-issue-priming` or `github-issue-priming`. The source entrypoint has already fetched the issue, provisioned or reused the issue worktree, and written the issue body to `.ephemeral/`. The [Preparation Selection](#preparation-selection) section owns adaptive preparation from current accepted scope and source authority, including settled work executed inline from an Execution Note and forced research before selection. Interactive mode returns preparation for the existing implementation authority decision. Under `--auto`, the workflow omits routine phase confirmations and continues through implementation, verification, independent review and authorized PR creation, retaining genuine product/authority gates and excluding merge.
 
 ## Inputs
 
