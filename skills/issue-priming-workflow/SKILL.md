@@ -1094,8 +1094,22 @@ missing/changing head fails closed before downstream evidence.
 Only the frozen candidate may enter downstream evidence. Run an
 issue- or repository-required acceptance scenario only when its authority
 requires it; absence of that authority skips the scenario. Then run the
-existing full repository suite with `pnpm run check`, verify the worktree and
-`HEAD` still match the frozen candidate, and invoke mandatory Phase 7 Branch
+target repository's full validation command or required command set, resolved
+from applicable repository instructions and corroborated by its build scripts
+and CI. Account for every required command; do not infer a package-manager or
+language default. Missing, unavailable, ambiguous or contradictory guidance
+remains an explicit validation gap: route it to the repository owner before
+dependent review or publication claims. DevCanon's declared full suite remains
+`pnpm run check`. Apply only repository-supported setup and resource options
+that preserve required check coverage; do not invent concurrency defaults or
+weaken checks to obtain a pass.
+
+Retain evidence bound to the frozen candidate: actual commands, relevant setup
+and options, results and remaining gaps. Reuse `play-verification` when
+explicitly invoked under its contract. Failed, incomplete or unresolved
+validation cannot be reported as successful or advance to dependent review or
+publication. After all required validation succeeds, verify the worktree and
+`HEAD` still match the frozen candidate, then invoke mandatory Phase 7 Branch
 Review. A command failure without source mutation follows its existing command
 policy; any corrective source edit invalidates the frozen candidate and all
 later acceptance, validation, review, and approval evidence, then returns here.

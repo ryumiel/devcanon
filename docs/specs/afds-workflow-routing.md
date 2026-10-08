@@ -974,7 +974,18 @@ including direct FULL, mechanical and reduced routes.
 
 Both issue routes enter Candidate Closure and Source Freeze, applicable
 acceptance, full checks, independent Phase 7 branch review and exact publication
-approval. Source fixes invalidate downstream evidence. Notes remain local
+approval. Full validation uses the target repository's command or required
+command set from applicable repository instructions, corroborated by build
+scripts and CI, with every required command accounted for. No language or
+package-manager heuristic supplies a default; DevCanon retains `pnpm run check`.
+Setup and resource options must follow supported repository policy without
+weakening required checks. Evidence records actual commands, relevant
+setup/options, results and gaps against the frozen candidate. Missing,
+unavailable, ambiguous or conflicting guidance goes to the repository owner;
+failed, incomplete or unresolved validation blocks dependent review and
+publication claims. Unchanged-source command failure follows existing command
+policy; source fixes invalidate downstream evidence and re-enter Candidate
+Closure and Source Freeze. Notes remain local
 context with no publication or cleanup effects. Batch owner handoffs and
 receipts echo explicit `reviewed-plan` or `execution-note` provenance in the
 legacy-named `current_reviewed_plan_handoff_provenance` controller-local slot.
