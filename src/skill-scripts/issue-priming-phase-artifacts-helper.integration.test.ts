@@ -89,6 +89,29 @@ describe("issue-priming phase-artifacts helper", () => {
     }
   });
 
+  it("accepts readable execution-note bytes without asserting freshness or approval", async () => {
+    const cwd = await makeWorkspace();
+    const artifactPath = ".ephemeral/2026-05-25-topic-design.md";
+    try {
+      await writeFile(path.join(cwd, artifactPath), "# Execution Note\n");
+      await expect(
+        runHelper(cwd, "design", artifactPath),
+      ).resolves.toMatchObject({ stdout: "" });
+      await expect(runHelper(cwd, "plan", artifactPath)).rejects.toMatchObject({
+        stderr: expect.stringContaining("plan path validation failed"),
+      });
+      await writeFile(
+        path.join(cwd, artifactPath),
+        "# Execution Note\nChanged; D5 PASS claimed.\n",
+      );
+      await expect(
+        runHelper(cwd, "design", artifactPath),
+      ).resolves.toMatchObject({ stdout: "" });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("fails closed for malformed, nested, traversal, missing, and directory paths", async () => {
     const cwd = await makeWorkspace();
     try {

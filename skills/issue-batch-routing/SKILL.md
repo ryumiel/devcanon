@@ -358,7 +358,57 @@ reconciliation; it grants no new effect authority.
 
 ## Monitor Loop
 
-For each open batch item:
+This is one bounded reconciliation pass for an explicit request or delivered
+report/event, not an unattended owner-progress loop. Apply the coordinator's
+[bounded observation boundary](../issue-batch-coordination/SKILL.md#reporting-path-and-bounded-observation)
+without invoking it back: repeated owner reads, snapshots, or waits to discover
+ordinary progress or a gate are prohibited, regardless of tool or interval.
+Initial binding, received-report validation, explicit user status, and recovery
+of a concrete uncertain operation end at the named fact/result or its specific
+unresolved gap. After routing, yield for owner reports; watchdog external-event
+observation does not discover owner progress.
+
+Before unattended owner release, require a supported return-report path with
+verified coordinator and sender identities/hosts and recipient-verifiable
+actual human reporting authority where required by the sending host. Reuse the
+coordinator's initial setup decision. Carry that recipient binding and accessible
+host evidence reference into each reporting handoff, alongside the unchanged
+route binding; do not invent a new route key or message schema. The receiving
+owner must validate the original human evidence once and retain it for compatible
+reports and resume. If its sending host demonstrably needs no human messaging
+permission, retain the supported policy basis with reporting scope; absence of
+an authorization reference alone cannot establish that exception. Creation or
+a forwarded controller prompt is not human authorization.
+An inaccessible side-chat approval holds release for only the missing supported
+recipient-visible human instruction. Unsupported delivery names the transport
+gap; unauthorized delivery names the permission gap. Neither permits polling.
+Valid authority persists across routine gates/head changes; recheck only actual
+missing/unverifiable evidence, revocation, uncovered recipients/effects, or host
+requirements.
+
+For compatible-owner reuse, after active start-work/reuse authority and the
+existing canonical issue, exact owner/host, repository and route checks pass,
+deliver the existing shared Inputs reporting fields and original sender-visible
+evidence to that exact owner in an authorized reporting-context-only handoff.
+The owner applies shared Inputs validation before the adopted reporting path
+is relied on. Establish supported delivery plus owner validation from existing
+handoff/host results, ending at confirmation or the specific gap; send success
+alone does not establish readiness. If current valid context is verifiably
+retained, reuse it without a duplicate message. Missing, unknown, unsupported,
+unauthorized or unverifiable delivery/validation holds reporting adoption.
+Read-only discovery never sends this handoff or adopts reporting context.
+This requirement applies to both mapped-owner reuse and confirmed compatible
+reuse found during active dispatch. Do not re-prime, release another initial
+continuation, replace original keys, reset receipts, or require a routine
+progress acknowledgement; independent authorized local work continues.
+
+For a coordinator-owned successor transition, apply the coordinator's
+[Recovery and watchdog](../issue-batch-coordination/SKILL.md#recovery-and-watchdog)
+rebinding readiness before dispatch through the successor. Preserve exact
+owner/repository/route/receipt guards; a changed controller recipient does not
+initialize a new execution route or supply effect authority.
+
+For each affected batch item:
 
 1. Refresh source-issue state through the provider surface when available.
 2. Classify source-issue state before deciding whether missing-owner issue
@@ -456,7 +506,19 @@ For each open batch item:
    `source_issue_identifier`, independently proven expected repository, and
    host-confirmed owner binding, plus the optional paired checkout candidate
    when present, as non-authorizing controller handoff context to the
-   source-specific issue-priming prompt. The source entrypoint must preserve the
+   source-specific issue-priming prompt. Alongside those unchanged bindings,
+   supply the shared Inputs reporting fields: `batch-reporting-recipient-id`,
+   `batch-reporting-recipient-host-identity` when host-scoped,
+   `batch-reporting-scope`, and `batch-reporting-authorization-reference` when
+   the sending host requires human authorization. Supply the original
+   sender-accessible actual-human evidence locator, or retain a demonstrably
+   supported no-human-authorization policy basis with scope. Validate recipient,
+   sender/host, scope and evidence before unattended release; missing required,
+   inaccessible, unverifiable or mismatched context holds only that affected
+   boundary with its concrete gap. Both GitHub and Linear entrypoints preserve
+   these facts and any supported exception basis unchanged into normalized
+   shared Inputs; they cannot drop facts or fabricate permission. The source
+   entrypoint must preserve the
    received complete key, canonical source issue identifier, independently
    proven expected repository, and host-confirmed owner binding unchanged into
    the shared issue-priming workflow, and pass the optional paired checkout
@@ -507,11 +569,13 @@ For each open batch item:
    assigned to that variable. Missing recovery evidence waits or reports the
    unresolved fact, and a mismatch stops the affected route. Keep repository,
    checkout, and action-permission gates before effects.
-5. After an initial binding, refresh or wait for supported owner state and
-   integrate its existing validated initial-handoff or gate report. Creation, a
-   worktree, a queued task, or a sent continuation is not readiness. Retain
-   missing or unknown delivery or response evidence; wait or report for
-   reconciliation, not a blind resend or readiness claim.
+5. After an initial binding, yield for the required delivered initial owner
+   handoff or gate report, then validate it through supported evidence before
+   consumption. Creation, a worktree, a queued task, or a sent continuation is
+   not readiness. A concrete uncertain delivery uses bounded result recovery;
+   retain an unresolved outcome and expose its gap when recovery is exhausted.
+   Do not repeatedly refresh owner state or wait to discover progress, blindly
+   resend, or infer readiness from silence.
 6. Refresh current source and PR state, and reconcile incoming observations
    under the observation and uncertain-effect recovery rule before replacing
    current facts or routing. Apply the canonical
@@ -827,6 +891,27 @@ action instead of assuming a report exists.
 
 ### Delivery and evidence
 
+The active owner is the producer of initial handoff, hard-gate, dependency-ready,
+material readiness-invalidation, and verified job-completion reports; its
+verified coordinator is the recipient. Use the established supported reporting
+path and retained actual human authority under Monitor Loop before delivery.
+A skill call or agent-authored instruction cannot fabricate that authority.
+The owner sends at the hard gate and holds only its affected action; independent
+already-authorized work continues. Successful completion delivery needs no
+routine acknowledgement, but the coordinator must validate completion evidence
+and all accepted obligations before declaring batch completion. Receivers wake
+on supported report delivery, validate referenced current evidence, route at most
+the next authorized action per affected item, and yield. If the host cannot
+deliver/wake the recipient, expose that specific transport limitation before
+relying on unattended continuation; never replace delivery with polling.
+
+A gate whose required conditions pass and whose action is covered by retained
+standing delivery authority advances through its effect owner after refreshing
+current evidence and exact bindings; it is not another human permission request.
+Report only the remaining actionable routing/decision need. Missing or revoked
+authority, scope expansion, an unresolved decision, a required-gate exception,
+or an actual host restriction holds the affected action under its existing gate.
+
 Keep routine corrections, intermediate checks, review preparation, recoverable
 errors and unchanged waits in the owning task. Send the coordinator a delta
 only for a required routing/decision action, dependency readiness, exhausted
@@ -1088,14 +1173,27 @@ receipt, and terminal gates after reconciling current owner and provider facts.
 When the host provides recurring automation or thread-management tools:
 
 - carry known owner-thread mappings;
-- discover newly created owner threads;
+- reconcile newly created owner threads only for initial binding or a named
+  uncertain creation result;
 - update monitor instructions when routing rules change;
 - avoid stale routes after resume or context compaction;
 - stop or pause monitoring when the batch reaches a terminal state.
 
-On resume, refetch source issue, owner-thread, branch, PR, CI, review-thread,
-mergeability, branch-protection, and bot-signal state before sending approvals
-or reusing a route. Treat ledger entries as hints until current live state
+On heartbeat or compacted resume, first identify a concrete routing action,
+delivered report, explicit user status request, initial binding need or named
+uncertain operation. With none, yield without owner progress or gate discovery. For a concrete action, refresh only relevant
+provider facts (source issue, branch, PR, CI, review threads, mergeability,
+branch protection or bot signals) needed to validate its current route and
+effect. Owner-thread reads require one of four bounded purposes: initial
+binding, received-report validation, an explicit user status request, or
+recovery of a concrete named uncertain operation. Each ends at its named
+fact/result or exact unresolved gap; resume alone is not a read purpose.
+
+Missing required freshness holds the affected action for its proper delivered
+report or bounded validation, without polling or stale approval reuse. Retain
+initial binding safeguards and terminal archival verification through received
+terminal-report validation or recovery of a concrete uncertain cleanup
+operation. Treat ledger entries as hints until relevant current evidence
 revalidates their route keys. Apply Operational retention to remove positively
 superseded claims and regenerate summaries, preserving unresolved operations
 and evidence references at their owners.

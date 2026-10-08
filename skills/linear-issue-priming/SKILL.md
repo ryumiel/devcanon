@@ -1,6 +1,6 @@
 ---
 name: linear-issue-priming
-description: Primes a Linear issue into a research-backed implementation workflow with isolated worktree and brainstorming. Use when starting work on a Linear issue — triggers on Linear identifiers (ENG-123), Linear URLs, or phrases like "start issue", "work on issue", "prime issue".
+description: Prepares a Linear issue adaptively in an isolated worktree. Use when starting work on a Linear issue — triggers on Linear identifiers (ENG-123), Linear URLs, or phrases like "start issue", "work on issue", "prime issue".
 requires:
   - issue-priming-workflow
   - issue-worktree-setup
@@ -9,15 +9,32 @@ claude:
 codex:
   license: MIT
   metadata:
-    short-description: Prime a Linear issue into a research-backed implementation workflow
+    short-description: Adaptively prepare or implement a Linear issue
 codex_sidecar:
   interface:
     display_name: Linear Issue Priming
-    short_description: Research and stage a Linear issue for implementation
+    short_description: Adaptively prepare or implement a Linear issue
     brand_color: "#5e6ad2"
 ---
 
 # Linear Issue Priming
+
+## Batch reporting preflight
+
+When batch-routed, before Phase 0 or any other adapter stage that can produce
+an adapter-owned coordinator report, validate the received reporting context
+using the shared [`issue-priming-workflow` Inputs](../issue-priming-workflow/SKILL.md#inputs)
+contract: recipient/host, confirmed sender/host, scope, original actual-human
+locator or supported host-exception evidence, and usable authorized transport.
+Apply that contract without starting the shared workflow. This includes reports
+for fetch, setup, evidence capture, and handoff failures before shared entry.
+Retain validated evidence through shared handoff; compatible proof needs no
+routine human reapproval. Direct non-batch invocation is unchanged.
+
+If permission, evidence or transport is missing or unverifiable, hold affected
+unattended reporting. Expose only the concrete gap through this owner's
+supported user-facing surface or an independently verified authorized path;
+do not send even a blocker report through the same unverified channel.
 
 For the public Node fallback and the shared worktree-provisioning and
 `.ephemeral/` write-guard mechanics, use the
@@ -32,15 +49,16 @@ issue description and any substantive comment evidence to `.ephemeral/`, and
 hand off to the shared `issue-priming-workflow` skill. This entrypoint owns the
 Linear-specific fetch, worktree setup, issue-body persistence, and
 comment-evidence persistence; everything after handoff lives in the shared
-workflow.
+workflow. Its [Preparation Selection](../issue-priming-workflow/SKILL.md#preparation-selection)
+owns adaptive preparation, interactive handoff and autonomous execution.
 
 ## Arguments
 
-| Arg                       | Effect                                                                                                                                              |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `<identifier>` or `<url>` | Issue to work on (required)                                                                                                                         |
-| `--research`              | Skip gate, go directly to research                                                                                                                  |
-| `--auto`                  | Autonomous mode: skip user review gates, pick the architecturally cleanest option, write plan, and execute via `play-subagent-execution` end-to-end |
+| Arg                       | Effect                                                                                                                                                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `<identifier>` or `<url>` | Issue to work on (required)                                                                                                                                                                            |
+| `--research`              | Force research before preparation selection, including otherwise settled work                                                                                                                          |
+| `--auto`                  | Autonomous mode: omit routine phase confirmations; use adaptive preparation, implement, verify, independently review and create an authorized PR. Retain genuine product/authority gates; do not merge |
 
 Examples: `/linear-issue-priming ENG-123`, `/linear-issue-priming ENG-123 --auto`, `/linear-issue-priming --auto --research ENG-123`
 
@@ -162,19 +180,35 @@ binding fact unchanged to `issue-priming-workflow`. `identifier: <IDENTIFIER>`
 remains the provider-native entrypoint value; it must not replace the canonical
 `batch-source-issue-identifier`. The entrypoint may neither derive nor modify
 the route key, canonical identifier, expected repository, or confirmed owner
-binding. Missing, incomplete, provisional, or mismatched paired batch context
+binding. Explicitly preserve `batch-reporting-recipient-id`,
+`batch-reporting-recipient-host-identity` when host-scoped,
+`batch-reporting-scope`, and `batch-reporting-authorization-reference` when the
+sending host requires human authorization. Forward the opaque original locator
+and any supported no-human-authorization policy basis retained with scope
+unchanged, alongside the existing binding fields. Do not replace evidence with
+agent-authored claims, omit scope, or infer a host exception from an absent
+reference. The shared Inputs contract owns validation and retention. Missing,
+inaccessible, unverifiable or mismatched reporting context holds the affected
+unattended handoff/reporting boundary with its specific gap; preserve received
+facts without fabricating permission or polling.
+
+Missing, incomplete, provisional, or mismatched paired batch context
 is a handoff blocker: wait or report instead of invoking the shared workflow.
 
-The workflow handles every subsequent phase (gate, research,
-brainstorming, planning, implementation, branch review, PR creation). Do
-not duplicate workflow logic here.
+The workflow owns subsequent preparation and continuation under its
+[Preparation Selection](../issue-priming-workflow/SKILL.md#preparation-selection).
+Interactive mode returns preparation for the existing implementation authority
+decision; `--auto` continues through implementation, verification, independent
+review and authorized PR creation. Do not duplicate workflow policy here.
 
 ## Issue Batch Routing Reports
 
 When invoked by `issue-batch-routing`, this entrypoint produces
 issue-batch-routing reports only for source-specific fetch, comment-evidence
 capture, worktree setup, and handoff blockers before `issue-priming-workflow`
-starts. Report the source provider, source issue identifier, delegated
+starts. Use only the path validated by Batch reporting preflight; failed or
+unverifiable validation holds that report and uses the safe gap surface above.
+Report the source provider, source issue identifier, delegated
 owner-thread identity when known, branch/worktree evidence when known, gate kind,
 blocking evidence, requested parent action, and next safe command or workflow.
 

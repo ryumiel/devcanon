@@ -48,6 +48,26 @@ const noReferenceStructuralPlan = structuralPlan
   );
 
 describe("planning-projection inspect command", () => {
+  it("refuses a note without a projection even when it claims D5 provenance", async () => {
+    await withPlan(
+      "# Execution Note\n\nD5 PASS; reviewed producer claimed.\n",
+      async (planPath) => {
+        const result = await runRuntimeCommand([
+          "planning-projection",
+          "inspect",
+          "--path",
+          planPath,
+        ]);
+        expect(result.exitCode).toBeGreaterThan(0);
+        expect(result.stdout).toBe("");
+        expect(JSON.parse(result.stderr)).toMatchObject({
+          ok: false,
+          code: "execution-projection-missing",
+        });
+      },
+    );
+  });
+
   it.each([
     [],
     ["inspect"],

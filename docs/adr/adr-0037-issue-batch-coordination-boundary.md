@@ -33,6 +33,15 @@ mapping cannot supply a route key or effect authority. That reuse retains the
 existing owner boundary and does not add a coordinator-owned creation, priming,
 or release protocol.
 
+Owner reports drive continuation. The coordinator yields after routing and
+does not poll owner progress; bounded reads validate initial binding, received
+reports, explicit status requests, or concrete uncertain-operation recovery.
+Initial setup establishes a supported reporting path and recipient-verifiable
+human messaging authority where the sending host requires it. Compatible
+reporting authority is retained rather than requested again at every gate.
+The watchdog, when enabled, observes external events without becoming a second
+coordinator or substituting progress polling for delivery.
+
 Canonical policy refresh is part of coordination. Concrete execution defaults
 new eligible owners to autonomous execution and requests one separate host
 watchdog with an active timer, within actual host authorization. Explicit

@@ -187,14 +187,72 @@ effects. Retain partial startup and unresolved limitations in existing monitor
 state; independent authorized owner work continues without an acknowledgement
 wait. Do not silently switch to a coordinator heartbeat when watchdog setup fails.
 
+## Reporting path and bounded observation
+
+During initial setup, before releasing an owner into unattended work, establish
+an actual supported return-report path. Reuse the setup decision for execution
+and monitoring; do not add a recurring reporting-approval phase. Retain the
+verified coordinator recipient/host, sending owner/host, covered reporting
+scope, and a supported reference to the actual human authorization when the
+sender's host requires it. Deliver those facts in the owner handoff and verify
+that the recipient can access or otherwise validate the human evidence. Chat
+creation, skill invocation, a copied controller instruction, or approval in an
+inaccessible side conversation supplies no human messaging permission.
+
+Request only missing recipient-visible authorization through a supported
+surface. A transport or permission gap holds unattended release/reporting with
+that specific limitation; do not claim a reporting path or substitute polling.
+Retain and reuse valid authorization across reports, continuation, and
+compatible resume. A routine gate or head change alone needs no reapproval;
+request a new decision only for missing/unverifiable evidence, revocation,
+uncovered recipient/effect, or an actual host requirement.
+
+Owners deliver the required initial handoff, hard gates requiring coordinator
+routing/decision, dependency readiness, material readiness invalidation, and
+one verified completion of their accepted job. Delivery uses the router's
+[Delivery and evidence](../issue-batch-routing/SKILL.md#delivery-and-evidence)
+contract. At a hard gate hold its affected action; independent authorized work
+may continue. A successful completion delivery needs no routine acknowledgement
+and does not by itself establish terminal batch completion.
+
+A gate whose required conditions pass and whose action is covered by retained
+standing delivery authority advances through its effect owner after refreshing
+current evidence and exact bindings; it is not another human permission request.
+Report only the remaining actionable routing/decision need. Missing or revoked
+authority, scope expansion, an unresolved decision, a required-gate exception,
+or an actual host restriction holds the affected action under its existing gate.
+
+Do not poll owner progress: repeated reads, snapshots, or wait loops to discover
+ordinary progress or whether a gate appeared are prohibited, including
+`read_thread`, `wait_threads`, and equivalent tools. Longer intervals do not
+change the boundary. End a routing pass by yielding for delivered reports.
+A watchdog observes external events, never owner progress.
+
+Bounded purpose-specific owner reads are allowed:
+
+- **Initial binding:** confirm the exact created/located owner and initial
+  waiting state for release; stop at confirmation or the specific unknown fact.
+  Await the owner's required handoff after release, without a progress loop.
+- **Received report:** resolve its evidence and current route/owner/head/authority
+  before dependent routing; stop at validation or the exact missing/stale fact.
+- **Explicit user status:** read the named owner's current evidence to answer
+  that request; stop after the answer, without arming repeated status reads.
+- **Concrete recovery:** reconcile the supported result of a named uncertain
+  creation, delivery, or interrupted operation under the router's recovery rules;
+  stop at the established outcome or exhausted supported recovery/gap. Do not
+  use recovery as a pretext to watch ordinary progress.
+
+These reads create no unattended discovery loop or polling fallback. Missing
+facts hold the affected action and expose the required evidence/intervention.
+
 ## Coordination cycle
 
 1. **Refresh.** On entry, watchdog wake, resume, or controller handoff, reread
    this skill's canonical file and the references required by the current
    action. Use the active library bundle, not a remembered summary or policy
    copied into a timer prompt. Record its revision or fingerprint in existing
-   local state. Refresh the affected owner and provider evidence through the
-   router. Before a material routing action, recheck the applicable policy and
+   local state. Validate affected received owner reports and provider evidence through the
+   router, within the bounded observation purposes above. Before a material routing action, recheck the applicable policy and
    live bindings even if the timer has not elapsed.
 2. **Classify.** Keep running work, verified unfinished non-gate work, genuine
    gates, and terminal outcomes distinct. An idle owner is not automatically
@@ -248,11 +306,11 @@ wait. Do not silently switch to a coordinator heartbeat when watchdog setup fail
    status; retain exact notices required by an owning phase or other consumer.
    Missing authority or required evidence holds the affected action and
    surfaces the concrete missing decision or evidence when user action is
-   needed. Creation or a sent binding is not readiness: first observe
-   the owner's existing response or gate report through supported host evidence.
-   Suppress repeated unchanged waits. Owner gate reports are the
-   primary continuation signal; use supported waits or the optional watchdog,
-   not repeated messages asking running owners to continue.
+   needed. Creation or a sent binding is not readiness: consume the owner's
+   delivered initial handoff or gate report and validate its supported evidence.
+   Yield for reports after routing; do not repeatedly inspect or wait for owner
+   progress, and do not ask running owners to continue. The optional watchdog
+   checks external events under its separate notification boundary.
 
 Use the [reporting scenarios](references/reporting-scenarios.md) to verify
 quiet local work, actionable delivery, evidence resolution and deduplication.
@@ -335,10 +393,30 @@ content and regenerate summaries from reconciled items, retaining unresolved
 effects and obligations under the router’s retention rules. Report lost authority or replay
 evidence; a receipt or archived transcript cannot reconstruct approval.
 
-For an authorized successor, transfer the existing context and require its
-acknowledgement before it dispatches. When a watchdog exists, also reconcile
-its target and status through supported host controls before successor
-dispatch. Archiving the predecessor does not transfer or stop the timer.
+The coordinator owns an authorized successor transition. Before successor
+activation or retirement of the predecessor's usable reporting endpoint,
+rebind every active owner's reporting recipient/host to the verified successor
+using existing shared Inputs reporting fields, scope and original
+sender-visible actual-human evidence covering that successor recipient/effect
+when required, or the shared Inputs supported host-exception evidence.
+Reuse retained authority only when it actually covers this change; otherwise
+obtain only the missing supported human instruction. Deliver authorized
+reporting-context-only handoffs to the exact active owners and establish
+supported delivery plus each owner's shared Inputs validation evidence using
+existing handoff/host results before transition dispatch. This is required
+binding readiness, not routine progress-acknowledgement polling.
+
+Missing, unknown, unsupported or unverifiable delivery, authority or owner
+validation holds the successor transition and leaves the usable predecessor
+reporting endpoint available. Do not omit an active owner or substitute a
+new/duplicate owner. Preserve issue/repository/owner/route/receipt facts,
+duplicate suppression and recovery rules. Transfer existing controller context
+and require successor acknowledgement; compatible resume retains its recipient,
+while successor change explicitly updates it. When a watchdog exists,
+reconcile its target/status and preserve notification/timer state through
+supported host controls. Confirm only one dispatcher before successor dispatch.
+Timer retirement or retargeting does not prove owner reporting readiness;
+archiving the predecessor does not transfer or stop its timer.
 
 Read [Watchdog operation](references/watchdog.md) for execution startup or when a timer is requested,
 already exists, when a separate watcher is authorized, or when either mode
