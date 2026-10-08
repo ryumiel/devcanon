@@ -162,7 +162,19 @@ binding fact unchanged to `issue-priming-workflow`. `identifier: <IDENTIFIER>`
 remains the provider-native entrypoint value; it must not replace the canonical
 `batch-source-issue-identifier`. The entrypoint may neither derive nor modify
 the route key, canonical identifier, expected repository, or confirmed owner
-binding. Missing, incomplete, provisional, or mismatched paired batch context
+binding. Explicitly preserve `batch-reporting-recipient-id`,
+`batch-reporting-recipient-host-identity` when host-scoped,
+`batch-reporting-scope`, and `batch-reporting-authorization-reference` when the
+sending host requires human authorization. Forward the opaque original locator
+and any supported no-human-authorization policy basis retained with scope
+unchanged, alongside the existing binding fields. Do not replace evidence with
+agent-authored claims, omit scope, or infer a host exception from an absent
+reference. The shared Inputs contract owns validation and retention. Missing,
+inaccessible, unverifiable or mismatched reporting context holds the affected
+unattended handoff/reporting boundary with its specific gap; preserve received
+facts without fabricating permission or polling.
+
+Missing, incomplete, provisional, or mismatched paired batch context
 is a handoff blocker: wait or report instead of invoking the shared workflow.
 
 The workflow handles every subsequent phase (gate, research,

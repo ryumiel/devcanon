@@ -449,6 +449,14 @@ specific unresolved gap after supported recovery. Initial binding stops at the
 confirmed owner/waiting state; release awaits delivered handoff without a loop.
 A status read ends with the requested answer. Received-evidence reads hold stale
 or missing facts before routing; recovery cannot become ordinary-progress watch.
+Heartbeat or compacted resume with no delivered report, explicit user status
+request, initial binding need or named uncertain operation yields without owner
+progress/gate discovery. Refresh relevant provider facts for a concrete routing
+action; missing required freshness holds that action for its proper delivered
+report or bounded validation. Initial binding and terminal archival checks
+remain required; terminal owner evidence comes from received terminal-report
+validation or concrete uncertain-cleanup recovery, never blanket resume reads
+or stale approval reuse.
 
 Before unattended owner release, initial coordinator setup establishes a
 supported reporting path with verified coordinator/owner identities and scoped
@@ -464,6 +472,22 @@ before claiming unattended reporting. Retain and reuse valid authorization
 across compatible reports, continuation and resume; routine gates/head changes
 alone do not require reapproval. Missing/unverifiable evidence, revocation,
 uncovered recipient/effect, or an actual host requirement needs its own decision.
+
+The normalized shared priming Inputs contract owns the reporting field
+vocabulary. Router release carries `batch-reporting-recipient-id`,
+`batch-reporting-recipient-host-identity` when host-scoped,
+`batch-reporting-scope`, and `batch-reporting-authorization-reference` when the
+sending host requires human authorization, alongside unchanged canonical
+issue/route/repository and confirmed sender/host bindings. Both GitHub and
+Linear entrypoints preserve these facts unchanged into shared priming. The
+shared consumer validates original sender-accessible actual-human evidence when
+required and retains provenance, recipient and scope through compatible resume. If the
+sending host demonstrably needs no human authorization, retain its supported
+policy basis with scope; an absent reference cannot establish that exception.
+Missing required, inaccessible, unverifiable or mismatched context holds the
+affected unattended handoff/reporting boundary without dropping facts,
+fabricating permission or polling. Direct non-batch invocation omits this
+reporting context; existing route, receipt and authority gates remain intact.
 
 Coordination selects the audience after reconciling owner and router evidence.
 Routine corrections, intermediate checks, review preparation, recoverable errors

@@ -345,9 +345,12 @@ verified coordinator and sender identities/hosts and recipient-verifiable
 actual human reporting authority where required by the sending host. Reuse the
 coordinator's initial setup decision. Carry that recipient binding and accessible
 host evidence reference into each reporting handoff, alongside the unchanged
-route binding; do not invent a new route key or message schema. The recipient
-must verify the human evidence once and retain it for compatible reports and
-resume. Creation or a forwarded controller prompt is not human authorization.
+route binding; do not invent a new route key or message schema. The receiving
+owner must validate the original human evidence once and retain it for compatible
+reports and resume. If its sending host demonstrably needs no human messaging
+permission, retain the supported policy basis with reporting scope; absence of
+an authorization reference alone cannot establish that exception. Creation or
+a forwarded controller prompt is not human authorization.
 An inaccessible side-chat approval holds release for only the missing supported
 recipient-visible human instruction. Unsupported delivery names the transport
 gap; unauthorized delivery names the permission gap. Neither permits polling.
@@ -453,7 +456,19 @@ For each affected batch item:
    `source_issue_identifier`, independently proven expected repository, and
    host-confirmed owner binding, plus the optional paired checkout candidate
    when present, as non-authorizing controller handoff context to the
-   source-specific issue-priming prompt. The source entrypoint must preserve the
+   source-specific issue-priming prompt. Alongside those unchanged bindings,
+   supply the shared Inputs reporting fields: `batch-reporting-recipient-id`,
+   `batch-reporting-recipient-host-identity` when host-scoped,
+   `batch-reporting-scope`, and `batch-reporting-authorization-reference` when
+   the sending host requires human authorization. Supply the original
+   sender-accessible actual-human evidence locator, or retain a demonstrably
+   supported no-human-authorization policy basis with scope. Validate recipient,
+   sender/host, scope and evidence before unattended release; missing required,
+   inaccessible, unverifiable or mismatched context holds only that affected
+   boundary with its concrete gap. Both GitHub and Linear entrypoints preserve
+   these facts and any supported exception basis unchanged into normalized
+   shared Inputs; they cannot drop facts or fabricate permission. The source
+   entrypoint must preserve the
    received complete key, canonical source issue identifier, independently
    proven expected repository, and host-confirmed owner binding unchanged into
    the shared issue-priming workflow, and pass the optional paired checkout
@@ -1098,14 +1113,27 @@ receipt, and terminal gates after reconciling current owner and provider facts.
 When the host provides recurring automation or thread-management tools:
 
 - carry known owner-thread mappings;
-- discover newly created owner threads;
+- reconcile newly created owner threads only for initial binding or a named
+  uncertain creation result;
 - update monitor instructions when routing rules change;
 - avoid stale routes after resume or context compaction;
 - stop or pause monitoring when the batch reaches a terminal state.
 
-On resume, refetch source issue, owner-thread, branch, PR, CI, review-thread,
-mergeability, branch-protection, and bot-signal state before sending approvals
-or reusing a route. Treat ledger entries as hints until current live state
+On heartbeat or compacted resume, first identify a concrete routing action,
+delivered report, explicit user status request, initial binding need or named
+uncertain operation. With none, yield without owner progress or gate discovery. For a concrete action, refresh only relevant
+provider facts (source issue, branch, PR, CI, review threads, mergeability,
+branch protection or bot signals) needed to validate its current route and
+effect. Owner-thread reads require one of four bounded purposes: initial
+binding, received-report validation, an explicit user status request, or
+recovery of a concrete named uncertain operation. Each ends at its named
+fact/result or exact unresolved gap; resume alone is not a read purpose.
+
+Missing required freshness holds the affected action for its proper delivered
+report or bounded validation, without polling or stale approval reuse. Retain
+initial binding safeguards and terminal archival verification through received
+terminal-report validation or recovery of a concrete uncertain cleanup
+operation. Treat ledger entries as hints until relevant current evidence
 revalidates their route keys. Apply Operational retention to remove positively
 superseded claims and regenerate summaries, preserving unresolved operations
 and evidence references at their owners.
