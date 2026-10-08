@@ -835,6 +835,13 @@ the next authorized action per affected item, and yield. If the host cannot
 deliver/wake the recipient, expose that specific transport limitation before
 relying on unattended continuation; never replace delivery with polling.
 
+A gate whose required conditions pass and whose action is covered by retained
+standing delivery authority advances through its effect owner after refreshing
+current evidence and exact bindings; it is not another human permission request.
+Report only the remaining actionable routing/decision need. Missing or revoked
+authority, scope expansion, an unresolved decision, a required-gate exception,
+or an actual host restriction holds the affected action under its existing gate.
+
 Keep routine corrections, intermediate checks, review preparation, recoverable
 errors and unchanged waits in the owning task. Send the coordinator a delta
 only for a required routing/decision action, dependency readiness, exhausted

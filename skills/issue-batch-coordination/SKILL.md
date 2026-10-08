@@ -124,6 +124,13 @@ contract. At a hard gate hold its affected action; independent authorized work
 may continue. A successful completion delivery needs no routine acknowledgement
 and does not by itself establish terminal batch completion.
 
+A gate whose required conditions pass and whose action is covered by retained
+standing delivery authority advances through its effect owner after refreshing
+current evidence and exact bindings; it is not another human permission request.
+Report only the remaining actionable routing/decision need. Missing or revoked
+authority, scope expansion, an unresolved decision, a required-gate exception,
+or an actual host restriction holds the affected action under its existing gate.
+
 Do not poll owner progress: repeated reads, snapshots, or wait loops to discover
 ordinary progress or whether a gate appeared are prohibited, including
 `read_thread`, `wait_threads`, and equivalent tools. Longer intervals do not

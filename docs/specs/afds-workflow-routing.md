@@ -480,6 +480,13 @@ facts under the existing provenance contract. A hard gate holds its affected
 action while independent already-authorized work may continue. Successful
 completion delivery needs no routine acknowledgement, but delivery alone does
 not certify terminal batch completion or all accepted obligations.
+A gate whose required conditions pass and whose action is covered by retained
+standing delivery authority advances through its effect owner after refreshing
+current evidence and exact bindings; it is not another human permission request.
+Report only the remaining actionable routing/decision need. Missing or revoked
+authority, scope expansion, an unresolved decision, a required-gate exception,
+or an actual host restriction holds the affected action under its existing gate.
+
 Quiet reporting never establishes readiness or preserves stale-head approval.
 
 Deliver a compact delta with provider-tagged issue/PR identity, owner, applicable

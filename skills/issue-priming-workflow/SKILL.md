@@ -1231,6 +1231,13 @@ is not proof of terminal batch completion. The coordinator validates delivered
 reports using bounded evidence reads and yields after routing; repeated reads,
 snapshots or wait loops to discover owner progress or a gate are prohibited.
 
+A gate whose required conditions pass and whose action is covered by retained
+standing delivery authority advances through its effect owner after refreshing
+current evidence and exact bindings; it is not another human permission request.
+Report only the remaining actionable routing/decision need. Missing or revoked
+authority, scope expansion, an unresolved decision, a required-gate exception,
+or an actual host restriction holds the affected action under its existing gate.
+
 When invoked after a source entrypoint handoff, this workflow produces
 issue-batch-routing reports for research, brainstorming, or design ambiguity
 stops; user or parent approval gates; implementation blockers; branch-review
