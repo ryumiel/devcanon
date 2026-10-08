@@ -19,6 +19,23 @@ codex_sidecar:
 
 # Linear Issue Priming
 
+## Batch reporting preflight
+
+When batch-routed, before Phase 0 or any other adapter stage that can produce
+an adapter-owned coordinator report, validate the received reporting context
+using the shared [`issue-priming-workflow` Inputs](../issue-priming-workflow/SKILL.md#inputs)
+contract: recipient/host, confirmed sender/host, scope, original actual-human
+locator or supported host-exception evidence, and usable authorized transport.
+Apply that contract without starting the shared workflow. This includes reports
+for fetch, setup, evidence capture, and handoff failures before shared entry.
+Retain validated evidence through shared handoff; compatible proof needs no
+routine human reapproval. Direct non-batch invocation is unchanged.
+
+If permission, evidence or transport is missing or unverifiable, hold affected
+unattended reporting. Expose only the concrete gap through this owner's
+supported user-facing surface or an independently verified authorized path;
+do not send even a blocker report through the same unverified channel.
+
 For the public Node fallback and the shared worktree-provisioning and
 `.ephemeral/` write-guard mechanics, use the
 [setup-worktree usage](../issue-worktree-setup/references/setup-worktree-usage.md);
@@ -186,7 +203,9 @@ not duplicate workflow logic here.
 When invoked by `issue-batch-routing`, this entrypoint produces
 issue-batch-routing reports only for source-specific fetch, comment-evidence
 capture, worktree setup, and handoff blockers before `issue-priming-workflow`
-starts. Report the source provider, source issue identifier, delegated
+starts. Use only the path validated by Batch reporting preflight; failed or
+unverifiable validation holds that report and uses the safe gap surface above.
+Report the source provider, source issue identifier, delegated
 owner-thread identity when known, branch/worktree evidence when known, gate kind,
 blocking evidence, requested parent action, and next safe command or workflow.
 

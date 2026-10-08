@@ -358,6 +358,28 @@ Valid authority persists across routine gates/head changes; recheck only actual
 missing/unverifiable evidence, revocation, uncovered recipients/effects, or host
 requirements.
 
+For compatible-owner reuse, after active start-work/reuse authority and the
+existing canonical issue, exact owner/host, repository and route checks pass,
+deliver the existing shared Inputs reporting fields and original sender-visible
+evidence to that exact owner in an authorized reporting-context-only handoff.
+The owner applies shared Inputs validation before the adopted reporting path
+is relied on. Establish supported delivery plus owner validation from existing
+handoff/host results, ending at confirmation or the specific gap; send success
+alone does not establish readiness. If current valid context is verifiably
+retained, reuse it without a duplicate message. Missing, unknown, unsupported,
+unauthorized or unverifiable delivery/validation holds reporting adoption.
+Read-only discovery never sends this handoff or adopts reporting context.
+This requirement applies to both mapped-owner reuse and confirmed compatible
+reuse found during active dispatch. Do not re-prime, release another initial
+continuation, replace original keys, reset receipts, or require a routine
+progress acknowledgement; independent authorized local work continues.
+
+For a coordinator-owned successor transition, apply the coordinator's
+[Recovery and watchdog](../issue-batch-coordination/SKILL.md#recovery-and-watchdog)
+rebinding readiness before dispatch through the successor. Preserve exact
+owner/repository/route/receipt guards; a changed controller recipient does not
+initialize a new execution route or supply effect authority.
+
 For each affected batch item:
 
 1. Refresh source-issue state through the provider surface when available.

@@ -302,10 +302,30 @@ content and regenerate summaries from reconciled items, retaining unresolved
 effects and obligations under the router’s retention rules. Report lost authority or replay
 evidence; a receipt or archived transcript cannot reconstruct approval.
 
-For an authorized successor, transfer the existing context and require its
-acknowledgement before it dispatches. When a watchdog exists, also reconcile
-its target and status through supported host controls before successor
-dispatch. Archiving the predecessor does not transfer or stop the timer.
+The coordinator owns an authorized successor transition. Before successor
+activation or retirement of the predecessor's usable reporting endpoint,
+rebind every active owner's reporting recipient/host to the verified successor
+using existing shared Inputs reporting fields, scope and original
+sender-visible actual-human evidence covering that successor recipient/effect
+when required, or the shared Inputs supported host-exception evidence.
+Reuse retained authority only when it actually covers this change; otherwise
+obtain only the missing supported human instruction. Deliver authorized
+reporting-context-only handoffs to the exact active owners and establish
+supported delivery plus each owner's shared Inputs validation evidence using
+existing handoff/host results before transition dispatch. This is required
+binding readiness, not routine progress-acknowledgement polling.
+
+Missing, unknown, unsupported or unverifiable delivery, authority or owner
+validation holds the successor transition and leaves the usable predecessor
+reporting endpoint available. Do not omit an active owner or substitute a
+new/duplicate owner. Preserve issue/repository/owner/route/receipt facts,
+duplicate suppression and recovery rules. Transfer existing controller context
+and require successor acknowledgement; compatible resume retains its recipient,
+while successor change explicitly updates it. When a watchdog exists,
+reconcile its target/status and preserve notification/timer state through
+supported host controls. Confirm only one dispatcher before successor dispatch.
+Timer retirement or retargeting does not prove owner reporting readiness;
+archiving the predecessor does not transfer or stop its timer.
 
 Read [Watchdog operation](references/watchdog.md) when a timer is requested,
 already exists, when a separate watcher is authorized, or when either mode

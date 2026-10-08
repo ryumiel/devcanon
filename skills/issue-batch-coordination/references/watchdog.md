@@ -162,9 +162,18 @@ into watcher state.
 A bounded owner read may reconcile a named uncertain operation's supported
 result or validate a received report; stop when its outcome is established or
 supported recovery is exhausted with the specific gap. Do not convert recovery
-into an unattended progress loop. Carry retained recipient/host bindings and
-recipient-verifiable human reporting authority into compatible handoffs; a
+into an unattended progress loop. Compatible resume retains validated
+recipient/host bindings and recipient-verifiable human reporting authority; a
 notification or copied controller claim cannot reconstruct permission.
+
+For a successor change, follow the coordinator-owned
+[rebinding readiness](../SKILL.md#recovery-and-watchdog): explicitly update the
+existing reporting recipient/host and covered scope/evidence, deliver authorized
+context-only handoffs to every active owner, and establish supported delivery
+plus owner validation before successor activation or predecessor reporting
+endpoint retirement. Unknown, unsupported or unverifiable rebinding holds that
+transition and preserves the usable predecessor endpoint. Timer controls and
+successor context acknowledgement cannot replace this reporting readiness.
 
 On recovery, verify existing controller and owner bindings, schedule identity,
 target and status, and watcher notification state before continuation. Preserve

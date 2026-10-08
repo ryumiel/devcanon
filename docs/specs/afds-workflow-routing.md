@@ -489,6 +489,28 @@ affected unattended handoff/reporting boundary without dropping facts,
 fabricating permission or polling. Direct non-batch invocation omits this
 reporting context; existing route, receipt and authority gates remain intact.
 
+Both batch-routed provider adapters apply the shared Inputs reporting
+validation before their earliest report-producing stage, including fetch,
+setup, capture and handoff failures before the shared workflow starts. They
+retain validated evidence into shared handoff without routine reapproval.
+Missing or unverifiable permission/transport holds the affected reporting:
+expose only the concrete gap on the owner's supported user-facing surface or
+an independently verified authorized path, never through that unverified
+channel. Direct non-batch behavior is unchanged.
+
+After active reuse authority and existing canonical issue/owner/host/repository/
+route checks, the router delivers existing reporting fields and original
+sender-visible evidence to the exact reused owner through an authorized
+reporting-context-only handoff. The owner validates through shared Inputs
+before adoption is relied on. Existing handoff/host results must establish
+supported delivery and owner validation, ending at confirmation or concrete
+gap; send alone is not readiness. Verifiably current validated context requires
+no duplicate handoff. Missing, unknown, unsupported or unauthorized
+context/delivery/validation holds adoption. Read-only discovery never sends
+or adopts. No re-priming, new initial continuation, key replacement, receipt
+reset or routine progress acknowledgement follows; independent authorized
+local work continues.
+
 Coordination selects the audience after reconciling owner and router evidence.
 Routine corrections, intermediate checks, review preparation, recoverable errors
 and unchanged waits remain in the owning task without coordinator messages or
@@ -735,9 +757,24 @@ remaining feedback, current head, CI, protections, and every other owning gate.
 Recovery of a concrete uncertain operation uses bounded purpose-specific reads
 and stops at an established result or exhausted supported recovery with a
 specific evidence/intervention gap; it never arms an unattended progress loop.
-Retain recipient/host bindings and accessible human reporting authority across
-compatible resume and successor handoff. Notifications and copied controller
-claims cannot reconstruct missing permission.
+Compatible resume retains validated recipient/host bindings and accessible
+human reporting authority. The coordinator owns successor rebinding: before
+successor activation or retirement of the usable predecessor reporting
+endpoint, explicitly update each active owner's recipient/host to the verified
+successor through existing shared Inputs fields, scope and original
+sender-visible actual-human evidence covering that recipient/effect when
+required, or the shared Inputs supported host-exception evidence. Retained
+authority is reusable only if it actually covers the successor; otherwise
+obtain only missing supported human instruction. Deliver authorized context-only
+handoffs and establish supported delivery plus every active owner's shared
+Inputs validation before transition dispatch. This required binding readiness
+is not routine progress-acknowledgement polling. Missing, unknown, unsupported
+or unverifiable authority/delivery/validation holds transition and preserves
+the usable predecessor endpoint. Preserve owner/issue/repository/route/receipt
+facts and duplicate/recovery guards; neither a duplicate owner nor an omitted
+active owner satisfies readiness. Notifications and copied controller claims
+cannot reconstruct permission. Successor acknowledgement and timer controls
+remain separately required and cannot substitute for owner reporting readiness.
 
 Recovery revalidates existing controller and owner bindings, schedule identity,
 target and status, and notification state. Successor acknowledgement and
