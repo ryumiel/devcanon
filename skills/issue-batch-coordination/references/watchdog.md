@@ -9,9 +9,20 @@ watcher agent.
 
 ## Start or change monitoring mode
 
-Apply the main skill's initial authorization check before affected effects;
-reuse its retained human evidence and actual recipient bindings. Before an
-effect, confirm applicable retained scheduling and messaging
+First consume the main skill's requested-effect selection from intent, independent
+overrides, bound modes/settings and retained explicit stops. Select before any
+authorization, preference or supported-control inquiry. Inspection, no-monitor
+and retained-stop startup exclude watcher creation, monitor-specific messaging
+authorization, capability/model/cadence inquiries and activation. Independently
+authorized owner work continues in its selected mode; generic resume cannot
+recreate monitoring. An explicitly requested stop of an existing active timer
+selects only shutdown: check its necessary host control/permission and verify
+the observed result, preserving an unknown outcome for reconciliation. Do not
+select replacement setup or its model/cadence checks from that stop.
+
+For enabled monitoring, apply the main skill's initial authorization check
+before affected effects; reuse its retained human evidence and actual recipient
+bindings. Before an effect, confirm applicable retained scheduling and messaging
 authority, accepted batch scope, verified controller and existing owner/host
 and repository bindings, readable canonical skill policy, and the host's
 supported controls for the selected mode. For a separate watcher, also validate
@@ -27,8 +38,9 @@ override. Do not impose a universal interval or reset existing settings to new
 watcher defaults. Honor a recorded explicit user stop: it blocks automatic
 recreation unless later explicit scheduling authority supersedes it.
 
-For accepted execution without a no-monitor override, default to one supported,
-separately authorized watcher and an active timer targeted to that watcher chat.
+For accepted execution with monitoring selected and no effective retained stop,
+default to one supported, separately authorized watcher and an active timer
+targeted to that watcher chat.
 Reuse compatible components and create only the missing authorized ones; pending
 or unknown creation or activation prevents a duplicate. Verify task identity,
 model selection, timer target/active status and each permitted notification
@@ -50,7 +62,7 @@ fall back to a heartbeat. Independently authorized owner-driven coordination
 continues when monitoring is unavailable. Repository post-merge commands remain
 separately authorized and user-configured.
 
-Choose one active mode for the batch:
+For enabled monitoring, choose one active mode for the batch:
 
 - **Coordinator heartbeat (explicitly selected):** reuse an applicable existing
   schedule, attached to the current controller where supported. Its prompt invokes

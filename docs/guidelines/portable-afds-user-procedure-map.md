@@ -343,9 +343,16 @@ and their approval gates; users do not need to invoke the router by name.
 A concrete execution request defaults new eligible owners to autonomous work
 and one separate watchdog with a host timer. Choose interactive owners or
 no monitoring independently when desired; a status request remains read-only.
-Compatible resumed settings and explicit stops remain in effect. Setup reuses
-verifiable human permissions and asks only for missing host permissions or a
-cadence when no user/saved value or supported configured host default exists.
+Compatible resumed settings and explicit stops remain in effect. Select requested
+effects before permission, preference or capability inquiries.
+No-monitor and retained stops exclude watcher creation, monitor-specific messaging
+authorization, capability/model/cadence inquiries and activation; independent
+authorized owner work continues in its selected mode. Generic resume preserves
+stops. An explicitly requested active-timer stop retains its bounded host
+control/permission checks and observed shutdown, without replacement authority.
+Setup reuses verifiable human permissions and asks only for missing host permissions or a
+cadence for enabled monitoring when no user/saved value or supported configured
+host default exists.
 Model tier, effort and cadence stay independent. Host restrictions hold the
 affected setup while independently authorized owner work continues. The watchdog
 observes external events; the coordinator does not periodically poll owner

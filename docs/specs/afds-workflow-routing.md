@@ -266,12 +266,24 @@ creation, messaging, scheduling or priming. Interactive-owner and no-monitor
 overrides are independent. Preserve compatible already-bound owner modes and
 monitor settings; a generic resume does not override an explicit stop.
 
-Before affected creation, owner release, messaging or timer activation, one
+Intent, independent overrides, bound modes/settings and retained explicit stops
+select requested effects before authorization, preference or capability
+inquiries. No-monitor or a retained stop excludes watcher creation,
+monitor-specific messaging authorization, capability/model/cadence inquiries and
+activation from startup; disabled requirements are absent, not failed gates.
+Independently authorized owners continue in their selected mode. An explicitly
+requested stop of an existing active timer retains only its necessary host
+control/permission checks and observed shutdown, with no replacement authority.
+Conflicting authority or unresolved state holds the affected action while
+existing resources are preserved and the concrete evidence gap is escalated.
+
+Before selected creation, owner release, messaging or timer activation, one
 initial check inspects applicable human decisions visible in the controller or
-verifiable through supported evidence. It enumerates owner-chat and one
-watchdog-chat creation, coordinator-to-owner instructions, owner-to-coordinator
-gates/completion/required readiness, watchdog-to-owner updates,
-watchdog-to-coordinator exceptions, and recurring scheduling with cadence.
+verifiable through supported evidence. It enumerates only selected effects:
+owner-chat creation, coordinator-to-owner instructions and owner-to-coordinator
+gates/completion/required readiness; enabled monitoring adds one watchdog chat,
+watchdog-to-owner updates, watchdog-to-coordinator exceptions and recurring
+scheduling with cadence. A selected stop includes only required shutdown controls.
 Alongside setup permissions, establish separately scoped publication, conditional
 merge and scoped cleanup authority, reusing actual human decisions and collecting
 only missing scope or authority before affected effects.
@@ -282,9 +294,11 @@ authorization in the recipient conversation is required, arrange that specific
 step; a forwarded controller assertion cannot substitute for it.
 
 Reuse valid decisions across compatible continuation and ask only for uncovered
-effects or genuinely missing timer preferences, together where the host permits.
-The request identifies batch, roles, notification directions, timer operation
-and cadence, and each actual host restriction. It explicitly distinguishes
+effects or, for enabled monitoring, genuinely missing timer preferences,
+together where the host permits.
+The request identifies batch, roles, selected notification directions, applicable
+timer operation and cadence, and each actual host restriction. It explicitly
+distinguishes
 publication, conditional merge and scoped cleanup decisions from task, messaging
 and timer permissions without silently expanding scope or provider effects. Complete verifiable authorization
 proceeds without another approval. Inaccessible evidence yields one specific
@@ -591,8 +605,16 @@ belongs to the routing/coordination verification owners.
 
 #### ROUTE-007-MONITOR: Execution monitoring lifecycle
 
-Monitoring defaults to one separate watchdog and timer for concrete accepted
-execution unless explicitly overridden, and requires retained applicable
+Select monitoring from intent, independent overrides and retained state before
+its authority, preference or capability inquiries. No-monitor or retained stops
+exclude new monitoring setup and its messaging/model/cadence/control inquiries;
+generic resume preserves the stop and independent owner mode. An explicit
+active-timer stop instead requires its bounded host control/permission check and
+observed shutdown without replacement setup.
+
+Enabled monitoring defaults to one separate watchdog and timer for concrete
+accepted execution unless explicitly overridden, and requires retained
+applicable
 scheduling and messaging authority, a verified controller, existing owner and
 repository bindings, readable canonical policy, and inspectable schedule and
 notification state. The host's supported controls own scheduling. User-selected
@@ -725,7 +747,9 @@ an explicit unresolved obligation. Honor an explicit user stop.
 
 Startup acceptance covers fresh execution, read-only inspection, independent
 interactive/no-monitor overrides, preserved resumed settings/stops, complete and
-partial authorization, verifiable existing human decisions, missing recipient
+partial authorization, zero monitor inquiries/effects for disabled startup with
+independent owners continuing, bounded explicit active-timer shutdown without
+replacement authority, verifiable existing human decisions, missing recipient
 evidence, cadence/effort precedence, unavailable controls, and partial/unknown
 startup without duplicate activation. Verify efficient model resolution in fresh
 Claude/Codex projections without hard-coding a target model in portable source.

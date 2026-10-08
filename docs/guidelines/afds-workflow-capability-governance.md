@@ -379,8 +379,15 @@ durable ownership decision, consequences, and rejected alternatives.
 Concrete execution defaults new eligible owners to autonomous work and one
 separate host watchdog/timer; inspection remains read-only. Independent
 interactive/no-monitor overrides, compatible resumed settings and explicit stops
-remain effective. Startup reuses verifiable human decisions, requests only
-missing host permissions/preferences and verifies each component separately.
+remain effective. Select requested effects before permission, preference or
+capability inquiries.
+No-monitor and retained stops exclude watcher creation, monitor-specific messaging
+authorization, capability/model/cadence inquiries and activation; independent
+authorized owner work continues in its selected mode. Generic resume preserves
+stops. An explicitly requested active-timer stop retains its bounded host
+control/permission checks and observed shutdown, without replacement authority.
+Startup reuses verifiable human decisions, requests only missing host
+permissions/preferences and verifies each selected component separately.
 It also establishes separately scoped publication, conditional merge and scoped
 cleanup authority. Compatible standing human scope survives changed commits;
 fresh readiness and exact action bindings precede covered effects through their

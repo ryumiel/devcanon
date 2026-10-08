@@ -38,6 +38,12 @@ new eligible owners to autonomous execution and requests one separate host
 watchdog with an active timer, within actual host authorization. Explicit
 interactive-owner and no-monitor choices are independent; status-only intent
 remains read-only and compatible resumed settings and explicit stops survive.
+Select requested effects before permission, preference or capability inquiries.
+No-monitor and retained stops exclude watcher creation, monitor-specific messaging
+authorization, capability/model/cadence inquiries and activation; independent
+authorized owner work continues in its selected mode. Generic resume preserves
+stops. An explicitly requested active-timer stop retains its bounded host
+control/permission checks and observed shutdown, without replacement authority.
 The initial authorization check reuses verifiable human decisions and collects
 only missing host permissions/preferences before affected effects. Startup also
 establishes separately scoped delivery authority for publication, conditional

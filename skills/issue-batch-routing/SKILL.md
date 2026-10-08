@@ -48,13 +48,23 @@ prior authority, and validate each requested effect against the current facts
 and host restrictions. For accepted concrete execution, select `--auto` for
 eligible new provider-owner invocations unless interactive work was selected;
 never silently change an already-bound owner's mode. Status-only routing has no
-creation, messaging, scheduling or priming effects. Consume the coordinator's
-initial authorization check and recipient-visible evidence for task creation,
-each messaging direction and recurring timer setup; missing host permission
-holds only its affected effect. A direct route applies the same bounded check
-before its affected effects. Execution selects the separate-watchdog/timer
-default under the companion's watchdog procedure, preserving independent
-no-monitor overrides, compatible settings and explicit stops. Startup also establishes separately scoped publication, conditional merge and
+creation, messaging, scheduling or priming effects. Before authorization,
+preference or capability inquiries, consume the coordinator's selected effects
+or, for direct routing, select them from intent, independent owner/monitor
+overrides, bound modes/settings and retained explicit stops. Execution selects
+the separate-watchdog/timer default under the companion's watchdog procedure
+unless a no-monitor override or retained stop disables it. Disabled
+monitoring excludes watcher creation, monitor-specific messaging authorization,
+capability/model/cadence inquiries and activation; independently covered owners
+continue in their selected mode and generic resume never supersedes a stop.
+Consume the initial authorization check and recipient-visible evidence only for
+selected creation, messaging directions and timer actions; missing host
+permission holds only its affected effect. A direct route applies the same
+bounded check. An explicitly requested existing active-timer stop retains only
+its necessary host control/permission checks and observed shutdown; it grants no
+replacement authority. Preserve unresolved state and resources, and escalate the
+concrete conflicting authority or missing evidence before the affected action.
+Startup also establishes separately scoped publication, conditional merge and
 scoped cleanup authority from actual human decisions; the execution default
 itself grants none of these effects or source-status mutation.
 

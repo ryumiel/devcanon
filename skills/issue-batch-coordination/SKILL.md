@@ -107,13 +107,26 @@ changing the other. Preserve already-bound owner modes, compatible monitor
 settings and retained explicit stops on resume; a generic resume does not
 supersede a stop. Read [Watchdog operation](references/watchdog.md) before startup.
 
-Before affected task creation, owner release, messaging or timer activation,
+Select requested effects from intent, independent owner/monitor overrides,
+already-bound modes/settings and retained explicit stops before authorization,
+preference or supported-control inquiries. No-monitor or a retained stop excludes
+watchdog creation, monitor-specific messaging authorization, capability, model
+or cadence inquiries and activation from startup. These are absent requirements,
+not failed gates; independently authorized owners continue in their selected mode.
+An explicit request to stop an existing active timer selects only that bounded
+monitor lifecycle action: retain its necessary host control/permission checks and
+verify observed shutdown, without selecting replacement monitoring. Conflicting
+authority or unresolved existing state holds only the affected action; preserve
+existing resources and name the missing evidence.
+
+Before selected task creation, owner release, messaging or timer activation,
 perform one initial authorization check against applicable human decisions
 already visible here or verifiable through supported host evidence. Enumerate
-creation of the accepted issues' owner chats and one watchdog chat;
-coordinator-to-owner instructions; owner-to-coordinator gates, completion and
-required readiness reports; watchdog-to-owner external updates and
-watchdog-to-coordinator exceptions; and recurring timer activation with cadence.
+only selected effects: accepted issues' owner-chat creation, coordinator-to-owner
+instructions and owner-to-coordinator gates/completion/required readiness reports;
+when monitoring is enabled, add one watchdog chat, watchdog-to-owner external
+updates, watchdog-to-coordinator exceptions and recurring activation with cadence.
+A selected stop includes only its required shutdown controls.
 The default selects requested setup, never fabricates a host permission.
 Alongside these permissions, establish separately scoped publication, conditional
 merge and scoped cleanup authority for the accepted delivery, reusing existing
@@ -121,17 +134,19 @@ actual human decisions and obtaining only missing scope before its affected effe
 
 Reuse valid decisions and batch only uncovered permissions into one concise
 request where the host permits it. Identify the accepted batch, roles,
-notification directions, timer operation/cadence, and the actual host restriction
-requiring each permission. Request a genuinely missing cadence preference under
-the watchdog procedure before activation. Distinguish publication, conditional merge and scoped cleanup decisions explicitly
-from creation, messaging and timer permissions; collect only missing delivery
+selected notification directions and timer operation/cadence where applicable,
+and the actual host restriction requiring each permission. For enabled
+monitoring, request a genuinely missing cadence preference under the watchdog
+procedure before activation. Distinguish publication, conditional merge and
+scoped cleanup decisions explicitly from creation, messaging and timer
+permissions; collect only missing delivery
 decisions without silently expanding scope or provider-mutation authority.
 If all effects and preferences are already covered by verifiable human decisions,
 proceed without another approval question.
 
 Retain scope and human authorization provenance in the existing stable controller
-state, bind them to actual owner/watchdog recipients as host identities become
-known, and deliver the recipient-visible reporting evidence required by the
+state, bind them to actual selected owner/watchdog recipients as host identities
+become known, and deliver the recipient-visible reporting evidence required by the
 router's handoff contract. A copied assertion by the controller is not direct
 human authority. Where the host requires a human decision in the recipient's own
 conversation, arrange that specific human step before unattended messaging.
@@ -153,9 +168,9 @@ Request a new human decision only for missing/revoked authority, scope expansion
 an unresolved choice, required-gate exception or actual host restriction; a
 satisfied authorized gate is not another permission request.
 
-Verify owner bindings, watchdog identity and selected model, timer target and
-activation, and permitted notification recipients separately before claiming
-monitored operation. Reuse authorized compatible components and create only what
+For enabled monitoring, verify owner bindings, watchdog identity and selected
+model, timer target and activation, and permitted notification recipients
+separately before claiming monitored operation. Reuse authorized compatible components and create only what
 is missing. Pending or unknown creation/activation/stop outcomes hold duplicate
 effects. Retain partial startup and unresolved limitations in existing monitor
 state; independent authorized owner work continues without an acknowledgement
