@@ -349,7 +349,13 @@ cadence when no user/saved value or supported configured host default exists.
 Model tier, effort and cadence stay independent. Host restrictions hold the
 affected setup while independently authorized owner work continues. The watchdog
 observes external events; the coordinator does not periodically poll owner
-progress. Publication, merge and cleanup keep their existing gates.
+progress. Initial setup also establishes separately scoped publication, conditional
+merge and scoped cleanup authority, reusing actual human decisions and asking
+only for missing scope. Compatible authority survives changed commits; current
+readiness and action bindings must be refreshed. Covered effects execute through
+their existing owners after genuine gates pass, without generic reapproval.
+Cleanup preserves dependency resources and required evidence; timer shutdown
+follows terminal completion and outstanding authorized cleanup.
 
 Persona journeys use the canonical work-origin procedures above. They do not
 redefine owner rules.

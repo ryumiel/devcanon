@@ -115,13 +115,17 @@ coordinator-to-owner instructions; owner-to-coordinator gates, completion and
 required readiness reports; watchdog-to-owner external updates and
 watchdog-to-coordinator exceptions; and recurring timer activation with cadence.
 The default selects requested setup, never fabricates a host permission.
+Alongside these permissions, establish separately scoped publication, conditional
+merge and scoped cleanup authority for the accepted delivery, reusing existing
+actual human decisions and obtaining only missing scope before its affected effect.
 
 Reuse valid decisions and batch only uncovered permissions into one concise
 request where the host permits it. Identify the accepted batch, roles,
 notification directions, timer operation/cadence, and the actual host restriction
 requiring each permission. Request a genuinely missing cadence preference under
-the watchdog procedure before activation. Do not include publication, merge,
-provider mutation, destructive cleanup or scope expansion in this setup request.
+the watchdog procedure before activation. Distinguish publication, conditional merge and scoped cleanup decisions explicitly
+from creation, messaging and timer permissions; collect only missing delivery
+decisions without silently expanding scope or provider-mutation authority.
 If all effects and preferences are already covered by verifiable human decisions,
 proceed without another approval question.
 
@@ -133,7 +137,21 @@ human authority. Where the host requires a human decision in the recipient's own
 conversation, arrange that specific human step before unattended messaging.
 Inaccessible evidence holds only the affected effect and names one concrete
 missing-evidence action; it is neither refusal nor a reason to reapprove unrelated
-work. Reuse compatible authority across continuation and resume.
+work. Reuse compatible authority across continuation, resume and changed commits.
+Refresh current issue/PR/head, validation, independent review, CI, protection,
+mergeability, review-thread disposition and exact owner/action bindings before
+execution. A changed head invalidates dependent evidence, not standing human scope.
+
+Execute a covered action through its existing effect owner after all conditions
+pass. Publication permits non-force push, PR creation/update and required sanitized
+summaries after implementation, validation and independent review. Conditional
+merge remains with `pr-merge` after genuine current-head review, CI, protection,
+mergeability and thread disposition, with no waiver. Scoped cleanup follows
+verified merge and outstanding accepted work, preserving required evidence,
+unrelated work, the controller ledger and resources needed by dependencies.
+Request a new human decision only for missing/revoked authority, scope expansion,
+an unresolved choice, required-gate exception or actual host restriction; a
+satisfied authorized gate is not another permission request.
 
 Verify owner bindings, watchdog identity and selected model, timer target and
 activation, and permitted notification recipients separately before claiming

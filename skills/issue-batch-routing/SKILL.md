@@ -53,8 +53,9 @@ each messaging direction and recurring timer setup; missing host permission
 holds only its affected effect. A direct route applies the same bounded check
 before its affected effects. Execution selects the separate-watchdog/timer
 default under the companion's watchdog procedure, preserving independent
-no-monitor overrides, compatible settings and explicit stops. It supplies no
-publication, merge, source-mutation or cleanup authority.
+no-monitor overrides, compatible settings and explicit stops. Startup also establishes separately scoped publication, conditional merge and
+scoped cleanup authority from actual human decisions; the execution default
+itself grants none of these effects or source-status mutation.
 
 Codex disables implicit invocation through its sidecar policy. Claude retains
 workflow calls and direct user invocation: its manual-only setting would block
@@ -898,7 +899,10 @@ nor tool availability grants publication, merge, or cleanup authority.
 
 This gate-specific check adds no generic approval step for routine targeted
 instructions or verified unfinished non-gate continuation already authorized
-by accepted execution. Those actions still require current scope, route,
+by accepted execution. A satisfied publication, conditional merge or scoped
+cleanup gate covered by retained delivery authority executes through its existing
+owner after fresh conditions and exact binding validate; it does not become a
+new human permission request. Those actions still require current scope, route,
 receipt, owner, and host checks.
 
 Contract phrase: same source issue or PR, gate kind, route key, and allowed side effect.

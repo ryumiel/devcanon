@@ -272,6 +272,9 @@ verifiable through supported evidence. It enumerates owner-chat and one
 watchdog-chat creation, coordinator-to-owner instructions, owner-to-coordinator
 gates/completion/required readiness, watchdog-to-owner updates,
 watchdog-to-coordinator exceptions, and recurring scheduling with cadence.
+Alongside setup permissions, establish separately scoped publication, conditional
+merge and scoped cleanup authority, reusing actual human decisions and collecting
+only missing scope or authority before affected effects.
 Retain accepted scope and authorization provenance in existing controller state,
 bind actual recipients as they become known and supply recipient-visible
 reporting evidence through the existing handoff contract. Where direct human
@@ -281,8 +284,9 @@ step; a forwarded controller assertion cannot substitute for it.
 Reuse valid decisions across compatible continuation and ask only for uncovered
 effects or genuinely missing timer preferences, together where the host permits.
 The request identifies batch, roles, notification directions, timer operation
-and cadence, and each actual host restriction; it excludes publication, merge,
-provider mutation and destructive cleanup. Complete verifiable authorization
+and cadence, and each actual host restriction. It explicitly distinguishes
+publication, conditional merge and scoped cleanup decisions from task, messaging
+and timer permissions without silently expanding scope or provider effects. Complete verifiable authorization
 proceeds without another approval. Inaccessible evidence yields one specific
 missing-evidence action, not presumed refusal or generic workflow reapproval.
 A partial permission or setup failure holds only affected effects while
@@ -300,7 +304,16 @@ receipt sequences, deduplication, continuity, and terminal checks stay intact.
 Missing readiness waits for refresh. Missing or conflicting scope, revocation,
 expansion, an unresolved material choice, an explicitly reserved human decision,
 or a required exception escalates only its specific decision. Reports, planning
-PASS, and tool availability are evidence, never authority.
+PASS, and tool availability are evidence, never authority. After fresh conditions
+and exact owner/action bindings pass, execute the covered action through its
+existing effect owner without another human permission request. Publication is
+non-force push, PR creation/update and sanitized required summaries after
+implementation, validation and independent review. Conditional merge requires
+current-head CI, genuine independent reviews, protection, mergeability and
+review-thread disposition through `pr-merge`. Scoped cleanup follows verified
+merge and outstanding accepted work, preserving required evidence, unrelated
+work, the controller ledger and dependent resources. Terminal completion and
+verified timer shutdown include outstanding authorized cleanup obligations.
 
 Priming retains every mandatory phase and ends its effects at the reviewed
 current PR/head report. The controller consumes that result under retained

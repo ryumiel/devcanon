@@ -32,7 +32,19 @@ surface, and non-owner responsibilities in source prose or tests.
 
 ## PR Creation Handoff
 
-Invoke `play-branch-finish` Option 2 in `--auto` mode. Do not merge. The PR is
+Invoke `play-branch-finish` Option 2 in `--auto` mode after current implementation,
+validation and independent review pass and exact publication authority is bound.
+For batch work, reuse recipient-verifiable standing human delivery authority from
+initial setup; refresh current issue/PR/head/readiness and exact owner/action
+bindings after changed commits without generic human reapproval. Execute covered
+non-force publication and required sanitized summaries once conditions pass.
+Missing/revoked authority, scope expansion, unresolved decisions, required-gate
+exceptions and actual host restrictions retain their specific decision paths.
+Do not merge within priming: report current PR/head evidence to the controller
+for exact routing through `pr-merge` under separately scoped conditional merge
+and cleanup authority. Genuine CI/review/protection/mergeability/thread-disposition
+gates remain required; cleanup preserves dependent resources, evidence and the
+controller ledger until outstanding accepted obligations resolve. The PR is
 the user's review gate, and PR creation preserves the branch and worktree for
 review, CI, and follow-up fixes until `pr-merge` performs post-merge cleanup or
 the operator explicitly discards the work.

@@ -39,7 +39,11 @@ watchdog with an active timer, within actual host authorization. Explicit
 interactive-owner and no-monitor choices are independent; status-only intent
 remains read-only and compatible resumed settings and explicit stops survive.
 The initial authorization check reuses verifiable human decisions and collects
-only missing host permissions/preferences before affected effects. The watchdog
+only missing host permissions/preferences before affected effects. Startup also
+establishes separately scoped delivery authority for publication, conditional
+merge and scoped cleanup. Compatible human scope survives changed heads, while
+readiness and exact action bindings are refreshed before the existing effect
+owner executes a satisfied covered action without generic reapproval. The watchdog
 observes external events and reports to known authorized recipients; periodic
 owner-progress polling is prohibited. It adds no DevCanon scheduler and does not
 guarantee compliance. Invocation restrictions and timer behavior must

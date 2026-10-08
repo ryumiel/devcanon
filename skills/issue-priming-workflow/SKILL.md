@@ -328,7 +328,9 @@ unchanged preparation. Revalidate affected claims; uncertainty stops dependent
 edits for needed preparation, and permission gaps take the genuine gate.
 Bounded implementation choices remain with the owner. Completion enters
 Candidate Closure and Source Freeze, applicable acceptance, full repository
-checks, mandatory independent Phase 7 review and exact publication approval.
+checks, mandatory independent Phase 7 review and exact publication authority
+validated against retained human scope and fresh action bindings; a satisfied
+covered gate does not require another human decision.
 Every later source fix invalidates downstream evidence as on the planned route.
 
 ## Subagent Lifecycle

@@ -381,6 +381,10 @@ separate host watchdog/timer; inspection remains read-only. Independent
 interactive/no-monitor overrides, compatible resumed settings and explicit stops
 remain effective. Startup reuses verifiable human decisions, requests only
 missing host permissions/preferences and verifies each component separately.
+It also establishes separately scoped publication, conditional merge and scoped
+cleanup authority. Compatible standing human scope survives changed commits;
+fresh readiness and exact action bindings precede covered effects through their
+existing owners, without repeated human approval for satisfied conditions.
 The efficient tier resolves through existing target bindings; model, effort and
 cadence are independent. External-event notifications reuse the reporting
 boundary; coordinator owner-progress polling is prohibited. These defaults add
