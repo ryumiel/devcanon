@@ -257,6 +257,14 @@ or replace source/provider verification.
 | Completed C has no obligations and cannot regain eligibility; delayed C receipt arrives after retirement     | Remove unnecessary narrative/receipt state; retain compact terminal evidence. Delayed C cannot initialize authority or restart sequence numbering.           |
 | Notice delivery is unknown when the provider event becomes superseded                                        | Keep unresolved delivery identity/outcome until reconciled; do not infer successful delivery, repeat blindly or drop required deduplication state.           |
 
+The coordinator's [ledger reconciliation regression cases](../issue-batch-coordination/references/reporting-scenarios.md#ledger-reconciliation-regression-cases)
+provide equivalent source/Claude/Codex inputs and held-out outcomes for verified
+cleanup with stale cross-item claims, unresolved cleanup with a mismatched
+preserved copy, and delayed reports/receipts. These cases distinguish current
+evidence custody from immutable original bindings and check unchanged repeats
+for duplicate effects or history entries. The recorded baseline is bounded
+agent-driven simulation, not live-host proof or new routing authority.
+
 ## Controller-Held Approved-Route Facts
 
 For receipt validation, the router holds controller approval, validated initial
