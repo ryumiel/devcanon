@@ -19,6 +19,23 @@ codex_sidecar:
 
 # Linear Issue Priming
 
+## Batch reporting preflight
+
+When batch-routed, before Phase 0 or any other adapter stage that can produce
+an adapter-owned coordinator report, validate the received reporting context
+using the shared [`issue-priming-workflow` Inputs](../issue-priming-workflow/SKILL.md#inputs)
+contract: recipient/host, confirmed sender/host, scope, original actual-human
+locator or supported host-exception evidence, and usable authorized transport.
+Apply that contract without starting the shared workflow. This includes reports
+for fetch, setup, evidence capture, and handoff failures before shared entry.
+Retain validated evidence through shared handoff; compatible proof needs no
+routine human reapproval. Direct non-batch invocation is unchanged.
+
+If permission, evidence or transport is missing or unverifiable, hold affected
+unattended reporting. Expose only the concrete gap through this owner's
+supported user-facing surface or an independently verified authorized path;
+do not send even a blocker report through the same unverified channel.
+
 For the public Node fallback and the shared worktree-provisioning and
 `.ephemeral/` write-guard mechanics, use the
 [setup-worktree usage](../issue-worktree-setup/references/setup-worktree-usage.md);
@@ -163,7 +180,19 @@ binding fact unchanged to `issue-priming-workflow`. `identifier: <IDENTIFIER>`
 remains the provider-native entrypoint value; it must not replace the canonical
 `batch-source-issue-identifier`. The entrypoint may neither derive nor modify
 the route key, canonical identifier, expected repository, or confirmed owner
-binding. Missing, incomplete, provisional, or mismatched paired batch context
+binding. Explicitly preserve `batch-reporting-recipient-id`,
+`batch-reporting-recipient-host-identity` when host-scoped,
+`batch-reporting-scope`, and `batch-reporting-authorization-reference` when the
+sending host requires human authorization. Forward the opaque original locator
+and any supported no-human-authorization policy basis retained with scope
+unchanged, alongside the existing binding fields. Do not replace evidence with
+agent-authored claims, omit scope, or infer a host exception from an absent
+reference. The shared Inputs contract owns validation and retention. Missing,
+inaccessible, unverifiable or mismatched reporting context holds the affected
+unattended handoff/reporting boundary with its specific gap; preserve received
+facts without fabricating permission or polling.
+
+Missing, incomplete, provisional, or mismatched paired batch context
 is a handoff blocker: wait or report instead of invoking the shared workflow.
 
 The workflow owns subsequent preparation and continuation under its
@@ -177,7 +206,9 @@ review and authorized PR creation. Do not duplicate workflow policy here.
 When invoked by `issue-batch-routing`, this entrypoint produces
 issue-batch-routing reports only for source-specific fetch, comment-evidence
 capture, worktree setup, and handoff blockers before `issue-priming-workflow`
-starts. Report the source provider, source issue identifier, delegated
+starts. Use only the path validated by Batch reporting preflight; failed or
+unverifiable validation holds that report and uses the safe gap surface above.
+Report the source provider, source issue identifier, delegated
 owner-thread identity when known, branch/worktree evidence when known, gate kind,
 blocking evidence, requested parent action, and next safe command or workflow.
 

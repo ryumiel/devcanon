@@ -46,21 +46,29 @@ This skill is invoked with a normalized issue payload from one of the source ent
 - **batch-expected-repository**: <controller-proven repository identity> (paired batch context only)
 - **batch-confirmed-owner-id**: <host-confirmed owner task ID> (paired batch context only)
 - **batch-confirmed-host-identity**: <host identity when task IDs are host-scoped> (paired batch context only)
+- **batch-reporting-recipient-id**: <verified coordinator recipient ID> (paired batch context only)
+- **batch-reporting-recipient-host-identity**: <recipient host identity when IDs are host-scoped> (paired batch context only)
+- **batch-reporting-scope**: <covered reporting recipients/effects and supported no-human-authorization basis, when applicable> (paired batch context only)
+- **batch-reporting-authorization-reference**: <opaque host-supported actual-human evidence locator> (required when sending host requires human authorization)
 ```
 
 Field semantics:
 
-| Field                   | Used by                                                |
-| ----------------------- | ------------------------------------------------------ |
-| `source`                | Phase 8 PR description "Closes" line wording           |
-| `identifier`            | Agent prompts, brainstorm args, PR description         |
-| `title`                 | Agent prompts, brainstorm args                         |
-| `issue-body-path`       | Assessor, investigator, brainstorm args                |
-| `comment-evidence-path` | Assessor/investigator and downstream context           |
-| `worktree-path`         | Phase 1 worktree adoption and all later phases         |
-| `mode`                  | Phase 4 stop-vs-continue, Phases 5–8 gating            |
-| `research`              | Phase 2 gate-skip                                      |
-| paired `batch-*` fields | Batch-only binding, reports, and initial owner handoff |
+| Field                                     | Used by                                                                              |
+| ----------------------------------------- | ------------------------------------------------------------------------------------ |
+| `source`                                  | Phase 8 PR description "Closes" line wording                                         |
+| `identifier`                              | Agent prompts, brainstorm args, PR description                                       |
+| `title`                                   | Agent prompts, brainstorm args                                                       |
+| `issue-body-path`                         | Assessor, investigator, brainstorm args                                              |
+| `comment-evidence-path`                   | Assessor/investigator and downstream context                                         |
+| `worktree-path`                           | Phase 1 worktree adoption and all later phases                                       |
+| `mode`                                    | Phase 4 stop-vs-continue, Phases 5–8 gating                                          |
+| `research`                                | Phase 2 gate-skip                                                                    |
+| paired `batch-*` binding fields           | Batch-only identity binding and initial owner handoff                                |
+| `batch-reporting-recipient-id`            | Nonempty verified coordinator identity for return reports                            |
+| `batch-reporting-recipient-host-identity` | Recipient host binding; required when IDs are host-scoped                            |
+| `batch-reporting-scope`                   | Nonempty covered recipients/effects; supported host exception basis when applicable  |
+| `batch-reporting-authorization-reference` | Sender-accessible actual-human evidence locator when its host requires authorization |
 
 `payload.issue-body-path` carries either Linear `.description` text or
 GitHub `.body` text as a repo-relative `.ephemeral/` file path. Treat the
@@ -93,6 +101,47 @@ equality comparison. The expected repository comes from controller source/projec
 context, never from the selected checkout. Missing, incomplete, provisional,
 changed, or mismatched paired context is a handoff blocker; wait or report
 rather than emitting an owner-handoff or receipt.
+
+The reporting fields accompany the unchanged batch binding through the router
+and both provider entrypoints. `batch-confirmed-owner-id` and its scoped host
+identify the sender; reporting recipient fields identify the coordinator.
+`batch-reporting-authorization-reference` is an opaque host-supported locator,
+not an agent assertion or copied permission. Before unattended release or
+reporting, validate the original actual-human evidence against sender/host,
+recipient/host and covered reporting scope under the sending host's requirements.
+If that host demonstrably requires no human messaging authorization, retain its
+supported policy basis with `batch-reporting-scope`; an absent reference alone
+never establishes this exception. No field grants authority.
+
+Missing required, inaccessible, unverifiable or mismatched reporting context
+holds the affected unattended handoff/reporting boundary with its specific gap.
+Validate supported authorized transport as well as the evidence before relying
+on the return path. Expose only the concrete gap through the owner's supported
+user-facing surface or an independently verified authorized path; never report
+permission or transport failure through that same unverified channel.
+Preserve all received facts; do not fabricate consent or discover progress by
+polling. Retain validated provenance, recipient/host, scope and evidence basis
+through compatible continuation and resume. Recheck genuine revocation,
+uncovered effects/recipients, unverifiable evidence or actual host requirements,
+not routine gates/head changes. Direct non-batch invocation omits this context.
+
+For an authorized reporting-context-only handoff to an existing owner, apply
+this same Inputs validation before relying on the adopted path. This consumes
+existing reporting fields and original sender-visible evidence without
+re-priming, changing execution identity, or producing another initial handoff
+or routine progress acknowledgement. Supported send alone is not readiness:
+establish supported delivery and owner validation evidence using existing
+handoff/host results, stopping at confirmation or the concrete gap. Verifiably
+current validated context can be retained without a duplicate message. Missing,
+unknown, unsupported or unauthorized delivery/validation holds adoption of the
+reporting path; independent authorized local work continues.
+
+Compatible resume retains its validated recipient. An authorized successor
+change explicitly updates recipient/host and applicable scope/evidence using
+these same fields. Validate original actual-human authority for that successor
+recipient/effect (or the supported host exception); old permission applies only
+if it actually covers that binding. Preserve issue, repository, owner, route
+and receipt facts. A copied controller claim cannot authorize the change.
 
 For a batch-routed handoff, host-confirmed depth-0 creation and direct delivery
 of the complete retained binding to the same owner suffice for fresh Phase 1
@@ -1222,6 +1271,35 @@ procedures, helper contracts, notice lines, auto-mode rules, review rules, and
 PR handoff rules above remain authoritative.
 
 ## Issue Batch Routing Reports
+
+On a batch-routed handoff, consume and retain the reporting fields and validated
+evidence basis defined in Inputs unchanged. They bind the verified coordinator
+recipient/host, sending owner/host and reporting scope established at setup.
+Before relying on unattended reporting, verify that this owner can access or otherwise validate
+that evidence under its sending host's requirements. Chat creation, skill
+invocation, a forwarded controller prompt, or inaccessible side-chat approval
+cannot authorize a return message. Report the specific missing recipient-visible
+human instruction or transport gap through a supported surface; do not fabricate
+consent or fall back to coordinator polling. Reuse validated reporting authority
+across compatible reports, continuation and resume. Request a new decision only
+for missing/unverifiable evidence, revocation, uncovered recipient/effect, or an
+actual host requirement; routine gates and changed heads alone require none.
+
+This owner sends the required initial handoff, hard gates needing coordinator
+routing/decision, dependency readiness, material invalidation, and one verified
+completion of its accepted job through the router's Delivery and evidence
+contract. Hold the hard gate's affected action while independent authorized work
+continues. Successful completion delivery needs no routine acknowledgement and
+is not proof of terminal batch completion. The coordinator validates delivered
+reports using bounded evidence reads and yields after routing; repeated reads,
+snapshots or wait loops to discover owner progress or a gate are prohibited.
+
+A gate whose required conditions pass and whose action is covered by retained
+standing delivery authority advances through its effect owner after refreshing
+current evidence and exact bindings; it is not another human permission request.
+Report only the remaining actionable routing/decision need. Missing or revoked
+authority, scope expansion, an unresolved decision, a required-gate exception,
+or an actual host restriction holds the affected action under its existing gate.
 
 When invoked after a source entrypoint handoff, this workflow produces
 issue-batch-routing reports for research, brainstorming, or design ambiguity
