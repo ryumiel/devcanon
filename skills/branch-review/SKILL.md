@@ -707,3 +707,10 @@ the threshold unmet. This grants no new implementation authority.
 
 - `pr-review` — for reviewing existing GitHub PRs
 - `play-review-response` — guidance for responding to review feedback
+
+Current-commit continuation uses the shared follow-up scope policy: a reliable
+complete baseline and bounded corrective effects allow an independent narrow
+review of repairs, prior findings and relevant dependencies. Changed assumptions,
+unusable coverage or uncertain interaction require full relevant scope. A fresh
+reviewer allocation does not alone require a full source range, and historical
+approval never approves current bytes.

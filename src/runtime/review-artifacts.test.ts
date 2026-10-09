@@ -6,6 +6,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  realpath,
   rm,
   symlink,
   writeFile,
@@ -14,7 +15,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { afterAll, afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { cleanupTempDir } from "../__test-helpers__/fixtures.js";
 import { createReviewEnvelope } from "../__test-helpers__/review-evidence.js";
 import { parseGitNumstatZ } from "./git-diff-parser.js";
@@ -23,9 +24,20 @@ import {
   diffHunkForLine,
   extractPreFindingsMarkdown,
   gateResultForApprovalTerminalState,
+  readOriginalReviewRecord,
   runPrReviewProviderScopeEvidenceCommand,
   runReviewArtifactsCommand,
 } from "./review-artifacts.js";
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return {
+    ...actual,
+    writeFile: vi.fn(actual.writeFile),
+    rmdir: vi.fn(actual.rmdir),
+  };
+});
+import * as fsPromises from "node:fs/promises";
 
 const execFileAsync = promisify(execFile);
 const originalCwd = process.cwd();
@@ -3331,6 +3343,387 @@ describe("provider scope capture scratch subcommands", () => {
     }
   });
 
+  it.each([
+    "empty",
+    "foreign-receipt",
+    "nonempty",
+    "replaced",
+    "symlink",
+    "removal-failure",
+    "removal-after-effect",
+  ] as const)(
+    "handles original receipt publication failure without losing allocation custody: %s",
+    async (failure) => {
+      const { cwd } = await makeProviderMultiFileWorkspace();
+      const primary = await realpath(cwd);
+      const producer = `${primary}-allocation-producer`;
+      const previousRepository = process.env.REPOSITORY;
+      const previousPrNumber = process.env.PR_NUMBER;
+      const actual =
+        await vi.importActual<typeof fsPromises>("node:fs/promises");
+      const recordFile = path.join(
+        primary,
+        ".ephemeral/allocation-receipt.json",
+      );
+      let resource = "";
+      let originalIdentity: readonly [number, number] | null = null;
+      try {
+        await execFileAsync(
+          "git",
+          ["worktree", "add", "--detach", producer, "HEAD"],
+          { cwd: primary },
+        );
+        await mkdir(path.join(producer, ".ephemeral"));
+        process.chdir(producer);
+        Object.assign(process.env, {
+          REPOSITORY: "owner/repo",
+          PR_NUMBER: "480",
+        });
+        vi.mocked(fsPromises.writeFile).mockImplementation(async (...args) => {
+          if (args[0] !== recordFile) return actual.writeFile(...args);
+          const record = JSON.parse(String(args[1]));
+          resource = record.resource;
+          const allocation = path.join(producer, resource);
+          if (failure === "foreign-receipt")
+            await actual.writeFile(
+              recordFile,
+              "foreign receipt must survive\n",
+            );
+          if (failure === "nonempty")
+            await actual.writeFile(
+              path.join(allocation, "producer-bytes.txt"),
+              "must survive\n",
+            );
+          if (failure === "replaced") {
+            originalIdentity = [record.dev, record.ino];
+            const original = await actual.lstat(allocation);
+            expect([original.dev, original.ino]).toEqual(originalIdentity);
+            // Keep this identity alive so mkdir cannot recycle its inode.
+            const parkedOriginal = `${allocation}.parked-original`;
+            await actual.rename(allocation, parkedOriginal);
+            await actual.mkdir(allocation);
+            const replacement = await actual.lstat(allocation);
+            expect([replacement.dev, replacement.ino]).not.toEqual(
+              originalIdentity,
+            );
+          }
+          if (failure === "symlink") {
+            await actual.rmdir(allocation);
+            const foreign = path.join(
+              producer,
+              ".ephemeral/foreign-allocation",
+            );
+            await actual.mkdir(foreign);
+            await actual.writeFile(
+              path.join(foreign, "foreign.txt"),
+              "foreign bytes\n",
+            );
+            await actual.symlink(foreign, allocation);
+          }
+          throw new Error("exclusive receipt publication failed");
+        });
+        vi.mocked(fsPromises.rmdir).mockImplementation(async (...args) => {
+          if (failure === "removal-failure")
+            throw new Error("allocation removal failed");
+          if (failure === "removal-after-effect") {
+            await actual.rmdir(...args);
+            throw new Error(
+              "allocation removal completed then reported failure",
+            );
+          }
+          return actual.rmdir(...args);
+        });
+        const result = await runPrReviewProviderScopeEvidenceCommand([
+          "allocate-original",
+          "--record-file",
+          recordFile,
+        ]);
+        expect(result.exitCode).toBe(1);
+        expect(resource).not.toBe("");
+        const allocation = path.join(producer, resource);
+        if (
+          failure === "empty" ||
+          failure === "foreign-receipt" ||
+          failure === "removal-after-effect"
+        ) {
+          await expect(actual.lstat(allocation)).rejects.toMatchObject({
+            code: "ENOENT",
+          });
+          expect(result.stdout).toBe("");
+        } else {
+          expect(result.stdout.trim()).toBe(resource);
+          expect(result.stderr).toContain("retained allocation");
+          await expect(actual.lstat(allocation)).resolves.toBeDefined();
+        }
+        if (failure === "foreign-receipt")
+          expect(await readFile(recordFile, "utf8")).toBe(
+            "foreign receipt must survive\n",
+          );
+        if (failure === "nonempty")
+          expect(
+            await readFile(path.join(allocation, "producer-bytes.txt"), "utf8"),
+          ).toBe("must survive\n");
+        if (failure === "replaced") {
+          const parkedOriginal = `${allocation}.parked-original`;
+          const original = await actual.lstat(parkedOriginal);
+          const replacement = await actual.lstat(allocation);
+          expect([original.dev, original.ino]).toEqual(originalIdentity);
+          expect([replacement.dev, replacement.ino]).not.toEqual(
+            originalIdentity,
+          );
+          expect(await actual.readdir(parkedOriginal)).toEqual([]);
+          expect(await actual.readdir(allocation)).toEqual([]);
+        }
+        if (failure === "symlink")
+          expect(
+            await readFile(path.join(allocation, "foreign.txt"), "utf8"),
+          ).toBe("foreign bytes\n");
+      } finally {
+        vi.mocked(fsPromises.writeFile).mockImplementation(actual.writeFile);
+        vi.mocked(fsPromises.rmdir).mockImplementation(actual.rmdir);
+        process.chdir(originalCwd);
+        if (previousRepository === undefined)
+          Reflect.deleteProperty(process.env, "REPOSITORY");
+        else process.env.REPOSITORY = previousRepository;
+        if (previousPrNumber === undefined)
+          Reflect.deleteProperty(process.env, "PR_NUMBER");
+        else process.env.PR_NUMBER = previousPrNumber;
+        await execFileAsync(
+          "git",
+          ["worktree", "remove", "--force", producer],
+          { cwd: primary },
+        );
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+
+  it.each(["allocate-original", "seal-original"])(
+    "refuses a sibling linked worktree as the original producer primary for %s",
+    async (command) => {
+      const { cwd } = await makeProviderMultiFileWorkspace();
+      const primary = await realpath(cwd);
+      const sibling = `${primary}-sibling`;
+      const producer = `${primary}-producer`;
+      const previousRepository = process.env.REPOSITORY;
+      const previousPrNumber = process.env.PR_NUMBER;
+      try {
+        for (const worktree of [sibling, producer]) {
+          await execFileAsync(
+            "git",
+            ["worktree", "add", "--detach", worktree, "HEAD"],
+            { cwd: primary },
+          );
+          await mkdir(path.join(worktree, ".ephemeral"));
+        }
+        process.chdir(producer);
+        Object.assign(process.env, {
+          REPOSITORY: "owner/repo",
+          PR_NUMBER: "480",
+        });
+        const primaryRecord = path.join(
+          primary,
+          ".ephemeral/original-primary-record.json",
+        );
+        const allocated = await runPrReviewProviderScopeEvidenceCommand([
+          "allocate-original",
+          "--record-file",
+          primaryRecord,
+        ]);
+        expect(allocated.exitCode, allocated.stderr).toBe(0);
+        const resource = allocated.stdout.trim();
+        await writeFile(
+          path.join(producer, resource, "failed-scope.json"),
+          "original invalid scope",
+        );
+        await writeFile(
+          path.join(producer, resource, "validator.stderr"),
+          "original rejection",
+        );
+        const recordFile = path.join(sibling, ".ephemeral/sibling-record.json");
+        const args = [command, "--record-file", recordFile];
+        if (command === "seal-original")
+          await writeFile(recordFile, await readFile(primaryRecord));
+        const beforeRecord = await readFile(recordFile).catch(() => null);
+        const beforeEntries = await readdir(path.join(producer, ".ephemeral"));
+        const result = await runPrReviewProviderScopeEvidenceCommand(args);
+        expect(result.exitCode).toBe(1);
+        expect(result.stderr).toContain("physical primary");
+        expect(await readFile(recordFile).catch(() => null)).toEqual(
+          beforeRecord,
+        );
+        expect(await readdir(path.join(producer, ".ephemeral"))).toEqual(
+          beforeEntries,
+        );
+      } finally {
+        process.chdir(originalCwd);
+        if (previousRepository === undefined)
+          Reflect.deleteProperty(process.env, "REPOSITORY");
+        else process.env.REPOSITORY = previousRepository;
+        if (previousPrNumber === undefined)
+          Reflect.deleteProperty(process.env, "PR_NUMBER");
+        else process.env.PR_NUMBER = previousPrNumber;
+        for (const worktree of [sibling, producer])
+          await execFileAsync(
+            "git",
+            ["worktree", "remove", "--force", worktree],
+            { cwd: primary },
+          );
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
+
+  it.each(["validator output.log", "validator.stderr"])(
+    "validates constructed sealed receipt before publication for leaf %s",
+    async (name) => {
+      const fixture = await makeOriginalProducerFixture();
+      try {
+        const allocatedBytes = await readFile(fixture.recordFile);
+        await writeFile(
+          path.join(fixture.producer, fixture.resource, name),
+          "original validator diagnostic\n",
+        );
+        const sealed = await runPrReviewProviderScopeEvidenceCommand([
+          "seal-original",
+          "--record-file",
+          fixture.recordFile,
+        ]);
+        if (name.includes(" ")) {
+          expect(sealed.exitCode).toBe(1);
+          expect(await readFile(fixture.recordFile)).toEqual(allocatedBytes);
+          expect(
+            await readFile(
+              path.join(fixture.producer, fixture.resource, name),
+              "utf8",
+            ),
+          ).toBe("original validator diagnostic\n");
+          await fsPromises.rename(
+            path.join(fixture.producer, fixture.resource, name),
+            path.join(fixture.producer, fixture.resource, "validator.stderr"),
+          );
+          const corrected = await runPrReviewProviderScopeEvidenceCommand([
+            "seal-original",
+            "--record-file",
+            fixture.recordFile,
+          ]);
+          expect(corrected.exitCode, corrected.stderr).toBe(0);
+        } else expect(sealed.exitCode, sealed.stderr).toBe(0);
+        const sealedBytes = await readFile(fixture.recordFile);
+        expect(
+          (await readOriginalReviewRecord(fixture.recordFile)).production,
+        ).toBe("sealed");
+        const repeated = await runPrReviewProviderScopeEvidenceCommand([
+          "seal-original",
+          "--record-file",
+          fixture.recordFile,
+        ]);
+        expect(repeated.exitCode, repeated.stderr).toBe(0);
+        expect(await readFile(fixture.recordFile)).toEqual(sealedBytes);
+      } finally {
+        await fixture.dispose();
+      }
+    },
+  );
+
+  it("removes general qualification rather than retaining renamed compatibility", async () => {
+    const fixture = await makeOriginalProducerFixture();
+    try {
+      expect(
+        (
+          await runPrReviewProviderScopeEvidenceCommand([
+            "seal-original",
+            "--record-file",
+            fixture.recordFile,
+          ])
+        ).exitCode,
+      ).toBe(0);
+      const record = JSON.parse(await readFile(fixture.recordFile, "utf8"));
+      const recovered = {
+        ...record,
+        resource_kind: "directory",
+        production: "recovered",
+        source_refs: [{ file: fixture.recordFile, sha256: "" }],
+        recovery: {
+          original_owner: "fixture-owner",
+          operation_locator: record.operation_id,
+          custody_locator: fixture.recordFile,
+          association_basis: "historical original sealed receipt",
+          captured_at_production: false,
+          allocation_receipt_present: true,
+        },
+      };
+      recovered.source_refs[0].sha256 = createHash("sha256")
+        .update(await readFile(fixture.recordFile))
+        .digest("hex");
+      const evidence = path.join(
+        fixture.primary,
+        ".ephemeral/old-qualification.json",
+      );
+      const output = path.join(
+        fixture.primary,
+        ".ephemeral/old-qualified.json",
+      );
+      await writeFile(evidence, JSON.stringify(recovered));
+      const result = await runPrReviewProviderScopeEvidenceCommand([
+        "qualify-original",
+        "--evidence-file",
+        evidence,
+        "--record-file",
+        output,
+      ]);
+      expect(result.exitCode).toBe(1);
+      await expect(readOriginalReviewRecord(evidence)).rejects.toThrow();
+      await expect(fsPromises.lstat(output)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await fixture.dispose();
+    }
+  });
+
+  it("current allocation retains directory custody without generic compatibility fields", async () => {
+    const fixture = await makeOriginalProducerFixture();
+    try {
+      const record = await readOriginalReviewRecord(fixture.recordFile);
+      expect(record).not.toHaveProperty("source_refs");
+      expect(record).not.toHaveProperty("recovery");
+      expect(record).not.toHaveProperty("resource_kind");
+    } finally {
+      await fixture.dispose();
+    }
+  });
+
+  it("refuses ordinary scratch removal of a failed scope pair", async () => {
+    const { cwd } = await makeProviderMultiFileWorkspace();
+    try {
+      const created = await runPrReviewProviderScopeEvidenceCommand([
+        "create-scratch",
+      ]);
+      const scratch = created.stdout.trim();
+      await writeFile(
+        path.join(cwd, scratch, "failed-scope.json"),
+        "invalid original candidate",
+      );
+      await writeFile(
+        path.join(cwd, scratch, "validator.stderr"),
+        "validation failed",
+      );
+      const result = await runPrReviewProviderScopeEvidenceCommand([
+        "remove-scratch",
+        "--scratch-dir",
+        scratch,
+      ]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("original-proven retirement");
+      expect(
+        await readFile(path.join(cwd, scratch, "failed-scope.json"), "utf8"),
+      ).toBe("invalid original candidate");
+    } finally {
+      process.chdir(originalCwd);
+      await cleanupTempDir(cwd);
+    }
+  });
   it("removes an existing scratch directory and succeeds when it is already absent", async () => {
     const { cwd } = await makeProviderMultiFileWorkspace();
     try {
@@ -3564,3 +3957,53 @@ describe("pre-findings markdown extraction", () => {
     expect(markdown).not.toContain("- something");
   });
 });
+
+async function makeOriginalProducerFixture() {
+  const { cwd } = await makeProviderMultiFileWorkspace();
+  const primary = await realpath(cwd);
+  const producer = `${primary}-original-producer`;
+  const previousRepository = process.env.REPOSITORY;
+  const previousPrNumber = process.env.PR_NUMBER;
+  await execFileAsync(
+    "git",
+    ["worktree", "add", "--detach", producer, "HEAD"],
+    { cwd: primary },
+  );
+  await mkdir(path.join(producer, ".ephemeral"));
+  process.chdir(producer);
+  Object.assign(process.env, { REPOSITORY: "owner/repo", PR_NUMBER: "480" });
+  const recordFile = path.join(
+    primary,
+    ".ephemeral/original-producer-record.json",
+  );
+  const allocated = await runPrReviewProviderScopeEvidenceCommand([
+    "allocate-original",
+    "--record-file",
+    recordFile,
+  ]);
+  expect(allocated.exitCode, allocated.stderr).toBe(0);
+  const resource = allocated.stdout.trim();
+  await writeFile(
+    path.join(producer, resource, "failed-scope.json"),
+    "original rejected candidate\n",
+  );
+  return {
+    primary,
+    producer,
+    recordFile,
+    resource,
+    async dispose() {
+      process.chdir(originalCwd);
+      if (previousRepository === undefined)
+        Reflect.deleteProperty(process.env, "REPOSITORY");
+      else process.env.REPOSITORY = previousRepository;
+      if (previousPrNumber === undefined)
+        Reflect.deleteProperty(process.env, "PR_NUMBER");
+      else process.env.PR_NUMBER = previousPrNumber;
+      await execFileAsync("git", ["worktree", "remove", "--force", producer], {
+        cwd: primary,
+      });
+      await cleanupTempDir(cwd);
+    },
+  };
+}

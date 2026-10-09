@@ -1892,6 +1892,97 @@ describe("renderLoaded", () => {
     }
   });
 
+  it("requires the shipped merge skill's review owner before selected-output writes", async () => {
+    const shippedConfig = await loadConfigAtPath(
+      path.resolve("devcanon.config.yaml"),
+    );
+    const sourceConfig: ResolvedConfig = {
+      ...shippedConfig,
+      library: {
+        ...shippedConfig.library,
+        generatedDir: config.library.generatedDir,
+      },
+    };
+    const validatedSkills = await loadAndValidateSkills(
+      sourceConfig.library.skillsDir,
+    );
+    const selectedNames = new Set(["pr-merge", "pr-review"]);
+    const pending = [...selectedNames];
+    while (pending.length > 0) {
+      const name = pending.pop();
+      const skill = validatedSkills.find(
+        (candidate) => candidate.name === name,
+      );
+      for (const required of skill?.source.requires ?? []) {
+        if (!selectedNames.has(required)) {
+          selectedNames.add(required);
+          pending.push(required);
+        }
+      }
+    }
+    const selectedSkills = validatedSkills.filter((skill) =>
+      selectedNames.has(skill.name),
+    );
+    const withoutReview = selectedSkills.filter(
+      (skill) => skill.name !== "pr-review",
+    );
+
+    for (const target of ["claude", "codex"] as const) {
+      const mergeDir = path.join(
+        config.library.generatedDir,
+        target,
+        "skills",
+        "pr-merge",
+      );
+      const sentinel = path.join(mergeDir, "sentinel.txt");
+      const staleDir = path.join(path.dirname(mergeDir), "stale-skill");
+      const staleSentinel = path.join(staleDir, "sentinel.txt");
+      await mkdir(mergeDir, { recursive: true });
+      await mkdir(staleDir, { recursive: true });
+      await writeFile(sentinel, "must survive\n", "utf-8");
+      await writeFile(staleSentinel, "must survive cleanup\n", "utf-8");
+
+      await expect(
+        renderLoaded({
+          config: sourceConfig,
+          skills: withoutReview,
+          validatedSkills,
+          agents: [],
+          writeToGenerated: true,
+          targetFilter: target,
+        }),
+      ).rejects.toThrow(/pr-merge.*pr-review/i);
+
+      expect(await readFile(sentinel, "utf-8")).toBe("must survive\n");
+      expect(await readFile(staleSentinel, "utf-8")).toBe(
+        "must survive cleanup\n",
+      );
+      expect(await pathExists(path.join(mergeDir, "SKILL.md"))).toBe(false);
+    }
+
+    const result = await renderLoaded({
+      config: sourceConfig,
+      skills: selectedSkills,
+      validatedSkills,
+      agents: [],
+      writeToGenerated: true,
+    });
+    for (const name of ["pr-merge", "pr-review"]) {
+      const outputs = result.outputs.filter(
+        (output) => output.type === "skill" && output.name === name,
+      );
+      expect(outputs.map((output) => output.target).sort()).toEqual([
+        "claude",
+        "codex",
+      ]);
+      for (const output of outputs) {
+        expect(
+          parseRenderedMarkdownArtifact(output.content).frontmatter,
+        ).not.toHaveProperty("requires");
+      }
+    }
+  });
+
   it("does not require selected siblings when no render target is enabled", async () => {
     await createSkillFixture(
       config.library.skillsDir,

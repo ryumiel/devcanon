@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import {
   chmod,
   copyFile,
+  lstat,
   mkdir,
   mkdtemp,
   readFile,
@@ -407,8 +408,9 @@ async function runHelper(
   script: string,
   command: string,
   env: Record<string, string> = {},
+  args: string[] = [],
 ) {
-  return execFileAsync("bash", [script, command], {
+  return execFileAsync("bash", [script, command, ...args], {
     cwd,
     env: { ...process.env, ...env },
     maxBuffer: 1024 * 1024,
@@ -502,6 +504,11 @@ async function writeProviderFetchHarness(root: string) {
       "#!/usr/bin/env bash",
       "set -euo pipefail",
       'case "$1" in',
+      "  allocate-original)",
+      '    [ "${REPOSITORY:-}" = "$PR_REPOSITORY" ] && [ "${PR_NUMBER:-}" = "390" ] || exit 92',
+      "    printf '{}\\n' > \"$3\"",
+      '    exec bash "$REAL_ARTIFACT_HELPER" create-provider-scope-scratch',
+      "    ;;",
       "  materialize-provider-scope-capture)",
       '    printf "%s\\n" "$PROVIDER_SCOPE_CAPTURE_TMP_FILE" >> "$MATERIALIZE_CALLS"',
       '    [ "${MATERIALIZE_MODE:-real}" = "real" ] || exit 91',
@@ -563,6 +570,7 @@ async function runDocumentedProviderFetch(
   const bindingCount = path.join(root, "binding-count");
   const materializeCalls = path.join(root, "materialize-calls");
   await writeFile(bindingFile, `${bindings.join("\n")}\n`);
+  await mkdir(path.join(root, ".ephemeral"), { recursive: true });
   return {
     result: execFileAsync("bash", [runner], {
       cwd,
@@ -570,6 +578,7 @@ async function runDocumentedProviderFetch(
         ...process.env,
         PATH: `${bin}:${process.env.PATH}`,
         WORKING_DIRECTORY: cwd,
+        REVIEW_CALLER_DIR: await realpath(root),
         PR_REVIEW_ARTIFACT_HELPER: path.join(root, "artifact-helper"),
         REAL_ARTIFACT_HELPER: helperScript,
         PR_REPOSITORY: "owner/repo",
@@ -1909,6 +1918,31 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
       await construct(followupFacts);
       await expect(validate()).resolves.toMatchObject({ stdout: "" });
 
+      // An unusable historical comparison preserves the full relevant range;
+      // the wrapper never turns missing coverage into a narrow follow-up.
+      const unusableFacts = {
+        ...followupFacts,
+        last_reviewed_sha: "f".repeat(40),
+        selected_range: initialFacts.full_range,
+        candidate_narrow_range: initialFacts.full_range,
+        is_followup_narrow: false,
+        escalation_reasons: ["last-reviewed-unusable"],
+        mechanical_facts: {
+          changed_file_count: 1,
+          followup_sha_usable: false,
+          mechanical_escalate_full: true,
+          mechanical_escalation_reason: "last-reviewed-unusable",
+        },
+      };
+      await construct(unusableFacts);
+      await expect(validate()).resolves.toMatchObject({ stdout: "" });
+      await construct({ ...unusableFacts, is_followup_narrow: true });
+      await expect(validate()).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "narrow scope requires usable follow-up sha",
+        ),
+      });
+
       for (const [facts, message] of [
         [
           { ...initialFacts, scope_reason_codes: ["private"] },
@@ -2175,7 +2209,10 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
   });
 });
 
-async function makePreparationRecoveryFixture(fourFileFamily = false) {
+async function makePreparationRecoveryFixture(
+  fourFileFamily = false,
+  originalProduction = false,
+) {
   const { cwd, baseSha, headSha } = await makeGitWorkspace();
   try {
     await writeFile(
@@ -2197,10 +2234,28 @@ async function makePreparationRecoveryFixture(fourFileFamily = false) {
     if (fourFileFamily)
       validScope.semantic_decision.notes =
         "Verified full selection covers the provider-bound changes.";
-    const dirs = [
+    const dirs: string[] = [
       ".ephemeral/provider-scope-capture.checked",
       ".ephemeral/provider-scope-capture.hints",
-    ] as const;
+    ];
+    const originalRecords: { file: string; sha256: string }[] = [];
+    if (originalProduction) {
+      for (const index of [0, 1]) {
+        const record = path.join(
+          await realpath(cwd),
+          `.ephemeral/producer-${index}.json`,
+        );
+        const allocated = await runHelper(
+          worktree,
+          helperScript,
+          "allocate-original",
+          { REPOSITORY: "owner/repo", PR_NUMBER: "390" },
+          ["--record-file", record],
+        );
+        dirs[index] = allocated.stdout.trim();
+        originalRecords.push({ file: record, sha256: "" });
+      }
+    }
     const failures = [
       {
         ...validScope,
@@ -2250,6 +2305,20 @@ async function makePreparationRecoveryFixture(fourFileFamily = false) {
         JSON.stringify(candidate, null, 2),
       );
       await writeFile(path.join(worktree, directory, diagnosticsFile), stderr);
+    }
+    if (originalProduction) {
+      for (const reference of originalRecords) {
+        await runHelper(
+          worktree,
+          helperScript,
+          "seal-original",
+          { REPOSITORY: "owner/repo", PR_NUMBER: "390" },
+          ["--record-file", reference.file],
+        );
+        reference.sha256 = createHash("sha256")
+          .update(await readFile(reference.file))
+          .digest("hex");
+      }
     }
     await writeJson(worktree, scopeFile, validScope);
     const handoffFile = `.ephemeral/pr-390-${headSha}-handoff.json`;
@@ -2361,6 +2430,7 @@ async function makePreparationRecoveryFixture(fourFileFamily = false) {
       firstFailedBytes,
       failedBytes,
       recovery,
+      originalRecords,
     };
   } catch (error) {
     await cleanupTempDir(cwd);
@@ -2606,6 +2676,128 @@ describe("pre-handoff preparation recovery", () => {
       await cleanupTempDir(cwd);
     }
   }, 60_000);
+  it.each(["current-receipt", "guarded-snapshot"] as const)(
+    "releases the enrolled failure family through the existing %s adapter",
+    async (mode) => {
+      const fixture = await makePreparationRecoveryFixture(false, true);
+      const {
+        cwd,
+        worktree,
+        leaseHelper,
+        leaseFile,
+        bound,
+        recovery,
+        originalRecords,
+        headSha,
+        dirs,
+      } = fixture;
+      try {
+        await runHelper(cwd, leaseHelper, "write", recovery);
+        await runHelper(cwd, leaseHelper, "write", {
+          ...bound,
+          STATE: "failed",
+          EXPECTED_STATE: "created",
+          UPDATED_AT: "2026-06-11T00:03:00Z",
+          FINISHED_AT: "2026-06-11T00:03:00Z",
+          FAILURE_PHASE: "review",
+          FAILURE_REASON: "incomplete route",
+          FAILURE_RECOVERABILITY: "recoverable",
+        });
+        await runHelper(cwd, leaseHelper, "write", {
+          ...bound,
+          STATE: "aborted",
+          EXPECTED_STATE: "failed",
+          UPDATED_AT: "2026-06-11T00:04:00Z",
+          FINISHED_AT: "2026-06-11T00:04:00Z",
+          TERMINAL_REASON: "abandoned incomplete review",
+        });
+        expect(
+          (await runHelper(cwd, leaseHelper, "inspect-worktree", bound)).stdout,
+        ).toContain("preparation-failure-history");
+        const requestFile = path.join(
+          await realpath(cwd),
+          ".ephemeral/retirement-request.json",
+        );
+        await writeFile(
+          requestFile,
+          JSON.stringify({
+            schema: "pr-review/attempt-retirement/v1",
+            repository: "owner/repo",
+            pr_number: 390,
+            worktree_path: worktree,
+            old_head: headSha,
+            lease_file: leaseFile,
+            original_records: originalRecords,
+            authority_ref: "original-owner/current-cleanup",
+            active_consumers: [],
+            pending_effects: [],
+            publication: { status: "not-required", references: [] },
+          }),
+        );
+        if (mode === "guarded-snapshot") {
+          const request = JSON.parse(await readFile(requestFile, "utf8"));
+          Reflect.deleteProperty(request, "original_records");
+          request.schema = "pr-review/provider-scope-cleanup/v1";
+          request.expected_scratch = [];
+          for (const resource of dirs) {
+            const directory = path.join(worktree, resource);
+            const stat = await lstat(directory);
+            const entries = [];
+            for (const name of (await readdir(directory)).sort()) {
+              const leaf = await lstat(path.join(directory, name));
+              entries.push({
+                name,
+                dev: leaf.dev,
+                ino: leaf.ino,
+                sha256: createHash("sha256")
+                  .update(await readFile(path.join(directory, name)))
+                  .digest("hex"),
+              });
+            }
+            request.expected_scratch.push({
+              resource,
+              dev: stat.dev,
+              ino: stat.ino,
+              entries,
+            });
+          }
+          await writeFile(requestFile, JSON.stringify(request));
+        }
+        const retired =
+          mode === "current-receipt"
+            ? await runHelper(cwd, leaseHelper, "retire-attempt", bound, [
+                "--request-file",
+                requestFile,
+              ])
+            : await runHelper(
+                cwd,
+                helperScript,
+                "remove-provider-scope-scratch",
+                bound,
+                [dirs[0], "--expected-snapshot-file", requestFile],
+              );
+        expect(JSON.parse(retired.stdout)).toMatchObject({
+          outcome: "retired",
+        });
+        const released = JSON.parse(
+          await readFile(path.join(cwd, leaseFile), "utf8"),
+        );
+        expect(released.preparation_failures).toBeUndefined();
+        expect(released.state).toBe("aborted");
+        expect(released.artifacts.handoff_file).not.toBeNull();
+        for (const directory of dirs)
+          await expect(
+            readdir(path.join(worktree, directory)),
+          ).rejects.toMatchObject({ code: "ENOENT" });
+        expect(
+          (await runHelper(cwd, leaseHelper, "inspect-worktree", bound)).stdout,
+        ).toContain("CAN_REMOVE=yes");
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+    60_000,
+  );
   it("retains custody through incomplete review, terminal state and cleanup", async () => {
     const {
       cwd,

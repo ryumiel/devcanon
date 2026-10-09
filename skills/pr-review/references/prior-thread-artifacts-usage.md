@@ -6,11 +6,11 @@ Prepares and validates prior-thread and scope-decision artifacts, owns the provi
 
 ## Invocation
 
-Run `bash "$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh"` followed by `prepare-prior-threads-write`, `validate-prior-threads`, `prepare-scope-decision-write`, `prepare-provider-scope-evidence-write`, `create-provider-scope-scratch`, `remove-provider-scope-scratch <scratch-dir>`, `reconcile-provider-scope-fetch <scratch-dir>`, `materialize-provider-scope-capture`, `classify-provider-scope-capture`, `write-provider-scope-evidence`, `read-provider-scope-evidence-field --field <name>`, `render-scope-notice`, or `validate-scope-decision`.
+Run `bash "$PR_REVIEW_DIR/scripts/prior-thread-artifacts.sh"` followed by `prepare-prior-threads-write`, `validate-prior-threads`, `prepare-scope-decision-write`, `prepare-provider-scope-evidence-write`, `create-provider-scope-scratch`, `remove-provider-scope-scratch <scratch-dir>`, `reconcile-provider-scope-fetch <scratch-dir>`, `materialize-provider-scope-capture`, `classify-provider-scope-capture`, `write-provider-scope-evidence`, `read-provider-scope-evidence-field --field <name>`, `render-scope-notice`, `validate-scope-decision`, `allocate-original --record-file <path>`, `seal-original --record-file <path>`.
 
 ## Inputs
 
-Every command requires `HEAD_SHA` except `create-provider-scope-scratch`, `remove-provider-scope-scratch`, `reconcile-provider-scope-fetch`, `read-provider-scope-evidence-field`, and `render-scope-notice`. `prepare-prior-threads-write`, `prepare-scope-decision-write`, and `prepare-provider-scope-evidence-write` require no further input. `materialize-provider-scope-capture` additionally requires `PR_REPOSITORY`, `PROVIDER_SCOPE_CAPTURE_FILE`, `PROVIDER_SCOPE_CAPTURE_TMP_FILE`, `PROVIDER_SCOPE_CAPTURE_PR_FILE`, `PROVIDER_SCOPE_CAPTURE_FILES_FILE`, and `PROVIDER_SCOPE_CAPTURE_DIFF_FILE`; its canonical capture target is the direct child `.ephemeral/<branch-slug>-<HEAD_SHA>-provider-scope-capture.json`, while its scratch and raw inputs are private regular files. It refuses an existing target without clobbering it, and may leave its private temp output on failure for the owning SKILL trap to remove; the canonical target remains absent or unchanged. `write-provider-scope-evidence` requires `HEAD_SHA` and `PROVIDER_SCOPE_CAPTURE_FILE`. The capture is a readable non-symlink file created in the target review worktree. Its closed `pr-review/provider-scope-capture/v1` object contains only `schema`, `provider`, `repository`, `pr_number`, `baseRefOid`, `headRefOid`, `evidence_complete`, `provider_files`, and `provider_diff`. For non-empty `provider_files`, `patch_base64` availability is uniform: all complete byte-for-byte patches as strict base64, or all `null`; GitHub `files[].patch` hunk fragments are `null`. `provider_diff.dialect` is exactly `canonical-git-diff/v1` or `github-provider-diff/v1`, and its strict base64 is exact raw provider diff bytes. Do not place local metadata, digests, provenance, or merge-base claims in the capture. A prior producer failure leaves the exact capture for retry; reuse it rather than overwriting/refetching. It resolves the sibling packaged `devcanon-runtime` passive runtime support bundle; `DEVCANON_RUNTIME_DIR` is optional for diagnostics. It accepts only the exact one-line `pr-review-provider-scope-evidence` major-1 command contract and forwards the capture directly to its distinct producer route. `create-provider-scope-scratch` takes no argument and no further input. `remove-provider-scope-scratch` and `reconcile-provider-scope-fetch` each take exactly one scratch directory path and no further input; the path must be a direct `.ephemeral` child whose leaf begins with `provider-scope-capture.`, and `reconcile-provider-scope-fetch` reads `pr.json` and `recheck.json` from inside it. `classify-provider-scope-capture` requires `HEAD_SHA`, `PROVIDER_SCOPE_CAPTURE_FILE`, `PR_BASE_OID`, `PR_REPOSITORY`, and `PR_NUMBER`. `read-provider-scope-evidence-field` requires `PROVIDER_SCOPE_EVIDENCE_FILE` and exactly one `--field` of `provider_pr_diff_base_sha` or `full_pr_diff_range`. `render-scope-notice` requires only `REVIEW_SCOPE_DECISION_FILE` and accepts any readable path for it. `validate-prior-threads` requires `PRIOR_THREADS_FILE`. `validate-scope-decision` requires `SCOPE_DECISION_FILE`, `BASE_REF`, and `PROVIDER_SCOPE_EVIDENCE_FILE`; `PRIOR_THREADS_FILE` is optional and changes the expected prior-context pair. When it is absent or unset, validation selects the existing canonical prior-threads artifact, if present, and requires the scope decision's prior-context pair to name it; without that artifact it expects the `none`/`null` pair. `PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT` is optional. No command reads stdin.
+Every command requires `HEAD_SHA` except `allocate-original`, `seal-original`, `create-provider-scope-scratch`, `remove-provider-scope-scratch`, `reconcile-provider-scope-fetch`, `read-provider-scope-evidence-field`, and `render-scope-notice`. `prepare-prior-threads-write`, `prepare-scope-decision-write`, and `prepare-provider-scope-evidence-write` require no further input. `materialize-provider-scope-capture` additionally requires `PR_REPOSITORY`, `PROVIDER_SCOPE_CAPTURE_FILE`, `PROVIDER_SCOPE_CAPTURE_TMP_FILE`, `PROVIDER_SCOPE_CAPTURE_PR_FILE`, `PROVIDER_SCOPE_CAPTURE_FILES_FILE`, and `PROVIDER_SCOPE_CAPTURE_DIFF_FILE`; its canonical capture target is the direct child `.ephemeral/<branch-slug>-<HEAD_SHA>-provider-scope-capture.json`, while its scratch and raw inputs are private regular files. It refuses an existing target without clobbering it, and may leave its private temp output on failure for the owning SKILL trap to remove; the canonical target remains absent or unchanged. `write-provider-scope-evidence` requires `HEAD_SHA` and `PROVIDER_SCOPE_CAPTURE_FILE`. The capture is a readable non-symlink file created in the target review worktree. Its closed `pr-review/provider-scope-capture/v1` object contains only `schema`, `provider`, `repository`, `pr_number`, `baseRefOid`, `headRefOid`, `evidence_complete`, `provider_files`, and `provider_diff`. For non-empty `provider_files`, `patch_base64` availability is uniform: all complete byte-for-byte patches as strict base64, or all `null`; GitHub `files[].patch` hunk fragments are `null`. `provider_diff.dialect` is exactly `canonical-git-diff/v1` or `github-provider-diff/v1`, and its strict base64 is exact raw provider diff bytes. Do not place local metadata, digests, provenance, or merge-base claims in the capture. A prior producer failure leaves the exact capture for retry; reuse it rather than overwriting/refetching. It resolves the sibling packaged `devcanon-runtime` passive runtime support bundle; `DEVCANON_RUNTIME_DIR` is optional for diagnostics. It accepts only the exact one-line `pr-review-provider-scope-evidence` major-1 command contract and forwards the capture directly to its distinct producer route. `create-provider-scope-scratch` takes no argument and no further input. `reconcile-provider-scope-fetch` takes exactly one scratch directory path. `remove-provider-scope-scratch` takes a scratch path and optionally `--expected-snapshot-file <path>` for the guarded mode below; the path must be a direct `.ephemeral` child whose leaf begins with `provider-scope-capture.`, and `reconcile-provider-scope-fetch` reads `pr.json` and `recheck.json` from inside it. `classify-provider-scope-capture` requires `HEAD_SHA`, `PROVIDER_SCOPE_CAPTURE_FILE`, `PR_BASE_OID`, `PR_REPOSITORY`, and `PR_NUMBER`. `read-provider-scope-evidence-field` requires `PROVIDER_SCOPE_EVIDENCE_FILE` and exactly one `--field` of `provider_pr_diff_base_sha` or `full_pr_diff_range`. `render-scope-notice` requires only `REVIEW_SCOPE_DECISION_FILE` and accepts any readable path for it. `validate-prior-threads` requires `PRIOR_THREADS_FILE`. `validate-scope-decision` requires `SCOPE_DECISION_FILE`, `BASE_REF`, and `PROVIDER_SCOPE_EVIDENCE_FILE`; `PRIOR_THREADS_FILE` is optional and changes the expected prior-context pair. When it is absent or unset, validation selects the existing canonical prior-threads artifact, if present, and requires the scope decision's prior-context pair to name it; without that artifact it expects the `none`/`null` pair. `PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT` is optional. No command reads stdin.
 
 ## Working directory
 
@@ -181,3 +181,84 @@ Prepare commands create or check `.ephemeral` and prepare destination paths with
 ## Workflow boundary
 
 [PR review workflow context](../SKILL.md) owns thread interpretation and review scope continuation.
+
+## Original producer custody
+
+These operations use the same existing adapter/runtime; they create no new CLI
+command or semantic acceptance schema. Run from the physical disposable review
+worktree root with exact `REPOSITORY` and `PR_NUMBER`. Record paths are absolute
+physical regular nonsymlink direct children of the **same repository's primary**
+`.ephemeral`, outside the disposable worktree.
+
+```sh
+scratch="$(bash "$PR_REVIEW_ARTIFACT_HELPER" allocate-original --record-file "$record_file")"
+# Original producer writes the exact candidate/diagnostic leaves to "$scratch".
+bash "$PR_REVIEW_ARTIFACT_HELPER" seal-original --record-file "$record_file"
+```
+
+Allocation returns one fresh repo-relative `provider-scope-capture.*` directory
+and exclusively writes its original resource identity before production. Sealing
+records exact produced regular nonsymlink leaf identities/digests and the closed
+entry set before semantic acceptance or correction. Repeated sealing is allowed
+only for identical bytes. It does not validate scope, create a handoff, or enroll
+`preparation_failures`. Preserve failed bytes and seal them before replacement.
+The allocating owner can remove a successful no-failure scratch and its unused
+allocation record after their purposes end; failure bytes require lifecycle
+retirement rather than ordinary `remove-provider-scope-scratch`.
+
+`OriginalReviewArtifact` in `src/runtime/review-artifacts.ts` owns the closed
+current-producer record: `schema: "pr-review/original-artifact/v1"`,
+`producer: "pr-review/provider-scope"`, `operation_id`, `repository`, `pr_number`,
+physical `worktree_path`, `old_head`, directory `resource`, `dev`, `ino`,
+`production` (`allocated` or `sealed`), and closed regular-leaf `entries`
+(`name`, `sha256`, `dev`, `ino`). Constructed sealed records are validated before
+replacing allocated receipts. Unsupported leaf names refuse without changing
+the allocated receipt. Receipt publication failure removes only its unchanged
+empty allocation or reports the exact retained locator.
+
+There is no general qualification command, recovered receipt production, source
+reference/recovery fields, or standalone-file receipt compatibility. Historical
+qualification packets are not executable inputs. Never fabricate a current
+producer receipt or retroactively enroll failed bytes to bypass missing custody.
+
+### Guarded cleanup of existing provider-scope scratch
+
+The original owner/controller first establishes actual original custody, ends
+consumers and recovery obligations, verifies useful-context publication and binds
+current scoped action authority. Unknown ownership, an active reviewer, pending
+publication or uncertain effects hold cleanup before invocation. Matching hashes
+cannot make those decisions or grant ownership.
+
+Once those conditions hold, run the existing boundary from the physical primary:
+
+```sh
+REPOSITORY="owner/repo" PR_NUMBER="$pr_number" PRIMARY_REPOSITORY_ROOT="$physical_primary" \
+  bash "$PR_REVIEW_ARTIFACT_HELPER" remove-provider-scope-scratch "$scratch" \
+    --expected-snapshot-file "$snapshot_file"
+```
+
+The physical primary `.ephemeral` snapshot file uses the closed retirement
+bindings documented in [lease usage](review-leases-usage.md#guarded-scratch-cleanup),
+with `schema: "pr-review/provider-scope-cleanup/v1"` and a nonempty `expected_scratch` family
+instead of `original_records`. Each snapshot contains directory `resource`,
+`dev`, `ino` and closed regular-leaf `entries` (`name`, `sha256`, `dev`, `ino`).
+The scratch argument binds the first selected member; one directory or a subset
+can finish independently while another scratch or unrelated dirty source stays
+untouched. The expected original facts are deletion preconditions, not ownership
+or permission. Missing authorized leaves or directories count as already cleaned
+on the first call, while every remaining present ordinary entry must match original
+physical identity and byte digests. Changed/replaced/extra/symlink/tracked/accepted
+or active targets, unsafe/unregistered physical identity, concurrent reservations and
+unresolved publication refuse. Worktree advancement/removal retain their separate
+clean/no-unknown guards. Active capture traps and ordinary successful validation
+cleanup keep their existing behavior.
+
+The mode uses the existing PR reservation and present-target routine. Matching
+exhausted preparation custody releases before deletion with current local lease
+comparison. Retry after any partial effects using original target facts and relevant
+current custody; no attribution journal, persisted retirement operation or whole
+lease copies are required. Results report current lease SHA and per-target
+completed/remaining/refused status. Unenrolled scratch leaves the lease unchanged;
+release never fabricates LC-19 or semantic acceptance.
+Historical live cleanup remains its original owner's
+separate reviewed action; this interface alone authorizes no live effects.

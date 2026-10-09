@@ -6,6 +6,7 @@ requires:
   - play-debug
   - play-verification
   - pr-authoring
+  - pr-review
   - subagent-lifecycle
 ---
 
@@ -40,6 +41,15 @@ retained work and unknown outcomes as unresolved obligations.
 Keep deterministic mechanics out of this always-loaded skill when they become
 script-scale. This skill owns orchestration, safety policy, routing, and final
 reporting; helper scripts own parseable Git context and cleanup mechanics.
+
+Review artifact retention and retirement policy is owned by the
+[review lifecycle contract](../pr-review/references/review-lease-lifecycle-contract.md#target-retention-and-supersession-contract).
+This merge owner validates scoped cleanup authority and dependencies; supported
+cleanup guards remain in force for unresolved resources. Qualified failure scratch
+uses the existing lease adapter's supported retirement before ordinary cleanup;
+original ownership, exhausted purpose and verified useful-context publication are
+required, with current scoped authority checked separately. A held operation or
+unknown producer remains a precise retained-resource result.
 
 ## Step 1: Resolve PR Number
 

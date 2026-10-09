@@ -91,7 +91,8 @@ dependencies does not by itself enlarge `active_diff_range`. The wrapper must
 establish that the effects are confidently bounded and that relevant prior
 review assumptions about the wider diff remain valid. Narrow scope still
 requires independent review of the current candidate; historical approval is
-never current approval.
+never current approval. A fresh reviewer context/session is independent allocation,
+not by itself a full fresh source scope. A changed SHA does not alone decide scope.
 
 ## Full Escalation Triggers
 

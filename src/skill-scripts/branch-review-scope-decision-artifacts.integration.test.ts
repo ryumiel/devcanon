@@ -1508,7 +1508,7 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
     }
   });
 
-  it("finalizes a mechanically narrow follow-up as full when semantic classification escalates", async () => {
+  it("uses full current scope when a repair invalidates wider baseline assumptions", async () => {
     const { cwd, lastReviewedSha, headSha } = await makeFollowupWorkspace();
     try {
       const decisionPath = scopePath(headSha);
@@ -1529,7 +1529,7 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
           MECHANICAL_ESCALATION_REASON: "",
           SEMANTIC_ESCALATION_REASON: "source-owned-contract",
           SEMANTIC_DECISION_NOTES:
-            "Wrapper semantic classification found source-owned contract impact.",
+            "The repair changes the wider custody assumption; bounded delta inspection cannot establish its cross-module effects.",
           FINAL_CHANGED_FILES_JSON: JSON.stringify([
             "notes/followup.md",
             "src/full-only.ts",
@@ -1544,14 +1544,12 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         is_followup_narrow: false,
         escalation_reasons: ["source-owned-contract"],
         scope_reason_codes: ["semantic_contract_risk"],
-        scope_explanation: expect.stringContaining(
-          "source-owned contract impact",
-        ),
+        scope_explanation: expect.stringContaining("wider custody assumption"),
         semantic_decision: {
           checked: true,
           ambiguous: false,
           notes:
-            "Wrapper semantic classification found source-owned contract impact.",
+            "The repair changes the wider custody assumption; bounded delta inspection cannot establish its cross-module effects.",
         },
       });
     } finally {
@@ -1608,7 +1606,7 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
     }
   });
 
-  it("finalizes a mechanically narrow follow-up as narrow when semantic classification preserves it", async () => {
+  it("keeps a bounded corrective follow-up narrow with complete usable baseline context", async () => {
     const { cwd, lastReviewedSha, headSha } = await makeFollowupWorkspace();
     try {
       const decisionPath = scopePath(headSha);
@@ -1628,7 +1626,7 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
           MECHANICAL_ESCALATE_FULL: "false",
           MECHANICAL_ESCALATION_REASON: "",
           SEMANTIC_DECISION_NOTES:
-            "Wrapper semantic classification permits narrow follow-up.",
+            "The complete prior baseline remains usable; corrective delta, prior findings and relevant regression dependencies have bounded effects.",
           FINAL_CHANGED_FILES_JSON: JSON.stringify(["notes/followup.md"]),
           FINAL_LANGUAGE_HINTS_JSON: JSON.stringify(["md"]),
         }),
@@ -1640,11 +1638,12 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
         is_followup_narrow: true,
         escalation_reasons: [],
         scope_reason_codes: ["narrow_allowed"],
-        scope_explanation: expect.stringContaining("permits narrow follow-up"),
+        scope_explanation: expect.stringContaining("bounded effects"),
         semantic_decision: {
           checked: true,
           ambiguous: false,
-          notes: "Wrapper semantic classification permits narrow follow-up.",
+          notes:
+            "The complete prior baseline remains usable; corrective delta, prior findings and relevant regression dependencies have bounded effects.",
         },
       });
     } finally {
