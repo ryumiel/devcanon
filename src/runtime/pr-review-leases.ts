@@ -679,6 +679,23 @@ async function removePresentOwnedTarget(
   }
 }
 
+async function validatePendingSessionTargets(
+  worktree: string,
+  targets: Readonly<SessionAdvanceOperation["artifacts"]>,
+): Promise<void> {
+  await assertEphemeralDirectory(worktree);
+  const known = new Set(targets.map((target) => target.file));
+  if (
+    (await readdir(path.join(worktree, ".ephemeral"))).some(
+      (name) => !known.has(`.ephemeral/${name}`),
+    )
+  )
+    throw new PrReviewLeaseError(
+      "session reconciliation unknown artifacts before advancement",
+    );
+  for (const target of targets) await readPresentOwnedTarget(worktree, target);
+}
+
 async function retireAttempt(
   args: readonly string[],
   guardedScratch?: string,
@@ -1171,23 +1188,11 @@ async function reconcileSession(
     if (
       head !== reservation.immutable_head ||
       leaseBytes !== operation.successor_bytes
-    ) {
-      if (
-        (
-          await readdir(
-            path.join(reservation.canonical_worktree_path, ".ephemeral"),
-          )
-        ).some((name) => !files.has(`.ephemeral/${name}`))
-      )
-        throw new PrReviewLeaseError(
-          "session reconciliation unknown artifacts before advancement",
-        );
-      for (const artifact of operation.artifacts)
-        await readPresentOwnedTarget(
-          reservation.canonical_worktree_path,
-          artifact,
-        );
-    }
+    )
+      await validatePendingSessionTargets(
+        reservation.canonical_worktree_path,
+        operation.artifacts,
+      );
     if (
       (await verifyCreatedSessionWorktree(
         identity.primaryRoot,
@@ -2072,6 +2077,12 @@ async function sessionCreateTerminalAdvance({
         headSha,
       );
     }
+    // Checkout hooks have completed. Preserve original intent facts and refuse
+    // changed or unknown targets before publishing any successor authority.
+    await validatePendingSessionTargets(
+      candidate.worktreePath,
+      operation.artifacts,
+    );
     await writeTextAtomically(
       path.join(identity.primaryRoot, candidate.leaseFile),
       leaseBytes,

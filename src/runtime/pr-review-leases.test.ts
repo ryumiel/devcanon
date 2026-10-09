@@ -3030,6 +3030,9 @@ describe("pr-review lease command validation", () => {
       path.join(repository.physicalRepository, leaseFile),
       `${JSON.stringify(oldLease, null, 2)}\n`,
     );
+    const oldLeaseBytes = await readFile(
+      path.join(repository.physicalRepository, leaseFile),
+    );
     await mkdir(path.join(canonical, ".ephemeral"), { recursive: true });
     await writeFile(
       path.join(canonical, handoffFile),
@@ -3094,6 +3097,9 @@ describe("pr-review lease command validation", () => {
       reason: "rollback-incomplete",
       immutable_head: newHead,
     });
+    expect(
+      await readFile(path.join(repository.physicalRepository, leaseFile)),
+    ).toEqual(oldLeaseBytes);
     await expect(
       readFile(path.join(canonical, handoffFile), "utf8"),
     ).resolves.toBe("changed\n");
@@ -3154,6 +3160,111 @@ describe("pr-review lease command validation", () => {
       ).exitCode,
     ).toBe(0);
   });
+
+  it.each(["unknown", "replaced", "absent"] as const)(
+    "validates original targets after synchronous checkout hook: %s",
+    async (effect) => {
+      const fixture = await makeTerminalAdvanceRefusalFixture({
+        canonical: true,
+      });
+      const primary = fixture.repository.physicalRepository;
+      const originalTarget = path.join(fixture.worktree, fixture.handoffFile);
+      const originalIdentity = await lstat(originalTarget);
+      const parked = path.join(primary, ".ephemeral/parked-hook-original.json");
+      const unknown = path.join(
+        fixture.worktree,
+        ".ephemeral/hook-unknown.json",
+      );
+      const hookPath = path.join(primary, ".git/hooks/post-checkout");
+      const command =
+        effect === "unknown"
+          ? `printf '%s\\n' foreign >"$worktree_root/.ephemeral/hook-unknown.json"`
+          : effect === "replaced"
+            ? `mv "$worktree_root/${fixture.handoffFile}" "$PRIMARY_REPOSITORY_ROOT/.ephemeral/parked-hook-original.json"\ncp "$PRIMARY_REPOSITORY_ROOT/.ephemeral/parked-hook-original.json" "$worktree_root/${fixture.handoffFile}"`
+            : `rm "$worktree_root/${fixture.handoffFile}"`;
+      await writeFile(
+        hookPath,
+        [
+          "#!/bin/sh",
+          'worktree_root="$(git rev-parse --show-toplevel)"',
+          command,
+          "",
+        ].join("\n"),
+      );
+      await chmod(hookPath, 0o755);
+      process.chdir(primary);
+      setTerminalAdvanceEnv(primary, fixture.newHead);
+      const result = await runPrReviewLeasesCommand(["session-create"]);
+      expect(
+        (
+          await execFileAsync("git", [
+            "-C",
+            fixture.worktree,
+            "rev-parse",
+            "HEAD",
+          ])
+        ).stdout.trim(),
+      ).toBe(fixture.newHead);
+      const archivePath = path.join(primary, ".ephemeral", fixture.archiveName);
+      expect(await readFile(archivePath, "utf8")).toBe(fixture.leaseBytes);
+      if (effect === "absent") {
+        expect(result.exitCode, result.stderr + result.stdout).toBe(0);
+        expect(
+          JSON.parse(await readFile(fixture.leasePath, "utf8")).state,
+        ).toBe("created");
+        await expect(lstat(originalTarget)).rejects.toMatchObject({
+          code: "ENOENT",
+        });
+      } else {
+        expect(JSON.parse(result.stdout)).toMatchObject({
+          outcome: "manual-cleanup",
+          reason: "rollback-incomplete",
+          immutable_head: fixture.newHead,
+        });
+        expect(await readFile(fixture.leasePath, "utf8")).toBe(
+          fixture.leaseBytes,
+        );
+        expect(await readFile(originalTarget, "utf8")).toBe(
+          fixture.handoffBytes,
+        );
+        const reservationPath = path.join(
+          primary,
+          ".ephemeral/pr-432-session-create-reservation.json",
+        );
+        const reservation = JSON.parse(await readFile(reservationPath, "utf8"));
+        const intent = JSON.parse(
+          await readFile(
+            path.join(
+              primary,
+              `.ephemeral/pr-432-session-advance-${reservation.invocation_token}.json`,
+            ),
+            "utf8",
+          ),
+        );
+        expect(intent.outcome).toBe("held");
+        expect(intent.artifacts).toContainEqual({
+          file: fixture.handoffFile,
+          sha256: await sha256File(originalTarget),
+          dev: originalIdentity.dev,
+          ino: originalIdentity.ino,
+        });
+        if (effect === "unknown")
+          expect(await readFile(unknown, "utf8")).toBe("foreign\n");
+        else {
+          const replacement = await lstat(originalTarget);
+          expect([replacement.dev, replacement.ino]).not.toEqual([
+            originalIdentity.dev,
+            originalIdentity.ino,
+          ]);
+          expect(await readFile(parked, "utf8")).toBe(fixture.handoffBytes);
+          expect([
+            (await lstat(parked)).dev,
+            (await lstat(parked)).ino,
+          ]).toEqual([originalIdentity.dev, originalIdentity.ino]);
+        }
+      }
+    },
+  );
 
   it.each([
     "same-head",
