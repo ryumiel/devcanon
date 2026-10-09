@@ -1165,6 +1165,21 @@ async function reconcileSession(
       throw new PrReviewLeaseError(
         "session reconciliation worktree head uncertain",
       );
+    // Known absent targets are valid, but a pending transition must not hide
+    // unknown ignored content. Once HEAD and successor are coherent, remaining
+    // old-file cleanup keeps its resource-local boundary.
+    if (
+      (head !== reservation.immutable_head ||
+        leaseBytes !== operation.successor_bytes) &&
+      (
+        await readdir(
+          path.join(reservation.canonical_worktree_path, ".ephemeral"),
+        )
+      ).some((name) => !files.has(`.ephemeral/${name}`))
+    )
+      throw new PrReviewLeaseError(
+        "session reconciliation unknown artifacts before advancement",
+      );
     if (
       (await verifyCreatedSessionWorktree(
         identity.primaryRoot,

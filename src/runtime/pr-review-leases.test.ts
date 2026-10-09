@@ -3715,6 +3715,9 @@ describe("pr-review lease command validation", () => {
     "open-refusal",
     "complete",
     "complete-owned-target-absent",
+    "complete-unknown-old-head",
+    "complete-unknown-pending-successor",
+    "complete-unknown-coherent-successor",
     "changed-reservation",
     "changed-archive",
   ] as const)(
@@ -3845,6 +3848,82 @@ describe("pr-review lease command validation", () => {
           expect(intent).not.toHaveProperty("removed_files");
           if (archiveState === "complete-owned-target-absent")
             await actual.rm(path.join(fixture.worktree, fixture.handoffFile));
+          const unknown = path.join(
+            fixture.worktree,
+            ".ephemeral/provider-scope-capture.unrelated-replay",
+          );
+          if (archiveState.startsWith("complete-unknown")) {
+            if (archiveState !== "complete-unknown-old-head")
+              await execFileAsync("git", [
+                "-C",
+                fixture.worktree,
+                "checkout",
+                "--detach",
+                fixture.newHead,
+              ]);
+            if (archiveState === "complete-unknown-coherent-successor")
+              await actual.writeFile(fixture.leasePath, intent.successor_bytes);
+            await mkdir(unknown);
+            await actual.writeFile(
+              path.join(unknown, "foreign.txt"),
+              "unrelated ignored bytes\n",
+            );
+            const beforeLease = await readFile(fixture.leasePath);
+            const beforeOwned = await readFile(
+              path.join(fixture.worktree, fixture.handoffFile),
+            );
+            const beforeHead = (
+              await execFileAsync("git", [
+                "-C",
+                fixture.worktree,
+                "rev-parse",
+                "HEAD",
+              ])
+            ).stdout.trim();
+            const held = await runPrReviewLeasesCommand([
+              "session-reconcile",
+              "--invocation-token",
+              token,
+            ]);
+            expect(held.exitCode, held.stderr + held.stdout).toBe(1);
+            expect(
+              (
+                await execFileAsync("git", [
+                  "-C",
+                  fixture.worktree,
+                  "rev-parse",
+                  "HEAD",
+                ])
+              ).stdout.trim(),
+            ).toBe(beforeHead);
+            expect(await readFile(fixture.leasePath)).toEqual(beforeLease);
+            expect(
+              await readFile(path.join(unknown, "foreign.txt"), "utf8"),
+            ).toBe("unrelated ignored bytes\n");
+            expect(await readFile(reservationPath, "utf8")).toBe(
+              reservationBytes,
+            );
+            if (archiveState === "complete-unknown-coherent-successor") {
+              // Already coherent successor cleanup is resource-local. The
+              // separate final discovery still truthfully holds unknowns.
+              await expect(
+                lstat(path.join(fixture.worktree, fixture.handoffFile)),
+              ).rejects.toMatchObject({ code: "ENOENT" });
+              expect(JSON.parse(held.stdout).reason).toBe(
+                "session reconciliation final state uncertain",
+              );
+            } else {
+              expect(
+                await readFile(
+                  path.join(fixture.worktree, fixture.handoffFile),
+                ),
+              ).toEqual(beforeOwned);
+              expect(JSON.parse(held.stdout).reason).toBe(
+                "session reconciliation unknown artifacts before advancement",
+              );
+            }
+            return;
+          }
           const reconciled = await runPrReviewLeasesCommand([
             "session-reconcile",
             "--invocation-token",
