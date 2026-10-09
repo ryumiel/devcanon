@@ -3365,6 +3365,7 @@ describe("provider scope capture scratch subcommands", () => {
         ".ephemeral/allocation-receipt.json",
       );
       let resource = "";
+      let originalIdentity: readonly [number, number] | null = null;
       try {
         await execFileAsync(
           "git",
@@ -3379,7 +3380,8 @@ describe("provider scope capture scratch subcommands", () => {
         });
         vi.mocked(fsPromises.writeFile).mockImplementation(async (...args) => {
           if (args[0] !== recordFile) return actual.writeFile(...args);
-          resource = JSON.parse(String(args[1])).resource;
+          const record = JSON.parse(String(args[1]));
+          resource = record.resource;
           const allocation = path.join(producer, resource);
           if (failure === "foreign-receipt")
             await actual.writeFile(
@@ -3392,8 +3394,17 @@ describe("provider scope capture scratch subcommands", () => {
               "must survive\n",
             );
           if (failure === "replaced") {
-            await actual.rmdir(allocation);
+            originalIdentity = [record.dev, record.ino];
+            const original = await actual.lstat(allocation);
+            expect([original.dev, original.ino]).toEqual(originalIdentity);
+            // Keep this identity alive so mkdir cannot recycle its inode.
+            const parkedOriginal = `${allocation}.parked-original`;
+            await actual.rename(allocation, parkedOriginal);
             await actual.mkdir(allocation);
+            const replacement = await actual.lstat(allocation);
+            expect([replacement.dev, replacement.ino]).not.toEqual(
+              originalIdentity,
+            );
           }
           if (failure === "symlink") {
             await actual.rmdir(allocation);
@@ -3451,6 +3462,17 @@ describe("provider scope capture scratch subcommands", () => {
           expect(
             await readFile(path.join(allocation, "producer-bytes.txt"), "utf8"),
           ).toBe("must survive\n");
+        if (failure === "replaced") {
+          const parkedOriginal = `${allocation}.parked-original`;
+          const original = await actual.lstat(parkedOriginal);
+          const replacement = await actual.lstat(allocation);
+          expect([original.dev, original.ino]).toEqual(originalIdentity);
+          expect([replacement.dev, replacement.ino]).not.toEqual(
+            originalIdentity,
+          );
+          expect(await actual.readdir(parkedOriginal)).toEqual([]);
+          expect(await actual.readdir(allocation)).toEqual([]);
+        }
         if (failure === "symlink")
           expect(
             await readFile(path.join(allocation, "foreign.txt"), "utf8"),
