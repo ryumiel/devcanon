@@ -1918,6 +1918,31 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
       await construct(followupFacts);
       await expect(validate()).resolves.toMatchObject({ stdout: "" });
 
+      // An unusable historical comparison preserves the full relevant range;
+      // the wrapper never turns missing coverage into a narrow follow-up.
+      const unusableFacts = {
+        ...followupFacts,
+        last_reviewed_sha: "f".repeat(40),
+        selected_range: initialFacts.full_range,
+        candidate_narrow_range: initialFacts.full_range,
+        is_followup_narrow: false,
+        escalation_reasons: ["last-reviewed-unusable"],
+        mechanical_facts: {
+          changed_file_count: 1,
+          followup_sha_usable: false,
+          mechanical_escalate_full: true,
+          mechanical_escalation_reason: "last-reviewed-unusable",
+        },
+      };
+      await construct(unusableFacts);
+      await expect(validate()).resolves.toMatchObject({ stdout: "" });
+      await construct({ ...unusableFacts, is_followup_narrow: true });
+      await expect(validate()).rejects.toMatchObject({
+        stderr: expect.stringContaining(
+          "narrow scope requires usable follow-up sha",
+        ),
+      });
+
       for (const [facts, message] of [
         [
           { ...initialFacts, scope_reason_codes: ["private"] },
@@ -2693,20 +2718,15 @@ describe("pre-handoff preparation recovery", () => {
           await realpath(cwd),
           ".ephemeral/retirement-request.json",
         );
-        const currentLeaseBytes = await readFile(path.join(cwd, leaseFile));
         await writeFile(
           requestFile,
           JSON.stringify({
             schema: "pr-review/attempt-retirement/v1",
-            operation_id: "enrolled-purposes-ended",
             repository: "owner/repo",
             pr_number: 390,
             worktree_path: worktree,
             old_head: headSha,
             lease_file: leaseFile,
-            lease_sha256: createHash("sha256")
-              .update(currentLeaseBytes)
-              .digest("hex"),
             original_records: originalRecords,
             authority_ref: "original-owner/current-cleanup",
             active_consumers: [],

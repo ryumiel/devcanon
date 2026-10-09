@@ -40,9 +40,13 @@ arbitrary source references and standalone-file compatibility are removed.
 The existing scratch-cleanup boundary has a guarded expected-snapshot mode:
 the original owner/controller separately establishes ownership, exhausted purpose,
 publication and exact action scope; the runtime checks deterministic deletion
-preconditions using the same reservation and partial-effect recovery as retirement.
-Matching hashes never grant ownership. Operation data retains only actual
-lease versions, closed directory snapshots and required deletion progress.
+preconditions under the existing reservation. Matching hashes never grant
+ownership. Cleanup reads relevant current custody, releases only matching ended
+preparation records, and removes present selected entries. Missing authorized
+entries count as already cleaned; unrelated dirty source or other scratch does
+not block the selected target. No per-leaf attribution, whole lease versions or
+persistent retirement operation is retained. Session replacement keeps only its
+actual HEAD/successor/archive recovery binding and necessary remaining-target facts.
 Normal successful validation still removes unused scratch and its allocation
 record; no blanket copy, registry or additional permission step is introduced.
 
@@ -50,6 +54,8 @@ The same session owner replaces completed unposted or exhausted failed attempts
 under a bound continuation request and independently verified provider head.
 Historical completion/failure stays truthful, while the fresh created lease clears
 all approval, result, presentation, failure, posting and live context authority.
+Use existing safely accessible local baselines or verified GitHub context for
+actual consumers; no primary placement or mandatory continuity copy is required.
 Useful durable context must be published or explicitly not required before local
 sole-context bytes retire. Live legacy action remains an original owner/controller
 responsibility after current implementation validation.

@@ -1304,11 +1304,19 @@ cleanup boundary only after the original owner/controller proves real custody,
 ends readers/recovery, verifies durable context publication and binds the current
 action. Unknown custody, pending publication or active consumers hold before any
 snapshot-based invocation; hashes grant neither ownership nor permission. Invoke supported retirement from the physical primary,
-then use canonical posted/aborted advancement or bound completed/failed continuation.
+and finish only the independently selected targets. Missing authorized entries
+are already cleaned; unrelated dirty source, changed HEAD or other scratch does
+not gate their cleanup. Retry from original target facts and matching current
+custody after partial effects, without permanent deletion attribution or lease
+copies. Canonical posted/aborted advancement or bound completed/failed continuation
+keeps its separate clean/no-unknown and exact successor checks.
 Retain precise custody/publication gaps and actual held effects; do not remove
 scratch manually to obtain classifier eligibility.
 
 A completed result can remain a historical baseline after mechanical failure.
+Use safely accessible existing local evidence or verified GitHub context for its
+actual consumer; no mandatory primary copy is required. Preserve needed sole-copy
+bytes before deletion, and hold when actual publication or readers remain pending.
 Select current follow-up or full relevant scope through the shared scope policy;
 a new commit or fresh agent/session does not decide that semantic choice. Narrow
 corrective review still covers current repairs, prior findings and relevant

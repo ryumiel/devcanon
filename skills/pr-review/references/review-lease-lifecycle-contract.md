@@ -67,13 +67,28 @@ Cleanup authority is checked separately; preservation custody alone grants none.
 
 Retirement requires no active reviewer or downstream reader, unresolved findings
 consumer, uncertain delivery/post/cleanup outcome, mandatory history/audit need,
-dirty source or unrelated work in the affected resource. The operation is scoped,
+changed/dirty selected bytes or conflicting custody in the affected resource. The operation is scoped,
 rechecks current bytes and identity, and reports actual absence/removal/retention
 through its existing owner. Compatible standing cleanup authority needs no new
 human permission solely because a covered task completed or its head changed.
 Missing authority, unresolved ownership or a human-reserved disposition retains
 its existing gate. No blanket backup or new archive is required just to permit
 retirement. A needed local-only consumer still requires actual preservation.
+
+Cleanup is resource-local. An independently selected owned directory/subset can
+finish despite another scratch or unrelated dirty source. Missing authorized leaves
+or targets are already cleaned on the first call, but absence cannot establish
+original association. Verify every present entry's original identity/digest and
+reject extra, replaced, symlinked, tracked, accepted or active selected evidence.
+Under the existing reservation, release only matching exhausted current
+preparation custody with a local comparison before deleting remaining entries.
+Unenrolled diagnostics neither enroll nor change the lease. Interrupted release
+or partial deletion retries from original facts and relevant current custody;
+no deletion-attribution journal, whole lease copies or permanent retirement
+operation is required. Raw diagnostics remain required while diagnosis, correction,
+recovery or consumer needs are active; after matching purpose-ended release, their
+absence alone cannot invalidate the lease. Advancement and worktree removal still
+require clean registered state and no unknown content.
 
 ### Completed-review supersession
 
@@ -98,7 +113,8 @@ The existing review lifecycle owner performs the event only when:
    history can be hidden by replacing the session.
 4. Required old findings/disposition and comparison/recovery material has been
    identified. Any material outliving the checkout has a validated, accessible
-   handoff to its existing consumer before old artifacts retire. A reference
+   existing local baseline or verified GitHub context for its actual consumer
+   before sole-copy deletion; primary placement or mandatory copies are unnecessary. A reference
    to a soon-removed file is not a handoff. Retain the old session if continuity
    cannot be preserved without unproven custody or a new policy decision.
 
@@ -137,9 +153,10 @@ Valid existing posted/aborted cleanup and LC-18 reentry continue unchanged;
 same-head recovery uses its existing paths. A legacy completed unposted lease
 can qualify only after current owner, completed result, exact identity, correction
 authority and continuity requirements above are independently established.
-Legacy diagnostics require surviving original proof, never retroactive filename
-classification. Invalid leases, unresolved effects, concurrent custody, dirty
-source and preparation history with unresolved purposes remain protected. No bulk migration,
+Diagnostics require original association and immutable target facts, never
+retroactive filename classification or ownership by absence. Invalid leases,
+unresolved effects, concurrent custody and active preparation purposes stay held.
+Unrelated dirty source does not block resource-local cleanup. No bulk migration,
 rewriting historical results or automatic archive retirement is permitted.
 
 Compare baseline and target under equivalent authority and case inputs: completed

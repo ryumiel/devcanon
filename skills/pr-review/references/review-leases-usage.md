@@ -104,10 +104,9 @@ shape; unknown or duplicate JSON members refuse. Required fields are:
 | Field                                 | Binding                                                                                                                                |
 | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `schema`                              | `pr-review/attempt-retirement/v1`                                                                                                      |
-| `operation_id`                        | Unique 1–80 character identifier using letters, digits, `_`, `-`; reuse only the identical operation                                   |
 | `repository`, `pr_number`             | Exact current repository and positive PR number                                                                                        |
-| `worktree_path`, `old_head`           | Physical registered canonical worktree and actual 40-hex old head                                                                      |
-| `lease_file`, `lease_sha256`          | Current primary-relative direct-child lease and exact original lease byte digest                                                       |
+| `worktree_path`, `old_head`           | Physical registered canonical worktree and 40-hex original production head (origin context, not a current cleanup gate)                |
+| `lease_file`                          | Current primary-relative direct-child lease; retry reads relevant current custody                                                      |
 | `original_records`                    | Nonempty unique closed `{file, sha256}` references to artifact-owner original production records in the physical primary               |
 | `authority_ref`                       | Nonblank current action-authority evidence locator, independently checked by the invoking owner                                        |
 | `active_consumers`, `pending_effects` | Both empty only after the invoking owner resolves actual readers/reviewers, findings, diagnosis, replay, recovery and delivery effects |
@@ -120,29 +119,30 @@ and applicable human authority. Pending/failed/unknown publication refuses.
 Do not synthesize empty consumers or not-required from task completion alone.
 
 The helper emits `pr-review/attempt-retirement-result/v1` JSON with `outcome`
-(`retired` or `held`), `operation_file`, `request_sha256`, resulting
-`lease_sha256`, and nullable `reason`. The digest reflects verified current lease
-bytes for both held and retired outcomes; it is null when current bytes cannot
-be safely observed, and never substitutes the planned released digest. `retired` exits 0; held or invalid input
-exits 1. Pre-effect invalid input emits a stderr diagnostic. `held` truthfully
-reports partial/uncertain effects; it does not promise rollback.
+(`retired` or `held`), `request_sha256`, observed current `lease_sha256`,
+per-target `targets` and nullable `reason`. Targets report `completed`, `remaining`
+with present leaves, or `refused`. `retired` exits 0; held or invalid input exits 1.
+Invalid input emits a stderr diagnostic. Partial effects are truthful, with no
+rollback or attribution claim.
 
-The deterministic primary operation file is
-`.ephemeral/pr-<number>-retirement-<operation_id>.json`. It retains the exact
-request digest, reservation, original/released lease bytes, closed directory snapshots and per-step progress. The same PR reservation also covers lease writes,
-audit failure writes and cleanup metadata/removal. Each destructive step rechecks
-current head, registration, clean source, lease/request/reservation and original
-bytes. Changed, extra, nested, symlinked, unknown, current-hash-only, active,
-unpublished, dirty, concurrent and uncertain resources remain.
+Cleanup is local to the selected original targets. Under the existing cooperating
+PR reservation, validate all remaining present bounded entries against immutable
+original dev/ino and byte digests. Missing authorized leaves or directories are
+already cleaned even on the first invocation; absence never establishes ownership.
+Changed, replaced, extra, symlinked, tracked, accepted or active selected evidence
+refuses before effects. Another scratch directory or unrelated dirty source or changed current HEAD does
+not block independent cleanup and stays untouched. Worktree removal and session
+advancement keep their clean registered/no-unknown prerequisites.
 
-Retry **the identical invocation with identical request bytes** to resume a held
-operation. A missing leaf/resource is idempotent only with retained exact
-same-operation intent/progress; divergent requests, altered operation evidence or
-another owner's reservation refuse. Do not clear a reservation, substitute files,
-reset progress or remove scratch manually. Keep request, original records and
-operation evidence while replay or reconciliation needs them. Resolved diagnostic
-inputs have no age-based or blanket archive obligation; the original owner retires
-them only when remaining compact replay guards cover their consumers.
+After validating present targets, release only matching exhausted current
+`preparation_failures` with a fresh local lease comparison, then remove present
+entries. Active or conflicting custody refuses. Unenrolled scratch neither enrolls
+nor changes the lease. Interruption before/after release or after some deletion is
+retryable from current custody and remaining original facts, without first-call
+lease digests, whole lease copies, per-leaf attribution or a persistent retirement
+operation. The invocation releases only its matching reservation; changed/unknown
+reservations remain held. Retry the qualified original targets, never substitute
+fresh current hashes for original identity or clear another owner's reservation.
 
 Known successful posting is a settled effect: a validated `posted` lease with
 its succeeded posting evidence can retire exhausted diagnostics. Accepted
@@ -165,8 +165,8 @@ from the physical primary with the same identity environment as retirement.
 The packet has the common bindings, authority/purpose/effect/publication fields
 in the table above, `schema: "pr-review/provider-scope-cleanup/v1"`, and a nonempty
 `expected_scratch: [{resource, dev, ino, entries}, ...]` instead of `original_records`.
-The scratch argument names the first family member; all intended directories must
-be covered, and unrelated unmanaged artifacts remain held. Each closed regular-leaf entry is `{name, sha256, dev, ino}`. The resource is a
+The scratch argument names the first selected member. A directory or selected
+subset can finish independently while unrelated artifacts remain untouched. Each closed regular-leaf entry is `{name, sha256, dev, ino}`. The resource is a
 provider-scope scratch directory; files, nested resources and symlinks refuse.
 Old recovered/general receipt variants are rejected, not migrated.
 
@@ -176,15 +176,15 @@ recovery and pending effects, verify durable publication and current action
 scope. If any is unknown or pending, hold the affected resource before preparing
 an action; never synthesize empty consumers or ownership from current hashes.
 
-Both modes use one lease owner, PR reservation and exact operation progress.
-Operation evidence stores only request binding, reservation, actual original and
-released lease bytes, closed directory snapshots and partial leaf/resource
-progress. It does not duplicate producer qualification or create another journal.
-An unenrolled existing directory leaves lease bytes unchanged; release never
-fabricates LC-19. Exact existing matching preparation history releases coherently.
-Missing/changed evidence, tracked/accepted members, dirty/unregistered/stale state
-and concurrent/uncertain effects refuse. Retry only identical original packet
-bytes; the saved operation proves missing leaves after actual partial removal.
+Both modes use the same current-custody and present-target routine under one PR
+reservation. The immutable descriptors remain in the qualified input; no deletion
+journal or duplicate lease versions are written. Exact matching preparation custody
+releases idempotently before removal; current diagnosis, correction, recovery and
+consumer needs require raw diagnostics until this qualified release. Ended history
+has no raw-byte obligation after release/deletion and cannot invalidate the lease
+solely because diagnostics are absent. An unenrolled directory leaves lease bytes
+unchanged and never fabricates LC-19. Missing original association, changed present
+bytes, conflicting/active custody and unresolved publication hold the selected target.
 
 ## Completed or failed current-head continuation
 
@@ -205,10 +205,11 @@ file is a source-owned closed `pr-review/attempt-continuation/v1` packet:
   exhausted semantically incomplete failed attempt. Mechanical finalization
   failure does not change the former to the latter.
 - `continuity`, a list of unique closed `{file, sha256}` references to exact
-  accessible regular nonsymlink primary evidence actually needed after replacement.
+  accessible existing regular nonsymlink local baseline actually needed after replacement.
   An empty list is valid when no local-only comparison consumer needs it; do not
-  introduce mandatory baseline or whole-tree copies. A soon-deleted checkout path
-  is not continuity.
+  introduce mandatory baseline or whole-tree copies or primary placement. Verified
+  GitHub context may suffice when it contains the needed evidence. A soon-deleted
+  sole copy must be preserved for its actual consumer before deletion.
 
 Supply the normal `HEAD_SHA`, `BASE_REF`, `HEAD_REF`, identity and optional
 `UPDATED_AT` inputs. The target head must differ, resolve as an exact commit and
@@ -249,18 +250,19 @@ For completed/failed continuation, supply the same `CONTINUATION_REQUEST_FILE`
 with identical qualified action bytes. The source-owned primary operation is
 `.ephemeral/pr-<number>-session-advance-<token>.json`; it binds the exact existing
 reservation, old archive digest/head, cleared successor bytes/head, optional
-continuation request digest, original artifact identity/digests and per-step
-intent/progress. It stores no whole artifact-tree copy.
+continuation request digest, original remaining-target identity/digests where disappearing ownership-graph
+files would otherwise lose that knowledge. It stores no artifact-tree copy or
+per-file pending/removed attribution.
 
 Reconciliation accepts only that same immutable operation with accessible exact
-archive/action and unchanged known resources. Changed/reappeared files, unknown
-absence, another reservation, dirty/unregistered resources, divergent leases or
+archive/action and unchanged remaining known resources. Changed/replaced files,
+another reservation, dirty/unregistered resources, divergent leases or
 unobserved heads hold. It can complete a proven old-head operation, publish the
 exact already-bound cleared successor and finish only unchanged original artifact
-removal. Each step rechecks bindings. A prior removal is idempotent only with exact
-same-operation intent/progress. It never clears another owner's reservation or
+removal through the same present-target routine. Missing authorized files are
+already cleaned without requiring deletion attribution. Each step rechecks bindings. It never clears another owner's reservation or
 inherits old approval. Success uses the existing `session-create/v1` success JSON;
 held results emit `session-reconciliation/v1` with token, operation path and reason
 and exit 1. A completed operation replays only while the exact current successor
-and retired resource absence still verify. Keep its compact guard while delayed
+and remaining present target facts still verify. Keep its compact guard while delayed
 replay needs it; older operation evidence is never new action authority.

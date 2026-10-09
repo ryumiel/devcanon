@@ -1416,18 +1416,22 @@ diagnostics under already-covered scoped cleanup authority, truthful replacement
 of a completed unposted old-head review during authorized correction, accessible
 minimal continuity evidence for remaining consumers, and fresh independent review
 of new bytes. No blanket evidence-tree copy or repeated generic permission is
-required. Unknown ownership, active consumers, dirty/unrelated work, concurrent
-owners and uncertain effects stay protected. Enrolled and unenrolled failed-validation
+required. Unknown ownership, active selected consumers, conflicting custody,
+concurrent owners and uncertain effects stay protected. Resource-local cleanup
+permits an independent selected target despite unrelated dirty source or other
+scratch, validates all remaining original entries and treats missing authorized
+entries as already cleaned even on the first call. Enrolled and unenrolled failed-validation
 scratch has the same finite purpose boundary: qualified original producer evidence,
 resolved consumers/recovery and verified useful-context publication precede supported
 retirement. Current-hash-only claims and retroactive semantic enrollment refuse. Durable Git/PR records cannot replace local-only evidence they lack.
 
 The existing artifact/lease runtime implements the boundary through original
 current producer allocation, validated directory sealing, guarded scratch cleanup
-and reservation-bound exact retirement and current-head session continuation. Completed unposted and exhausted
+and reservation-bound current-custody cleanup and current-head session continuation. Completed unposted and exhausted
 failed sessions retain truthful historical state; fresh created successors inherit
-no approval or live artifact authority. Interrupted retirement resumes only with
-exact same-operation evidence; partial head/lease advancement holds for supported
+no approval or live artifact authority. Cleanup retries from immutable original target facts and relevant current custody,
+without deletion attribution, duplicate lease copies or persistent retirement
+operations. Partial head/lease advancement holds for supported
 reconciliation. This spec alone authorizes no live cleanup, abort, posting or
 migration. Actual original owner/controller custody, exhausted purpose, durable publication
 and exact action binding remain required for historical resources; expected

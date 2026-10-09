@@ -242,19 +242,23 @@ bindings documented in [lease usage](review-leases-usage.md#guarded-scratch-clea
 with `schema: "pr-review/provider-scope-cleanup/v1"` and a nonempty `expected_scratch` family
 instead of `original_records`. Each snapshot contains directory `resource`,
 `dev`, `ino` and closed regular-leaf `entries` (`name`, `sha256`, `dev`, `ino`).
-The scratch argument binds the first family member; the packet covers the complete
-intended cleanup footprint. Partial filesystem effects are held and recoverable,
-not atomic rollback. It is a deletion precondition, not an original-production or legacy receipt.
-The mode shares the existing lease reservation and exact partial-effect recovery.
-It refuses stale head/lease/identity, changed/extra/symlink/tracked/accepted evidence,
-dirty or unregistered worktrees, concurrent owners and unresolved obligations.
-Unguarded removal still refuses retained failed diagnostics. Active capture traps
-and normal successful validation cleanup keep their existing behavior.
+The scratch argument binds the first selected member; one directory or a subset
+can finish independently while another scratch or unrelated dirty source stays
+untouched. The expected original facts are deletion preconditions, not ownership
+or permission. Missing authorized leaves or directories count as already cleaned
+on the first call, while every remaining present ordinary entry must match original
+physical identity and byte digests. Changed/replaced/extra/symlink/tracked/accepted
+or active targets, unsafe/unregistered physical identity, concurrent reservations and
+unresolved publication refuse. Worktree advancement/removal retain their separate
+clean/no-unknown guards. Active capture traps and ordinary successful validation
+cleanup keep their existing behavior.
 
-Replay only the identical invocation and snapshot bytes after a held operation;
-missing leaves require its saved intent/progress. The result is the lease owner's
-`attempt-retirement-result/v1` (`retired` or `held`), with observed current lease
-SHA and exact operation locator. The lease is unchanged for unenrolled scratch;
-only matching existing preparation metadata can release, with no LC-19 invention
-or semantic acceptance. Historical live cleanup remains its original owner's
+The mode uses the existing PR reservation and present-target routine. Matching
+exhausted preparation custody releases before deletion with current local lease
+comparison. Retry after any partial effects using original target facts and relevant
+current custody; no attribution journal, persisted retirement operation or whole
+lease copies are required. Results report current lease SHA and per-target
+completed/remaining/refused status. Unenrolled scratch leaves the lease unchanged;
+release never fabricates LC-19 or semantic acceptance.
+Historical live cleanup remains its original owner's
 separate reviewed action; this interface alone authorizes no live effects.
