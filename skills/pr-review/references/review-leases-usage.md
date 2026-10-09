@@ -151,7 +151,10 @@ handoff/result, approval and validated-payload pointers and bytes remain intact;
 active frozen actions and unresolved or attempted unsuccessful posting still refuse.
 
 Retirement releases only exact proven current `preparation_failures` metadata.
-It does not enroll invalid candidates or clear accepted handoff/result pointers.
+It does not enroll invalid candidates or delete any member of the complete
+accepted evidence family, including indirect scope/provider, findings, body,
+shared-context and approval-owned files. Original custody alone cannot make
+accepted evidence disposable.
 Historical records remain context. After retirement, the ordinary classifier and
 posted/aborted canonical advancement remain supported.
 
@@ -196,6 +199,13 @@ shared scope/wrapper owners. Success/conflict/manual-cleanup uses the existing
 `session-create/v1` result. Partial head or lease advancement retains observed
 reservation/snapshot evidence and holds for exact owner reconciliation; blind
 retry and fabricated abort/post/completion refuse.
+
+Before any head advancement, failed first operation publication releases only
+this invocation's reservation when the old lease, head, artifacts, archive and
+reservation still verify and its absent or exclusively created invalid intent
+remains exactly bound. Invalid publication bytes remain primary-owned diagnostics;
+a fresh reserved invocation can retry safely. A complete intent retains supported same-operation
+reconciliation; changed or unknown custody remains held.
 
 ## Exact interrupted session reconciliation
 

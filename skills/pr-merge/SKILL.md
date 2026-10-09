@@ -6,6 +6,7 @@ requires:
   - play-debug
   - play-verification
   - pr-authoring
+  - pr-review
   - subagent-lifecycle
 ---
 

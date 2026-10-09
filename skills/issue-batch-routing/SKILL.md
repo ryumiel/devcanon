@@ -203,6 +203,9 @@ confirmed owner mapping.
 
 ## Operational retention
 
+Review artifact lifecycle policy remains at its
+[review lifecycle owner](../pr-review/references/review-lease-lifecycle-contract.md#target-retention-and-supersession-contract).
+
 This section applies ROUTE-007-STATE to the existing fields above; it introduces
 no schema or replacement persistence mechanism. Each retained value must serve
 a current decision or one of these operational purposes:

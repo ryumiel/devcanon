@@ -683,14 +683,15 @@ async function retireAttempt(
       resources.add(record.resource);
       records.push(record);
     }
-    // Diagnostic retirement preserves every accepted lease pointer.
-    if (
-      Object.values(lease.artifacts).some(
-        (file) => file !== null && resources.has(file),
-      )
-    )
+    // Original custody cannot turn accepted direct or indirect evidence into
+    // disposable diagnostics. Preparation-only custody is separately eligible.
+    const accepted = await acceptedReviewArtifactPaths(
+      lease,
+      request.worktree_path,
+    );
+    if ([...resources].some((resource) => accepted.has(resource)))
       throw new PrReviewLeaseError(
-        "retirement cannot erase accepted review pointers",
+        "retirement cannot erase accepted review evidence",
       );
     if ((lease.preparation_failures?.length ?? 0) > 0)
       await validatePreparationFailures(lease, request.worktree_path);
@@ -917,6 +918,14 @@ async function retireAttempt(
     )
       throw new PrReviewLeaseError(
         "retirement worktree dirty, stale or unregistered",
+      );
+    const accepted = await acceptedReviewArtifactPaths(
+      originalLease,
+      request.worktree_path,
+    );
+    if (operation.records.some((record) => accepted.has(record.resource)))
+      throw new PrReviewLeaseError(
+        "retirement cannot erase accepted review evidence",
       );
     if (originalLease.state === "posted") {
       const acceptedPostingLease = { ...originalLease };
@@ -2025,9 +2034,95 @@ async function sessionCreateTerminalAdvance({
       reservation.invocation_token,
     );
     await assertOriginalRecordPath(operationFile, true);
-    await writeFile(operationFile, `${JSON.stringify(operation)}\n`, {
-      flag: "wx",
-    });
+    const operationBytes = `${JSON.stringify(operation)}\n`;
+    let operationHandle: Awaited<ReturnType<typeof open>> | null = null;
+    let allocatedOperation: Awaited<ReturnType<typeof lstat>> | null = null;
+    try {
+      operationHandle = await open(operationFile, "wx");
+      allocatedOperation = await operationHandle.stat();
+      await operationHandle.writeFile(operationBytes, "utf8");
+      await operationHandle.sync();
+      await operationHandle.close();
+      operationHandle = null;
+    } catch {
+      await operationHandle?.close().catch(() => undefined);
+      const currentOperation = await lstat(operationFile).catch(
+        (err: NodeJS.ErrnoException) => {
+          if (err.code === "ENOENT") return null;
+          throw err;
+        },
+      );
+      const failedOperationBytes =
+        currentOperation === null ? null : await readFile(operationFile);
+      if (currentOperation !== null) {
+        if (
+          allocatedOperation === null ||
+          !currentOperation.isFile() ||
+          currentOperation.isSymbolicLink() ||
+          currentOperation.dev !== allocatedOperation.dev ||
+          currentOperation.ino !== allocatedOperation.ino ||
+          failedOperationBytes?.toString("utf8") === operationBytes
+        )
+          throw new PrReviewLeaseError(
+            "operation publication needs exact-owner reconciliation",
+          );
+      }
+      // No checkout or custody release has begun. Release only this invocation's
+      // reservation after rechecking all old custody and the failed intent.
+      if (
+        !(await directSessionLeaseMatches(
+          identity.primaryRoot,
+          candidate.leaseFile,
+          candidate.leaseBytes,
+          sha256Text(candidate.leaseBytes),
+        )) ||
+        (await verifyCreatedSessionWorktree(
+          identity.primaryRoot,
+          candidate.worktreePath,
+          commonGitDirectory,
+          candidate.oldHead,
+          false,
+        )) === null ||
+        (await isWorktreeDirty(candidate.worktreePath)) ||
+        !(await terminalArtifactsMatchSnapshots(
+          candidate.worktreePath,
+          snapshots,
+        )) ||
+        !(await readFile(path.join(identity.primaryRoot, archive))).equals(
+          Buffer.from(candidate.leaseBytes, "utf8"),
+        ) ||
+        !(await reservationMatches(
+          path.join(identity.primaryRoot, reservationFile),
+          reservation,
+          reservationBytes,
+        ))
+      )
+        throw new PrReviewLeaseError(
+          "operation publication old custody is uncertain",
+        );
+      if (currentOperation !== null) {
+        const verified = await lstat(operationFile);
+        if (
+          verified.dev !== currentOperation.dev ||
+          verified.ino !== currentOperation.ino ||
+          !verified.isFile() ||
+          verified.isSymbolicLink() ||
+          failedOperationBytes === null ||
+          !(await readFile(operationFile)).equals(failedOperationBytes)
+        )
+          throw new PrReviewLeaseError("operation publication intent changed");
+        // Keep failed publication bytes as primary-owned diagnostics. They are
+        // not a valid replay intent and cannot block a fresh reserved invocation.
+      } else if (await pathExists(operationFile)) {
+        throw new PrReviewLeaseError("operation publication intent appeared");
+      }
+      return terminalAdvancePreAdvanceResult(
+        identity.primaryRoot,
+        reservationFile,
+        reservation,
+        reservationBytes,
+      );
+    }
     if (candidate.continuationBytes !== undefined) {
       if (
         (await readFile(requiredEnv("CONTINUATION_REQUEST_FILE"), "utf8")) !==
@@ -5912,6 +6007,15 @@ async function findUnmanagedEphemeralArtifacts(
     .map((entry) => `.ephemeral/${entry.name}`)
     .filter((entryPath) => !owned.has(entryPath))
     .sort();
+}
+
+async function acceptedReviewArtifactPaths(
+  lease: PrReviewLease,
+  worktreePath: string,
+): Promise<Set<string>> {
+  const acceptedLease = { ...lease };
+  Reflect.deleteProperty(acceptedLease, "preparation_failures");
+  return collectOwnedEphemeralArtifacts(acceptedLease, worktreePath);
 }
 
 async function collectOwnedEphemeralArtifacts(
