@@ -3718,6 +3718,9 @@ describe("pr-review lease command validation", () => {
     "complete-unknown-old-head",
     "complete-unknown-pending-successor",
     "complete-unknown-coherent-successor",
+    "complete-changed-old-head",
+    "complete-changed-pending-successor",
+    "complete-replaced-old-head",
     "changed-reservation",
     "changed-archive",
   ] as const)(
@@ -3922,6 +3925,74 @@ describe("pr-review lease command validation", () => {
                 "session reconciliation unknown artifacts before advancement",
               );
             }
+            return;
+          }
+          if (
+            archiveState.startsWith("complete-changed") ||
+            archiveState === "complete-replaced-old-head"
+          ) {
+            if (archiveState === "complete-changed-pending-successor")
+              await execFileAsync("git", [
+                "-C",
+                fixture.worktree,
+                "checkout",
+                "--detach",
+                fixture.newHead,
+              ]);
+            const target = path.join(fixture.worktree, fixture.handoffFile);
+            const parked = path.join(
+              primary,
+              ".ephemeral/parked-original-replay-target.json",
+            );
+            if (archiveState === "complete-replaced-old-head") {
+              const original = await lstat(target);
+              await fsPromises.rename(target, parked);
+              await actual.writeFile(target, fixture.handoffBytes);
+              const replacement = await lstat(target);
+              expect([replacement.dev, replacement.ino]).not.toEqual([
+                original.dev,
+                original.ino,
+              ]);
+            } else
+              await actual.writeFile(target, "changed known ignored bytes\n");
+            const beforeLease = await readFile(fixture.leasePath);
+            const beforeTarget = await readFile(target);
+            const beforeHead = (
+              await execFileAsync("git", [
+                "-C",
+                fixture.worktree,
+                "rev-parse",
+                "HEAD",
+              ])
+            ).stdout.trim();
+            const held = await runPrReviewLeasesCommand([
+              "session-reconcile",
+              "--invocation-token",
+              token,
+            ]);
+            expect(held.exitCode, held.stderr + held.stdout).toBe(1);
+            expect(
+              (
+                await execFileAsync("git", [
+                  "-C",
+                  fixture.worktree,
+                  "rev-parse",
+                  "HEAD",
+                ])
+              ).stdout.trim(),
+            ).toBe(beforeHead);
+            expect(await readFile(fixture.leasePath)).toEqual(beforeLease);
+            expect(await readFile(target)).toEqual(beforeTarget);
+            expect(await readFile(reservationPath, "utf8")).toBe(
+              reservationBytes,
+            );
+            expect(JSON.parse(held.stdout).reason).toContain(
+              archiveState === "complete-replaced-old-head"
+                ? "physical identity changed"
+                : "bytes changed",
+            );
+            if (archiveState === "complete-replaced-old-head")
+              expect(await readFile(parked, "utf8")).toBe(fixture.handoffBytes);
             return;
           }
           const reconciled = await runPrReviewLeasesCommand([

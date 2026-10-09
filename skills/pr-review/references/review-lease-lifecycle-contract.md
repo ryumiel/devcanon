@@ -346,13 +346,17 @@ as a deterministic deletion precondition; hashes establish neither ownership nor
 permission. It shares the lease owner's reservation, accepted-family and closed
 resource guards and exact partial-effect recovery, not another retention policy.
 
-Both paths preserve changed, extra, symlinked, tracked, accepted, dirty,
-unregistered, stale, concurrent and uncertain resources. Partial effects retain
-truthful surviving/missing leaf evidence; only the identical saved operation can
-resume. Operation data is limited to exact request/reservation bindings, original
-and released lease versions, directory snapshots and actual deletion progress.
-No archive substitutes for deleted-leaf progress. Existing unenrolled cleanup
-leaves lease bytes unchanged; actual enrolled metadata releases coherently without
+Both paths hold changed/replaced, extra, symlinked, tracked or accepted selected
+evidence, unsafe physical registration, active/conflicting custody and uncertain
+effects. Missing authorized entries are already cleaned; unrelated dirty source,
+changed HEAD and other scratch do not gate independent selected-target cleanup.
+Retirement retries use original immutable target facts and relevant current
+custody, releasing only matching exhausted preparation records before deletion.
+Retirement stores no saved operation, whole lease versions or deletion-attribution
+progress. Session advancement separately retains its minimal
+HEAD/successor/archive recovery intent and original remaining-target descriptors;
+all present targets must validate before pending checkout or successor publication.
+Existing unenrolled cleanup leaves lease bytes unchanged; actual enrolled metadata releases coherently without
 retroactive LC-19, lease patches, forced bypass or semantic acceptance. Normal
 successful validation still removes unused scratch and its allocation receipt.
 Live historical cleanup remains a separate reviewed original-owner/controller
