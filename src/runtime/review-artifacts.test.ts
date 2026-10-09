@@ -15,7 +15,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { afterAll, afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { cleanupTempDir } from "../__test-helpers__/fixtures.js";
 import { createReviewEnvelope } from "../__test-helpers__/review-evidence.js";
 import { parseGitNumstatZ } from "./git-diff-parser.js";
@@ -27,6 +27,16 @@ import {
   runPrReviewProviderScopeEvidenceCommand,
   runReviewArtifactsCommand,
 } from "./review-artifacts.js";
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return {
+    ...actual,
+    writeFile: vi.fn(actual.writeFile),
+    rmdir: vi.fn(actual.rmdir),
+  };
+});
+import * as fsPromises from "node:fs/promises";
 
 const execFileAsync = promisify(execFile);
 const originalCwd = process.cwd();
@@ -3331,6 +3341,139 @@ describe("provider scope capture scratch subcommands", () => {
       await cleanupTempDir(cwd);
     }
   });
+
+  it.each([
+    "empty",
+    "foreign-receipt",
+    "nonempty",
+    "replaced",
+    "symlink",
+    "removal-failure",
+    "removal-after-effect",
+  ] as const)(
+    "handles original receipt publication failure without losing allocation custody: %s",
+    async (failure) => {
+      const { cwd } = await makeProviderMultiFileWorkspace();
+      const primary = await realpath(cwd);
+      const producer = `${primary}-allocation-producer`;
+      const previousRepository = process.env.REPOSITORY;
+      const previousPrNumber = process.env.PR_NUMBER;
+      const actual =
+        await vi.importActual<typeof fsPromises>("node:fs/promises");
+      const recordFile = path.join(
+        primary,
+        ".ephemeral/allocation-receipt.json",
+      );
+      let resource = "";
+      try {
+        await execFileAsync(
+          "git",
+          ["worktree", "add", "--detach", producer, "HEAD"],
+          { cwd: primary },
+        );
+        await mkdir(path.join(producer, ".ephemeral"));
+        process.chdir(producer);
+        Object.assign(process.env, {
+          REPOSITORY: "owner/repo",
+          PR_NUMBER: "480",
+        });
+        vi.mocked(fsPromises.writeFile).mockImplementation(async (...args) => {
+          if (args[0] !== recordFile) return actual.writeFile(...args);
+          resource = JSON.parse(String(args[1])).resource;
+          const allocation = path.join(producer, resource);
+          if (failure === "foreign-receipt")
+            await actual.writeFile(
+              recordFile,
+              "foreign receipt must survive\n",
+            );
+          if (failure === "nonempty")
+            await actual.writeFile(
+              path.join(allocation, "producer-bytes.txt"),
+              "must survive\n",
+            );
+          if (failure === "replaced") {
+            await actual.rmdir(allocation);
+            await actual.mkdir(allocation);
+          }
+          if (failure === "symlink") {
+            await actual.rmdir(allocation);
+            const foreign = path.join(
+              producer,
+              ".ephemeral/foreign-allocation",
+            );
+            await actual.mkdir(foreign);
+            await actual.writeFile(
+              path.join(foreign, "foreign.txt"),
+              "foreign bytes\n",
+            );
+            await actual.symlink(foreign, allocation);
+          }
+          throw new Error("exclusive receipt publication failed");
+        });
+        vi.mocked(fsPromises.rmdir).mockImplementation(async (...args) => {
+          if (failure === "removal-failure")
+            throw new Error("allocation removal failed");
+          if (failure === "removal-after-effect") {
+            await actual.rmdir(...args);
+            throw new Error(
+              "allocation removal completed then reported failure",
+            );
+          }
+          return actual.rmdir(...args);
+        });
+        const result = await runPrReviewProviderScopeEvidenceCommand([
+          "allocate-original",
+          "--record-file",
+          recordFile,
+        ]);
+        expect(result.exitCode).toBe(1);
+        expect(resource).not.toBe("");
+        const allocation = path.join(producer, resource);
+        if (
+          failure === "empty" ||
+          failure === "foreign-receipt" ||
+          failure === "removal-after-effect"
+        ) {
+          await expect(actual.lstat(allocation)).rejects.toMatchObject({
+            code: "ENOENT",
+          });
+          expect(result.stdout).toBe("");
+        } else {
+          expect(result.stdout.trim()).toBe(resource);
+          expect(result.stderr).toContain("retained allocation");
+          await expect(actual.lstat(allocation)).resolves.toBeDefined();
+        }
+        if (failure === "foreign-receipt")
+          expect(await readFile(recordFile, "utf8")).toBe(
+            "foreign receipt must survive\n",
+          );
+        if (failure === "nonempty")
+          expect(
+            await readFile(path.join(allocation, "producer-bytes.txt"), "utf8"),
+          ).toBe("must survive\n");
+        if (failure === "symlink")
+          expect(
+            await readFile(path.join(allocation, "foreign.txt"), "utf8"),
+          ).toBe("foreign bytes\n");
+      } finally {
+        vi.mocked(fsPromises.writeFile).mockImplementation(actual.writeFile);
+        vi.mocked(fsPromises.rmdir).mockImplementation(actual.rmdir);
+        process.chdir(originalCwd);
+        if (previousRepository === undefined)
+          Reflect.deleteProperty(process.env, "REPOSITORY");
+        else process.env.REPOSITORY = previousRepository;
+        if (previousPrNumber === undefined)
+          Reflect.deleteProperty(process.env, "PR_NUMBER");
+        else process.env.PR_NUMBER = previousPrNumber;
+        await execFileAsync(
+          "git",
+          ["worktree", "remove", "--force", producer],
+          { cwd: primary },
+        );
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
 
   it.each(["allocate-original", "seal-original", "qualify-original"])(
     "refuses a sibling linked worktree as the original producer primary for %s",

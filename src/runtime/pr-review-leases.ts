@@ -445,6 +445,15 @@ interface AttemptRetirementOperation {
   outcome: "held" | "retired";
 }
 
+function isGitHubPublicationReference(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    /^https:\/\/github\.com\/[^/]+\/[^/]+\/(?:issues|pull)\/\d+(?:#.+)?$/u.test(
+      value,
+    )
+  );
+}
+
 function validateAttemptRetirementRequest(
   value: unknown,
 ): asserts value is AttemptRetirementRequest {
@@ -497,11 +506,7 @@ function validateAttemptRetirementRequest(
     !["not-required", "published"].includes(String(publication.status)) ||
     !Array.isArray(publication.references) ||
     publication.references.some(
-      (reference) =>
-        typeof reference !== "string" ||
-        !/^https:\/\/github\.com\/[^/]+\/[^/]+\/(?:issues|pull)\/\d+(?:#.+)?$/u.test(
-          reference,
-        ),
+      (reference) => !isGitHubPublicationReference(reference),
     ) ||
     (publication.status === "published"
       ? publication.references.length === 0
@@ -2460,7 +2465,7 @@ async function validateAttemptContinuation(
       : publication.references.length !== 0) ||
     publication.references.some(
       (reference) =>
-        typeof reference !== "string" ||
+        !isGitHubPublicationReference(reference) ||
         !reference.startsWith(`https://github.com/${identity.repository}/`),
     )
   )
@@ -2515,6 +2520,10 @@ async function validateAttemptContinuation(
         "continuation custody must be exact, distinct and accessible outside disposable checkout",
       );
     await assertOriginalRecordPath(reference.file);
+    if (path.dirname(path.dirname(reference.file)) !== identity.primaryRoot)
+      throw new PrReviewLeaseError(
+        "continuation custody must live in physical primary",
+      );
     if (sha256Text(await readFile(reference.file, "utf8")) !== reference.sha256)
       throw new PrReviewLeaseError(
         "continuation custody changed or unavailable",

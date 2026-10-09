@@ -1997,6 +1997,119 @@ describe("pr-review lease command validation", () => {
     },
   );
 
+  it.each(["primary", "sibling"] as const)(
+    "binds continuation continuity to physical primary custody: %s",
+    async (location) => {
+      const fixture = await makeIncompleteContinuationFixture();
+      const primary = fixture.repository.physicalRepository;
+      let custodyRoot = primary;
+      if (location === "sibling") {
+        custodyRoot = path.join(primary, ".worktrees", "continuity-sibling");
+        await execFileAsync("git", [
+          "-C",
+          primary,
+          "worktree",
+          "add",
+          "--detach",
+          custodyRoot,
+          fixture.oldHead,
+        ]);
+        custodyRoot = await realpath(custodyRoot);
+        await mkdir(path.join(custodyRoot, ".ephemeral"));
+      }
+      const file = path.join(custodyRoot, ".ephemeral/continuity.json");
+      await writeFile(file, fixture.handoffBytes);
+      const requestFile = process.env.CONTINUATION_REQUEST_FILE as string;
+      const request = JSON.parse(await readFile(requestFile, "utf8"));
+      request.continuity = [{ file, sha256: await sha256File(file) }];
+      await writeFile(requestFile, JSON.stringify(request));
+      const before = await readFile(fixture.leasePath, "utf8");
+      const result = await runPrReviewLeasesCommand(["session-create"]);
+      expect(result.exitCode, result.stderr + result.stdout).toBe(
+        location === "primary" ? 0 : 1,
+      );
+      expect(await readFile(file, "utf8")).toBe(fixture.handoffBytes);
+      const head = (
+        await execFileAsync("git", [
+          "-C",
+          fixture.worktree,
+          "rev-parse",
+          "HEAD",
+        ])
+      ).stdout.trim();
+      expect(head).toBe(
+        location === "primary" ? fixture.newHead : fixture.oldHead,
+      );
+      if (location === "sibling") {
+        expect(await readFile(fixture.leasePath, "utf8")).toBe(before);
+        expect(
+          await readFile(
+            path.join(fixture.worktree, fixture.handoffFile),
+            "utf8",
+          ),
+        ).toBe(fixture.handoffBytes);
+        await expect(
+          lstat(
+            path.join(
+              primary,
+              ".ephemeral/pr-432-session-create-reservation.json",
+            ),
+          ),
+        ).rejects.toMatchObject({ code: "ENOENT" });
+      }
+    },
+  );
+
+  it.each([
+    ["https://github.com/owner/repo/not-an-issue", false],
+    ["https://github.com/owner/repo/issues/no-number", false],
+    ["https://github.com/owner/repo/pull/123/extra", false],
+    ["https://github.com/other/repo/issues/123", false],
+    ["https://github.com/owner/repo/issues/123#issuecomment-456", true],
+    ["https://github.com/owner/repo/pull/789", true],
+  ] as const)(
+    "validates continuation publication grammar before effects: %s",
+    async (reference, valid) => {
+      const fixture = await makeIncompleteContinuationFixture();
+      const requestFile = process.env.CONTINUATION_REQUEST_FILE as string;
+      const request = JSON.parse(await readFile(requestFile, "utf8"));
+      request.publication = { status: "published", references: [reference] };
+      await writeFile(requestFile, JSON.stringify(request));
+      const before = await readFile(fixture.leasePath, "utf8");
+      const result = await runPrReviewLeasesCommand(["session-create"]);
+      expect(result.exitCode, result.stderr + result.stdout).toBe(
+        valid ? 0 : 1,
+      );
+      expect(
+        (
+          await execFileAsync("git", [
+            "-C",
+            fixture.worktree,
+            "rev-parse",
+            "HEAD",
+          ])
+        ).stdout.trim(),
+      ).toBe(valid ? fixture.newHead : fixture.oldHead);
+      if (!valid) {
+        expect(await readFile(fixture.leasePath, "utf8")).toBe(before);
+        expect(
+          await readFile(
+            path.join(fixture.worktree, fixture.handoffFile),
+            "utf8",
+          ),
+        ).toBe(fixture.handoffBytes);
+        await expect(
+          lstat(
+            path.join(
+              fixture.repository.physicalRepository,
+              ".ephemeral/pr-432-session-create-reservation.json",
+            ),
+          ),
+        ).rejects.toMatchObject({ code: "ENOENT" });
+      }
+    },
+  );
+
   it("qualifies recovered original-owner evidence without inventing a captured receipt", async () => {
     const fixture = await makeTerminalAdvanceRefusalFixture({
       canonical: true,
@@ -10384,4 +10497,19 @@ async function qualifyAcceptedFixtureOriginal(
     process.chdir(previous);
   }
   return recordFile;
+}
+
+async function makeIncompleteContinuationFixture() {
+  const fixture = await makeTerminalAdvanceRefusalFixture({ canonical: true });
+  const lease = JSON.parse(fixture.leaseBytes);
+  lease.state = "failed";
+  lease.terminal.reason = null;
+  lease.failure = {
+    phase: "review",
+    reason: "incomplete route",
+    recoverability: "recoverable",
+  };
+  await writeFile(fixture.leasePath, `${JSON.stringify(lease, null, 2)}\n`);
+  await writeContinuationRequest(fixture, "incomplete");
+  return fixture;
 }

@@ -10,6 +10,7 @@ import {
   readdir,
   realpath,
   rm,
+  rmdir,
   stat,
   writeFile,
 } from "node:fs/promises";
@@ -780,7 +781,57 @@ async function originalProducerOperation(
     // The mkdtemp basename uses a dot; use a closed operation identifier.
     record.operation_id = record.operation_id.replaceAll(".", "_");
     validateOriginalReviewRecord(record);
-    await writeFile(recordFile, `${JSON.stringify(record)}\n`, { flag: "wx" });
+    try {
+      await writeFile(recordFile, `${JSON.stringify(record)}\n`, {
+        flag: "wx",
+      });
+    } catch (err) {
+      const allocation = path.join(root, resource);
+      let released = false;
+      let removalAttempted = false;
+      try {
+        const current = await lstat(allocation);
+        if (
+          current.isDirectory() &&
+          !current.isSymbolicLink() &&
+          current.dev === entry.dev &&
+          current.ino === entry.ino &&
+          (await readdir(allocation)).length === 0
+        ) {
+          const verified = await lstat(allocation);
+          if (
+            verified.isDirectory() &&
+            !verified.isSymbolicLink() &&
+            verified.dev === entry.dev &&
+            verified.ino === entry.ino
+          ) {
+            removalAttempted = true;
+            await rmdir(allocation);
+            released = !(await lstat(allocation).catch(
+              (error: NodeJS.ErrnoException) => {
+                if (error.code === "ENOENT") return null;
+                throw error;
+              },
+            ));
+          }
+        }
+      } catch {
+        // Uncertain, replaced or nonempty allocations retain their exact custody.
+      }
+      if (removalAttempted && !released) {
+        try {
+          await lstat(allocation);
+        } catch (error) {
+          released = (error as NodeJS.ErrnoException).code === "ENOENT";
+        }
+      }
+      const cause = err instanceof Error ? err.message : String(err);
+      return {
+        exitCode: 1,
+        stdout: released ? "" : `${resource}\n`,
+        stderr: `original receipt publication failed: ${cause}; ${released ? "released empty allocation" : "retained allocation"}: ${resource}\n`,
+      };
+    }
     return ok(`${resource}\n`);
   }
   if (command === "qualify-original") {
