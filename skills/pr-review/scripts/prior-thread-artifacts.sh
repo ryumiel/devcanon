@@ -386,6 +386,11 @@ validate_scope_decision() {
 }
 
 case "$command_name" in
+  allocate-original | seal-original | qualify-original)
+    require_repo_root
+    runtime="$(resolve_provider_scope_runtime)"
+    "$runtime" runtime pr-review-provider-scope-evidence "$command_name" "${@:2}"
+    ;;
   prepare-prior-threads-write)
     prepare_prior_threads_write
     ;;

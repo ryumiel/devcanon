@@ -3331,6 +3331,36 @@ describe("provider scope capture scratch subcommands", () => {
     }
   });
 
+  it("refuses ordinary scratch removal of a failed scope pair", async () => {
+    const { cwd } = await makeProviderMultiFileWorkspace();
+    try {
+      const created = await runPrReviewProviderScopeEvidenceCommand([
+        "create-scratch",
+      ]);
+      const scratch = created.stdout.trim();
+      await writeFile(
+        path.join(cwd, scratch, "failed-scope.json"),
+        "invalid original candidate",
+      );
+      await writeFile(
+        path.join(cwd, scratch, "validator.stderr"),
+        "validation failed",
+      );
+      const result = await runPrReviewProviderScopeEvidenceCommand([
+        "remove-scratch",
+        "--scratch-dir",
+        scratch,
+      ]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("original-proven retirement");
+      expect(
+        await readFile(path.join(cwd, scratch, "failed-scope.json"), "utf8"),
+      ).toBe("invalid original candidate");
+    } finally {
+      process.chdir(originalCwd);
+      await cleanupTempDir(cwd);
+    }
+  });
   it("removes an existing scratch directory and succeeds when it is already absent", async () => {
     const { cwd } = await makeProviderMultiFileWorkspace();
     try {

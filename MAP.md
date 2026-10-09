@@ -123,7 +123,7 @@ Quick navigation index for the DevCanon repository.
   [`docs/adr/adr-0022-three-topical-play-review-fanout.md`](docs/adr/adr-0022-three-topical-play-review-fanout.md)
 - Where is the active combined play-planning review decision recorded? ->
   [`ADR-0039`](docs/adr/adr-0039-combined-planning-review.md)
-- Where is purpose-based review retirement and completed-review replacement recorded? ->
+- Where is purpose-based review retirement and completed/failed attempt replacement recorded? ->
   [`ADR-0041`](docs/adr/adr-0041-purpose-based-review-retirement.md)
 - Where is the authorized ordinary blocker repair decision recorded? ->
   [`ADR-0040`](docs/adr/adr-0040-authorized-ordinary-blocker-repairs.md)

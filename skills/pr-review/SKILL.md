@@ -547,7 +547,8 @@ bind_scope_decision_artifact() {
   # construction": supply verified facts to its single JavaScript example and
   # write the result to this exact returned path. The runtime owns its closed
   # shape. Phase 6 revalidates this same artifact before posting.
-  scope_failure_scratch="$(bash "$PR_REVIEW_ARTIFACT_HELPER" create-provider-scope-scratch)" || return 1
+  scope_original_record="$REVIEW_CALLER_DIR/.ephemeral/pr-$PR_NUMBER-scope-original-$HEAD_SHA-$(date +%s)-$$-$RANDOM.json"
+  scope_failure_scratch="$(REPOSITORY="$PR_REPOSITORY" PR_NUMBER="$PR_NUMBER" bash "$PR_REVIEW_ARTIFACT_HELPER" allocate-original --record-file "$scope_original_record")" || return 1
   scope_validation_status=0
   HEAD_SHA="$HEAD_SHA" \
   BASE_REF="$REVIEW_SCOPE_BASE_REF" \
@@ -558,11 +559,16 @@ bind_scope_decision_artifact() {
     2> "$scope_failure_scratch/validator.stderr" || scope_validation_status=$?
   if [ "$scope_validation_status" -ne 0 ]; then
     cp "$SCOPE_DECISION_FILE" "$scope_failure_scratch/failed-scope.json" || return 1
+    REPOSITORY="$PR_REPOSITORY" PR_NUMBER="$PR_NUMBER" \
+      bash "$PR_REVIEW_ARTIFACT_HELPER" seal-original --record-file "$scope_original_record" || return 1
     cat "$scope_failure_scratch/validator.stderr" >&2 || return 1
     printf 'Scope validation failed; exact candidate and stderr preserved in %s.\n' "$scope_failure_scratch" >&2
     return "$scope_validation_status"
   fi
   bash "$PR_REVIEW_ARTIFACT_HELPER" remove-provider-scope-scratch "$scope_failure_scratch" || return 1
+  # No failed bytes were produced; the allocating owner can retire this unused
+  # allocation record after successful scope validation.
+  rm "$scope_original_record" || return 1
   REVIEW_SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE"
 }
 
@@ -580,10 +586,10 @@ replacement reviewer is needed for each routine correction.
 
 Before every replacement, preserve exact failed bytes and validator stderr as
 `failed-scope.json` and `validator.stderr`, regular nonsymlink files in one fresh
-controller-owned directory returned by `create-provider-scope-scratch`. The
+controller-owned directory returned by `allocate-original`, sealed before replacement. The
 [lifecycle retention owner](references/review-lease-lifecycle-contract.md#failed-validation-scratch-outside-enrolled-custody)
-defines preservation after success and exclusion from disposable cleanup; remove
-only a successful attempt's scratch with no retained failure evidence. Do not replace the candidate if preservation fails. Recheck
+defines finite preservation and supported original-proven retirement after purposes
+and durable useful-context publication resolve; retain failed bytes until that boundary. Do not replace the candidate if preservation fails. Recheck
 current verified head, provider evidence path/digest, full and active ranges,
 prior inputs, and completed substantive semantic/mechanical decisions. Reconstruct
 through the [canonical input owner](references/prior-thread-artifacts-usage.md),
@@ -1285,3 +1291,22 @@ gh api graphql -f query='{ repository(owner: "O", name: "R") {
 
 - `branch-review` — for reviewing local diffs without a GitHub PR
 - `play-review-response` — guidance for responding to review feedback
+
+## Retire and continue an exhausted attempt
+
+Use the [lifecycle owner](references/review-lease-lifecycle-contract.md#target-retention-and-supersession-contract)
+and [lease usage](references/review-leases-usage.md#original-proven-attempt-retirement)
+to qualify exact original-produced scratch, resolve current consumers/effects,
+and verify useful durable context in the GitHub issue/PR. Original artifact records
+and recovered-owner qualification are custody evidence; check applicable current
+human authority separately. Invoke supported retirement from the physical primary,
+then use canonical posted/aborted advancement or bound completed/failed continuation.
+Retain precise custody/publication gaps and actual held effects; do not remove
+scratch manually to obtain classifier eligibility.
+
+A completed result can remain a historical baseline after mechanical failure.
+Select current follow-up or full relevant scope through the shared scope policy;
+a new commit or fresh agent/session does not decide that semantic choice. Narrow
+corrective review still covers current repairs, prior findings and relevant
+regression dependencies independently. Expanded assumptions or unusable baseline
+require full relevant scope, and every approval belongs to current bytes.

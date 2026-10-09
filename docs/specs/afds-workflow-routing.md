@@ -1417,14 +1417,20 @@ of a completed unposted old-head review during authorized correction, accessible
 minimal continuity evidence for remaining consumers, and fresh independent review
 of new bytes. No blanket evidence-tree copy or repeated generic permission is
 required. Unknown ownership, active consumers, dirty/unrelated work, concurrent
-owners, uncertain effects and explicit mandatory preparation-failure history and retained failed-validation
-scratch stay protected. Durable Git/PR records cannot replace local-only evidence they lack.
+owners and uncertain effects stay protected. Enrolled and unenrolled failed-validation
+scratch has the same finite purpose boundary: qualified original producer evidence,
+resolved consumers/recovery and verified useful-context publication precede supported
+retirement. Current-hash-only claims and retroactive semantic enrollment refuse. Durable Git/PR records cannot replace local-only evidence they lack.
 
-The target is a contract design, not a new executable permission. Existing closed
-state/transition and cleanup mechanics remain applicable until their owning
-implementation proves exact ownership, collision-safe replacement, interrupted
-reconciliation, delayed replay protection and cleared successor authority. No live
-cleanup, abort, posting, migration or schema mutation is authorized by this spec.
+The existing artifact/lease runtime implements the boundary through original
+producer allocation, sealing, legacy qualification, reservation-bound exact
+retirement and current-head session continuation. Completed unposted and exhausted
+failed sessions retain truthful historical state; fresh created successors inherit
+no approval or live artifact authority. Interrupted retirement resumes only with
+exact same-operation evidence; partial head/lease advancement holds for supported
+reconciliation. This spec alone authorizes no live cleanup, abort, posting or
+migration. Actual original owner/controller qualification and scoped action binding
+remain required for live legacy resources.
 
 Verification compares equivalent baseline/target cases for unused diagnostics,
 unknown custody, active old-review consumer, completed gated changed-head review,
@@ -1437,11 +1443,11 @@ copies, not documentation length. Unsupported reductions preserve the needed rul
 
 Evidence: [GitHub lifecycle shaping issue](https://github.com/ryumiel/devcanon/issues/846)
 identifies the checked retirement/supersession boundary and required comparison;
-contract design is specified here and at the linked source owner. Executable target
-proof is not run by this contract change; follow-up remains with the review
-lifecycle runtime and artifact-owner regression tests. Existing
-[`pr-review-leases` tests](../../src/runtime/pr-review-leases.test.ts) cover current
-refusal, terminal replacement and recovery behavior; they do not prove the target.
+the single lifecycle contract and runtime source own the implemented boundary.
+The existing [`pr-review-leases` tests](../../src/runtime/pr-review-leases.test.ts)
+and [artifact adapter regressions](../../src/skill-scripts/pr-review-prior-thread-artifacts.integration.test.ts)
+exercise source-produced legacy-class and enrolled retirement, refusal, replay and
+truthful continuation. Fixture results do not establish a live legacy disposition.
 
 ### PLAN-004: Preserved boundaries
 

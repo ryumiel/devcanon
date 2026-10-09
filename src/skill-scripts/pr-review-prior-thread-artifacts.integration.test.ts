@@ -407,8 +407,9 @@ async function runHelper(
   script: string,
   command: string,
   env: Record<string, string> = {},
+  args: string[] = [],
 ) {
-  return execFileAsync("bash", [script, command], {
+  return execFileAsync("bash", [script, command, ...args], {
     cwd,
     env: { ...process.env, ...env },
     maxBuffer: 1024 * 1024,
@@ -502,6 +503,11 @@ async function writeProviderFetchHarness(root: string) {
       "#!/usr/bin/env bash",
       "set -euo pipefail",
       'case "$1" in',
+      "  allocate-original)",
+      '    [ "${REPOSITORY:-}" = "$PR_REPOSITORY" ] && [ "${PR_NUMBER:-}" = "390" ] || exit 92',
+      "    printf '{}\\n' > \"$3\"",
+      '    exec bash "$REAL_ARTIFACT_HELPER" create-provider-scope-scratch',
+      "    ;;",
       "  materialize-provider-scope-capture)",
       '    printf "%s\\n" "$PROVIDER_SCOPE_CAPTURE_TMP_FILE" >> "$MATERIALIZE_CALLS"',
       '    [ "${MATERIALIZE_MODE:-real}" = "real" ] || exit 91',
@@ -563,6 +569,7 @@ async function runDocumentedProviderFetch(
   const bindingCount = path.join(root, "binding-count");
   const materializeCalls = path.join(root, "materialize-calls");
   await writeFile(bindingFile, `${bindings.join("\n")}\n`);
+  await mkdir(path.join(root, ".ephemeral"), { recursive: true });
   return {
     result: execFileAsync("bash", [runner], {
       cwd,
@@ -570,6 +577,7 @@ async function runDocumentedProviderFetch(
         ...process.env,
         PATH: `${bin}:${process.env.PATH}`,
         WORKING_DIRECTORY: cwd,
+        REVIEW_CALLER_DIR: await realpath(root),
         PR_REVIEW_ARTIFACT_HELPER: path.join(root, "artifact-helper"),
         REAL_ARTIFACT_HELPER: helperScript,
         PR_REPOSITORY: "owner/repo",
@@ -2175,7 +2183,10 @@ describe.skipIf(!jqAvailable)("pr-review prior-thread adapter", () => {
   });
 });
 
-async function makePreparationRecoveryFixture(fourFileFamily = false) {
+async function makePreparationRecoveryFixture(
+  fourFileFamily = false,
+  originalProduction = false,
+) {
   const { cwd, baseSha, headSha } = await makeGitWorkspace();
   try {
     await writeFile(
@@ -2197,10 +2208,28 @@ async function makePreparationRecoveryFixture(fourFileFamily = false) {
     if (fourFileFamily)
       validScope.semantic_decision.notes =
         "Verified full selection covers the provider-bound changes.";
-    const dirs = [
+    const dirs: string[] = [
       ".ephemeral/provider-scope-capture.checked",
       ".ephemeral/provider-scope-capture.hints",
-    ] as const;
+    ];
+    const originalRecords: { file: string; sha256: string }[] = [];
+    if (originalProduction) {
+      for (const index of [0, 1]) {
+        const record = path.join(
+          await realpath(cwd),
+          `.ephemeral/producer-${index}.json`,
+        );
+        const allocated = await runHelper(
+          worktree,
+          helperScript,
+          "allocate-original",
+          { REPOSITORY: "owner/repo", PR_NUMBER: "390" },
+          ["--record-file", record],
+        );
+        dirs[index] = allocated.stdout.trim();
+        originalRecords.push({ file: record, sha256: "" });
+      }
+    }
     const failures = [
       {
         ...validScope,
@@ -2250,6 +2279,20 @@ async function makePreparationRecoveryFixture(fourFileFamily = false) {
         JSON.stringify(candidate, null, 2),
       );
       await writeFile(path.join(worktree, directory, diagnosticsFile), stderr);
+    }
+    if (originalProduction) {
+      for (const reference of originalRecords) {
+        await runHelper(
+          worktree,
+          helperScript,
+          "seal-original",
+          { REPOSITORY: "owner/repo", PR_NUMBER: "390" },
+          ["--record-file", reference.file],
+        );
+        reference.sha256 = createHash("sha256")
+          .update(await readFile(reference.file))
+          .digest("hex");
+      }
     }
     await writeJson(worktree, scopeFile, validScope);
     const handoffFile = `.ephemeral/pr-390-${headSha}-handoff.json`;
@@ -2361,6 +2404,7 @@ async function makePreparationRecoveryFixture(fourFileFamily = false) {
       firstFailedBytes,
       failedBytes,
       recovery,
+      originalRecords,
     };
   } catch (error) {
     await cleanupTempDir(cwd);
@@ -2602,6 +2646,92 @@ describe("pre-handoff preparation recovery", () => {
           ),
         ).toBe(diagnostics[index]);
       }
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  }, 60_000);
+  it("releases only the original-proven enrolled failure family after its purposes end", async () => {
+    const fixture = await makePreparationRecoveryFixture(false, true);
+    const {
+      cwd,
+      worktree,
+      leaseHelper,
+      leaseFile,
+      bound,
+      recovery,
+      originalRecords,
+      headSha,
+      dirs,
+    } = fixture;
+    try {
+      await runHelper(cwd, leaseHelper, "write", recovery);
+      await runHelper(cwd, leaseHelper, "write", {
+        ...bound,
+        STATE: "failed",
+        EXPECTED_STATE: "created",
+        UPDATED_AT: "2026-06-11T00:03:00Z",
+        FINISHED_AT: "2026-06-11T00:03:00Z",
+        FAILURE_PHASE: "review",
+        FAILURE_REASON: "incomplete route",
+        FAILURE_RECOVERABILITY: "recoverable",
+      });
+      await runHelper(cwd, leaseHelper, "write", {
+        ...bound,
+        STATE: "aborted",
+        EXPECTED_STATE: "failed",
+        UPDATED_AT: "2026-06-11T00:04:00Z",
+        FINISHED_AT: "2026-06-11T00:04:00Z",
+        TERMINAL_REASON: "abandoned incomplete review",
+      });
+      expect(
+        (await runHelper(cwd, leaseHelper, "inspect-worktree", bound)).stdout,
+      ).toContain("preparation-failure-history");
+      const requestFile = path.join(
+        await realpath(cwd),
+        ".ephemeral/retirement-request.json",
+      );
+      const currentLeaseBytes = await readFile(path.join(cwd, leaseFile));
+      await writeFile(
+        requestFile,
+        JSON.stringify({
+          schema: "pr-review/attempt-retirement/v1",
+          operation_id: "enrolled-purposes-ended",
+          repository: "owner/repo",
+          pr_number: 390,
+          worktree_path: worktree,
+          old_head: headSha,
+          lease_file: leaseFile,
+          lease_sha256: createHash("sha256")
+            .update(currentLeaseBytes)
+            .digest("hex"),
+          original_records: originalRecords,
+          authority_ref: "original-owner/current-cleanup",
+          active_consumers: [],
+          pending_effects: [],
+          publication: { status: "not-required", references: [] },
+        }),
+      );
+      const retired = await runHelper(
+        cwd,
+        leaseHelper,
+        "retire-attempt",
+        bound,
+        ["--request-file", requestFile],
+      );
+      expect(JSON.parse(retired.stdout)).toMatchObject({ outcome: "retired" });
+      const released = JSON.parse(
+        await readFile(path.join(cwd, leaseFile), "utf8"),
+      );
+      expect(released.preparation_failures).toBeUndefined();
+      expect(released.state).toBe("aborted");
+      expect(released.artifacts.handoff_file).not.toBeNull();
+      for (const directory of dirs)
+        await expect(
+          readdir(path.join(worktree, directory)),
+        ).rejects.toMatchObject({ code: "ENOENT" });
+      expect(
+        (await runHelper(cwd, leaseHelper, "inspect-worktree", bound)).stdout,
+      ).toContain("CAN_REMOVE=yes");
     } finally {
       await cleanupTempDir(cwd);
     }

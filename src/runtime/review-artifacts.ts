@@ -270,6 +270,13 @@ export async function runPrReviewProviderScopeEvidenceCommand(
         `${JSON.stringify(PR_REVIEW_PROVIDER_SCOPE_EVIDENCE_CONTRACT)}\n`,
       );
     }
+    if (
+      ["allocate-original", "seal-original", "qualify-original"].includes(
+        args[0] ?? "",
+      )
+    ) {
+      return await originalProducerOperation(args[0] as string, args.slice(1));
+    }
     if (args[0] === "materialize-capture") {
       return await materializeProviderScopeCapture(args.slice(1));
     }
@@ -360,6 +367,452 @@ export async function runPrReviewProviderScopeEvidenceCommand(
   }
 }
 
+export interface OriginalReviewArtifact {
+  schema: "pr-review/original-artifact/v1";
+  producer: "pr-review/provider-scope";
+  operation_id: string;
+  repository: string;
+  pr_number: number;
+  worktree_path: string;
+  old_head: string;
+  resource: string;
+  resource_kind: "file" | "directory";
+  dev: number;
+  ino: number;
+  production: "allocated" | "sealed" | "recovered";
+  source_refs: { file: string; sha256: string }[];
+  recovery: null | {
+    original_owner: string;
+    operation_locator: string;
+    custody_locator: string;
+    association_basis: string;
+    captured_at_production: false;
+    allocation_receipt_present: boolean;
+  };
+  entries: { name: string; sha256: string; dev: number; ino: number }[];
+}
+
+// Parse all object members before JSON.parse so duplicate keys cannot disappear.
+export function parseOriginalReviewJson(text: string): unknown {
+  let position = 0;
+  function whitespace() {
+    while (/\s/u.test(text[position] ?? "") && position < text.length)
+      position++;
+  }
+  function stringToken(): string {
+    const start = position++;
+    while (position < text.length) {
+      const char = text[position++];
+      if (char === "\\") position++;
+      else if (char === '"') return JSON.parse(text.slice(start, position));
+    }
+    fail("invalid original review JSON string");
+  }
+  function value(): void {
+    whitespace();
+    const char = text[position];
+    if (char === "{") {
+      position++;
+      whitespace();
+      const members = new Set<string>();
+      if (text[position] === "}") {
+        position++;
+        return;
+      }
+      for (;;) {
+        whitespace();
+        if (text[position] !== '"') fail("invalid original review JSON member");
+        const key = stringToken();
+        if (members.has(key))
+          fail(`duplicate original review JSON member: ${key}`);
+        members.add(key);
+        whitespace();
+        if (text[position++] !== ":")
+          fail("invalid original review JSON member");
+        value();
+        whitespace();
+        const delimiter = text[position++];
+        if (delimiter === "}") return;
+        if (delimiter !== ",") fail("invalid original review JSON object");
+      }
+    }
+    if (char === "[") {
+      position++;
+      whitespace();
+      if (text[position] === "]") {
+        position++;
+        return;
+      }
+      for (;;) {
+        value();
+        whitespace();
+        const delimiter = text[position++];
+        if (delimiter === "]") return;
+        if (delimiter !== ",") fail("invalid original review JSON array");
+      }
+    }
+    if (char === '"') {
+      stringToken();
+      return;
+    }
+    const token =
+      /^(?:true|false|null|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)/u.exec(
+        text.slice(position),
+      );
+    if (!token) fail("invalid original review JSON value");
+    position += token[0].length;
+  }
+  value();
+  whitespace();
+  if (position !== text.length)
+    fail("invalid original review JSON trailing bytes");
+  return JSON.parse(text);
+}
+
+export function assertClosedOriginalObject(
+  value: unknown,
+  keys: readonly string[],
+): asserts value is JsonObject {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    Object.keys(value).sort().join("\0") !== [...keys].sort().join("\0")
+  )
+    fail("original review input has missing or unknown members");
+}
+
+export async function readOriginalReviewRecord(
+  file: string,
+): Promise<OriginalReviewArtifact> {
+  await assertOriginalRecordPath(file);
+  const record = parseOriginalReviewJson(await readFile(file, "utf8"));
+  validateOriginalReviewRecord(record);
+  return record;
+}
+
+function validateOriginalReviewRecord(
+  value: unknown,
+): asserts value is OriginalReviewArtifact {
+  assertClosedOriginalObject(value, [
+    "schema",
+    "producer",
+    "operation_id",
+    "repository",
+    "pr_number",
+    "worktree_path",
+    "old_head",
+    "resource",
+    "resource_kind",
+    "dev",
+    "ino",
+    "production",
+    "source_refs",
+    "recovery",
+    "entries",
+  ]);
+  if (
+    value.schema !== "pr-review/original-artifact/v1" ||
+    value.producer !== "pr-review/provider-scope" ||
+    typeof value.operation_id !== "string" ||
+    !/^[a-zA-Z0-9_-]+$/u.test(value.operation_id) ||
+    typeof value.repository !== "string" ||
+    !/^[^/\s]+\/[^/\s]+$/u.test(value.repository) ||
+    !Number.isSafeInteger(value.pr_number) ||
+    Number(value.pr_number) <= 0 ||
+    typeof value.worktree_path !== "string" ||
+    !path.isAbsolute(value.worktree_path) ||
+    typeof value.old_head !== "string" ||
+    !/^[a-f0-9]{40}$/u.test(value.old_head) ||
+    !["allocated", "sealed", "recovered"].includes(String(value.production)) ||
+    !["file", "directory"].includes(String(value.resource_kind)) ||
+    !Number.isSafeInteger(value.dev) ||
+    !Number.isSafeInteger(value.ino) ||
+    !Array.isArray(value.source_refs) ||
+    !Array.isArray(value.entries)
+  )
+    fail("invalid original producer record");
+  validateDirectChildPath("original resource", String(value.resource));
+  const names = new Set<string>();
+  for (const entry of value.entries) {
+    assertClosedOriginalObject(entry, ["name", "sha256", "dev", "ino"]);
+    if (
+      typeof entry.name !== "string" ||
+      !/^[A-Za-z0-9_.-]+$/u.test(entry.name) ||
+      entry.name === "." ||
+      entry.name === ".." ||
+      names.has(entry.name) ||
+      typeof entry.sha256 !== "string" ||
+      !/^[a-f0-9]{64}$/u.test(entry.sha256) ||
+      !Number.isSafeInteger(entry.dev) ||
+      !Number.isSafeInteger(entry.ino)
+    )
+      fail("invalid original producer entries");
+    names.add(entry.name);
+  }
+  for (const reference of value.source_refs) {
+    assertClosedOriginalObject(reference, ["file", "sha256"]);
+    if (
+      typeof reference.file !== "string" ||
+      !path.isAbsolute(reference.file) ||
+      typeof reference.sha256 !== "string" ||
+      !/^[a-f0-9]{64}$/u.test(reference.sha256)
+    )
+      fail("invalid original producer evidence reference");
+  }
+  if (value.production !== "allocated" && value.entries.length === 0)
+    fail("sealed original production has no exact bytes");
+  if (value.production === "recovered") {
+    if (value.source_refs.length === 0)
+      fail("recovered original producer evidence is required");
+    assertClosedOriginalObject(value.recovery, [
+      "original_owner",
+      "operation_locator",
+      "custody_locator",
+      "association_basis",
+      "captured_at_production",
+      "allocation_receipt_present",
+    ]);
+    for (const name of [
+      "original_owner",
+      "operation_locator",
+      "custody_locator",
+      "association_basis",
+    ]) {
+      if (
+        typeof value.recovery[name] !== "string" ||
+        String(value.recovery[name]).trim() === ""
+      )
+        fail(
+          "original-owner recovered association is required; current hashes alone do not qualify",
+        );
+    }
+    if (
+      value.recovery.captured_at_production !== false ||
+      typeof value.recovery.allocation_receipt_present !== "boolean"
+    )
+      fail(
+        "recovered provenance cannot fabricate captured production evidence",
+      );
+  } else if (value.recovery !== null || value.source_refs.length !== 0)
+    fail("captured producer receipt cannot claim recovered provenance");
+}
+
+export async function assertOriginalRecordPath(
+  file: string,
+  allowAbsent = false,
+): Promise<void> {
+  if (
+    !path.isAbsolute(file) ||
+    path.resolve(file) !== file ||
+    path.basename(path.dirname(file)) !== ".ephemeral"
+  )
+    fail(
+      "original record must be a physical absolute direct-child .ephemeral path",
+    );
+  const parent = path.dirname(file);
+  const parentStat = await lstat(parent);
+  if (
+    !parentStat.isDirectory() ||
+    parentStat.isSymbolicLink() ||
+    (await realpath(parent)) !== parent
+  )
+    fail("original record parent must be physical");
+  const entry = await lstat(file).catch((err) => {
+    if (allowAbsent && (err as NodeJS.ErrnoException).code === "ENOENT")
+      return null;
+    throw err;
+  });
+  if (entry && (!entry.isFile() || entry.isSymbolicLink()))
+    fail("original record must be a regular nonsymlink file");
+}
+
+export async function assertOriginalEvidencePath(file: string): Promise<void> {
+  if (!path.isAbsolute(file) || (await realpath(file)) !== file)
+    fail("original evidence must be an accessible physical path");
+  const entry = await lstat(file);
+  if (!entry.isFile() || entry.isSymbolicLink())
+    fail("original evidence must be a regular nonsymlink file");
+}
+
+export async function snapshotOriginalReviewResource(
+  record: OriginalReviewArtifact,
+): Promise<OriginalReviewArtifact["entries"]> {
+  if ((await realpath(record.worktree_path)) !== record.worktree_path)
+    fail("original worktree must be physical");
+  const ephemeral = path.join(record.worktree_path, ".ephemeral");
+  if (
+    (await realpath(ephemeral)) !== ephemeral ||
+    (await lstat(ephemeral)).isSymbolicLink()
+  )
+    fail("original resource parent must be physical");
+  const target = path.join(record.worktree_path, record.resource);
+  const before = await lstat(target);
+  if (
+    before.isSymbolicLink() ||
+    (!before.isDirectory() && !before.isFile()) ||
+    before.dev !== record.dev ||
+    before.ino !== record.ino ||
+    (record.resource_kind === "directory"
+      ? !before.isDirectory()
+      : !before.isFile())
+  )
+    fail("original resource identity changed");
+  const names = before.isDirectory()
+    ? (await readdir(target)).sort()
+    : [path.basename(target)];
+  const entries: OriginalReviewArtifact["entries"] = [];
+  for (const name of names) {
+    const leaf = before.isDirectory() ? path.join(target, name) : target;
+    const first = await lstat(leaf);
+    if (!first.isFile() || first.isSymbolicLink())
+      fail("original resource entries must be regular nonsymlink files");
+    const bytes = await readFile(leaf);
+    const last = await lstat(leaf);
+    if (
+      !last.isFile() ||
+      last.isSymbolicLink() ||
+      first.dev !== last.dev ||
+      first.ino !== last.ino
+    )
+      fail("original resource entry changed");
+    entries.push({
+      name,
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+      dev: first.dev,
+      ino: first.ino,
+    });
+  }
+  const after = await lstat(target);
+  if (before.dev !== after.dev || before.ino !== after.ino)
+    fail("original resource identity changed");
+  return entries;
+}
+
+async function originalProducerOperation(
+  command: string,
+  args: readonly string[],
+): Promise<RuntimeCommandOutcome> {
+  const recordFile = requiredProducerOption(args, "--record-file");
+  if (args.length !== (command === "qualify-original" ? 4 : 2))
+    fail("invalid original producer operation arguments");
+  await requireRepoRoot();
+  const root = await realpath(process.cwd());
+  await assertOriginalRecordPath(recordFile, true);
+  if (path.dirname(path.dirname(recordFile)) === root)
+    fail(
+      "original producer evidence must live in the physical primary outside the disposable worktree",
+    );
+  const common = (
+    await git(["rev-parse", "--path-format=absolute", "--git-common-dir"])
+  ).trim();
+  const primaryCommon = (
+    await runGit(
+      [
+        "-C",
+        path.dirname(path.dirname(recordFile)),
+        "rev-parse",
+        "--path-format=absolute",
+        "--git-common-dir",
+      ],
+      { cwd: root },
+    )
+  ).stdout.trim();
+  if ((await realpath(common)) !== (await realpath(primaryCommon)))
+    fail("original record primary repository mismatch");
+  if (command === "allocate-original") {
+    if (await lstat(recordFile).catch(() => null))
+      fail("original record already exists");
+    await assertEphemeralDirectory();
+    await mkdir(".ephemeral", { recursive: true });
+    if (
+      !/^[^/\s]+\/[^/\s]+$/u.test(process.env.REPOSITORY ?? "") ||
+      !Number.isSafeInteger(Number(process.env.PR_NUMBER)) ||
+      Number(process.env.PR_NUMBER) <= 0
+    )
+      fail("original production requires exact repository and PR identity");
+    const resource = await mkdtemp(PROVIDER_SCOPE_SCRATCH_PREFIX);
+    const entry = await lstat(resource);
+    const record: OriginalReviewArtifact = {
+      schema: "pr-review/original-artifact/v1",
+      producer: "pr-review/provider-scope",
+      operation_id: path.basename(resource),
+      repository: process.env.REPOSITORY ?? "",
+      pr_number: Number(process.env.PR_NUMBER),
+      worktree_path: root,
+      old_head: (await git(["rev-parse", "HEAD"])).trim(),
+      resource,
+      resource_kind: "directory",
+      dev: entry.dev,
+      ino: entry.ino,
+      production: "allocated",
+      source_refs: [],
+      recovery: null,
+      entries: [],
+    };
+    // The mkdtemp basename uses a dot; use a closed operation identifier.
+    record.operation_id = record.operation_id.replaceAll(".", "_");
+    validateOriginalReviewRecord(record);
+    await writeFile(recordFile, `${JSON.stringify(record)}\n`, { flag: "wx" });
+    return ok(`${resource}\n`);
+  }
+  if (command === "qualify-original") {
+    const evidenceFile = requiredProducerOption(args, "--evidence-file");
+    const record = await readOriginalReviewRecord(evidenceFile);
+    if (record.production !== "recovered")
+      fail(
+        "legacy qualification requires independently recovered original-owner evidence",
+      );
+    if (
+      record.worktree_path !== root ||
+      record.old_head !== (await git(["rev-parse", "HEAD"])).trim() ||
+      record.repository !== process.env.REPOSITORY ||
+      record.pr_number !== Number(process.env.PR_NUMBER)
+    )
+      fail("original producer association mismatch");
+    for (const reference of record.source_refs) {
+      await assertOriginalEvidencePath(reference.file);
+      if (
+        reference.file === evidenceFile ||
+        reference.file === recordFile ||
+        path.dirname(path.dirname(reference.file)) === root ||
+        createHash("sha256")
+          .update(await readFile(reference.file))
+          .digest("hex") !== reference.sha256
+      )
+        fail("original production source is unavailable or changed");
+    }
+    if (
+      JSON.stringify(await snapshotOriginalReviewResource(record)) !==
+      JSON.stringify(record.entries)
+    )
+      fail("original produced bytes or closed entry set changed");
+    validateOriginalReviewRecord(record);
+    await writeFile(recordFile, `${JSON.stringify(record)}\n`, { flag: "wx" });
+    return ok(`${recordFile}\n`);
+  }
+  const record = await readOriginalReviewRecord(recordFile);
+  if (
+    record.worktree_path !== root ||
+    record.old_head !== (await git(["rev-parse", "HEAD"])).trim() ||
+    record.repository !== process.env.REPOSITORY ||
+    record.pr_number !== Number(process.env.PR_NUMBER)
+  )
+    fail("original producer association mismatch");
+  const entries = await snapshotOriginalReviewResource(record);
+  if (record.production !== "allocated") {
+    if (JSON.stringify(entries) !== JSON.stringify(record.entries))
+      fail("original produced bytes changed");
+    return ok(`${recordFile}\n`);
+  }
+  if (entries.length === 0) fail("original production has no bytes");
+  await writeTextAtomically(
+    recordFile,
+    `${JSON.stringify({ ...record, production: "sealed", entries })}\n`,
+  );
+  return ok(`${recordFile}\n`);
+}
+
 async function createProviderScopeScratch(
   args: readonly string[],
 ): Promise<RuntimeCommandOutcome> {
@@ -385,6 +838,19 @@ async function removeProviderScopeScratch(
   const entry = await lstat(scratch).catch(() => null);
   if (entry !== null && (entry.isSymbolicLink() || !entry.isDirectory())) {
     fail(`provider capture scratch directory is invalid: ${scratch}`);
+  }
+  if (entry !== null) {
+    const entries = await readdir(scratch);
+    for (const name of entries) {
+      if (
+        ["failed-scope.json", "second-failed-scope.json"].includes(name) ||
+        (["validator.stderr", "second-validator.stderr"].includes(name) &&
+          (await lstat(path.join(scratch, name))).size > 0)
+      )
+        fail(
+          "failed scope scratch requires supported original-proven retirement",
+        );
+    }
   }
   await rm(scratch, { recursive: true, force: true });
   return ok("");

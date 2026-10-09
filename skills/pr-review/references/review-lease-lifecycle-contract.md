@@ -9,12 +9,13 @@ operator flow.
 
 ## Target retention and supersession contract
 
-This section owns the target policy for artifact retirement and completed-review
-supersession. The state and transition matrices below describe the currently
-supported executable lifecycle. This target adds no callable event or deletion
-authority until the existing lifecycle and artifact owners implement and verify
-its behavior. Consumers must use current supported paths while that gap remains;
-editing this reference or accepting its design cannot waive a refusal.
+This section owns finite retirement and attempt replacement. The existing
+artifact adapter captures original allocation/production or qualifies independently
+recovered original-owner evidence. The lease adapter implements `retire-attempt`
+and bounded `session-create` continuation. Runtime types own their closed input
+shapes; the [usage owner](review-leases-usage.md) documents invocation. Neither
+policy text nor a qualified producer record grants human cleanup or publication
+authority.
 
 ### One owner per decision
 
@@ -41,18 +42,18 @@ retirement. A Git commit or posted PR record may satisfy a durable source or
 publication need; it cannot substitute for unposted findings, local-only scope
 proof or diagnostic bytes it does not contain.
 
-| Evidence class                                                                             | Purpose and existing custody owner                                                                                  | Retirement condition and effect owner                                                                                                                                        |
-| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Current lease, handoff, scope/provider, result, preview and findings family                | Validated review, presentation, posting and recovery; review/artifact helpers                                       | Review lifecycle owner retires only after every current consumer and uncertain effect resolves.                                                                              |
-| Frozen approved review and validated payload                                               | Exact approved bytes and remote post reconciliation; approval/posting helpers                                       | Keep through known posting outcome and required reconciliation; never supersede an uncertain post.                                                                           |
-| Previous findings/disposition, source excerpts and bounded navigation                      | Changed-head comparison and independent follow-up; shared review and wrapper                                        | Preserve the exact material needed until the receiving consumer validates custody and completes its obligation; no whole-workspace copy by default.                          |
-| Proven task-produced disposable diagnostics or Phase 5 audit                               | Specific operator diagnosis/presentation need; original producer                                                    | Original artifact owner may retire the exact unchanged artifact through a supported operation once its final obligation resolves and scoped cleanup authority covers it.     |
-| Unknown, user-owned, unrelated, replaced or unverifiable artifacts                         | Ownership unresolved; original owner if discoverable                                                                | Retain and report the precise custody gap. No inference, enrollment, relocation or deletion to obtain cleanup eligibility.                                                   |
-| Exact terminal lease snapshots                                                             | Collision-safe replacement, interrupted reentry and replay; lifecycle runtime                                       | Keep while these obligations require them. Retirement needs an implemented owner path proving no unresolved replacement or replay dependency; no automatic age-based expiry. |
-| Failed lease archives, retained failed-validation scratch and `preparation_failures` pairs | Explicit preservation of failed inputs, diagnostics and mechanical-correction custody; preparation/lifecycle owners | Current mandatory history retention remains in force, including terminal worktree retention. A finite release guarantee is not established by this target.                   |
-| Optional controller reports outside the review checkout                                    | The particular report/diagnosis consumer; allocating wrapper                                                        | Same exact ownership, purpose and authority test applies at their original owner. Review-worktree cleanup cannot delete primary-root diagnostics.                            |
-| Batch terminal references and operation/receipt guards                                     | Current decision and unresolved/delayed-effect protection; router                                                   | Existing Operational retention owns their retirement. A delayed retired route cannot recreate authority.                                                                     |
-| Durable Git/PR records                                                                     | Committed source, actual review publication and verified merge; Git/provider                                        | Remain in their durable owner; local cleanup does not rewrite these records.                                                                                                 |
+| Evidence class                                                                             | Purpose and existing custody owner                                                                                  | Retirement condition and effect owner                                                                                                                                                                            |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Current lease, handoff, scope/provider, result, preview and findings family                | Validated review, presentation, posting and recovery; review/artifact helpers                                       | Review lifecycle owner retires only after every current consumer and uncertain effect resolves.                                                                                                                  |
+| Frozen approved review and validated payload                                               | Exact approved bytes and remote post reconciliation; approval/posting helpers                                       | Keep through known posting outcome and required reconciliation; never supersede an uncertain post.                                                                                                               |
+| Previous findings/disposition, source excerpts and bounded navigation                      | Changed-head comparison and independent follow-up; shared review and wrapper                                        | Preserve the exact material needed until the receiving consumer validates custody and completes its obligation; no whole-workspace copy by default.                                                              |
+| Proven task-produced disposable diagnostics or Phase 5 audit                               | Specific operator diagnosis/presentation need; original producer                                                    | Original artifact owner may retire the exact unchanged artifact through a supported operation once its final obligation resolves and scoped cleanup authority covers it.                                         |
+| Unknown, user-owned, unrelated, replaced or unverifiable artifacts                         | Ownership unresolved; original owner if discoverable                                                                | Retain and report the precise custody gap. No inference, enrollment, relocation or deletion to obtain cleanup eligibility.                                                                                       |
+| Exact terminal lease snapshots                                                             | Collision-safe replacement, interrupted reentry and replay; lifecycle runtime                                       | Keep while these obligations require them. Retirement needs an implemented owner path proving no unresolved replacement or replay dependency; no automatic age-based expiry.                                     |
+| Failed lease archives, retained failed-validation scratch and `preparation_failures` pairs | Explicit preservation of failed inputs, diagnostics and mechanical-correction custody; preparation/lifecycle owners | Retain exact bytes for diagnosis, correction, replay and current consumers; supported original-proven retirement releases only the qualified family after these purposes and useful-context publication resolve. |
+| Optional controller reports outside the review checkout                                    | The particular report/diagnosis consumer; allocating wrapper                                                        | Same exact ownership, purpose and authority test applies at their original owner. Review-worktree cleanup cannot delete primary-root diagnostics.                                                                |
+| Batch terminal references and operation/receipt guards                                     | Current decision and unresolved/delayed-effect protection; router                                                   | Existing Operational retention owns their retirement. A delayed retired route cannot recreate authority.                                                                                                         |
+| Durable Git/PR records                                                                     | Committed source, actual review publication and verified merge; Git/provider                                        | Remain in their durable owner; local cleanup does not rewrite these records.                                                                                                                                     |
 
 Sufficient diagnostic ownership proof combines original producer/custody evidence
 for this repository and task, exact physical path and regular nonsymlink file
@@ -76,13 +77,15 @@ retirement. A needed local-only consumer still requires actual preservation.
 
 ### Completed-review supersession
 
-The target disposition is one bounded archive-and-replace event for a completed
-unposted `reviewed` or `gated` old-head session in an already-authorized correction
-cycle. It does not add a persisted `superseded` state or reinterpret `aborted`,
-`posted` or `failed`. None of LC-06/07/15, cleanup confirmation override, fabricated
-posting or failure recording expresses this event under current mechanics.
+The supported disposition is one bounded archive-and-replace event for completed
+unposted `reviewed`/`gated` sessions and exhausted `failed` attempts under current
+correction authority. `session-create` consumes `CONTINUATION_REQUEST_FILE`; it
+uses a fresh LC-01 successor and preserves the exact truthful old lease. No
+persisted `superseded` state, cancellation, remote posting or semantic completion
+is invented. A mechanically failed completed result remains a possible historical
+baseline; an incomplete failed route supplies no completed baseline.
 
-The existing review lifecycle owner may implement the event only when:
+The existing review lifecycle owner performs the event only when:
 
 1. The same repository/PR, physical registered canonical worktree, lease and
    validated old-head result identify one completed independent review; no
@@ -91,7 +94,7 @@ The existing review lifecycle owner may implement the event only when:
    correction/review authority covers that exact successor. Scope and review
    relevance are freshly selected by their existing owners.
 3. No frozen approved-review action, attempted or uncertain posting, unresolved
-   delivery/effect, dirty source, unknown artifact or mandatory preparation
+   delivery/effect, dirty source, unknown artifact or unresolved preparation
    history can be hidden by replacing the session.
 4. Required old findings/disposition and comparison/recovery material has been
    identified. Any material outliving the checkout has a validated, accessible
@@ -136,7 +139,7 @@ can qualify only after current owner, completed result, exact identity, correcti
 authority and continuity requirements above are independently established.
 Legacy diagnostics require surviving original proof, never retroactive filename
 classification. Invalid leases, unresolved effects, concurrent custody, dirty
-source and mandatory preparation history remain protected. No bulk migration,
+source and preparation history with unresolved purposes remain protected. No bulk migration,
 rewriting historical results or automatic archive retirement is permitted.
 
 Compare baseline and target under equivalent authority and case inputs: completed
@@ -294,27 +297,48 @@ Discovery may read explicit current recovery handoff/scratch inputs to prove
 this same eligible lease's custody and offer resume; it remains read-only and
 refuses dirty source, unrelated artifacts, ambiguity, and broken registration.
 Only fully validated candidate/provider/prior inputs become ordinary handoff
-ownership. Cleanup always retains a worktree with preparation-failure history,
-even after terminal completion or with policy override. Terminal advancement
-cannot erase that history. Custody grants preservation, never deletion.
+ownership. `preparation_failures` remains preservation custody until supported
+`retire-attempt` proves exact original producer bytes, closed entries, exhausted
+consumers/recovery, applicable authority and verified durable publication or
+qualified not-required. The old reducer/cleanup guards still refuse unresolved
+history; retirement coherently removes only the exact released current metadata.
+It neither rewrites historical archives nor validates a failed candidate as an
+accepted handoff/result.
 
 ### Failed-validation scratch outside enrolled custody
 
-The original scope-correction producer preserves every never-accepted candidate's
-exact failed bytes and validator diagnostics before replacement, including after
-a later successful validation. Remove only a successful attempt's scratch with
-no failure evidence. This retention requirement also applies when failed scratch
-does not qualify for the narrow `preparation_failures` custody family above.
-Producer proof supports preservation; it does not enroll those directories as
-managed cleanup artifacts or permit their deletion, movement or rewriting.
+Before correcting a never-accepted scope candidate, its original producer preserves
+exact candidate and diagnostic bytes and records original allocation/production
+through the artifact adapter. Retain them while correction, diagnosis, replay,
+review, delivery or durable useful-context publication needs them. Error occurrence
+alone creates no perpetual retention requirement.
 
-Such retained but unenrolled scratch remains an unmanaged cleanup/advancement
-refusal under current mechanics. A posted or explicitly abandoned lease does not
-resolve it. The target retains this explicit obligation: no finite retirement or
-successor handoff sufficient to release it has been established. Its producer and
-lifecycle owner must decide that guarantee before an executable retirement slice
-can include these bytes. Ordinary disposable-diagnostic retirement and completed
-review supersession exclude this still-required failure evidence.
+Unenrolled legacy scratch requires accessible independently recovered original-owner
+allocation/production association and produced byte identities. Recorded original
+operations, content lineage and contemporaneous exact path/byte custody can qualify
+without pretending that a missing production digest or allocation receipt existed.
+Names, current hashes, new assertions and a reconstructed candidate alone cannot
+qualify it. Original producer/controller judgment is separate from deterministic
+validation and actual action authority. The two legacy failed scope directories
+are within this contract, with their evidence gaps stated truthfully.
+
+`retire-attempt` consumes only qualified original records and exact current
+repository/PR/physical canonical worktree/head/lease bindings. It reserves through
+the session owner, rechecks every known leaf before deletion, preserves unknown,
+changed, extra, symlinked, dirty, concurrent, active or uncertain resources, and
+returns actual `retired` or `held` effects. Prior missing resources are idempotent
+only under exact retained same-operation progress. Pending operation evidence
+stays in the physical primary; an unknown operation or divergent replay refuses.
+Current failure metadata release is coherent and grants no semantic acceptance.
+After exact retirement, the unchanged classifier and posted/aborted LC-18 path can
+advance normally. No manual scratch deletion or policy override substitutes for
+this action.
+
+Useful decisions, scope/rationale, unresolved discussion, actionable findings and
+current decision references belong in the durable GitHub issue/PR. The invoking
+owner verifies publication before qualifying `published`, or explicitly qualifies
+`not-required`. Pending, failed or unknown publication retains the resource. No raw
+logs, transcripts or whole evidence-tree promotion is required.
 
 ## Session creation boundary
 

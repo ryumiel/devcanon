@@ -6,7 +6,7 @@ Performs deterministic PR-review lease lifecycle operations.
 
 ## Invocation
 
-Run `bash "$PR_REVIEW_DIR/scripts/review-leases.sh"` followed by exactly one of `derive-path`, `discover`, `session-create`, `write`, `record-audit-failure`, `validate`, `read-status`, `inspect-worktree`, or `cleanup-worktree`; remaining arguments are forwarded unchanged to the packaged `pr-review-leases` runtime command.
+Run `bash "$PR_REVIEW_DIR/scripts/review-leases.sh"` followed by exactly one of `derive-path`, `discover`, `retire-attempt`, `session-reconcile`, `session-create`, `write`, `record-audit-failure`, `validate`, `read-status`, `inspect-worktree`, or `cleanup-worktree`; remaining arguments are forwarded unchanged to the packaged `pr-review-leases` runtime command.
 
 ## Inputs
 
@@ -61,9 +61,11 @@ inherited through later states. Supply only newly claimed directories; inherited
 records are rechecked without repeating their paths in the input. `write`
 archives exact preceding failed bytes
 before LC-19 or repeated pre-handoff failure publication; unequal archive
-collisions refuse. Cleanup retains worktrees carrying this history even with
-`ALLOW_POLICY_OVERRIDE=yes` and after terminal completion. Custody never grants
-scratch deletion or terminal advancement that erases preserved history.
+collisions refuse. Until supported purpose-ended `retire-attempt` releases the
+exact qualified family, cleanup retains worktrees carrying this history even with
+`ALLOW_POLICY_OVERRIDE=yes` and after terminal completion. Preservation custody
+alone never grants scratch deletion or advancement that erases unreleased history;
+use the original-proven retirement boundary below to establish finite release.
 
 ## Working directory
 
@@ -84,3 +86,136 @@ Command-validation failures—unknown commands, missing runtime, unsafe or missi
 ## Workflow boundary
 
 [PR review workflow context](../SKILL.md) owns lifecycle judgment and cleanup continuation.
+
+## Original-proven attempt retirement
+
+From the **physical primary repository root**, invoke:
+
+```sh
+REPOSITORY="owner/repo" PR_NUMBER="432" PRIMARY_REPOSITORY_ROOT="$physical_primary" \
+  bash "$PR_REVIEW_LEASE_HELPER" retire-attempt --request-file "$request_file"
+```
+
+`request_file` is an absolute physical regular nonsymlink direct child of the
+primary `.ephemeral`, outside the disposable checkout. Runtime source
+`AttemptRetirementRequest` in `src/runtime/pr-review-leases.ts` owns the closed
+shape; unknown or duplicate JSON members refuse. Required fields are:
+
+| Field                                 | Binding                                                                                                                                |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema`                              | `pr-review/attempt-retirement/v1`                                                                                                      |
+| `operation_id`                        | Unique 1–80 character identifier using letters, digits, `_`, `-`; reuse only the identical operation                                   |
+| `repository`, `pr_number`             | Exact current repository and positive PR number                                                                                        |
+| `worktree_path`, `old_head`           | Physical registered canonical worktree and actual 40-hex old head                                                                      |
+| `lease_file`, `lease_sha256`          | Current primary-relative direct-child lease and exact original lease byte digest                                                       |
+| `original_records`                    | Nonempty unique closed `{file, sha256}` references to artifact-owner original production records in the physical primary               |
+| `authority_ref`                       | Nonblank current action-authority evidence locator, independently checked by the invoking owner                                        |
+| `active_consumers`, `pending_effects` | Both empty only after the invoking owner resolves actual readers/reviewers, findings, diagnosis, replay, recovery and delivery effects |
+| `publication`                         | Closed `{status, references}`; `not-required` with an empty list, or `published` with actual verified GitHub issue/PR URLs             |
+
+Digests are lowercase 64-hex SHA-256. A producer record is custody evidence, not
+approval. The helper verifies bindings and bytes; the wrapper/original owner
+qualifies original production, purpose exhaustion, actual durable publication
+and applicable human authority. Pending/failed/unknown publication refuses.
+Do not synthesize empty consumers or not-required from task completion alone.
+
+The helper emits `pr-review/attempt-retirement-result/v1` JSON with `outcome`
+(`retired` or `held`), `operation_file`, `request_sha256`, resulting
+`lease_sha256`, and nullable `reason`. `retired` exits 0; held or invalid input
+exits 1. Pre-effect invalid input emits a stderr diagnostic. `held` truthfully
+reports partial/uncertain effects; it does not promise rollback.
+
+The deterministic primary operation file is
+`.ephemeral/pr-<number>-retirement-<operation_id>.json`. It retains the exact
+request digest, reservation, original/released lease bytes, original resource
+records and per-step progress. The same PR reservation also covers lease writes,
+audit failure writes and cleanup metadata/removal. Each destructive step rechecks
+current head, registration, clean source, lease/request/reservation and original
+bytes. Changed, extra, nested, symlinked, unknown, current-hash-only, active,
+unpublished, dirty, concurrent and uncertain resources remain.
+
+Retry **the identical invocation with identical request bytes** to resume a held
+operation. A missing leaf/resource is idempotent only with retained exact
+same-operation intent/progress; divergent requests, altered operation evidence or
+another owner's reservation refuse. Do not clear a reservation, substitute files,
+reset progress or remove scratch manually. Keep request, original records and
+operation evidence while replay or reconciliation needs them. Resolved diagnostic
+inputs have no age-based or blanket archive obligation; the original owner retires
+them only when remaining compact replay guards cover their consumers.
+
+Retirement releases only exact proven current `preparation_failures` metadata.
+It does not enroll invalid candidates or clear accepted handoff/result pointers.
+Historical records remain context. After retirement, the ordinary classifier and
+posted/aborted canonical advancement remain supported.
+
+## Completed or failed current-head continuation
+
+`session-create` additionally accepts `CONTINUATION_REQUEST_FILE`, an absolute
+physical primary `.ephemeral` direct-child JSON file. Existing default creation
+and `ALLOW_TERMINAL_ADVANCE=yes` posted/aborted behavior remain. The continuation
+file is a source-owned closed `pr-review/attempt-continuation/v1` packet:
+
+- Exact `repository`, `pr_number`, `worktree_path`, `old_head`, `target_head`,
+  `lease_file`, `lease_sha256` and nonblank `authority_ref`.
+- Empty qualified `active_consumers` and `pending_effects`, plus the same closed
+  `publication` disposition above.
+- Closed `provider_evidence: {file, sha256}` referencing accessible physical
+  primary evidence independently verified by the wrapper. Its JSON binds
+  `repository`, `pr_number` and `headRefOid` to `target_head`; a file body is not
+  itself proof of provider retrieval.
+- `baseline: "completed"` for a valid completed result, or `"incomplete"` for an
+  exhausted semantically incomplete failed attempt. Mechanical finalization
+  failure does not change the former to the latter.
+- `continuity`, a list of unique closed `{file, sha256}` references to exact
+  accessible regular nonsymlink primary evidence actually needed after replacement.
+  An empty list is valid when no local-only comparison consumer needs it; do not
+  introduce mandatory baseline or whole-tree copies. A soon-deleted checkout path
+  is not continuity.
+
+Supply the normal `HEAD_SHA`, `BASE_REF`, `HEAD_REF`, identity and optional
+`UPDATED_AT` inputs. The target head must differ, resolve as an exact commit and
+match the independently verified provider proof. One clean registered canonical
+lease, no frozen approval/payload, no attempted/unknown posting and resolved
+scratch obligations are required. `reviewed`, `gated` and exhausted `failed`
+leases are eligible; a result-bearing mechanical failure retains a completed
+historical baseline, while an incomplete failure cannot invent one.
+
+The existing reservation and collision-safe exact historical lease snapshot
+protect replacement. The old archive preserves its truthful state and bytes;
+the fresh active `created` lease clears result, validation, presentation,
+approval/payload, terminal/failure, posting, cleanup and live shared-context
+custody. Scope selection and fresh independent current-byte review remain with
+shared scope/wrapper owners. Success/conflict/manual-cleanup uses the existing
+`session-create/v1` result. Partial head or lease advancement retains observed
+reservation/snapshot evidence and holds for exact owner reconciliation; blind
+retry and fabricated abort/post/completion refuse.
+
+## Exact interrupted session reconciliation
+
+From the physical primary, use the exact `invocation_token` returned by the held
+`session-create` operation:
+
+```sh
+REPOSITORY="owner/repo" PR_NUMBER="432" PRIMARY_REPOSITORY_ROOT="$physical_primary" \
+  bash "$PR_REVIEW_LEASE_HELPER" session-reconcile --invocation-token "$invocation_token"
+```
+
+For completed/failed continuation, supply the same `CONTINUATION_REQUEST_FILE`
+with identical qualified action bytes. The source-owned primary operation is
+`.ephemeral/pr-<number>-session-advance-<token>.json`; it binds the exact existing
+reservation, old archive digest/head, cleared successor bytes/head, optional
+continuation request digest, original artifact identity/digests and per-step
+intent/progress. It stores no whole artifact-tree copy.
+
+Reconciliation accepts only that same immutable operation with accessible exact
+archive/action and unchanged known resources. Changed/reappeared files, unknown
+absence, another reservation, dirty/unregistered resources, divergent leases or
+unobserved heads hold. It can complete a proven old-head operation, publish the
+exact already-bound cleared successor and finish only unchanged original artifact
+removal. Each step rechecks bindings. A prior removal is idempotent only with exact
+same-operation intent/progress. It never clears another owner's reservation or
+inherits old approval. Success uses the existing `session-create/v1` success JSON;
+held results emit `session-reconciliation/v1` with token, operation path and reason
+and exit 1. A completed operation replays only while the exact current successor
+and retired resource absence still verify. Keep its compact guard while delayed
+replay needs it; older operation evidence is never new action authority.
