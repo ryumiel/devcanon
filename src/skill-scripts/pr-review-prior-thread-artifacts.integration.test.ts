@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import {
   chmod,
   copyFile,
+  lstat,
   mkdir,
   mkdtemp,
   readFile,
@@ -2650,92 +2651,133 @@ describe("pre-handoff preparation recovery", () => {
       await cleanupTempDir(cwd);
     }
   }, 60_000);
-  it("releases only the original-proven enrolled failure family after its purposes end", async () => {
-    const fixture = await makePreparationRecoveryFixture(false, true);
-    const {
-      cwd,
-      worktree,
-      leaseHelper,
-      leaseFile,
-      bound,
-      recovery,
-      originalRecords,
-      headSha,
-      dirs,
-    } = fixture;
-    try {
-      await runHelper(cwd, leaseHelper, "write", recovery);
-      await runHelper(cwd, leaseHelper, "write", {
-        ...bound,
-        STATE: "failed",
-        EXPECTED_STATE: "created",
-        UPDATED_AT: "2026-06-11T00:03:00Z",
-        FINISHED_AT: "2026-06-11T00:03:00Z",
-        FAILURE_PHASE: "review",
-        FAILURE_REASON: "incomplete route",
-        FAILURE_RECOVERABILITY: "recoverable",
-      });
-      await runHelper(cwd, leaseHelper, "write", {
-        ...bound,
-        STATE: "aborted",
-        EXPECTED_STATE: "failed",
-        UPDATED_AT: "2026-06-11T00:04:00Z",
-        FINISHED_AT: "2026-06-11T00:04:00Z",
-        TERMINAL_REASON: "abandoned incomplete review",
-      });
-      expect(
-        (await runHelper(cwd, leaseHelper, "inspect-worktree", bound)).stdout,
-      ).toContain("preparation-failure-history");
-      const requestFile = path.join(
-        await realpath(cwd),
-        ".ephemeral/retirement-request.json",
-      );
-      const currentLeaseBytes = await readFile(path.join(cwd, leaseFile));
-      await writeFile(
-        requestFile,
-        JSON.stringify({
-          schema: "pr-review/attempt-retirement/v1",
-          operation_id: "enrolled-purposes-ended",
-          repository: "owner/repo",
-          pr_number: 390,
-          worktree_path: worktree,
-          old_head: headSha,
-          lease_file: leaseFile,
-          lease_sha256: createHash("sha256")
-            .update(currentLeaseBytes)
-            .digest("hex"),
-          original_records: originalRecords,
-          authority_ref: "original-owner/current-cleanup",
-          active_consumers: [],
-          pending_effects: [],
-          publication: { status: "not-required", references: [] },
-        }),
-      );
-      const retired = await runHelper(
+  it.each(["current-receipt", "guarded-snapshot"] as const)(
+    "releases the enrolled failure family through the existing %s adapter",
+    async (mode) => {
+      const fixture = await makePreparationRecoveryFixture(false, true);
+      const {
         cwd,
+        worktree,
         leaseHelper,
-        "retire-attempt",
+        leaseFile,
         bound,
-        ["--request-file", requestFile],
-      );
-      expect(JSON.parse(retired.stdout)).toMatchObject({ outcome: "retired" });
-      const released = JSON.parse(
-        await readFile(path.join(cwd, leaseFile), "utf8"),
-      );
-      expect(released.preparation_failures).toBeUndefined();
-      expect(released.state).toBe("aborted");
-      expect(released.artifacts.handoff_file).not.toBeNull();
-      for (const directory of dirs)
-        await expect(
-          readdir(path.join(worktree, directory)),
-        ).rejects.toMatchObject({ code: "ENOENT" });
-      expect(
-        (await runHelper(cwd, leaseHelper, "inspect-worktree", bound)).stdout,
-      ).toContain("CAN_REMOVE=yes");
-    } finally {
-      await cleanupTempDir(cwd);
-    }
-  }, 60_000);
+        recovery,
+        originalRecords,
+        headSha,
+        dirs,
+      } = fixture;
+      try {
+        await runHelper(cwd, leaseHelper, "write", recovery);
+        await runHelper(cwd, leaseHelper, "write", {
+          ...bound,
+          STATE: "failed",
+          EXPECTED_STATE: "created",
+          UPDATED_AT: "2026-06-11T00:03:00Z",
+          FINISHED_AT: "2026-06-11T00:03:00Z",
+          FAILURE_PHASE: "review",
+          FAILURE_REASON: "incomplete route",
+          FAILURE_RECOVERABILITY: "recoverable",
+        });
+        await runHelper(cwd, leaseHelper, "write", {
+          ...bound,
+          STATE: "aborted",
+          EXPECTED_STATE: "failed",
+          UPDATED_AT: "2026-06-11T00:04:00Z",
+          FINISHED_AT: "2026-06-11T00:04:00Z",
+          TERMINAL_REASON: "abandoned incomplete review",
+        });
+        expect(
+          (await runHelper(cwd, leaseHelper, "inspect-worktree", bound)).stdout,
+        ).toContain("preparation-failure-history");
+        const requestFile = path.join(
+          await realpath(cwd),
+          ".ephemeral/retirement-request.json",
+        );
+        const currentLeaseBytes = await readFile(path.join(cwd, leaseFile));
+        await writeFile(
+          requestFile,
+          JSON.stringify({
+            schema: "pr-review/attempt-retirement/v1",
+            operation_id: "enrolled-purposes-ended",
+            repository: "owner/repo",
+            pr_number: 390,
+            worktree_path: worktree,
+            old_head: headSha,
+            lease_file: leaseFile,
+            lease_sha256: createHash("sha256")
+              .update(currentLeaseBytes)
+              .digest("hex"),
+            original_records: originalRecords,
+            authority_ref: "original-owner/current-cleanup",
+            active_consumers: [],
+            pending_effects: [],
+            publication: { status: "not-required", references: [] },
+          }),
+        );
+        if (mode === "guarded-snapshot") {
+          const request = JSON.parse(await readFile(requestFile, "utf8"));
+          Reflect.deleteProperty(request, "original_records");
+          request.schema = "pr-review/provider-scope-cleanup/v1";
+          request.expected_scratch = [];
+          for (const resource of dirs) {
+            const directory = path.join(worktree, resource);
+            const stat = await lstat(directory);
+            const entries = [];
+            for (const name of (await readdir(directory)).sort()) {
+              const leaf = await lstat(path.join(directory, name));
+              entries.push({
+                name,
+                dev: leaf.dev,
+                ino: leaf.ino,
+                sha256: createHash("sha256")
+                  .update(await readFile(path.join(directory, name)))
+                  .digest("hex"),
+              });
+            }
+            request.expected_scratch.push({
+              resource,
+              dev: stat.dev,
+              ino: stat.ino,
+              entries,
+            });
+          }
+          await writeFile(requestFile, JSON.stringify(request));
+        }
+        const retired =
+          mode === "current-receipt"
+            ? await runHelper(cwd, leaseHelper, "retire-attempt", bound, [
+                "--request-file",
+                requestFile,
+              ])
+            : await runHelper(
+                cwd,
+                helperScript,
+                "remove-provider-scope-scratch",
+                bound,
+                [dirs[0], "--expected-snapshot-file", requestFile],
+              );
+        expect(JSON.parse(retired.stdout)).toMatchObject({
+          outcome: "retired",
+        });
+        const released = JSON.parse(
+          await readFile(path.join(cwd, leaseFile), "utf8"),
+        );
+        expect(released.preparation_failures).toBeUndefined();
+        expect(released.state).toBe("aborted");
+        expect(released.artifacts.handoff_file).not.toBeNull();
+        for (const directory of dirs)
+          await expect(
+            readdir(path.join(worktree, directory)),
+          ).rejects.toMatchObject({ code: "ENOENT" });
+        expect(
+          (await runHelper(cwd, leaseHelper, "inspect-worktree", bound)).stdout,
+        ).toContain("CAN_REMOVE=yes");
+      } finally {
+        await cleanupTempDir(cwd);
+      }
+    },
+    60_000,
+  );
   it("retains custody through incomplete review, terminal state and cleanup", async () => {
     const {
       cwd,

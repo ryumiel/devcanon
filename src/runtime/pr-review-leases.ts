@@ -28,13 +28,13 @@ import {
 } from "./pr-review-result-validation.js";
 
 import {
-  type OriginalReviewArtifact,
+  type ProviderScopeSnapshot,
   assertClosedOriginalObject,
-  assertOriginalEvidencePath,
   assertOriginalRecordPath,
   parseOriginalReviewJson,
   readOriginalReviewRecord,
   snapshotOriginalReviewResource,
+  validateProviderScopeSnapshot,
 } from "./review-artifacts.js";
 
 const execFileAsync = promisify(execFile);
@@ -418,7 +418,9 @@ async function withReviewMutationReservation(
 }
 
 interface AttemptRetirementRequest {
-  schema: "pr-review/attempt-retirement/v1";
+  schema:
+    | "pr-review/attempt-retirement/v1"
+    | "pr-review/provider-scope-cleanup/v1";
   operation_id: string;
   repository: string;
   pr_number: number;
@@ -426,7 +428,8 @@ interface AttemptRetirementRequest {
   old_head: string;
   lease_file: string;
   lease_sha256: string;
-  original_records: { file: string; sha256: string }[];
+  original_records?: { file: string; sha256: string }[];
+  expected_scratch?: ProviderScopeSnapshot[];
   authority_ref: string;
   active_consumers: string[];
   pending_effects: string[];
@@ -438,7 +441,7 @@ interface AttemptRetirementOperation {
   reservation: SessionCreateReservation;
   original_lease: string;
   released_lease: string;
-  records: OriginalReviewArtifact[];
+  records: ProviderScopeSnapshot[];
   pending_leaf: string | null;
   removed_leaves: string[];
   removed_resources: string[];
@@ -466,14 +469,22 @@ function validateAttemptRetirementRequest(
     "old_head",
     "lease_file",
     "lease_sha256",
-    "original_records",
+    value !== null &&
+    typeof value === "object" &&
+    "schema" in value &&
+    value.schema === "pr-review/provider-scope-cleanup/v1"
+      ? "expected_scratch"
+      : "original_records",
     "authority_ref",
     "active_consumers",
     "pending_effects",
     "publication",
   ]);
   if (
-    value.schema !== "pr-review/attempt-retirement/v1" ||
+    ![
+      "pr-review/attempt-retirement/v1",
+      "pr-review/provider-scope-cleanup/v1",
+    ].includes(String(value.schema)) ||
     typeof value.operation_id !== "string" ||
     !/^[A-Za-z0-9_-]{1,80}$/u.test(value.operation_id) ||
     typeof value.repository !== "string" ||
@@ -489,8 +500,9 @@ function validateAttemptRetirementRequest(
     !SHA256_RE.test(value.lease_sha256) ||
     typeof value.authority_ref !== "string" ||
     value.authority_ref.trim() === "" ||
-    !Array.isArray(value.original_records) ||
-    value.original_records.length === 0 ||
+    (value.schema === "pr-review/attempt-retirement/v1" &&
+      (!Array.isArray(value.original_records) ||
+        value.original_records.length === 0)) ||
     !Array.isArray(value.active_consumers) ||
     value.active_consumers.length !== 0 ||
     !Array.isArray(value.pending_effects) ||
@@ -516,7 +528,24 @@ function validateAttemptRetirementRequest(
       "retirement requires verified durable publication or qualified not-required",
     );
   const files = new Set<string>();
-  for (const reference of value.original_records) {
+  if (value.schema === "pr-review/provider-scope-cleanup/v1") {
+    if (
+      !Array.isArray(value.expected_scratch) ||
+      value.expected_scratch.length === 0
+    )
+      throw new PrReviewLeaseError(
+        "guarded cleanup needs a closed directory family",
+      );
+    const resources = new Set<string>();
+    for (const snapshot of value.expected_scratch) {
+      validateProviderScopeSnapshot(snapshot);
+      if (resources.has(snapshot.resource))
+        throw new PrReviewLeaseError("duplicate scratch snapshot");
+      resources.add(snapshot.resource);
+    }
+    return;
+  }
+  for (const reference of value.original_records as unknown[]) {
     assertClosedOriginalObject(reference, ["file", "sha256"]);
     if (
       typeof reference.file !== "string" ||
@@ -532,30 +561,57 @@ function validateAttemptRetirementRequest(
   }
 }
 
-async function retirementSourceMatches(
-  source: OriginalReviewArtifact["source_refs"][number],
-  worktreePath: string,
-  leasePreimage?: { file: string; original: Buffer; released: Buffer },
-): Promise<boolean> {
-  await assertOriginalEvidencePath(source.file);
-  if (source.file.startsWith(`${worktreePath}${path.sep}`)) return false;
-  const current = await readFile(source.file);
-  let original: Buffer = current;
-  if (leasePreimage !== undefined && source.file === leasePreimage.file) {
-    // The immutable operation already verifies these exact lease versions.
-    // Recheck actual raw bytes here; only this known source may use its preimage.
-    if (
-      !current.equals(leasePreimage.original) &&
-      !current.equals(leasePreimage.released)
-    )
-      return false;
-    original = leasePreimage.original;
+export async function runGuardedProviderScopeCleanup(
+  scratch: string,
+  requestFile: string,
+): Promise<RuntimeCommandOutcome> {
+  try {
+    return await retireAttempt(["--request-file", requestFile], scratch);
+  } catch (err) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: `${err instanceof Error ? err.message : String(err)}\n`,
+    };
   }
-  return createHash("sha256").update(original).digest("hex") === source.sha256;
+}
+function directoryCustody(
+  record: ProviderScopeSnapshot,
+): ProviderScopeSnapshot {
+  return {
+    resource: record.resource,
+    dev: record.dev,
+    ino: record.ino,
+    entries: record.entries
+      .map(({ name, sha256, dev, ino }) => ({ name, sha256, dev, ino }))
+      .sort((left, right) =>
+        left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+      ),
+  };
+}
+async function verifyScratchIsUntracked(
+  worktree: string,
+  records: readonly ProviderScopeSnapshot[],
+): Promise<void> {
+  for (const record of records) {
+    const { stdout } = await execFileAsync("git", [
+      "-C",
+      worktree,
+      "ls-files",
+      "-z",
+      "--",
+      record.resource,
+    ]);
+    if (stdout !== "")
+      throw new PrReviewLeaseError(
+        "scratch cleanup cannot remove tracked evidence",
+      );
+  }
 }
 
 async function retireAttempt(
   args: readonly string[],
+  guardedScratch?: string,
 ): Promise<RuntimeCommandOutcome> {
   if (args.length !== 2 || args[0] !== "--request-file")
     throw new PrReviewLeaseError(
@@ -573,6 +629,13 @@ async function retireAttempt(
   const parsedRequest = parseOriginalReviewJson(requestBytes);
   validateAttemptRetirementRequest(parsedRequest);
   const request: AttemptRetirementRequest = parsedRequest;
+  if (
+    (guardedScratch !== undefined) !==
+      (request.schema === "pr-review/provider-scope-cleanup/v1") ||
+    (guardedScratch !== undefined &&
+      request.expected_scratch?.[0]?.resource !== guardedScratch)
+  )
+    throw new PrReviewLeaseError("scratch cleanup mode or resource mismatch");
   if (
     request.repository !== identity.repository ||
     request.pr_number !== identity.prNumber
@@ -666,9 +729,9 @@ async function retireAttempt(
         policy: "validate-stored-lease",
         validationContext,
       });
-    const records: OriginalReviewArtifact[] = [];
+    const records: ProviderScopeSnapshot[] = [];
     const resources = new Set<string>();
-    for (const reference of request.original_records) {
+    for (const reference of request.original_records ?? []) {
       await assertOriginalRecordPath(reference.file);
       if (
         path.dirname(path.dirname(reference.file)) !== identity.primaryRoot ||
@@ -678,13 +741,6 @@ async function retireAttempt(
           "original producer record unavailable or changed",
         );
       const record = await readOriginalReviewRecord(reference.file);
-      for (const source of record.source_refs) {
-        if (!(await retirementSourceMatches(source, request.worktree_path)))
-          throw new PrReviewLeaseError(
-            "original producer source evidence changed or is current-resource-only",
-          );
-      }
-
       if (
         record.production === "allocated" ||
         record.repository !== request.repository ||
@@ -697,15 +753,37 @@ async function retireAttempt(
           "original producer association mismatch or unsealed production",
         );
       if (
-        JSON.stringify(await snapshotOriginalReviewResource(record)) !==
-        JSON.stringify(record.entries)
+        JSON.stringify(
+          await snapshotOriginalReviewResource({
+            ...record,
+            worktree_path: request.worktree_path,
+          }),
+        ) !== JSON.stringify(record.entries)
       )
         throw new PrReviewLeaseError(
           "original bytes or closed entry set changed",
         );
       resources.add(record.resource);
+      records.push(directoryCustody(record));
+    }
+    for (const snapshot of request.expected_scratch ?? []) {
+      const record = directoryCustody(snapshot);
+      if (
+        !isDeepStrictEqual(
+          await snapshotOriginalReviewResource({
+            ...record,
+            worktree_path: request.worktree_path,
+          }),
+          record.entries,
+        )
+      )
+        throw new PrReviewLeaseError(
+          "expected scratch bytes or identity changed",
+        );
+      resources.add(record.resource);
       records.push(record);
     }
+    await verifyScratchIsUntracked(request.worktree_path, records);
     // Original custody cannot turn accepted direct or indirect evidence into
     // disposable diagnostics. Preparation-only custody is separately eligible.
     const accepted = await acceptedReviewArtifactPaths(
@@ -831,6 +909,7 @@ async function retireAttempt(
     operation.original_lease,
   ) as PrReviewLease;
   validateLeaseShape(originalLease);
+  for (const record of operation.records) validateProviderScopeSnapshot(record);
   const recordedResources = new Set(
     operation.records.map((record) => record.resource),
   );
@@ -972,35 +1051,28 @@ async function retireAttempt(
       ))
     )
       throw new PrReviewLeaseError("retirement reservation changed");
-    const currentRecords: OriginalReviewArtifact[] = [];
-    for (const reference of request.original_records) {
+    await verifyScratchIsUntracked(request.worktree_path, operation.records);
+    const currentRecords: ProviderScopeSnapshot[] = [];
+    for (const reference of request.original_records ?? []) {
+      await assertOriginalRecordPath(reference.file);
       if (
         sha256Text(await readFile(reference.file, "utf8")) !== reference.sha256
       )
         throw new PrReviewLeaseError("retirement original evidence changed");
-      const record = await readOriginalReviewRecord(reference.file);
-      for (const source of record.source_refs) {
-        if (
-          !(await retirementSourceMatches(source, request.worktree_path, {
-            file: path.join(identity.primaryRoot, request.lease_file),
-            original: Buffer.from(operation.original_lease, "utf8"),
-            released: Buffer.from(operation.released_lease, "utf8"),
-          }))
-        )
-          throw new PrReviewLeaseError(
-            "retirement original production source changed",
-          );
-      }
-      currentRecords.push(record);
+      currentRecords.push(
+        directoryCustody(await readOriginalReviewRecord(reference.file)),
+      );
     }
+    for (const snapshot of request.expected_scratch ?? [])
+      currentRecords.push(directoryCustody(snapshot));
     if (!isDeepStrictEqual(currentRecords, operation.records))
       throw new PrReviewLeaseError(
         "retirement original operation records changed",
       );
   }
   try {
-    await binding();
     if (operation.outcome === "retired") {
+      await binding();
       if (await pathExists(path.join(identity.primaryRoot, reservationFile))) {
         if (
           !(await removeOwnedReservation(
@@ -1026,18 +1098,7 @@ async function retireAttempt(
       }
       await binding();
       if (!(await pathExists(target))) {
-        const onlyLeaf =
-          record.resource_kind === "file" && record.entries.length === 1
-            ? `${record.resource}/${record.entries[0]?.name}`
-            : null;
-        if (
-          operation.pending_leaf !== record.resource &&
-          !(
-            onlyLeaf !== null &&
-            (operation.pending_leaf === onlyLeaf ||
-              operation.removed_leaves.includes(onlyLeaf))
-          )
-        )
+        if (operation.pending_leaf !== record.resource)
           throw new PrReviewLeaseError(
             "resource absent without exact same-operation evidence",
           );
@@ -1050,7 +1111,8 @@ async function retireAttempt(
       if (
         resourceStat.dev !== record.dev ||
         resourceStat.ino !== record.ino ||
-        resourceStat.isSymbolicLink()
+        resourceStat.isSymbolicLink() ||
+        !resourceStat.isDirectory()
       )
         throw new PrReviewLeaseError("original resource replaced");
       const expected = record.entries.filter(
@@ -1059,16 +1121,17 @@ async function retireAttempt(
             `${record.resource}/${entry.name}`,
           ),
       );
-      const actual = await snapshotOriginalReviewResource(record);
+      const actual = await snapshotOriginalReviewResource({
+        ...record,
+        worktree_path: request.worktree_path,
+      });
       const pending = operation.pending_leaf;
       const allowed = expected.filter(
         (entry) => `${record.resource}/${entry.name}` !== pending,
       );
       if (
-        JSON.stringify(actual) !== JSON.stringify(expected) &&
-        !(
-          pending !== null && JSON.stringify(actual) === JSON.stringify(allowed)
-        )
+        !isDeepStrictEqual(actual, expected) &&
+        !(pending !== null && isDeepStrictEqual(actual, allowed))
       )
         throw new PrReviewLeaseError(
           "original resource bytes or extra entries changed",
@@ -1086,20 +1149,21 @@ async function retireAttempt(
         const key = `${record.resource}/${entry.name}`;
         if (operation.removed_leaves.includes(key)) continue;
         await binding();
-        const current = await snapshotOriginalReviewResource(record);
+        const current = await snapshotOriginalReviewResource({
+          ...record,
+          worktree_path: request.worktree_path,
+        });
         const remaining = record.entries.filter(
           (leaf) =>
             !operation.removed_leaves.includes(
               `${record.resource}/${leaf.name}`,
             ),
         );
-        if (JSON.stringify(current) !== JSON.stringify(remaining))
+        if (!isDeepStrictEqual(current, remaining))
           throw new PrReviewLeaseError(
             "original bytes changed before destructive step",
           );
-        const file = resourceStat.isDirectory()
-          ? path.join(target, entry.name)
-          : target;
+        const file = path.join(target, entry.name);
         operation.pending_leaf = key;
         await save();
         await rm(file);
@@ -1110,23 +1174,21 @@ async function retireAttempt(
       await binding();
       operation.pending_leaf = record.resource;
       await save();
-      if (resourceStat.isDirectory()) {
-        const current = await lstat(target);
-        if (
-          !current.isDirectory() ||
-          current.isSymbolicLink() ||
-          current.dev !== record.dev ||
-          current.ino !== record.ino
-        )
-          throw new PrReviewLeaseError(
-            "original directory changed before removal",
-          );
-        if ((await readdir(target)).length !== 0)
-          throw new PrReviewLeaseError(
-            "original resource has unexpected remaining entries",
-          );
-        await rmdir(target);
-      }
+      const current = await lstat(target);
+      if (
+        !current.isDirectory() ||
+        current.isSymbolicLink() ||
+        current.dev !== record.dev ||
+        current.ino !== record.ino
+      )
+        throw new PrReviewLeaseError(
+          "original directory changed before removal",
+        );
+      if ((await readdir(target)).length !== 0)
+        throw new PrReviewLeaseError(
+          "original resource has unexpected remaining entries",
+        );
+      await rmdir(target);
       operation.removed_resources.push(record.resource);
       operation.pending_leaf = null;
       await save();

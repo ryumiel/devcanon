@@ -1351,19 +1351,22 @@ describe("pr-review lease command validation", () => {
       await actualRemove(...args);
       throw new Error("interrupt posted retirement after leaf removal");
     });
-    for (let leaf = 0; leaf < 2; leaf++) {
-      const held = await runPrReviewLeasesCommand([
-        "retire-attempt",
-        "--request-file",
-        fixture.requestFile,
-      ]);
-      expect(held.exitCode, held.stderr + held.stdout).toBe(1);
-      expect(JSON.parse(held.stdout)).toMatchObject({
-        outcome: "held",
-        reason: "interrupt posted retirement after leaf removal",
-      });
+    try {
+      for (let leaf = 0; leaf < 2; leaf++) {
+        const held = await runPrReviewLeasesCommand([
+          "retire-attempt",
+          "--request-file",
+          fixture.requestFile,
+        ]);
+        expect(held.exitCode, held.stderr + held.stdout).toBe(1);
+        expect(JSON.parse(held.stdout)).toMatchObject({
+          outcome: "held",
+          reason: "interrupt posted retirement after leaf removal",
+        });
+      }
+    } finally {
+      vi.mocked(fsPromises.rm).mockImplementation(actualRemove);
     }
-    vi.mocked(fsPromises.rm).mockImplementation(actualRemove);
     const retired = await runPrReviewLeasesCommand([
       "retire-attempt",
       "--request-file",
@@ -1415,10 +1418,14 @@ describe("pr-review lease command validation", () => {
                 ? "provider_scope_evidence_file"
                 : "scope_decision_file"
             ];
-      const qualified = await qualifyAcceptedFixtureOriginal(fixture, resource);
       const request = JSON.parse(await readFile(fixture.requestFile, "utf8"));
-      request.original_records = [
-        { file: qualified, sha256: await sha256File(qualified) },
+      Reflect.deleteProperty(request, "original_records");
+      request.schema = "pr-review/provider-scope-cleanup/v1";
+      const accepted = await fsPromises.lstat(
+        path.join(fixture.worktree, resource),
+      );
+      request.expected_scratch = [
+        { resource, dev: accepted.dev, ino: accepted.ino, entries: [] },
       ];
       await writeFile(fixture.requestFile, JSON.stringify(request));
       const before = new Map<string, Buffer>();
@@ -1429,13 +1436,15 @@ describe("pr-review lease command validation", () => {
         if ((await lstat(absolute)).isFile())
           before.set(absolute, await readFile(absolute));
       }
-      const retired = await runPrReviewLeasesCommand([
-        "retire-attempt",
-        "--request-file",
+      const retired = await runPrReviewProviderScopeEvidenceCommand([
+        "remove-scratch",
+        "--scratch-dir",
+        resource,
+        "--expected-snapshot-file",
         fixture.requestFile,
       ]);
       expect(retired.exitCode, retired.stdout).toBe(1);
-      expect(retired.stderr).toContain("accepted review evidence");
+      expect(retired.stderr).not.toBe("");
       expect(await readFile(leasePath, "utf8")).toBe(leaseBytes);
       for (const [file, bytes] of before)
         expect(await readFile(file)).toEqual(bytes);
@@ -1535,140 +1544,336 @@ describe("pr-review lease command validation", () => {
     ).toBeUndefined();
   });
 
-  it("keeps qualified lease-source preimage coherent through retirement and identical replay", async () => {
-    const fixture = await makeQualifiedLeaseSourceRetirementFixture();
-    const result = await runPrReviewLeasesCommand([
-      "retire-attempt",
-      "--request-file",
+  it("guarded scratch cleanup removes an existing aborted directory without changing its lease", async () => {
+    const fixture = await makeGuardedScratchCleanupFixture();
+    const leaseBytes = await readFile(fixture.leasePath);
+    const result = await runPrReviewProviderScopeEvidenceCommand([
+      "remove-scratch",
+      "--scratch-dir",
+      fixture.resource,
+      "--expected-snapshot-file",
       fixture.requestFile,
     ]);
     expect(result.exitCode, result.stderr + result.stdout).toBe(0);
-    const leaseBytes = await readFile(fixture.leasePath, "utf8");
-    const operationFile = JSON.parse(result.stdout).operation_file;
-    const operation = JSON.parse(await readFile(operationFile, "utf8"));
-    expect(operation.original_lease).toBe(fixture.originalLeaseBytes);
-    expect(operation.released_lease).toBe(leaseBytes);
-    expect(operation.outcome).toBe("retired");
-    expect(JSON.parse(leaseBytes).preparation_failures).toBeUndefined();
-    const replay = await runPrReviewLeasesCommand([
-      "retire-attempt",
-      "--request-file",
-      fixture.requestFile,
-    ]);
-    expect(replay.exitCode, replay.stderr + replay.stdout).toBe(0);
-    expect(await readFile(fixture.leasePath, "utf8")).toBe(leaseBytes);
-    expect(await readFile(fixture.qualifiedRecord)).toEqual(
-      fixture.qualifiedBytes,
-    );
-    await expect(
-      fsPromises.lstat(fixture.reservationPath),
-    ).rejects.toMatchObject({ code: "ENOENT" });
-  }, 20_000);
-
-  it("resumes qualified lease-source retirement after metadata publication before outcome commit", async () => {
-    const fixture = await makeQualifiedLeaseSourceRetirementFixture();
-    const held = await interruptRetirementOutcomeCommit(fixture);
-    const heldOperation = JSON.parse(
-      await readFile(fixture.operationFile, "utf8"),
-    );
-    const releasedBytes = await readFile(fixture.leasePath, "utf8");
-    const reservationBytes = await readFile(fixture.reservationPath);
-    expect(JSON.parse(held.stdout)).toMatchObject({
-      outcome: "held",
-      reason: "interrupt after lease metadata before outcome commit",
-      lease_sha256: await sha256File(fixture.leasePath),
-    });
-    expect(heldOperation.original_lease).toBe(fixture.originalLeaseBytes);
-    expect(heldOperation.released_lease).toBe(releasedBytes);
-    expect(heldOperation.outcome).toBe("held");
-    expect(JSON.parse(releasedBytes).preparation_failures).toBeUndefined();
+    expect(await readFile(fixture.leasePath)).toEqual(leaseBytes);
     await expect(
       fsPromises.lstat(path.join(fixture.worktree, fixture.resource)),
     ).rejects.toMatchObject({ code: "ENOENT" });
-    expect(reservationBytes.length).toBeGreaterThan(0);
-    const resumed = await runPrReviewLeasesCommand([
-      "retire-attempt",
-      "--request-file",
-      fixture.requestFile,
-    ]);
-    expect(resumed.exitCode, resumed.stderr + resumed.stdout).toBe(0);
-    expect(await readFile(fixture.leasePath, "utf8")).toBe(releasedBytes);
-    const complete = JSON.parse(await readFile(fixture.operationFile, "utf8"));
-    expect(complete.original_lease).toBe(fixture.originalLeaseBytes);
-    expect(complete.released_lease).toBe(releasedBytes);
-    expect(complete.outcome).toBe("retired");
-    await expect(
-      fsPromises.lstat(fixture.reservationPath),
-    ).rejects.toMatchObject({ code: "ENOENT" });
-    const replay = await runPrReviewLeasesCommand([
-      "retire-attempt",
-      "--request-file",
+    const replay = await runPrReviewProviderScopeEvidenceCommand([
+      "remove-scratch",
+      "--scratch-dir",
+      fixture.resource,
+      "--expected-snapshot-file",
       fixture.requestFile,
     ]);
     expect(replay.exitCode, replay.stderr + replay.stdout).toBe(0);
-  }, 20_000);
+    expect(await readFile(fixture.leasePath)).toEqual(leaseBytes);
+  });
 
-  it.each(["lease", "other-source"] as const)(
-    "holds changed %s evidence after lease-source metadata release",
-    async (changed) => {
-      const fixture = await makeQualifiedLeaseSourceRetirementFixture(true);
-      await interruptRetirementOutcomeCommit(fixture);
-      const reservationBytes = await readFile(fixture.reservationPath);
-      const releasedBytes = await readFile(fixture.leasePath, "utf8");
-      if (changed === "lease")
-        await writeFile(fixture.leasePath, `${releasedBytes} \n`);
-      else
+  it.each([
+    "changed",
+    "extra",
+    "symlink",
+    "replaced",
+    "head",
+    "lease",
+    "dirty",
+    "concurrent",
+    "tracked",
+    "consumers",
+    "pending",
+    "publication",
+    "missing",
+    "unregistered",
+    "argument",
+  ] as const)(
+    "guarded scratch cleanup preserves custody on %s refusal",
+    async (dimension) => {
+      const fixture = await makeGuardedScratchCleanupFixture();
+      const directory = path.join(fixture.worktree, fixture.resource);
+      const request = JSON.parse(await readFile(fixture.requestFile, "utf8"));
+      const reservationPath = path.join(
+        fixture.primary,
+        ".ephemeral/pr-432-session-create-reservation.json",
+      );
+      if (dimension === "changed")
         await writeFile(
-          fixture.rawSource,
-          Buffer.from([0xff, 0x81, 0x00, 0x42]),
+          path.join(directory, "failed-scope.json"),
+          "changed original bytes\n",
         );
-      const actualLeaseBytes = await readFile(fixture.leasePath, "utf8");
-      const resumed = await runPrReviewLeasesCommand([
-        "retire-attempt",
-        "--request-file",
+      if (dimension === "extra")
+        await writeFile(path.join(directory, "extra.txt"), "extra bytes\n");
+      if (dimension === "symlink") {
+        const target = path.join(
+          fixture.primary,
+          ".ephemeral/foreign-source.json",
+        );
+        await writeFile(target, "foreign bytes\n");
+        await fsPromises.rm(path.join(directory, "failed-scope.json"));
+        await symlink(target, path.join(directory, "failed-scope.json"));
+      }
+      if (dimension === "replaced") {
+        await fsPromises.rename(directory, `${directory}.parked-original`);
+        await mkdir(directory);
+        await writeFile(
+          path.join(directory, "foreign.txt"),
+          "foreign replacement\n",
+        );
+      }
+      if (dimension === "head")
+        await execFileAsync("git", [
+          "-C",
+          fixture.worktree,
+          "checkout",
+          "--detach",
+          fixture.newHead,
+        ]);
+      if (dimension === "lease")
+        await writeFile(fixture.leasePath, `${fixture.leaseBytes} \n`);
+      if (dimension === "dirty")
+        await writeFile(path.join(fixture.worktree, "dirty.txt"), "dirty\n");
+      if (dimension === "concurrent")
+        await writeFile(reservationPath, "another owner's reservation\n");
+      if (dimension === "tracked") {
+        await execFileAsync("git", [
+          "-C",
+          fixture.worktree,
+          "add",
+          "-f",
+          fixture.resource,
+        ]);
+        await execFileAsync("git", [
+          "-C",
+          fixture.worktree,
+          "commit",
+          "-m",
+          "fixture tracks scratch",
+        ]);
+        request.old_head = (
+          await execFileAsync("git", [
+            "-C",
+            fixture.worktree,
+            "rev-parse",
+            "HEAD",
+          ])
+        ).stdout.trim();
+      }
+      // These truthful fixture-owner facts are unresolved cleanup obligations;
+      // neither a matching snapshot nor the authority locator resolves them.
+      if (dimension === "consumers")
+        request.active_consumers = ["fixture-reviewer"];
+      if (dimension === "pending")
+        request.pending_effects = ["fixture-publication"];
+      if (dimension === "publication")
+        request.publication = { status: "pending", references: [] };
+      if (dimension === "missing")
+        await fsPromises.rm(directory, { recursive: true });
+      if (dimension === "unregistered") {
+        const parked = `${fixture.worktree}.parked-unregistered`;
+        await fsPromises.rename(fixture.worktree, parked);
+        await execFileAsync("git", [
+          "-C",
+          fixture.primary,
+          "worktree",
+          "prune",
+          "--expire",
+          "now",
+        ]);
+        await fsPromises.rename(parked, fixture.worktree);
+      }
+      await writeFile(fixture.requestFile, JSON.stringify(request));
+      const beforeLease = await readFile(fixture.leasePath);
+      const beforeReservation = await readFile(reservationPath).catch(
+        () => null,
+      );
+      const before = new Map<string, Buffer>();
+      for (const name of await readdir(directory).catch(() => []))
+        before.set(name, await readFile(path.join(directory, name)));
+      const result = await runPrReviewProviderScopeEvidenceCommand([
+        "remove-scratch",
+        "--scratch-dir",
+        dimension === "argument"
+          ? `${fixture.resource}-wrong`
+          : fixture.resource,
+        "--expected-snapshot-file",
         fixture.requestFile,
       ]);
-      expect(resumed.exitCode).toBe(1);
-      expect(JSON.parse(resumed.stdout)).toMatchObject({
-        outcome: "held",
-        reason:
-          changed === "lease"
-            ? "retirement lease changed"
-            : "retirement original production source changed",
-      });
-      expect(await readFile(fixture.reservationPath)).toEqual(reservationBytes);
-      expect(await readFile(fixture.leasePath, "utf8")).toBe(actualLeaseBytes);
-      expect(
-        JSON.parse(await readFile(fixture.operationFile, "utf8")).outcome,
-      ).toBe("held");
+      expect(result.exitCode, result.stdout).toBe(1);
+      expect(await readFile(fixture.leasePath)).toEqual(beforeLease);
+      expect(await readFile(reservationPath).catch(() => null)).toEqual(
+        beforeReservation,
+      );
+      for (const [name, bytes] of before)
+        expect(await readFile(path.join(directory, name))).toEqual(bytes);
+      if (dimension === "replaced")
+        expect(
+          await readFile(
+            path.join(`${directory}.parked-original`, "failed-scope.json"),
+            "utf8",
+          ),
+        ).toBe("original never-accepted bytes\n");
     },
-    20_000,
   );
 
-  it("holds unrelated source drift during lease metadata publication before retired outcome", async () => {
-    const fixture = await makeQualifiedLeaseSourceRetirementFixture(true);
+  it("guarded scratch cleanup holds partial effects and resumes only the identical owner operation", async () => {
+    const fixture = await makeGuardedScratchCleanupFixture();
+    const actual = await vi.importActual<typeof fsPromises>("node:fs/promises");
+    vi.mocked(fsPromises.rm).mockImplementationOnce(async (...args) => {
+      await actual.rm(...args);
+      throw new Error("interrupt exact guarded leaf removal");
+    });
+    const held = await runPrReviewProviderScopeEvidenceCommand([
+      "remove-scratch",
+      "--scratch-dir",
+      fixture.resource,
+      "--expected-snapshot-file",
+      fixture.requestFile,
+    ]);
+    expect(JSON.parse(held.stdout)).toMatchObject({
+      outcome: "held",
+      reason: "interrupt exact guarded leaf removal",
+    });
+    const directory = path.join(fixture.worktree, fixture.resource);
+    expect(await readdir(directory)).toEqual(["validator.stderr"]);
+    const reservationPath = path.join(
+      fixture.primary,
+      ".ephemeral/pr-432-session-create-reservation.json",
+    );
+    const reserved = await readFile(reservationPath);
+    const requestBytes = await readFile(fixture.requestFile, "utf8");
+    await writeFile(fixture.requestFile, `${requestBytes} \n`);
+    const divergent = await runPrReviewProviderScopeEvidenceCommand([
+      "remove-scratch",
+      "--scratch-dir",
+      fixture.resource,
+      "--expected-snapshot-file",
+      fixture.requestFile,
+    ]);
+    expect(divergent.exitCode).toBe(1);
+    expect(await readFile(reservationPath)).toEqual(reserved);
+    expect(await readdir(directory)).toEqual(["validator.stderr"]);
+    await writeFile(fixture.requestFile, requestBytes);
+    vi.mocked(fsPromises.rm).mockImplementation(actual.rm);
+    const resumed = await runPrReviewProviderScopeEvidenceCommand([
+      "remove-scratch",
+      "--scratch-dir",
+      fixture.resource,
+      "--expected-snapshot-file",
+      fixture.requestFile,
+    ]);
+    expect(resumed.exitCode, resumed.stderr + resumed.stdout).toBe(0);
+    expect(await readFile(fixture.leasePath, "utf8")).toBe(fixture.leaseBytes);
+    await expect(fsPromises.lstat(reservationPath)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
+  it.each([true, false])(
+    "guarded cleanup covers its complete directory family: %s",
+    async (complete) => {
+      const fixture = await makeGuardedScratchCleanupFixture(true);
+      const original = await readFile(fixture.leasePath);
+      if (!complete) {
+        const request = JSON.parse(await readFile(fixture.requestFile, "utf8"));
+        request.expected_scratch = request.expected_scratch.slice(0, 1);
+        await writeFile(fixture.requestFile, JSON.stringify(request));
+      }
+      const result = await runPrReviewProviderScopeEvidenceCommand([
+        "remove-scratch",
+        "--scratch-dir",
+        fixture.resource,
+        "--expected-snapshot-file",
+        fixture.requestFile,
+      ]);
+      expect(result.exitCode, result.stderr + result.stdout).toBe(
+        complete ? 0 : 1,
+      );
+      expect(await readFile(fixture.leasePath)).toEqual(original);
+      for (const resource of fixture.resources) {
+        if (complete)
+          await expect(
+            fsPromises.lstat(path.join(fixture.worktree, resource)),
+          ).rejects.toMatchObject({ code: "ENOENT" });
+        else
+          expect(await readdir(path.join(fixture.worktree, resource))).toEqual([
+            "failed-scope.json",
+            "validator.stderr",
+          ]);
+      }
+    },
+  );
+
+  it("guarded family recovery preserves partial effects across both directories", async () => {
+    const fixture = await makeGuardedScratchCleanupFixture(true);
+    const actual = await vi.importActual<typeof fsPromises>("node:fs/promises");
+    let count = 0;
+    vi.mocked(fsPromises.rm).mockImplementation(async (...args) => {
+      await actual.rm(...args);
+      if (++count === 3) throw new Error("interrupt second guarded directory");
+    });
+    const held = await runPrReviewProviderScopeEvidenceCommand([
+      "remove-scratch",
+      "--scratch-dir",
+      fixture.resource,
+      "--expected-snapshot-file",
+      fixture.requestFile,
+    ]);
+    expect(JSON.parse(held.stdout)).toMatchObject({
+      outcome: "held",
+      reason: "interrupt second guarded directory",
+    });
+    await expect(
+      fsPromises.lstat(
+        path.join(fixture.worktree, fixture.resources[0] as string),
+      ),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    expect(
+      await readdir(
+        path.join(fixture.worktree, fixture.resources[1] as string),
+      ),
+    ).toEqual(["validator.stderr"]);
+    expect(await readFile(fixture.leasePath, "utf8")).toBe(fixture.leaseBytes);
+    const operation = JSON.parse(
+      await readFile(JSON.parse(held.stdout).operation_file, "utf8"),
+    );
+    expect(operation.removed_resources).toEqual([fixture.resources[0]]);
+    expect(operation.pending_leaf).toBe(
+      `${fixture.resources[1]}/failed-scope.json`,
+    );
+    vi.mocked(fsPromises.rm).mockImplementation(actual.rm);
+    const resumed = await runPrReviewProviderScopeEvidenceCommand([
+      "remove-scratch",
+      "--scratch-dir",
+      fixture.resource,
+      "--expected-snapshot-file",
+      fixture.requestFile,
+    ]);
+    expect(resumed.exitCode, resumed.stderr + resumed.stdout).toBe(0);
+    expect(await readFile(fixture.leasePath, "utf8")).toBe(fixture.leaseBytes);
+  });
+
+  it("current producer retirement resumes metadata publication without qualification or source-reference state", async () => {
+    const fixture = await makeEnrolledRetirementFixture("aborted");
+    const leasePath = path.join(fixture.physicalPrimary, fixture.leaseFile);
+    const original = await readFile(leasePath, "utf8");
     const actualWrite = artifacts.writeTextAtomically;
-    let changed = false;
+    let interrupted = false;
     const spy = vi
       .spyOn(artifacts, "writeTextAtomically")
       .mockImplementation(async (target, content) => {
-        const result = await actualWrite(target, content);
         if (
-          !changed &&
-          target === fixture.leasePath &&
-          JSON.parse(content).preparation_failures === undefined
+          !interrupted &&
+          target.includes("-retirement-") &&
+          JSON.parse(content).outcome === "retired"
         ) {
-          changed = true;
-          await writeFile(
-            fixture.rawSource,
-            Buffer.from([0xff, 0x81, 0x00, 0x42]),
-          );
+          interrupted = true;
+          throw new Error("interrupt current receipt outcome commit");
         }
-        return result;
+        return actualWrite(target, content);
       });
-    let result: Awaited<ReturnType<typeof runPrReviewLeasesCommand>>;
+    let held: Awaited<ReturnType<typeof runPrReviewLeasesCommand>>;
     try {
-      result = await runPrReviewLeasesCommand([
+      held = await runPrReviewLeasesCommand([
         "retire-attempt",
         "--request-file",
         fixture.requestFile,
@@ -1676,42 +1881,31 @@ describe("pr-review lease command validation", () => {
     } finally {
       spy.mockRestore();
     }
-    expect(changed).toBe(true);
-    expect(result.exitCode).toBe(1);
-    expect(JSON.parse(result.stdout)).toMatchObject({
+    expect(interrupted).toBe(true);
+    expect(JSON.parse(held.stdout)).toMatchObject({
       outcome: "held",
-      reason: "retirement original production source changed",
+      reason: "interrupt current receipt outcome commit",
     });
-    expect(
-      JSON.parse(await readFile(fixture.leasePath, "utf8"))
-        .preparation_failures,
-    ).toBeUndefined();
-    expect(
-      JSON.parse(await readFile(fixture.operationFile, "utf8")).outcome,
-    ).toBe("held");
-    await expect(
-      fsPromises.lstat(fixture.reservationPath),
-    ).resolves.toBeDefined();
-  }, 20_000);
-
-  it("retires genuine qualified raw-byte source evidence without UTF8 normalization", async () => {
-    const fixture = await makeQualifiedLeaseSourceRetirementFixture(
-      true,
-      false,
+    const released = await readFile(leasePath, "utf8");
+    expect(JSON.parse(released).preparation_failures).toBeUndefined();
+    const operation = JSON.parse(
+      await readFile(JSON.parse(held.stdout).operation_file, "utf8"),
     );
-    const result = await runPrReviewLeasesCommand([
+    expect(operation.original_lease).toBe(original);
+    expect(operation.released_lease).toBe(released);
+    const resumed = await runPrReviewLeasesCommand([
       "retire-attempt",
       "--request-file",
       fixture.requestFile,
     ]);
-    expect(result.exitCode, result.stderr + result.stdout).toBe(0);
-    expect(await readFile(fixture.rawSource)).toEqual(fixture.rawBytes);
+    expect(resumed.exitCode, resumed.stderr + resumed.stdout).toBe(0);
     const replay = await runPrReviewLeasesCommand([
       "retire-attempt",
       "--request-file",
       fixture.requestFile,
     ]);
     expect(replay.exitCode, replay.stderr + replay.stdout).toBe(0);
+    expect(await readFile(leasePath, "utf8")).toBe(released);
   }, 20_000);
 
   it("retires two source-produced failed directories before canonical continuation", async () => {
@@ -1878,8 +2072,7 @@ describe("pr-review lease command validation", () => {
         const record = JSON.parse(before);
         if (dimension === "unknown-producer") record.producer = "unknown";
         else {
-          record.production = "recovered";
-          record.source_refs = [];
+          record.production = "allocated";
         }
         await writeFile(fixture.recordFile, JSON.stringify(record));
         request.original_records[0].sha256 = await sha256File(
@@ -2288,165 +2481,6 @@ describe("pr-review lease command validation", () => {
       }
     },
   );
-
-  it("qualifies recovered original-owner evidence without inventing a captured receipt", async () => {
-    const fixture = await makeTerminalAdvanceRefusalFixture({
-      canonical: true,
-    });
-    const primary = fixture.repository.physicalRepository;
-    const resource = ".ephemeral/provider-scope-capture.legacy-original";
-    const literals = {
-      "failed-scope.json": "original never-accepted candidate\n",
-      "validator.stderr": "original validation rejection\n",
-    };
-    const originalOperationFile = path.join(
-      primary,
-      ".ephemeral/original-writer-operation.json",
-    );
-    // This source-produced legacy fixture records the writer and original path
-    // before production, but has no allocation receipt or production digest.
-    await writeFile(
-      originalOperationFile,
-      JSON.stringify({
-        repository: "owner/repo",
-        pr_number: 432,
-        owner: "original-review-thread",
-        operation: "legacy-writer-187",
-        worktree: fixture.worktree,
-        head: fixture.oldHead,
-        resource,
-        production_logic: literals,
-      }),
-    );
-    await mkdir(path.join(fixture.worktree, resource));
-    for (const [name, bytes] of Object.entries(literals))
-      await writeFile(path.join(fixture.worktree, resource, name), bytes);
-    const directory = await lstat(path.join(fixture.worktree, resource));
-    const originalCustodyFile = path.join(
-      primary,
-      ".ephemeral/original-custody-audit.json",
-    );
-    const recoveredEntries = [];
-    for (const [name, originallyProducedBytes] of Object.entries(literals).sort(
-      ([left], [right]) => left.localeCompare(right),
-    )) {
-      const entry = await lstat(path.join(fixture.worktree, resource, name));
-      recoveredEntries.push({
-        name,
-        sha256: createHash("sha256")
-          .update(originallyProducedBytes)
-          .digest("hex"),
-        dev: entry.dev,
-        ino: entry.ino,
-      });
-    }
-    await writeFile(
-      originalCustodyFile,
-      JSON.stringify({
-        repository: "owner/repo",
-        pr_number: 432,
-        owner: "original-review-thread",
-        operation: "custody-503",
-        resource,
-        original_custody: recoveredEntries,
-      }),
-    );
-    const recovered = {
-      schema: "pr-review/original-artifact/v1",
-      producer: "pr-review/provider-scope",
-      operation_id: "legacy-writer-187",
-      repository: "owner/repo",
-      pr_number: 432,
-      worktree_path: fixture.worktree,
-      old_head: fixture.oldHead,
-      resource,
-      resource_kind: "directory",
-      dev: directory.dev,
-      ino: directory.ino,
-      production: "recovered",
-      entries: recoveredEntries,
-      source_refs: [
-        {
-          file: originalOperationFile,
-          sha256: await sha256File(originalOperationFile),
-        },
-        {
-          file: originalCustodyFile,
-          sha256: await sha256File(originalCustodyFile),
-        },
-      ],
-      recovery: {
-        original_owner: "original-review-thread",
-        operation_locator: "original-writer-operation/187",
-        custody_locator: "original-custody-audit/503",
-        association_basis:
-          "independent original writer reconstruction plus original contemporaneous exact path/byte custody",
-        captured_at_production: false,
-        allocation_receipt_present: false,
-      },
-    };
-    const evidenceFile = path.join(
-      primary,
-      ".ephemeral/recovered-evidence.json",
-    );
-    const qualifiedFile = path.join(
-      primary,
-      ".ephemeral/qualified-original.json",
-    );
-    await writeFile(evidenceFile, JSON.stringify(recovered));
-    process.chdir(fixture.worktree);
-    Object.assign(process.env, { REPOSITORY: "owner/repo", PR_NUMBER: "432" });
-    const qualified = await runPrReviewProviderScopeEvidenceCommand([
-      "qualify-original",
-      "--evidence-file",
-      evidenceFile,
-      "--record-file",
-      qualifiedFile,
-    ]);
-    expect(qualified.exitCode, qualified.stderr).toBe(0);
-    expect(JSON.parse(await readFile(qualifiedFile, "utf8"))).toMatchObject({
-      production: "recovered",
-      recovery: {
-        captured_at_production: false,
-        allocation_receipt_present: false,
-      },
-    });
-    process.chdir(primary);
-    setTerminalAdvanceEnv(primary, fixture.newHead);
-    const requestFile = path.join(
-      primary,
-      ".ephemeral/recovered-retirement-request.json",
-    );
-    await writeFile(
-      requestFile,
-      JSON.stringify({
-        schema: "pr-review/attempt-retirement/v1",
-        operation_id: "recovered-original-regression",
-        repository: "owner/repo",
-        pr_number: 432,
-        worktree_path: fixture.worktree,
-        old_head: fixture.oldHead,
-        lease_file: path.relative(primary, fixture.leasePath),
-        lease_sha256: await sha256File(fixture.leasePath),
-        original_records: [
-          { file: qualifiedFile, sha256: await sha256File(qualifiedFile) },
-        ],
-        authority_ref: "original-owner/current-correction",
-        active_consumers: [],
-        pending_effects: [],
-        publication: { status: "not-required", references: [] },
-      }),
-    );
-    const retired = await runPrReviewLeasesCommand([
-      "retire-attempt",
-      "--request-file",
-      requestFile,
-    ]);
-    expect(retired.exitCode, retired.stderr + retired.stdout).toBe(0);
-    const lease = JSON.parse(await readFile(fixture.leasePath, "utf8"));
-    expect(lease.artifacts.result_file).toBeNull();
-    expect(lease.preparation_failures).toBeUndefined();
-  });
 
   it("leaves retained terminals unchanged without exact terminal-advance opt-in", async () => {
     const fixture = await makeTerminalAdvanceRefusalFixture({
@@ -10578,106 +10612,6 @@ async function refreshRetirementRequestDigest(fixture: {
   await writeFile(fixture.requestFile, JSON.stringify(request));
 }
 
-async function qualifyAcceptedFixtureOriginal(
-  fixture: { worktree: string; physicalPrimary: string; reviewHead: string },
-  resource: string,
-) {
-  const target = path.join(fixture.worktree, resource);
-  const originalBytes = await readFile(target);
-  const operationFile = path.join(
-    fixture.physicalPrimary,
-    ".ephemeral/accepted-original-writer.json",
-  );
-  // Record the original writer's exact production inputs before executing it.
-  // These accepted bytes intentionally cannot become disposable diagnostics.
-  await writeFile(
-    operationFile,
-    JSON.stringify({
-      owner: "original-fixture-producer",
-      resource,
-      worktree: fixture.worktree,
-      head: fixture.reviewHead,
-      production_utf8: originalBytes.toString("utf8"),
-    }),
-  );
-  await writeFile(target, originalBytes);
-  const stat = await lstat(target);
-  const custodyFile = path.join(
-    fixture.physicalPrimary,
-    ".ephemeral/accepted-original-custody.json",
-  );
-  await writeFile(
-    custodyFile,
-    JSON.stringify({
-      resource,
-      dev: stat.dev,
-      ino: stat.ino,
-      writer: operationFile,
-    }),
-  );
-  const evidenceFile = path.join(
-    fixture.physicalPrimary,
-    ".ephemeral/accepted-recovered-original.json",
-  );
-  const recordFile = path.join(
-    fixture.physicalPrimary,
-    ".ephemeral/accepted-qualified-original.json",
-  );
-  await writeFile(
-    evidenceFile,
-    JSON.stringify({
-      schema: "pr-review/original-artifact/v1",
-      producer: "pr-review/provider-scope",
-      operation_id: "accepted-original-writer",
-      repository: "owner/repo",
-      pr_number: 432,
-      worktree_path: fixture.worktree,
-      old_head: fixture.reviewHead,
-      resource,
-      resource_kind: "file",
-      dev: stat.dev,
-      ino: stat.ino,
-      production: "recovered",
-      source_refs: [
-        { file: operationFile, sha256: await sha256File(operationFile) },
-        { file: custodyFile, sha256: await sha256File(custodyFile) },
-      ],
-      recovery: {
-        original_owner: "original-fixture-producer",
-        operation_locator: operationFile,
-        custody_locator: custodyFile,
-        association_basis:
-          "recorded original writer inputs and contemporaneous exact file custody",
-        captured_at_production: false,
-        allocation_receipt_present: false,
-      },
-      entries: [
-        {
-          name: path.basename(resource),
-          sha256: createHash("sha256").update(originalBytes).digest("hex"),
-          dev: stat.dev,
-          ino: stat.ino,
-        },
-      ],
-    }),
-  );
-  const previous = process.cwd();
-  process.chdir(fixture.worktree);
-  try {
-    const qualified = await runPrReviewProviderScopeEvidenceCommand([
-      "qualify-original",
-      "--evidence-file",
-      evidenceFile,
-      "--record-file",
-      recordFile,
-    ]);
-    expect(qualified.exitCode, qualified.stderr).toBe(0);
-  } finally {
-    process.chdir(previous);
-  }
-  return recordFile;
-}
-
 async function makeIncompleteContinuationFixture() {
   const fixture = await makeTerminalAdvanceRefusalFixture({ canonical: true });
   const lease = JSON.parse(fixture.leaseBytes);
@@ -10693,123 +10627,93 @@ async function makeIncompleteContinuationFixture() {
   return fixture;
 }
 
-async function makeQualifiedLeaseSourceRetirementFixture(
-  includeRaw = false,
-  includeLease = true,
-) {
-  const fixture = await makeEnrolledRetirementFixture("aborted");
-  const leasePath = path.join(fixture.physicalPrimary, fixture.leaseFile);
-  const originalLeaseBytes = await readFile(leasePath, "utf8");
-  const record = JSON.parse(await readFile(fixture.recordFile, "utf8"));
-  const rawSource = path.join(
-    fixture.physicalPrimary,
-    ".ephemeral/original-owner-raw-source.bin",
-  );
-  const rawBytes = Buffer.from([0xff, 0x80, 0x00, 0xfe, 0x41]);
-  if (includeRaw) await writeFile(rawSource, rawBytes);
-  const sourceFiles = [
-    fixture.recordFile,
-    ...(includeLease ? [leasePath] : []),
-    ...(includeRaw ? [rawSource] : []),
-  ];
-  const evidenceFile = path.join(
-    fixture.physicalPrimary,
-    ".ephemeral/recovered-enrolled-owner.json",
-  );
-  const qualifiedRecord = path.join(
-    fixture.physicalPrimary,
-    ".ephemeral/qualified-enrolled-owner.json",
-  );
-  const sourceRefs = [];
-  for (const file of sourceFiles)
-    sourceRefs.push({
-      file,
-      sha256: createHash("sha256")
-        .update(await readFile(file))
-        .digest("hex"),
-    });
+async function makeGuardedScratchCleanupFixture(family = false) {
+  const fixture = await makeTerminalAdvanceRefusalFixture({ canonical: true });
+  const primary = fixture.repository.physicalRepository;
+  const resource = ".ephemeral/provider-scope-capture.existing-owner";
+  const directory = path.join(fixture.worktree, resource);
+  await mkdir(directory);
   await writeFile(
-    evidenceFile,
+    path.join(directory, "failed-scope.json"),
+    "original never-accepted bytes\n",
+  );
+  await writeFile(
+    path.join(directory, "validator.stderr"),
+    "original diagnostic\n",
+  );
+  const stat = await fsPromises.lstat(directory);
+  const entries = [];
+  for (const name of (await readdir(directory)).sort()) {
+    const leaf = await fsPromises.lstat(path.join(directory, name));
+    entries.push({
+      name,
+      dev: leaf.dev,
+      ino: leaf.ino,
+      sha256: await sha256File(path.join(directory, name)),
+    });
+  }
+  const requestFile = path.join(
+    primary,
+    ".ephemeral/guarded-scratch-request.json",
+  );
+  await writeFile(
+    requestFile,
     JSON.stringify({
-      ...record,
-      production: "recovered",
-      source_refs: sourceRefs,
-      recovery: {
-        original_owner: "original-fixture-owner",
-        operation_locator: record.operation_id,
-        custody_locator: leasePath,
-        association_basis:
-          "genuine original captured sealed record plus current enrolled lease custody and original owner source bytes",
-        captured_at_production: false,
-        allocation_receipt_present: true,
-      },
+      schema: "pr-review/provider-scope-cleanup/v1",
+      operation_id: "existing-owner-cleanup",
+      repository: "owner/repo",
+      pr_number: 432,
+      worktree_path: fixture.worktree,
+      old_head: fixture.oldHead,
+      lease_file: path.relative(primary, fixture.leasePath),
+      lease_sha256: await sha256File(fixture.leasePath),
+      expected_scratch: [{ resource, dev: stat.dev, ino: stat.ino, entries }],
+      authority_ref: "fixture-owner/covered-cleanup",
+      active_consumers: [],
+      pending_effects: [],
+      publication: { status: "not-required", references: [] },
     }),
   );
-  process.chdir(fixture.worktree);
-  try {
-    const qualified = await runPrReviewProviderScopeEvidenceCommand([
-      "qualify-original",
-      "--evidence-file",
-      evidenceFile,
-      "--record-file",
-      qualifiedRecord,
-    ]);
-    expect(qualified.exitCode, qualified.stderr).toBe(0);
-  } finally {
-    process.chdir(fixture.physicalPrimary);
-  }
-  const request = JSON.parse(await readFile(fixture.requestFile, "utf8"));
-  request.original_records = [
-    { file: qualifiedRecord, sha256: await sha256File(qualifiedRecord) },
-  ];
-  await writeFile(fixture.requestFile, JSON.stringify(request));
-  return {
-    ...fixture,
-    leasePath,
-    originalLeaseBytes,
-    qualifiedRecord,
-    qualifiedBytes: await readFile(qualifiedRecord),
-    rawSource,
-    rawBytes,
-    operationFile: path.join(
-      fixture.physicalPrimary,
-      ".ephemeral/pr-432-retirement-enrolled-retirement.json",
-    ),
-    reservationPath: path.join(
-      fixture.physicalPrimary,
-      ".ephemeral/pr-432-session-create-reservation.json",
-    ),
-  };
-}
-async function interruptRetirementOutcomeCommit(fixture: {
-  operationFile: string;
-  requestFile: string;
-}) {
-  const actualWrite = artifacts.writeTextAtomically;
-  let interrupted = false;
-  const spy = vi
-    .spyOn(artifacts, "writeTextAtomically")
-    .mockImplementation(async (target, content) => {
-      if (
-        !interrupted &&
-        target === fixture.operationFile &&
-        JSON.parse(content).outcome === "retired"
-      ) {
-        interrupted = true;
-        throw new Error("interrupt after lease metadata before outcome commit");
-      }
-      return actualWrite(target, content);
+  const resources = [resource];
+  if (family) {
+    const second = `${resource}-second`;
+    const secondDirectory = path.join(fixture.worktree, second);
+    await mkdir(secondDirectory);
+    for (const name of ["failed-scope.json", "validator.stderr"])
+      await writeFile(
+        path.join(secondDirectory, name),
+        await readFile(path.join(directory, name)),
+      );
+    const snapshot = {
+      resource: second,
+      ...(await fsPromises.lstat(secondDirectory)),
+      entries: [] as {
+        name: string;
+        sha256: string;
+        dev: number;
+        ino: number;
+      }[],
+    };
+    for (const name of (await readdir(secondDirectory)).sort()) {
+      const leaf = await fsPromises.lstat(path.join(secondDirectory, name));
+      snapshot.entries.push({
+        name,
+        sha256: await sha256File(path.join(secondDirectory, name)),
+        dev: leaf.dev,
+        ino: leaf.ino,
+      });
+    }
+    const request = JSON.parse(await readFile(requestFile, "utf8"));
+    request.expected_scratch.push({
+      resource: second,
+      dev: snapshot.dev,
+      ino: snapshot.ino,
+      entries: snapshot.entries,
     });
-  try {
-    const result = await runPrReviewLeasesCommand([
-      "retire-attempt",
-      "--request-file",
-      fixture.requestFile,
-    ]);
-    expect(interrupted).toBe(true);
-    expect(result.exitCode).toBe(1);
-    return result;
-  } finally {
-    spy.mockRestore();
+    await writeFile(requestFile, JSON.stringify(request));
+    resources.push(second);
   }
+  process.chdir(primary);
+  setTerminalAdvanceEnv(primary, fixture.newHead);
+  return { ...fixture, primary, resource, resources, requestFile };
 }

@@ -1423,14 +1423,17 @@ resolved consumers/recovery and verified useful-context publication precede supp
 retirement. Current-hash-only claims and retroactive semantic enrollment refuse. Durable Git/PR records cannot replace local-only evidence they lack.
 
 The existing artifact/lease runtime implements the boundary through original
-producer allocation, sealing, legacy qualification, reservation-bound exact
-retirement and current-head session continuation. Completed unposted and exhausted
+current producer allocation, validated directory sealing, guarded scratch cleanup
+and reservation-bound exact retirement and current-head session continuation. Completed unposted and exhausted
 failed sessions retain truthful historical state; fresh created successors inherit
 no approval or live artifact authority. Interrupted retirement resumes only with
 exact same-operation evidence; partial head/lease advancement holds for supported
 reconciliation. This spec alone authorizes no live cleanup, abort, posting or
-migration. Actual original owner/controller qualification and scoped action binding
-remain required for live legacy resources.
+migration. Actual original owner/controller custody, exhausted purpose, durable publication
+and exact action binding remain required for historical resources; expected
+physical snapshots alone establish neither ownership nor permission. General
+qualification/recovered/standalone receipt variants are removed, and their old
+packets cannot execute.
 
 Verification compares equivalent baseline/target cases for unused diagnostics,
 unknown custody, active old-review consumer, completed gated changed-head review,
@@ -1446,7 +1449,8 @@ identifies the checked retirement/supersession boundary and required comparison;
 the single lifecycle contract and runtime source own the implemented boundary.
 The existing [`pr-review-leases` tests](../../src/runtime/pr-review-leases.test.ts)
 and [artifact adapter regressions](../../src/skill-scripts/pr-review-prior-thread-artifacts.integration.test.ts)
-exercise source-produced legacy-class and enrolled retirement, refusal, replay and
+exercise current producer and guarded existing-directory cleanup, enrolled
+retirement, refusal, replay and
 truthful continuation. Fixture results do not establish a live legacy disposition.
 
 ### PLAN-004: Preserved boundaries

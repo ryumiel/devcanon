@@ -271,11 +271,7 @@ export async function runPrReviewProviderScopeEvidenceCommand(
         `${JSON.stringify(PR_REVIEW_PROVIDER_SCOPE_EVIDENCE_CONTRACT)}\n`,
       );
     }
-    if (
-      ["allocate-original", "seal-original", "qualify-original"].includes(
-        args[0] ?? "",
-      )
-    ) {
+    if (["allocate-original", "seal-original"].includes(args[0] ?? "")) {
       return await originalProducerOperation(args[0] as string, args.slice(1));
     }
     if (args[0] === "materialize-capture") {
@@ -301,7 +297,7 @@ export async function runPrReviewProviderScopeEvidenceCommand(
     }
     if (args[0] !== "write") {
       fail(
-        "usage: pr-review-provider-scope-evidence contract|materialize-capture|create-scratch|remove-scratch|reconcile-fetch|classify-capture|read-evidence-field|render-scope-notice|write --head-sha <sha> --capture-file <path>",
+        "usage: pr-review-provider-scope-evidence contract|allocate-original|seal-original|materialize-capture|create-scratch|remove-scratch|reconcile-fetch|classify-capture|read-evidence-field|render-scope-notice|write --head-sha <sha> --capture-file <path>",
       );
     }
     const headSha = requiredProducerOption(args.slice(1), "--head-sha");
@@ -368,7 +364,13 @@ export async function runPrReviewProviderScopeEvidenceCommand(
   }
 }
 
-export interface OriginalReviewArtifact {
+export interface ProviderScopeSnapshot {
+  resource: string;
+  dev: number;
+  ino: number;
+  entries: { name: string; sha256: string; dev: number; ino: number }[];
+}
+export interface OriginalReviewArtifact extends ProviderScopeSnapshot {
   schema: "pr-review/original-artifact/v1";
   producer: "pr-review/provider-scope";
   operation_id: string;
@@ -376,21 +378,7 @@ export interface OriginalReviewArtifact {
   pr_number: number;
   worktree_path: string;
   old_head: string;
-  resource: string;
-  resource_kind: "file" | "directory";
-  dev: number;
-  ino: number;
-  production: "allocated" | "sealed" | "recovered";
-  source_refs: { file: string; sha256: string }[];
-  recovery: null | {
-    original_owner: string;
-    operation_locator: string;
-    custody_locator: string;
-    association_basis: string;
-    captured_at_production: false;
-    allocation_receipt_present: boolean;
-  };
-  entries: { name: string; sha256: string; dev: number; ino: number }[];
+  production: "allocated" | "sealed";
 }
 
 // Parse all object members before JSON.parse so duplicate keys cannot disappear.
@@ -492,48 +480,18 @@ export async function readOriginalReviewRecord(
   return record;
 }
 
-function validateOriginalReviewRecord(
+export function validateProviderScopeSnapshot(
   value: unknown,
-): asserts value is OriginalReviewArtifact {
-  assertClosedOriginalObject(value, [
-    "schema",
-    "producer",
-    "operation_id",
-    "repository",
-    "pr_number",
-    "worktree_path",
-    "old_head",
-    "resource",
-    "resource_kind",
-    "dev",
-    "ino",
-    "production",
-    "source_refs",
-    "recovery",
-    "entries",
-  ]);
+): asserts value is ProviderScopeSnapshot {
+  assertClosedOriginalObject(value, ["resource", "dev", "ino", "entries"]);
   if (
-    value.schema !== "pr-review/original-artifact/v1" ||
-    value.producer !== "pr-review/provider-scope" ||
-    typeof value.operation_id !== "string" ||
-    !/^[a-zA-Z0-9_-]+$/u.test(value.operation_id) ||
-    typeof value.repository !== "string" ||
-    !/^[^/\s]+\/[^/\s]+$/u.test(value.repository) ||
-    !Number.isSafeInteger(value.pr_number) ||
-    Number(value.pr_number) <= 0 ||
-    typeof value.worktree_path !== "string" ||
-    !path.isAbsolute(value.worktree_path) ||
-    typeof value.old_head !== "string" ||
-    !/^[a-f0-9]{40}$/u.test(value.old_head) ||
-    !["allocated", "sealed", "recovered"].includes(String(value.production)) ||
-    !["file", "directory"].includes(String(value.resource_kind)) ||
+    typeof value.resource !== "string" ||
     !Number.isSafeInteger(value.dev) ||
     !Number.isSafeInteger(value.ino) ||
-    !Array.isArray(value.source_refs) ||
     !Array.isArray(value.entries)
   )
-    fail("invalid original producer record");
-  validateDirectChildPath("original resource", String(value.resource));
+    fail("invalid provider scratch snapshot");
+  validateProviderScopeScratchPath(value.resource);
   const names = new Set<string>();
   for (const entry of value.entries) {
     assertClosedOriginalObject(entry, ["name", "sha256", "dev", "ino"]);
@@ -551,52 +509,51 @@ function validateOriginalReviewRecord(
       fail("invalid original producer entries");
     names.add(entry.name);
   }
-  for (const reference of value.source_refs) {
-    assertClosedOriginalObject(reference, ["file", "sha256"]);
-    if (
-      typeof reference.file !== "string" ||
-      !path.isAbsolute(reference.file) ||
-      typeof reference.sha256 !== "string" ||
-      !/^[a-f0-9]{64}$/u.test(reference.sha256)
-    )
-      fail("invalid original producer evidence reference");
-  }
-  if (value.production !== "allocated" && value.entries.length === 0)
+}
+function validateOriginalReviewRecord(
+  value: unknown,
+): asserts value is OriginalReviewArtifact {
+  assertClosedOriginalObject(value, [
+    "schema",
+    "producer",
+    "operation_id",
+    "repository",
+    "pr_number",
+    "worktree_path",
+    "old_head",
+    "resource",
+    "dev",
+    "ino",
+    "production",
+    "entries",
+  ]);
+  if (
+    value.schema !== "pr-review/original-artifact/v1" ||
+    value.producer !== "pr-review/provider-scope" ||
+    typeof value.operation_id !== "string" ||
+    !/^[a-zA-Z0-9_-]+$/u.test(value.operation_id) ||
+    typeof value.repository !== "string" ||
+    !/^[^/\s]+\/[^/\s]+$/u.test(value.repository) ||
+    !Number.isSafeInteger(value.pr_number) ||
+    Number(value.pr_number) <= 0 ||
+    typeof value.worktree_path !== "string" ||
+    !path.isAbsolute(value.worktree_path) ||
+    typeof value.old_head !== "string" ||
+    !/^[a-f0-9]{40}$/u.test(value.old_head) ||
+    !["allocated", "sealed"].includes(String(value.production))
+  )
+    fail("invalid original producer record");
+  validateProviderScopeSnapshot({
+    resource: value.resource,
+    dev: value.dev,
+    ino: value.ino,
+    entries: value.entries,
+  });
+  if (
+    value.production === "sealed" &&
+    (value.entries as unknown[]).length === 0
+  )
     fail("sealed original production has no exact bytes");
-  if (value.production === "recovered") {
-    if (value.source_refs.length === 0)
-      fail("recovered original producer evidence is required");
-    assertClosedOriginalObject(value.recovery, [
-      "original_owner",
-      "operation_locator",
-      "custody_locator",
-      "association_basis",
-      "captured_at_production",
-      "allocation_receipt_present",
-    ]);
-    for (const name of [
-      "original_owner",
-      "operation_locator",
-      "custody_locator",
-      "association_basis",
-    ]) {
-      if (
-        typeof value.recovery[name] !== "string" ||
-        String(value.recovery[name]).trim() === ""
-      )
-        fail(
-          "original-owner recovered association is required; current hashes alone do not qualify",
-        );
-    }
-    if (
-      value.recovery.captured_at_production !== false ||
-      typeof value.recovery.allocation_receipt_present !== "boolean"
-    )
-      fail(
-        "recovered provenance cannot fabricate captured production evidence",
-      );
-  } else if (value.recovery !== null || value.source_refs.length !== 0)
-    fail("captured producer receipt cannot claim recovered provenance");
 }
 
 export async function assertOriginalRecordPath(
@@ -628,17 +585,9 @@ export async function assertOriginalRecordPath(
     fail("original record must be a regular nonsymlink file");
 }
 
-export async function assertOriginalEvidencePath(file: string): Promise<void> {
-  if (!path.isAbsolute(file) || (await realpath(file)) !== file)
-    fail("original evidence must be an accessible physical path");
-  const entry = await lstat(file);
-  if (!entry.isFile() || entry.isSymbolicLink())
-    fail("original evidence must be a regular nonsymlink file");
-}
-
 export async function snapshotOriginalReviewResource(
-  record: OriginalReviewArtifact,
-): Promise<OriginalReviewArtifact["entries"]> {
+  record: ProviderScopeSnapshot & { worktree_path: string },
+): Promise<ProviderScopeSnapshot["entries"]> {
   if ((await realpath(record.worktree_path)) !== record.worktree_path)
     fail("original worktree must be physical");
   const ephemeral = path.join(record.worktree_path, ".ephemeral");
@@ -651,20 +600,15 @@ export async function snapshotOriginalReviewResource(
   const before = await lstat(target);
   if (
     before.isSymbolicLink() ||
-    (!before.isDirectory() && !before.isFile()) ||
+    !before.isDirectory() ||
     before.dev !== record.dev ||
-    before.ino !== record.ino ||
-    (record.resource_kind === "directory"
-      ? !before.isDirectory()
-      : !before.isFile())
+    before.ino !== record.ino
   )
     fail("original resource identity changed");
-  const names = before.isDirectory()
-    ? (await readdir(target)).sort()
-    : [path.basename(target)];
+  const names = (await readdir(target)).sort();
   const entries: OriginalReviewArtifact["entries"] = [];
   for (const name of names) {
-    const leaf = before.isDirectory() ? path.join(target, name) : target;
+    const leaf = path.join(target, name);
     const first = await lstat(leaf);
     if (!first.isFile() || first.isSymbolicLink())
       fail("original resource entries must be regular nonsymlink files");
@@ -695,8 +639,7 @@ async function originalProducerOperation(
   args: readonly string[],
 ): Promise<RuntimeCommandOutcome> {
   const recordFile = requiredProducerOption(args, "--record-file");
-  if (args.length !== (command === "qualify-original" ? 4 : 2))
-    fail("invalid original producer operation arguments");
+  if (args.length !== 2) fail("invalid original producer operation arguments");
   await requireRepoRoot();
   const root = await realpath(process.cwd());
   await assertOriginalRecordPath(recordFile, true);
@@ -770,12 +713,9 @@ async function originalProducerOperation(
       worktree_path: root,
       old_head: (await git(["rev-parse", "HEAD"])).trim(),
       resource,
-      resource_kind: "directory",
       dev: entry.dev,
       ino: entry.ino,
       production: "allocated",
-      source_refs: [],
-      recovery: null,
       entries: [],
     };
     // The mkdtemp basename uses a dot; use a closed operation identifier.
@@ -834,41 +774,6 @@ async function originalProducerOperation(
     }
     return ok(`${resource}\n`);
   }
-  if (command === "qualify-original") {
-    const evidenceFile = requiredProducerOption(args, "--evidence-file");
-    const record = await readOriginalReviewRecord(evidenceFile);
-    if (record.production !== "recovered")
-      fail(
-        "legacy qualification requires independently recovered original-owner evidence",
-      );
-    if (
-      record.worktree_path !== root ||
-      record.old_head !== (await git(["rev-parse", "HEAD"])).trim() ||
-      record.repository !== process.env.REPOSITORY ||
-      record.pr_number !== Number(process.env.PR_NUMBER)
-    )
-      fail("original producer association mismatch");
-    for (const reference of record.source_refs) {
-      await assertOriginalEvidencePath(reference.file);
-      if (
-        reference.file === evidenceFile ||
-        reference.file === recordFile ||
-        reference.file.startsWith(`${root}${path.sep}`) ||
-        createHash("sha256")
-          .update(await readFile(reference.file))
-          .digest("hex") !== reference.sha256
-      )
-        fail("original production source is unavailable or changed");
-    }
-    if (
-      JSON.stringify(await snapshotOriginalReviewResource(record)) !==
-      JSON.stringify(record.entries)
-    )
-      fail("original produced bytes or closed entry set changed");
-    validateOriginalReviewRecord(record);
-    await writeFile(recordFile, `${JSON.stringify(record)}\n`, { flag: "wx" });
-    return ok(`${recordFile}\n`);
-  }
   const record = await readOriginalReviewRecord(recordFile);
   if (
     record.worktree_path !== root ||
@@ -910,6 +815,12 @@ async function removeProviderScopeScratch(
   args: readonly string[],
 ): Promise<RuntimeCommandOutcome> {
   const scratch = requiredProducerOption(args, "--scratch-dir");
+  if (args.length === 4 && args[2] === "--expected-snapshot-file") {
+    const { runGuardedProviderScopeCleanup } = await import(
+      "./pr-review-leases.js"
+    );
+    return runGuardedProviderScopeCleanup(scratch, args[3] as string);
+  }
   if (args.length !== 2) {
     fail("remove-scratch accepts only --scratch-dir");
   }

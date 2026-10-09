@@ -10,11 +10,11 @@ operator flow.
 ## Target retention and supersession contract
 
 This section owns finite retirement and attempt replacement. The existing
-artifact adapter captures original allocation/production or qualifies independently
-recovered original-owner evidence. The lease adapter implements `retire-attempt`
+artifact adapter captures current provider-scope allocation and sealed directory
+custody. Existing scratch cleanup also has an expected-snapshot guarded mode. The lease adapter implements `retire-attempt`
 and bounded `session-create` continuation. Runtime types own their closed input
 shapes; the [usage owner](review-leases-usage.md) documents invocation. Neither
-policy text nor a qualified producer record grants human cleanup or publication
+policy text nor a current producer record grants human cleanup or publication
 authority.
 
 ### One owner per decision
@@ -313,26 +313,33 @@ through the artifact adapter. Retain them while correction, diagnosis, replay,
 review, delivery or durable useful-context publication needs them. Error occurrence
 alone creates no perpetual retention requirement.
 
-Unenrolled legacy scratch requires accessible independently recovered original-owner
-allocation/production association and produced byte identities. Recorded original
-operations, content lineage and contemporaneous exact path/byte custody can qualify
-without pretending that a missing production digest or allocation receipt existed.
-Names, current hashes, new assertions and a reconstructed candidate alone cannot
-qualify it. Original producer/controller judgment is separate from deterministic
-validation and actual action authority. The two legacy failed scope directories
-are within this contract, with their evidence gaps stated truthfully.
+Current `retire-attempt` consumes supported current-producer sealed directory
+receipts and exact repository/PR/physical canonical worktree/head/lease bindings.
+There is no general legacy qualification, recovered receipt production, arbitrary
+source-reference provenance or standalone-file compatibility. Historical packets
+from that removed subsystem must not execute and cannot be relabeled as current
+captured evidence.
 
-`retire-attempt` consumes only qualified original records and exact current
-repository/PR/physical canonical worktree/head/lease bindings. It reserves through
-the session owner, rechecks every known leaf before deletion, preserves unknown,
-changed, extra, symlinked, dirty, concurrent, active or uncertain resources, and
-returns actual `retired` or `held` effects. Prior missing resources are idempotent
-only under exact retained same-operation progress. Pending operation evidence
-stays in the physical primary; an unknown operation or divergent replay refuses.
-Current failure metadata release is coherent and grants no semantic acceptance.
-After exact retirement, the unchanged classifier and posted/aborted LC-18 path can
-advance normally. No manual scratch deletion or policy override substitutes for
-this action.
+For an existing directory without a supported current producer receipt, its
+original owner/controller separately establishes real original custody, exhausted
+readers/recovery, verified useful-context publication and exact current scoped
+action authority. Unknown or active obligations hold before action. The existing
+provider-scope scratch-cleanup boundary takes an expected physical snapshot only
+as a deterministic deletion precondition; hashes establish neither ownership nor
+permission. It shares the lease owner's reservation, accepted-family and closed
+resource guards and exact partial-effect recovery, not another retention policy.
+
+Both paths preserve changed, extra, symlinked, tracked, accepted, dirty,
+unregistered, stale, concurrent and uncertain resources. Partial effects retain
+truthful surviving/missing leaf evidence; only the identical saved operation can
+resume. Operation data is limited to exact request/reservation bindings, original
+and released lease versions, directory snapshots and actual deletion progress.
+No archive substitutes for deleted-leaf progress. Existing unenrolled cleanup
+leaves lease bytes unchanged; actual enrolled metadata releases coherently without
+retroactive LC-19, lease patches, forced bypass or semantic acceptance. Normal
+successful validation still removes unused scratch and its allocation receipt.
+Live historical cleanup remains a separate reviewed original-owner/controller
+action after all current conditions and the provider head are refreshed.
 
 Useful decisions, scope/rationale, unresolved discussion, actionable findings and
 current decision references belong in the durable GitHub issue/PR. The invoking

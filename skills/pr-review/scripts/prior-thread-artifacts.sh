@@ -225,7 +225,7 @@ remove_provider_scope_scratch() {
   require_repo_root
   runtime="$(resolve_provider_scope_runtime)"
   "$runtime" runtime pr-review-provider-scope-evidence remove-scratch \
-    --scratch-dir "$scratch"
+    --scratch-dir "$scratch" "${@:2}"
 }
 
 reconcile_provider_scope_fetch() {
@@ -386,7 +386,7 @@ validate_scope_decision() {
 }
 
 case "$command_name" in
-  allocate-original | seal-original | qualify-original)
+  allocate-original | seal-original)
     require_repo_root
     runtime="$(resolve_provider_scope_runtime)"
     "$runtime" runtime pr-review-provider-scope-evidence "$command_name" "${@:2}"
@@ -414,8 +414,8 @@ case "$command_name" in
     create_provider_scope_scratch
     ;;
   remove-provider-scope-scratch)
-    [ "$#" -eq 2 ] || fail "remove-provider-scope-scratch requires exactly one scratch directory path"
-    remove_provider_scope_scratch "$2"
+    [ "$#" -eq 2 ] || { [ "$#" -eq 4 ] && [ "$3" = "--expected-snapshot-file" ]; } || fail "remove-provider-scope-scratch requires scratch path and optional --expected-snapshot-file"
+    remove_provider_scope_scratch "${@:2}"
     ;;
   reconcile-provider-scope-fetch)
     [ "$#" -eq 2 ] || fail "reconcile-provider-scope-fetch requires exactly one scratch directory path"
@@ -438,6 +438,6 @@ case "$command_name" in
     validate_scope_decision
     ;;
   *)
-    fail "usage: prior-thread-artifacts.sh prepare-prior-threads-write|validate-prior-threads|prepare-scope-decision-write|prepare-provider-scope-evidence-write|materialize-provider-scope-capture|create-provider-scope-scratch|remove-provider-scope-scratch <scratch-dir>|reconcile-provider-scope-fetch <scratch-dir>|classify-provider-scope-capture|read-provider-scope-evidence-field --field <name>|render-scope-notice|write-provider-scope-evidence|validate-scope-decision|allocate-original|seal-original|qualify-original"
+    fail "usage: prior-thread-artifacts.sh prepare-prior-threads-write|validate-prior-threads|prepare-scope-decision-write|prepare-provider-scope-evidence-write|materialize-provider-scope-capture|create-provider-scope-scratch|remove-provider-scope-scratch <scratch-dir>|reconcile-provider-scope-fetch <scratch-dir>|classify-provider-scope-capture|read-provider-scope-evidence-field --field <name>|render-scope-notice|write-provider-scope-evidence|validate-scope-decision|allocate-original|seal-original"
     ;;
 esac

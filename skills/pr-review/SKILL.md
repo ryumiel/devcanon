@@ -1298,8 +1298,12 @@ Use the [lifecycle owner](references/review-lease-lifecycle-contract.md#target-r
 and [lease usage](references/review-leases-usage.md#original-proven-attempt-retirement)
 to qualify exact original-produced scratch, resolve current consumers/effects,
 and verify useful durable context in the GitHub issue/PR. Original artifact records
-and recovered-owner qualification are custody evidence; check applicable current
-human authority separately. Invoke supported retirement from the physical primary,
+are current producer custody evidence; check applicable current human authority
+separately. Existing directories without current receipts use the guarded scratch
+cleanup boundary only after the original owner/controller proves real custody,
+ends readers/recovery, verifies durable context publication and binds the current
+action. Unknown custody, pending publication or active consumers hold before any
+snapshot-based invocation; hashes grant neither ownership nor permission. Invoke supported retirement from the physical primary,
 then use canonical posted/aborted advancement or bound completed/failed continuation.
 Retain precise custody/publication gaps and actual held effects; do not remove
 scratch manually to obtain classifier eligibility.

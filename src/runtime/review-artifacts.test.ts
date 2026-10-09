@@ -3498,7 +3498,7 @@ describe("provider scope capture scratch subcommands", () => {
     },
   );
 
-  it.each(["allocate-original", "seal-original", "qualify-original"])(
+  it.each(["allocate-original", "seal-original"])(
     "refuses a sibling linked worktree as the original producer primary for %s",
     async (command) => {
       const { cwd } = await makeProviderMultiFileWorkspace();
@@ -3541,59 +3541,9 @@ describe("provider scope capture scratch subcommands", () => {
           "original rejection",
         );
         const recordFile = path.join(sibling, ".ephemeral/sibling-record.json");
-        let args = [command, "--record-file", recordFile];
+        const args = [command, "--record-file", recordFile];
         if (command === "seal-original")
           await writeFile(recordFile, await readFile(primaryRecord));
-        if (command === "qualify-original") {
-          const sealed = await runPrReviewProviderScopeEvidenceCommand([
-            "seal-original",
-            "--record-file",
-            primaryRecord,
-          ]);
-          expect(sealed.exitCode, sealed.stderr).toBe(0);
-          const record = JSON.parse(await readFile(primaryRecord, "utf8"));
-          // Use the genuine captured receipt as original-owner evidence for this
-          // recovered qualification; the copied evidence is explicitly recovered.
-          const evidenceFile = path.join(
-            primary,
-            ".ephemeral/recovered-owner-evidence.json",
-          );
-          const recovered = {
-            ...record,
-            production: "recovered",
-            source_refs: [
-              {
-                file: primaryRecord,
-                sha256: createHash("sha256")
-                  .update(await readFile(primaryRecord))
-                  .digest("hex"),
-              },
-            ],
-            recovery: {
-              original_owner: "original-fixture-owner",
-              operation_locator: record.operation_id,
-              custody_locator: primaryRecord,
-              association_basis:
-                "original captured producer record and exact owner custody",
-              captured_at_production: false,
-              allocation_receipt_present: true,
-            },
-          };
-          await writeFile(evidenceFile, JSON.stringify(recovered));
-          const qualifiedPrimary = path.join(
-            primary,
-            ".ephemeral/qualified-primary.json",
-          );
-          const valid = await runPrReviewProviderScopeEvidenceCommand([
-            command,
-            "--record-file",
-            qualifiedPrimary,
-            "--evidence-file",
-            evidenceFile,
-          ]);
-          expect(valid.exitCode, valid.stderr).toBe(0);
-          args = [...args, "--evidence-file", evidenceFile];
-        }
         const beforeRecord = await readFile(recordFile).catch(() => null);
         const beforeEntries = await readdir(path.join(producer, ".ephemeral"));
         const result = await runPrReviewProviderScopeEvidenceCommand(args);
@@ -3620,84 +3570,6 @@ describe("provider scope capture scratch subcommands", () => {
             { cwd: primary },
           );
         await cleanupTempDir(cwd);
-      }
-    },
-  );
-
-  it.each(["root", "shallow", "deep", "outside"] as const)(
-    "binds qualified original source evidence outside the entire disposable tree: %s",
-    async (location) => {
-      const fixture = await makeOriginalProducerFixture();
-      try {
-        const sealed = await runPrReviewProviderScopeEvidenceCommand([
-          "seal-original",
-          "--record-file",
-          fixture.recordFile,
-        ]);
-        expect(sealed.exitCode, sealed.stderr).toBe(0);
-        const recordBytes = await readFile(fixture.recordFile);
-        const record = JSON.parse(recordBytes.toString("utf8"));
-        const source =
-          location === "outside"
-            ? path.join(fixture.primary, "original-source.bin")
-            : path.join(
-                fixture.producer,
-                location === "root"
-                  ? "original-source.bin"
-                  : location === "shallow"
-                    ? "source/original-source.bin"
-                    : "source/deep/original-source.bin",
-              );
-        await mkdir(path.dirname(source), { recursive: true });
-        const sourceBytes = Buffer.from([0xff, 0x80, 0x00, 0x41]);
-        await writeFile(source, sourceBytes);
-        const evidenceFile = path.join(
-          fixture.primary,
-          ".ephemeral/recovered-source-evidence.json",
-        );
-        const qualifiedFile = path.join(
-          fixture.primary,
-          ".ephemeral/qualified-source-evidence.json",
-        );
-        const recovered = recoveredOriginalFixtureRecord(record, [
-          fixture.recordFile,
-          source,
-        ]);
-        for (const reference of recovered.source_refs)
-          reference.sha256 = createHash("sha256")
-            .update(await readFile(reference.file))
-            .digest("hex");
-        await writeFile(evidenceFile, JSON.stringify(recovered));
-        const evidenceBytes = await readFile(evidenceFile);
-        const result = await runPrReviewProviderScopeEvidenceCommand([
-          "qualify-original",
-          "--evidence-file",
-          evidenceFile,
-          "--record-file",
-          qualifiedFile,
-        ]);
-        expect(result.exitCode, result.stderr).toBe(
-          location === "outside" ? 0 : 1,
-        );
-        expect(await readFile(fixture.recordFile)).toEqual(recordBytes);
-        expect(await readFile(evidenceFile)).toEqual(evidenceBytes);
-        expect(await readFile(source)).toEqual(sourceBytes);
-        expect(
-          await readFile(
-            path.join(fixture.producer, fixture.resource, "failed-scope.json"),
-            "utf8",
-          ),
-        ).toBe("original rejected candidate\n");
-        if (location === "outside")
-          expect(
-            (await readOriginalReviewRecord(qualifiedFile)).production,
-          ).toBe("recovered");
-        else
-          await expect(fsPromises.lstat(qualifiedFile)).rejects.toMatchObject({
-            code: "ENOENT",
-          });
-      } finally {
-        await fixture.dispose();
       }
     },
   );
@@ -3753,6 +3625,74 @@ describe("provider scope capture scratch subcommands", () => {
       }
     },
   );
+
+  it("removes general qualification rather than retaining renamed compatibility", async () => {
+    const fixture = await makeOriginalProducerFixture();
+    try {
+      expect(
+        (
+          await runPrReviewProviderScopeEvidenceCommand([
+            "seal-original",
+            "--record-file",
+            fixture.recordFile,
+          ])
+        ).exitCode,
+      ).toBe(0);
+      const record = JSON.parse(await readFile(fixture.recordFile, "utf8"));
+      const recovered = {
+        ...record,
+        resource_kind: "directory",
+        production: "recovered",
+        source_refs: [{ file: fixture.recordFile, sha256: "" }],
+        recovery: {
+          original_owner: "fixture-owner",
+          operation_locator: record.operation_id,
+          custody_locator: fixture.recordFile,
+          association_basis: "historical original sealed receipt",
+          captured_at_production: false,
+          allocation_receipt_present: true,
+        },
+      };
+      recovered.source_refs[0].sha256 = createHash("sha256")
+        .update(await readFile(fixture.recordFile))
+        .digest("hex");
+      const evidence = path.join(
+        fixture.primary,
+        ".ephemeral/old-qualification.json",
+      );
+      const output = path.join(
+        fixture.primary,
+        ".ephemeral/old-qualified.json",
+      );
+      await writeFile(evidence, JSON.stringify(recovered));
+      const result = await runPrReviewProviderScopeEvidenceCommand([
+        "qualify-original",
+        "--evidence-file",
+        evidence,
+        "--record-file",
+        output,
+      ]);
+      expect(result.exitCode).toBe(1);
+      await expect(readOriginalReviewRecord(evidence)).rejects.toThrow();
+      await expect(fsPromises.lstat(output)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await fixture.dispose();
+    }
+  });
+
+  it("current allocation retains directory custody without generic compatibility fields", async () => {
+    const fixture = await makeOriginalProducerFixture();
+    try {
+      const record = await readOriginalReviewRecord(fixture.recordFile);
+      expect(record).not.toHaveProperty("source_refs");
+      expect(record).not.toHaveProperty("recovery");
+      expect(record).not.toHaveProperty("resource_kind");
+    } finally {
+      await fixture.dispose();
+    }
+  });
 
   it("refuses ordinary scratch removal of a failed scope pair", async () => {
     const { cwd } = await makeProviderMultiFileWorkspace();
@@ -4018,22 +3958,6 @@ describe("pre-findings markdown extraction", () => {
   });
 });
 
-function recoveredOriginalFixtureRecord(record: JsonObject, files: string[]) {
-  return {
-    ...record,
-    production: "recovered",
-    source_refs: files.map((file) => ({ file, sha256: "" })),
-    recovery: {
-      original_owner: "original-fixture-owner",
-      operation_locator: String(record.operation_id),
-      custody_locator: files[0],
-      association_basis:
-        "genuine original captured allocation/seal receipt and unchanged owner source evidence",
-      captured_at_production: false,
-      allocation_receipt_present: true,
-    },
-  };
-}
 async function makeOriginalProducerFixture() {
   const { cwd } = await makeProviderMultiFileWorkspace();
   const primary = await realpath(cwd);

@@ -115,7 +115,7 @@ shape; unknown or duplicate JSON members refuse. Required fields are:
 
 Digests are lowercase 64-hex SHA-256. A producer record is custody evidence, not
 approval. The helper verifies bindings and bytes; the wrapper/original owner
-qualifies original production, purpose exhaustion, actual durable publication
+verifies current producer custody, purpose exhaustion, actual durable publication
 and applicable human authority. Pending/failed/unknown publication refuses.
 Do not synthesize empty consumers or not-required from task completion alone.
 
@@ -129,8 +129,7 @@ reports partial/uncertain effects; it does not promise rollback.
 
 The deterministic primary operation file is
 `.ephemeral/pr-<number>-retirement-<operation_id>.json`. It retains the exact
-request digest, reservation, original/released lease bytes, original resource
-records and per-step progress. The same PR reservation also covers lease writes,
+request digest, reservation, original/released lease bytes, closed directory snapshots and per-step progress. The same PR reservation also covers lease writes,
 audit failure writes and cleanup metadata/removal. Each destructive step rechecks
 current head, registration, clean source, lease/request/reservation and original
 bytes. Changed, extra, nested, symlinked, unknown, current-hash-only, active,
@@ -157,6 +156,35 @@ shared-context and approval-owned files. Original custody alone cannot make
 accepted evidence disposable.
 Historical records remain context. After retirement, the ordinary classifier and
 posted/aborted canonical advancement remain supported.
+
+## Guarded scratch cleanup
+
+The artifact adapter's existing `remove-provider-scope-scratch <scratch>` boundary
+accepts `--expected-snapshot-file <physical-primary-path>`. Run guarded cleanup
+from the physical primary with the same identity environment as retirement.
+The packet has the common bindings, authority/purpose/effect/publication fields
+in the table above, `schema: "pr-review/provider-scope-cleanup/v1"`, and a nonempty
+`expected_scratch: [{resource, dev, ino, entries}, ...]` instead of `original_records`.
+The scratch argument names the first family member; all intended directories must
+be covered, and unrelated unmanaged artifacts remain held. Each closed regular-leaf entry is `{name, sha256, dev, ino}`. The resource is a
+provider-scope scratch directory; files, nested resources and symlinks refuse.
+Old recovered/general receipt variants are rejected, not migrated.
+
+The snapshot proves only an exact deletion precondition. The original
+owner/controller must already establish original custody, resolve readers,
+recovery and pending effects, verify durable publication and current action
+scope. If any is unknown or pending, hold the affected resource before preparing
+an action; never synthesize empty consumers or ownership from current hashes.
+
+Both modes use one lease owner, PR reservation and exact operation progress.
+Operation evidence stores only request binding, reservation, actual original and
+released lease bytes, closed directory snapshots and partial leaf/resource
+progress. It does not duplicate producer qualification or create another journal.
+An unenrolled existing directory leaves lease bytes unchanged; release never
+fabricates LC-19. Exact existing matching preparation history releases coherently.
+Missing/changed evidence, tracked/accepted members, dirty/unregistered/stale state
+and concurrent/uncertain effects refuse. Retry only identical original packet
+bytes; the saved operation proves missing leaves after actual partial removal.
 
 ## Completed or failed current-head continuation
 

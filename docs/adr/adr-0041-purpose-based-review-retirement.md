@@ -34,13 +34,17 @@ recovery material still needed; the successor starts with cleared authority and
 requires fresh independent review. Compatible standing authority survives a
 changed head; evidence and action bindings refresh.
 
-Original allocation/production records bind exact resources before semantic
-validation. Legacy qualification uses independently recovered original-owner
-operation and contemporaneous custody evidence, preserving missing-receipt facts.
-No current-hash assertion or retroactive semantic enrollment substitutes for that
-proof. Supported retirement uses the existing PR reservation, exact per-step
-validation and retained same-operation progress. It releases only qualified current
-failure metadata; interrupted or uncertain effects hold continuation.
+Minimal current provider-scope allocation/sealed directory receipts bind custody
+before semantic validation. General legacy qualification, recovered receipts,
+arbitrary source references and standalone-file compatibility are removed.
+The existing scratch-cleanup boundary has a guarded expected-snapshot mode:
+the original owner/controller separately establishes ownership, exhausted purpose,
+publication and exact action scope; the runtime checks deterministic deletion
+preconditions using the same reservation and partial-effect recovery as retirement.
+Matching hashes never grant ownership. Operation data retains only actual
+lease versions, closed directory snapshots and required deletion progress.
+Normal successful validation still removes unused scratch and its allocation
+record; no blanket copy, registry or additional permission step is introduced.
 
 The same session owner replaces completed unposted or exhausted failed attempts
 under a bound continuation request and independently verified provider head.
@@ -61,8 +65,9 @@ responsibility after current implementation validation.
 - Implementers must prove direct replacement is recoverable within existing
   owners. A missing proof preserves current restrictions rather than adding
   another exception or hidden operational state.
-- Legacy evidence qualifies only through surviving original proof and current
-  validation; no bulk migration or retroactive ownership is implied.
+- Historical packets cannot execute through removed qualification interfaces.
+  Existing resources need real owner/controller custody and a fresh guarded action;
+  no fabricated current receipt or retroactive enrollment is implied.
 
 ## Alternatives considered
 
