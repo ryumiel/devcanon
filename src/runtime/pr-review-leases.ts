@@ -551,6 +551,9 @@ async function retireAttempt(
     request.pr_number !== identity.prNumber
   )
     throw new PrReviewLeaseError("retirement repository/PR mismatch");
+  const validationContext = await createPrReviewResultValidationContext({
+    worktreeRoot: request.worktree_path,
+  });
   const requestSha = sha256Text(requestBytes);
   const operationFile = path.join(
     identity.primaryRoot,
@@ -611,6 +614,11 @@ async function retireAttempt(
       throw new PrReviewLeaseError("retirement current lease bytes changed");
     const lease = parseOriginalReviewJson(leaseBytes) as PrReviewLease;
     validateLeaseShape(lease);
+    const completedPosting =
+      lease.state === "posted" &&
+      lease.github.github_post_attempted &&
+      lease.github.github_post_result === "succeeded" &&
+      lease.github.github_posted_at !== null;
     if (
       lease.repository !== request.repository ||
       lease.pr_number !== request.pr_number ||
@@ -618,12 +626,19 @@ async function retireAttempt(
       lease.lease_file !== request.lease_file ||
       lease.worktree_digest !== digestPath(request.worktree_path) ||
       lease.state === "created" ||
-      lease.artifacts.approved_review_file !== null ||
-      lease.github.github_post_attempted
+      (!completedPosting &&
+        (lease.artifacts.approved_review_file !== null ||
+          lease.github.github_post_attempted))
     )
       throw new PrReviewLeaseError(
         "retirement active, frozen or attempted-post lease refuses",
       );
+    if (completedPosting)
+      await validateReferencedArtifacts(lease, request.worktree_path, {
+        validateResultAuthority: true,
+        policy: "validate-stored-lease",
+        validationContext,
+      });
     const records: OriginalReviewArtifact[] = [];
     const resources = new Set<string>();
     for (const reference of request.original_records) {
@@ -668,13 +683,14 @@ async function retireAttempt(
       resources.add(record.resource);
       records.push(record);
     }
-    // Retirement releases only proven failure custody, never accepted result/handoff authority.
+    // Diagnostic retirement preserves every accepted lease pointer.
     if (
-      resources.has(lease.artifacts.handoff_file ?? "") ||
-      resources.has(lease.artifacts.result_file ?? "")
+      Object.values(lease.artifacts).some(
+        (file) => file !== null && resources.has(file),
+      )
     )
       throw new PrReviewLeaseError(
-        "retirement cannot erase accepted semantic pointers",
+        "retirement cannot erase accepted review pointers",
       );
     if ((lease.preparation_failures?.length ?? 0) > 0)
       await validatePreparationFailures(lease, request.worktree_path);
@@ -831,11 +847,38 @@ async function retireAttempt(
   )
     throw new PrReviewLeaseError("retirement progress evidence invalid");
   const reservationBytes = `${JSON.stringify(reservation)}\n`;
-  const output = (outcome: "held" | "retired", reason: string | null) => ({
-    exitCode: outcome === "retired" ? (0 as const) : (1 as const),
-    stdout: `${JSON.stringify({ schema: "pr-review/attempt-retirement-result/v1", outcome, operation_file: operationFile, request_sha256: requestSha, lease_sha256: sha256Text(operation.released_lease), reason })}\n`,
-    stderr: "",
-  });
+  const output = async (
+    outcome: "held" | "retired",
+    reason: string | null,
+  ): Promise<RuntimeCommandOutcome> => {
+    let leaseSha256: string | null = null;
+    try {
+      await assertReadableDirectChild(
+        identity.primaryRoot,
+        request.lease_file,
+        "retirement lease",
+      );
+      const leasePath = path.join(identity.primaryRoot, request.lease_file);
+      const before = await lstat(leasePath);
+      const bytes = await readFile(leasePath);
+      const after = await lstat(leasePath);
+      if (
+        after.isFile() &&
+        !after.isSymbolicLink() &&
+        before.dev === after.dev &&
+        before.ino === after.ino &&
+        bytes.equals(await readFile(leasePath))
+      )
+        leaseSha256 = createHash("sha256").update(bytes).digest("hex");
+    } catch {
+      // Unknown current lease bytes are not the planned released lease digest.
+    }
+    return {
+      exitCode: outcome === "retired" ? 0 : 1,
+      stdout: `${JSON.stringify({ schema: "pr-review/attempt-retirement-result/v1", outcome, operation_file: operationFile, request_sha256: requestSha, lease_sha256: leaseSha256, reason })}\n`,
+      stderr: "",
+    };
+  };
   async function save() {
     await writeTextAtomically(operationFile, `${JSON.stringify(operation)}\n`);
   }
@@ -875,6 +918,19 @@ async function retireAttempt(
       throw new PrReviewLeaseError(
         "retirement worktree dirty, stale or unregistered",
       );
+    if (originalLease.state === "posted") {
+      const acceptedPostingLease = { ...originalLease };
+      Reflect.deleteProperty(acceptedPostingLease, "preparation_failures");
+      await validateReferencedArtifacts(
+        acceptedPostingLease,
+        request.worktree_path,
+        {
+          validateResultAuthority: true,
+          policy: "validate-stored-lease",
+          validationContext,
+        },
+      );
+    }
     if (
       operation.outcome !== "retired" &&
       !(await reservationMatches(

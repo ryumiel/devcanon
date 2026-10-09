@@ -121,7 +121,9 @@ Do not synthesize empty consumers or not-required from task completion alone.
 
 The helper emits `pr-review/attempt-retirement-result/v1` JSON with `outcome`
 (`retired` or `held`), `operation_file`, `request_sha256`, resulting
-`lease_sha256`, and nullable `reason`. `retired` exits 0; held or invalid input
+`lease_sha256`, and nullable `reason`. The digest reflects verified current lease
+bytes for both held and retired outcomes; it is null when current bytes cannot
+be safely observed, and never substitutes the planned released digest. `retired` exits 0; held or invalid input
 exits 1. Pre-effect invalid input emits a stderr diagnostic. `held` truthfully
 reports partial/uncertain effects; it does not promise rollback.
 
@@ -142,6 +144,11 @@ reset progress or remove scratch manually. Keep request, original records and
 operation evidence while replay or reconciliation needs them. Resolved diagnostic
 inputs have no age-based or blanket archive obligation; the original owner retires
 them only when remaining compact replay guards cover their consumers.
+
+Known successful posting is a settled effect: a validated `posted` lease with
+its succeeded posting evidence can retire exhausted diagnostics. Accepted
+handoff/result, approval and validated-payload pointers and bytes remain intact;
+active frozen actions and unresolved or attempted unsuccessful posting still refuse.
 
 Retirement releases only exact proven current `preparation_failures` metadata.
 It does not enroll invalid candidates or clear accepted handoff/result pointers.

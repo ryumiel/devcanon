@@ -93,6 +93,7 @@ const managedEnvKeys = [
   "WORKTREE_PATH",
   "LEASE_FILE",
   "HANDOFF_FILE",
+  "PREPARATION_FAILURE_DIRS",
   "RESULT_FILE",
   "FINDINGS_FILE",
   "HEAD_SHA",
@@ -1317,6 +1318,161 @@ describe("pr-review lease command validation", () => {
       ).toBe(session.lease_sha256);
     },
   );
+
+  it("retires original-proven enrolled failures after verified successful posting without erasing accepted authority", async () => {
+    const fixture = await makeEnrolledRetirementFixture("posted");
+    const before = await readLease(fixture.physicalPrimary, fixture.leaseFile);
+    expect(before).toMatchObject({
+      state: "posted",
+      github: { github_post_attempted: true, github_post_result: "succeeded" },
+      preparation_failures: [{ directory: fixture.resource }],
+    });
+    const acceptedFiles = [
+      before.artifacts.handoff_file,
+      before.artifacts.result_file,
+      before.artifacts.approved_review_file,
+      before.artifacts.validated_payload_file,
+    ].map((file) => file as string);
+    const acceptedBytes = await Promise.all(
+      acceptedFiles.map((file) => readFile(path.join(fixture.worktree, file))),
+    );
+    const heldByHistory = await runPrReviewLeasesCommand(["inspect-worktree"]);
+    expect(heldByHistory.stdout).toContain(
+      "REFUSAL_REASON=preparation-failure-history",
+    );
+    await refreshRetirementRequestDigest(fixture);
+    const actualRemove = (
+      await vi.importActual<typeof fsPromises>("node:fs/promises")
+    ).rm;
+    // Exercise the real posted operation in bounded interrupted invocations,
+    // retaining the harness deadline for each exact same-operation resume.
+    vi.mocked(fsPromises.rm).mockImplementation(async (...args) => {
+      await actualRemove(...args);
+      throw new Error("interrupt posted retirement after leaf removal");
+    });
+    for (let leaf = 0; leaf < 2; leaf++) {
+      const held = await runPrReviewLeasesCommand([
+        "retire-attempt",
+        "--request-file",
+        fixture.requestFile,
+      ]);
+      expect(held.exitCode, held.stderr + held.stdout).toBe(1);
+      expect(JSON.parse(held.stdout)).toMatchObject({
+        outcome: "held",
+        reason: "interrupt posted retirement after leaf removal",
+      });
+    }
+    vi.mocked(fsPromises.rm).mockImplementation(actualRemove);
+    const retired = await runPrReviewLeasesCommand([
+      "retire-attempt",
+      "--request-file",
+      fixture.requestFile,
+    ]);
+    expect(retired.exitCode, retired.stderr + retired.stdout).toBe(0);
+    const after = await readLease(fixture.physicalPrimary, fixture.leaseFile);
+    expect(after.preparation_failures).toBeUndefined();
+    expect(after.state).toBe("posted");
+    expect(after.artifacts).toEqual(before.artifacts);
+    expect(after.github).toEqual(before.github);
+    expect(after.validation).toEqual(before.validation);
+    expect(after.presentation).toEqual(before.presentation);
+    for (const [index, file] of acceptedFiles.entries())
+      expect(await readFile(path.join(fixture.worktree, file))).toEqual(
+        acceptedBytes[index],
+      );
+    expect(JSON.parse(retired.stdout).lease_sha256).toBe(
+      await sha256File(path.join(fixture.physicalPrimary, fixture.leaseFile)),
+    );
+    const valid = await runPrReviewLeasesCommand(["validate"]);
+    expect(valid.exitCode, valid.stderr).toBe(0);
+    expect(
+      (await runPrReviewLeasesCommand(["inspect-worktree"])).stdout,
+    ).toContain("CAN_REMOVE=yes");
+  }, 20_000);
+
+  it("retains enrolled diagnostics when posting remains unsuccessful or unresolved", async () => {
+    const fixture = await makeEnrolledRetirementFixture("post-failed");
+    const leasePath = path.join(fixture.physicalPrimary, fixture.leaseFile);
+    const before = await readFile(leasePath, "utf8");
+    expect(JSON.parse(before)).toMatchObject({
+      state: "failed",
+      github: { github_post_attempted: true, github_post_result: "failed" },
+      failure: { phase: "github-post", recoverability: "unknown" },
+    });
+    // Deliberately contradictory negative input: the caller claims exhausted
+    // purposes while the authoritative lease still needs post reconciliation.
+    // That assertion must not override the unsettled posting boundary.
+    const result = await runPrReviewLeasesCommand([
+      "retire-attempt",
+      "--request-file",
+      fixture.requestFile,
+    ]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("attempted-post");
+    expect(await readFile(leasePath, "utf8")).toBe(before);
+    expect(
+      await readdir(path.join(fixture.worktree, fixture.resource)),
+    ).toEqual(["failed-scope.json", "validator.stderr"]);
+  });
+
+  it("retains posted diagnostic history when accepted posting evidence changes", async () => {
+    const fixture = await makeEnrolledRetirementFixture("posted");
+    const leasePath = path.join(fixture.physicalPrimary, fixture.leaseFile);
+    const before = await readFile(leasePath, "utf8");
+    const approvedFile = JSON.parse(before).artifacts.approved_review_file;
+    const approvedPath = path.join(fixture.worktree, approvedFile);
+    const approved = JSON.parse(await readFile(approvedPath, "utf8"));
+    approved.payload.body = "changed approved body";
+    await writeFile(approvedPath, JSON.stringify(approved));
+    const result = await runPrReviewLeasesCommand([
+      "retire-attempt",
+      "--request-file",
+      fixture.requestFile,
+    ]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("approved-review mismatch");
+    expect(await readFile(leasePath, "utf8")).toBe(before);
+    expect(
+      await readdir(path.join(fixture.worktree, fixture.resource)),
+    ).toEqual(["failed-scope.json", "validator.stderr"]);
+  });
+
+  it("reports the actual original lease digest when enrolled retirement is interrupted before metadata publication", async () => {
+    const fixture = await makeEnrolledRetirementFixture("aborted");
+    const leasePath = path.join(fixture.physicalPrimary, fixture.leaseFile);
+    const originalBytes = await readFile(leasePath, "utf8");
+    const actualRemove = (
+      await vi.importActual<typeof fsPromises>("node:fs/promises")
+    ).rm;
+    vi.mocked(fsPromises.rm).mockImplementationOnce(async () => {
+      throw new Error("interrupt enrolled retirement");
+    });
+    const held = await runPrReviewLeasesCommand([
+      "retire-attempt",
+      "--request-file",
+      fixture.requestFile,
+    ]);
+    expect(held.exitCode).toBe(1);
+    expect(await readFile(leasePath, "utf8")).toBe(originalBytes);
+    expect(JSON.parse(held.stdout)).toMatchObject({
+      outcome: "held",
+      lease_sha256: await sha256File(leasePath),
+    });
+    vi.mocked(fsPromises.rm).mockImplementation(actualRemove);
+    const resumed = await runPrReviewLeasesCommand([
+      "retire-attempt",
+      "--request-file",
+      fixture.requestFile,
+    ]);
+    expect(resumed.exitCode, resumed.stderr + resumed.stdout).toBe(0);
+    expect(JSON.parse(resumed.stdout).lease_sha256).toBe(
+      await sha256File(leasePath),
+    );
+    expect(
+      (await readLease(fixture.physicalPrimary, fixture.leaseFile))
+        .preparation_failures,
+    ).toBeUndefined();
+  });
 
   it("retires two source-produced failed directories before canonical continuation", async () => {
     const fixture = await makeTerminalAdvanceRefusalFixture({
@@ -9677,4 +9833,211 @@ async function writeContinuationRequest(
     }),
   );
   process.env.CONTINUATION_REQUEST_FILE = requestFile;
+}
+
+async function makeEnrolledRetirementFixture(
+  outcome: "posted" | "aborted" | "post-failed",
+) {
+  const workspace = await makeGatedStatusWorkspace("enrolled-retirement", true);
+  await writeFile(
+    path.join(workspace.physicalPrimary, ".git/info/exclude"),
+    ".ephemeral/\n.worktrees/\n",
+  );
+  const resultPath = path.join(workspace.worktree, workspace.resultFile);
+  const result = JSON.parse(await readFile(resultPath, "utf8"));
+  const handoffFile = result.artifacts.handoff_file;
+  const scopeFile = result.artifacts.scope_decision_file;
+  const scope = JSON.parse(
+    await readFile(path.join(workspace.worktree, scopeFile), "utf8"),
+  );
+  scope.semantic_decision = {
+    checked: true,
+    ambiguous: false,
+    notes: "Original reviewer verified this unchanged scope.",
+  };
+  await writeFile(
+    path.join(workspace.worktree, scopeFile),
+    JSON.stringify(scope),
+  );
+  result.digests.scope_decision_sha256 = await sha256File(
+    path.join(workspace.worktree, scopeFile),
+  );
+  await writeFile(resultPath, JSON.stringify(result));
+  process.chdir(workspace.worktree);
+  Object.assign(process.env, { REPOSITORY: "owner/repo", PR_NUMBER: "432" });
+  const recordFile = path.join(
+    workspace.physicalPrimary,
+    ".ephemeral/enrolled-original.json",
+  );
+  const allocation = await runPrReviewProviderScopeEvidenceCommand([
+    "allocate-original",
+    "--record-file",
+    recordFile,
+  ]);
+  expect(allocation.exitCode, allocation.stderr).toBe(0);
+  const resource = allocation.stdout.trim();
+  const failedScope = {
+    ...scope,
+    semantic_decision: { ...scope.semantic_decision, checked: false },
+  };
+  await writeFile(
+    path.join(workspace.worktree, resource, "failed-scope.json"),
+    JSON.stringify(failedScope),
+  );
+  await writeFile(
+    path.join(workspace.worktree, resource, "validator.stderr"),
+    "semantic decision must be checked\n",
+  );
+  const sealed = await runPrReviewProviderScopeEvidenceCommand([
+    "seal-original",
+    "--record-file",
+    recordFile,
+  ]);
+  expect(sealed.exitCode, sealed.stderr).toBe(0);
+  process.chdir(workspace.physicalPrimary);
+  setReadStatusEnv(workspace);
+  await fsPromises.rm(
+    path.join(workspace.physicalPrimary, workspace.leaseFile),
+  );
+  for (const key of [
+    "RESULT_FILE",
+    "APPROVED_REVIEW_FILE",
+    "VALIDATED_REVIEW_PAYLOAD_FILE",
+    "PRESENTED_AT",
+    "PRESENTATION_STATUS",
+    "GITHUB_POST_ATTEMPTED",
+    "GITHUB_POST_RESULT",
+    "GITHUB_POSTED_AT",
+  ] as const)
+    unsetEnv(key);
+  await writeLeaseCommandState({
+    state: "created",
+    updatedAt: "2026-06-11T00:00:00Z",
+  });
+  Object.assign(process.env, {
+    EXPECTED_STATE: "created",
+    FAILURE_PHASE: "handoff-validation",
+    FAILURE_REASON: "original scope candidate rejected",
+    FAILURE_RECOVERABILITY: "recoverable",
+    FINISHED_AT: "2026-06-11T00:00:30Z",
+  });
+  await writeLeaseCommandState({
+    state: "failed",
+    updatedAt: "2026-06-11T00:00:30Z",
+  });
+  Object.assign(process.env, {
+    EXPECTED_STATE: "failed",
+    HANDOFF_FILE: handoffFile,
+    HEAD_SHA: workspace.reviewHead,
+    PREPARATION_FAILURE_DIRS: JSON.stringify([resource]),
+  });
+  await writeLeaseCommandState({
+    state: "created",
+    updatedAt: "2026-06-11T00:01:00Z",
+  });
+  unsetEnv("PREPARATION_FAILURE_DIRS");
+  Object.assign(process.env, {
+    EXPECTED_STATE: "created",
+    RESULT_FILE: workspace.resultFile,
+  });
+  await writeLeaseCommandState({
+    state: "reviewed",
+    updatedAt: "2026-06-11T00:02:00Z",
+  });
+  Object.assign(process.env, {
+    EXPECTED_STATE: "reviewed",
+    PRESENTATION_STATUS: "preview-current",
+    PRESENTED_AT: "2026-06-11T00:02:00Z",
+  });
+  await writeLeaseCommandState({
+    state: "gated",
+    updatedAt: "2026-06-11T00:02:00Z",
+  });
+  if (outcome !== "aborted") {
+    const approvedFile = `.ephemeral/topic-${workspace.reviewHead}-approved-review.json`;
+    const payloadFile = `.ephemeral/review-topic-${workspace.reviewHead}-review-payload.json`;
+    await writeApprovedReviewArtifact(
+      workspace.worktree,
+      approvedFile,
+      workspace.reviewHead,
+    );
+    await writeFile(
+      path.join(workspace.worktree, payloadFile),
+      JSON.stringify(reviewPayload(workspace.reviewHead)),
+    );
+    const validatedFile = await writeValidatedPayloadArtifact(
+      workspace.worktree,
+      workspace.reviewHead,
+    );
+    Object.assign(process.env, {
+      EXPECTED_STATE: "gated",
+      APPROVED_REVIEW_FILE: approvedFile,
+      VALIDATED_REVIEW_PAYLOAD_FILE: validatedFile,
+      GITHUB_POST_ATTEMPTED: "true",
+      GITHUB_POST_RESULT: "succeeded",
+      GITHUB_POSTED_AT: "2026-06-11T00:03:00Z",
+      FINISHED_AT: "2026-06-11T00:03:00Z",
+    });
+    if (outcome === "post-failed") {
+      unsetEnv("GITHUB_POSTED_AT");
+      Object.assign(process.env, {
+        GITHUB_POST_RESULT: "failed",
+        FAILURE_PHASE: "github-post",
+        FAILURE_REASON: "posting outcome requires reconciliation",
+        FAILURE_RECOVERABILITY: "unknown",
+      });
+    }
+    await writeLeaseCommandState({
+      state: outcome === "posted" ? "posted" : "failed",
+      updatedAt: "2026-06-11T00:03:00Z",
+    });
+  } else {
+    Object.assign(process.env, {
+      EXPECTED_STATE: "gated",
+      TERMINAL_REASON: "explicitly abandoned fixture review",
+      FINISHED_AT: "2026-06-11T00:03:00Z",
+    });
+    await writeLeaseCommandState({
+      state: "aborted",
+      updatedAt: "2026-06-11T00:03:00Z",
+    });
+  }
+  const requestFile = path.join(
+    workspace.physicalPrimary,
+    ".ephemeral/enrolled-retirement-request.json",
+  );
+  await writeFile(
+    requestFile,
+    JSON.stringify({
+      schema: "pr-review/attempt-retirement/v1",
+      operation_id: "enrolled-retirement",
+      repository: "owner/repo",
+      pr_number: 432,
+      worktree_path: workspace.worktree,
+      old_head: workspace.reviewHead,
+      lease_file: workspace.leaseFile,
+      lease_sha256: await sha256File(
+        path.join(workspace.physicalPrimary, workspace.leaseFile),
+      ),
+      original_records: [
+        { file: recordFile, sha256: await sha256File(recordFile) },
+      ],
+      authority_ref: "original-owner/covered-cleanup",
+      active_consumers: [],
+      pending_effects: [],
+      publication: { status: "not-required", references: [] },
+    }),
+  );
+  return { ...workspace, resource, recordFile, requestFile };
+}
+async function refreshRetirementRequestDigest(fixture: {
+  requestFile: string;
+  physicalPrimary: string;
+  leaseFile: string;
+}) {
+  const request = JSON.parse(await readFile(fixture.requestFile, "utf8"));
+  request.lease_sha256 = await sha256File(
+    path.join(fixture.physicalPrimary, fixture.leaseFile),
+  );
+  await writeFile(fixture.requestFile, JSON.stringify(request));
 }

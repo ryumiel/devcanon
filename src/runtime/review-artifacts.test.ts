@@ -6,6 +6,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  realpath,
   rm,
   symlink,
   writeFile,
@@ -3330,6 +3331,132 @@ describe("provider scope capture scratch subcommands", () => {
       await cleanupTempDir(cwd);
     }
   });
+
+  it.each(["allocate-original", "seal-original", "qualify-original"])(
+    "refuses a sibling linked worktree as the original producer primary for %s",
+    async (command) => {
+      const { cwd } = await makeProviderMultiFileWorkspace();
+      const primary = await realpath(cwd);
+      const sibling = `${primary}-sibling`;
+      const producer = `${primary}-producer`;
+      const previousRepository = process.env.REPOSITORY;
+      const previousPrNumber = process.env.PR_NUMBER;
+      try {
+        for (const worktree of [sibling, producer]) {
+          await execFileAsync(
+            "git",
+            ["worktree", "add", "--detach", worktree, "HEAD"],
+            { cwd: primary },
+          );
+          await mkdir(path.join(worktree, ".ephemeral"));
+        }
+        process.chdir(producer);
+        Object.assign(process.env, {
+          REPOSITORY: "owner/repo",
+          PR_NUMBER: "480",
+        });
+        const primaryRecord = path.join(
+          primary,
+          ".ephemeral/original-primary-record.json",
+        );
+        const allocated = await runPrReviewProviderScopeEvidenceCommand([
+          "allocate-original",
+          "--record-file",
+          primaryRecord,
+        ]);
+        expect(allocated.exitCode, allocated.stderr).toBe(0);
+        const resource = allocated.stdout.trim();
+        await writeFile(
+          path.join(producer, resource, "failed-scope.json"),
+          "original invalid scope",
+        );
+        await writeFile(
+          path.join(producer, resource, "validator.stderr"),
+          "original rejection",
+        );
+        const recordFile = path.join(sibling, ".ephemeral/sibling-record.json");
+        let args = [command, "--record-file", recordFile];
+        if (command === "seal-original")
+          await writeFile(recordFile, await readFile(primaryRecord));
+        if (command === "qualify-original") {
+          const sealed = await runPrReviewProviderScopeEvidenceCommand([
+            "seal-original",
+            "--record-file",
+            primaryRecord,
+          ]);
+          expect(sealed.exitCode, sealed.stderr).toBe(0);
+          const record = JSON.parse(await readFile(primaryRecord, "utf8"));
+          // Use the genuine captured receipt as original-owner evidence for this
+          // recovered qualification; the copied evidence is explicitly recovered.
+          const evidenceFile = path.join(
+            primary,
+            ".ephemeral/recovered-owner-evidence.json",
+          );
+          const recovered = {
+            ...record,
+            production: "recovered",
+            source_refs: [
+              {
+                file: primaryRecord,
+                sha256: createHash("sha256")
+                  .update(await readFile(primaryRecord))
+                  .digest("hex"),
+              },
+            ],
+            recovery: {
+              original_owner: "original-fixture-owner",
+              operation_locator: record.operation_id,
+              custody_locator: primaryRecord,
+              association_basis:
+                "original captured producer record and exact owner custody",
+              captured_at_production: false,
+              allocation_receipt_present: true,
+            },
+          };
+          await writeFile(evidenceFile, JSON.stringify(recovered));
+          const qualifiedPrimary = path.join(
+            primary,
+            ".ephemeral/qualified-primary.json",
+          );
+          const valid = await runPrReviewProviderScopeEvidenceCommand([
+            command,
+            "--record-file",
+            qualifiedPrimary,
+            "--evidence-file",
+            evidenceFile,
+          ]);
+          expect(valid.exitCode, valid.stderr).toBe(0);
+          args = [...args, "--evidence-file", evidenceFile];
+        }
+        const beforeRecord = await readFile(recordFile).catch(() => null);
+        const beforeEntries = await readdir(path.join(producer, ".ephemeral"));
+        const result = await runPrReviewProviderScopeEvidenceCommand(args);
+        expect(result.exitCode).toBe(1);
+        expect(result.stderr).toContain("physical primary");
+        expect(await readFile(recordFile).catch(() => null)).toEqual(
+          beforeRecord,
+        );
+        expect(await readdir(path.join(producer, ".ephemeral"))).toEqual(
+          beforeEntries,
+        );
+      } finally {
+        process.chdir(originalCwd);
+        if (previousRepository === undefined)
+          Reflect.deleteProperty(process.env, "REPOSITORY");
+        else process.env.REPOSITORY = previousRepository;
+        if (previousPrNumber === undefined)
+          Reflect.deleteProperty(process.env, "PR_NUMBER");
+        else process.env.PR_NUMBER = previousPrNumber;
+        for (const worktree of [sibling, producer])
+          await execFileAsync(
+            "git",
+            ["worktree", "remove", "--force", worktree],
+            { cwd: primary },
+          );
+        await cleanupTempDir(cwd);
+      }
+    },
+  );
 
   it("refuses ordinary scratch removal of a failed scope pair", async () => {
     const { cwd } = await makeProviderMultiFileWorkspace();

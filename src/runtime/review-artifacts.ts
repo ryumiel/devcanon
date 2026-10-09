@@ -720,6 +720,33 @@ async function originalProducerOperation(
   ).stdout.trim();
   if ((await realpath(common)) !== (await realpath(primaryCommon)))
     fail("original record primary repository mismatch");
+  const recordRoot = path.dirname(path.dirname(recordFile));
+  const primaryGitDirectory = (
+    await runGit(
+      ["-C", recordRoot, "rev-parse", "--path-format=absolute", "--git-dir"],
+      { cwd: root },
+    )
+  ).stdout.trim();
+  const primaryToplevel = (
+    await runGit(
+      [
+        "-C",
+        recordRoot,
+        "rev-parse",
+        "--path-format=absolute",
+        "--show-toplevel",
+      ],
+      { cwd: root },
+    )
+  ).stdout.trim();
+  if (
+    (await realpath(primaryToplevel)) !== recordRoot ||
+    (await realpath(primaryGitDirectory)) !== (await realpath(primaryCommon))
+  )
+    fail(
+      "original record destination must be the physical primary Git worktree",
+    );
+
   if (command === "allocate-original") {
     if (await lstat(recordFile).catch(() => null))
       fail("original record already exists");
