@@ -1535,6 +1535,185 @@ describe("pr-review lease command validation", () => {
     ).toBeUndefined();
   });
 
+  it("keeps qualified lease-source preimage coherent through retirement and identical replay", async () => {
+    const fixture = await makeQualifiedLeaseSourceRetirementFixture();
+    const result = await runPrReviewLeasesCommand([
+      "retire-attempt",
+      "--request-file",
+      fixture.requestFile,
+    ]);
+    expect(result.exitCode, result.stderr + result.stdout).toBe(0);
+    const leaseBytes = await readFile(fixture.leasePath, "utf8");
+    const operationFile = JSON.parse(result.stdout).operation_file;
+    const operation = JSON.parse(await readFile(operationFile, "utf8"));
+    expect(operation.original_lease).toBe(fixture.originalLeaseBytes);
+    expect(operation.released_lease).toBe(leaseBytes);
+    expect(operation.outcome).toBe("retired");
+    expect(JSON.parse(leaseBytes).preparation_failures).toBeUndefined();
+    const replay = await runPrReviewLeasesCommand([
+      "retire-attempt",
+      "--request-file",
+      fixture.requestFile,
+    ]);
+    expect(replay.exitCode, replay.stderr + replay.stdout).toBe(0);
+    expect(await readFile(fixture.leasePath, "utf8")).toBe(leaseBytes);
+    expect(await readFile(fixture.qualifiedRecord)).toEqual(
+      fixture.qualifiedBytes,
+    );
+    await expect(
+      fsPromises.lstat(fixture.reservationPath),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  }, 20_000);
+
+  it("resumes qualified lease-source retirement after metadata publication before outcome commit", async () => {
+    const fixture = await makeQualifiedLeaseSourceRetirementFixture();
+    const held = await interruptRetirementOutcomeCommit(fixture);
+    const heldOperation = JSON.parse(
+      await readFile(fixture.operationFile, "utf8"),
+    );
+    const releasedBytes = await readFile(fixture.leasePath, "utf8");
+    const reservationBytes = await readFile(fixture.reservationPath);
+    expect(JSON.parse(held.stdout)).toMatchObject({
+      outcome: "held",
+      reason: "interrupt after lease metadata before outcome commit",
+      lease_sha256: await sha256File(fixture.leasePath),
+    });
+    expect(heldOperation.original_lease).toBe(fixture.originalLeaseBytes);
+    expect(heldOperation.released_lease).toBe(releasedBytes);
+    expect(heldOperation.outcome).toBe("held");
+    expect(JSON.parse(releasedBytes).preparation_failures).toBeUndefined();
+    await expect(
+      fsPromises.lstat(path.join(fixture.worktree, fixture.resource)),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    expect(reservationBytes.length).toBeGreaterThan(0);
+    const resumed = await runPrReviewLeasesCommand([
+      "retire-attempt",
+      "--request-file",
+      fixture.requestFile,
+    ]);
+    expect(resumed.exitCode, resumed.stderr + resumed.stdout).toBe(0);
+    expect(await readFile(fixture.leasePath, "utf8")).toBe(releasedBytes);
+    const complete = JSON.parse(await readFile(fixture.operationFile, "utf8"));
+    expect(complete.original_lease).toBe(fixture.originalLeaseBytes);
+    expect(complete.released_lease).toBe(releasedBytes);
+    expect(complete.outcome).toBe("retired");
+    await expect(
+      fsPromises.lstat(fixture.reservationPath),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    const replay = await runPrReviewLeasesCommand([
+      "retire-attempt",
+      "--request-file",
+      fixture.requestFile,
+    ]);
+    expect(replay.exitCode, replay.stderr + replay.stdout).toBe(0);
+  }, 20_000);
+
+  it.each(["lease", "other-source"] as const)(
+    "holds changed %s evidence after lease-source metadata release",
+    async (changed) => {
+      const fixture = await makeQualifiedLeaseSourceRetirementFixture(true);
+      await interruptRetirementOutcomeCommit(fixture);
+      const reservationBytes = await readFile(fixture.reservationPath);
+      const releasedBytes = await readFile(fixture.leasePath, "utf8");
+      if (changed === "lease")
+        await writeFile(fixture.leasePath, `${releasedBytes} \n`);
+      else
+        await writeFile(
+          fixture.rawSource,
+          Buffer.from([0xff, 0x81, 0x00, 0x42]),
+        );
+      const actualLeaseBytes = await readFile(fixture.leasePath, "utf8");
+      const resumed = await runPrReviewLeasesCommand([
+        "retire-attempt",
+        "--request-file",
+        fixture.requestFile,
+      ]);
+      expect(resumed.exitCode).toBe(1);
+      expect(JSON.parse(resumed.stdout)).toMatchObject({
+        outcome: "held",
+        reason:
+          changed === "lease"
+            ? "retirement lease changed"
+            : "retirement original production source changed",
+      });
+      expect(await readFile(fixture.reservationPath)).toEqual(reservationBytes);
+      expect(await readFile(fixture.leasePath, "utf8")).toBe(actualLeaseBytes);
+      expect(
+        JSON.parse(await readFile(fixture.operationFile, "utf8")).outcome,
+      ).toBe("held");
+    },
+    20_000,
+  );
+
+  it("holds unrelated source drift during lease metadata publication before retired outcome", async () => {
+    const fixture = await makeQualifiedLeaseSourceRetirementFixture(true);
+    const actualWrite = artifacts.writeTextAtomically;
+    let changed = false;
+    const spy = vi
+      .spyOn(artifacts, "writeTextAtomically")
+      .mockImplementation(async (target, content) => {
+        const result = await actualWrite(target, content);
+        if (
+          !changed &&
+          target === fixture.leasePath &&
+          JSON.parse(content).preparation_failures === undefined
+        ) {
+          changed = true;
+          await writeFile(
+            fixture.rawSource,
+            Buffer.from([0xff, 0x81, 0x00, 0x42]),
+          );
+        }
+        return result;
+      });
+    let result: Awaited<ReturnType<typeof runPrReviewLeasesCommand>>;
+    try {
+      result = await runPrReviewLeasesCommand([
+        "retire-attempt",
+        "--request-file",
+        fixture.requestFile,
+      ]);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(changed).toBe(true);
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      outcome: "held",
+      reason: "retirement original production source changed",
+    });
+    expect(
+      JSON.parse(await readFile(fixture.leasePath, "utf8"))
+        .preparation_failures,
+    ).toBeUndefined();
+    expect(
+      JSON.parse(await readFile(fixture.operationFile, "utf8")).outcome,
+    ).toBe("held");
+    await expect(
+      fsPromises.lstat(fixture.reservationPath),
+    ).resolves.toBeDefined();
+  }, 20_000);
+
+  it("retires genuine qualified raw-byte source evidence without UTF8 normalization", async () => {
+    const fixture = await makeQualifiedLeaseSourceRetirementFixture(
+      true,
+      false,
+    );
+    const result = await runPrReviewLeasesCommand([
+      "retire-attempt",
+      "--request-file",
+      fixture.requestFile,
+    ]);
+    expect(result.exitCode, result.stderr + result.stdout).toBe(0);
+    expect(await readFile(fixture.rawSource)).toEqual(fixture.rawBytes);
+    const replay = await runPrReviewLeasesCommand([
+      "retire-attempt",
+      "--request-file",
+      fixture.requestFile,
+    ]);
+    expect(replay.exitCode, replay.stderr + replay.stdout).toBe(0);
+  }, 20_000);
+
   it("retires two source-produced failed directories before canonical continuation", async () => {
     const fixture = await makeTerminalAdvanceRefusalFixture({
       canonical: true,
@@ -10512,4 +10691,125 @@ async function makeIncompleteContinuationFixture() {
   await writeFile(fixture.leasePath, `${JSON.stringify(lease, null, 2)}\n`);
   await writeContinuationRequest(fixture, "incomplete");
   return fixture;
+}
+
+async function makeQualifiedLeaseSourceRetirementFixture(
+  includeRaw = false,
+  includeLease = true,
+) {
+  const fixture = await makeEnrolledRetirementFixture("aborted");
+  const leasePath = path.join(fixture.physicalPrimary, fixture.leaseFile);
+  const originalLeaseBytes = await readFile(leasePath, "utf8");
+  const record = JSON.parse(await readFile(fixture.recordFile, "utf8"));
+  const rawSource = path.join(
+    fixture.physicalPrimary,
+    ".ephemeral/original-owner-raw-source.bin",
+  );
+  const rawBytes = Buffer.from([0xff, 0x80, 0x00, 0xfe, 0x41]);
+  if (includeRaw) await writeFile(rawSource, rawBytes);
+  const sourceFiles = [
+    fixture.recordFile,
+    ...(includeLease ? [leasePath] : []),
+    ...(includeRaw ? [rawSource] : []),
+  ];
+  const evidenceFile = path.join(
+    fixture.physicalPrimary,
+    ".ephemeral/recovered-enrolled-owner.json",
+  );
+  const qualifiedRecord = path.join(
+    fixture.physicalPrimary,
+    ".ephemeral/qualified-enrolled-owner.json",
+  );
+  const sourceRefs = [];
+  for (const file of sourceFiles)
+    sourceRefs.push({
+      file,
+      sha256: createHash("sha256")
+        .update(await readFile(file))
+        .digest("hex"),
+    });
+  await writeFile(
+    evidenceFile,
+    JSON.stringify({
+      ...record,
+      production: "recovered",
+      source_refs: sourceRefs,
+      recovery: {
+        original_owner: "original-fixture-owner",
+        operation_locator: record.operation_id,
+        custody_locator: leasePath,
+        association_basis:
+          "genuine original captured sealed record plus current enrolled lease custody and original owner source bytes",
+        captured_at_production: false,
+        allocation_receipt_present: true,
+      },
+    }),
+  );
+  process.chdir(fixture.worktree);
+  try {
+    const qualified = await runPrReviewProviderScopeEvidenceCommand([
+      "qualify-original",
+      "--evidence-file",
+      evidenceFile,
+      "--record-file",
+      qualifiedRecord,
+    ]);
+    expect(qualified.exitCode, qualified.stderr).toBe(0);
+  } finally {
+    process.chdir(fixture.physicalPrimary);
+  }
+  const request = JSON.parse(await readFile(fixture.requestFile, "utf8"));
+  request.original_records = [
+    { file: qualifiedRecord, sha256: await sha256File(qualifiedRecord) },
+  ];
+  await writeFile(fixture.requestFile, JSON.stringify(request));
+  return {
+    ...fixture,
+    leasePath,
+    originalLeaseBytes,
+    qualifiedRecord,
+    qualifiedBytes: await readFile(qualifiedRecord),
+    rawSource,
+    rawBytes,
+    operationFile: path.join(
+      fixture.physicalPrimary,
+      ".ephemeral/pr-432-retirement-enrolled-retirement.json",
+    ),
+    reservationPath: path.join(
+      fixture.physicalPrimary,
+      ".ephemeral/pr-432-session-create-reservation.json",
+    ),
+  };
+}
+async function interruptRetirementOutcomeCommit(fixture: {
+  operationFile: string;
+  requestFile: string;
+}) {
+  const actualWrite = artifacts.writeTextAtomically;
+  let interrupted = false;
+  const spy = vi
+    .spyOn(artifacts, "writeTextAtomically")
+    .mockImplementation(async (target, content) => {
+      if (
+        !interrupted &&
+        target === fixture.operationFile &&
+        JSON.parse(content).outcome === "retired"
+      ) {
+        interrupted = true;
+        throw new Error("interrupt after lease metadata before outcome commit");
+      }
+      return actualWrite(target, content);
+    });
+  try {
+    const result = await runPrReviewLeasesCommand([
+      "retire-attempt",
+      "--request-file",
+      fixture.requestFile,
+    ]);
+    expect(interrupted).toBe(true);
+    expect(result.exitCode).toBe(1);
+    return result;
+  } finally {
+    spy.mockRestore();
+  }
 }

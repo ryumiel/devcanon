@@ -24,6 +24,7 @@ import {
   diffHunkForLine,
   extractPreFindingsMarkdown,
   gateResultForApprovalTerminalState,
+  readOriginalReviewRecord,
   runPrReviewProviderScopeEvidenceCommand,
   runReviewArtifactsCommand,
 } from "./review-artifacts.js";
@@ -3623,6 +3624,136 @@ describe("provider scope capture scratch subcommands", () => {
     },
   );
 
+  it.each(["root", "shallow", "deep", "outside"] as const)(
+    "binds qualified original source evidence outside the entire disposable tree: %s",
+    async (location) => {
+      const fixture = await makeOriginalProducerFixture();
+      try {
+        const sealed = await runPrReviewProviderScopeEvidenceCommand([
+          "seal-original",
+          "--record-file",
+          fixture.recordFile,
+        ]);
+        expect(sealed.exitCode, sealed.stderr).toBe(0);
+        const recordBytes = await readFile(fixture.recordFile);
+        const record = JSON.parse(recordBytes.toString("utf8"));
+        const source =
+          location === "outside"
+            ? path.join(fixture.primary, "original-source.bin")
+            : path.join(
+                fixture.producer,
+                location === "root"
+                  ? "original-source.bin"
+                  : location === "shallow"
+                    ? "source/original-source.bin"
+                    : "source/deep/original-source.bin",
+              );
+        await mkdir(path.dirname(source), { recursive: true });
+        const sourceBytes = Buffer.from([0xff, 0x80, 0x00, 0x41]);
+        await writeFile(source, sourceBytes);
+        const evidenceFile = path.join(
+          fixture.primary,
+          ".ephemeral/recovered-source-evidence.json",
+        );
+        const qualifiedFile = path.join(
+          fixture.primary,
+          ".ephemeral/qualified-source-evidence.json",
+        );
+        const recovered = recoveredOriginalFixtureRecord(record, [
+          fixture.recordFile,
+          source,
+        ]);
+        for (const reference of recovered.source_refs)
+          reference.sha256 = createHash("sha256")
+            .update(await readFile(reference.file))
+            .digest("hex");
+        await writeFile(evidenceFile, JSON.stringify(recovered));
+        const evidenceBytes = await readFile(evidenceFile);
+        const result = await runPrReviewProviderScopeEvidenceCommand([
+          "qualify-original",
+          "--evidence-file",
+          evidenceFile,
+          "--record-file",
+          qualifiedFile,
+        ]);
+        expect(result.exitCode, result.stderr).toBe(
+          location === "outside" ? 0 : 1,
+        );
+        expect(await readFile(fixture.recordFile)).toEqual(recordBytes);
+        expect(await readFile(evidenceFile)).toEqual(evidenceBytes);
+        expect(await readFile(source)).toEqual(sourceBytes);
+        expect(
+          await readFile(
+            path.join(fixture.producer, fixture.resource, "failed-scope.json"),
+            "utf8",
+          ),
+        ).toBe("original rejected candidate\n");
+        if (location === "outside")
+          expect(
+            (await readOriginalReviewRecord(qualifiedFile)).production,
+          ).toBe("recovered");
+        else
+          await expect(fsPromises.lstat(qualifiedFile)).rejects.toMatchObject({
+            code: "ENOENT",
+          });
+      } finally {
+        await fixture.dispose();
+      }
+    },
+  );
+
+  it.each(["validator output.log", "validator.stderr"])(
+    "validates constructed sealed receipt before publication for leaf %s",
+    async (name) => {
+      const fixture = await makeOriginalProducerFixture();
+      try {
+        const allocatedBytes = await readFile(fixture.recordFile);
+        await writeFile(
+          path.join(fixture.producer, fixture.resource, name),
+          "original validator diagnostic\n",
+        );
+        const sealed = await runPrReviewProviderScopeEvidenceCommand([
+          "seal-original",
+          "--record-file",
+          fixture.recordFile,
+        ]);
+        if (name.includes(" ")) {
+          expect(sealed.exitCode).toBe(1);
+          expect(await readFile(fixture.recordFile)).toEqual(allocatedBytes);
+          expect(
+            await readFile(
+              path.join(fixture.producer, fixture.resource, name),
+              "utf8",
+            ),
+          ).toBe("original validator diagnostic\n");
+          await fsPromises.rename(
+            path.join(fixture.producer, fixture.resource, name),
+            path.join(fixture.producer, fixture.resource, "validator.stderr"),
+          );
+          const corrected = await runPrReviewProviderScopeEvidenceCommand([
+            "seal-original",
+            "--record-file",
+            fixture.recordFile,
+          ]);
+          expect(corrected.exitCode, corrected.stderr).toBe(0);
+        } else expect(sealed.exitCode, sealed.stderr).toBe(0);
+        const sealedBytes = await readFile(fixture.recordFile);
+        expect(
+          (await readOriginalReviewRecord(fixture.recordFile)).production,
+        ).toBe("sealed");
+        const repeated = await runPrReviewProviderScopeEvidenceCommand([
+          "seal-original",
+          "--record-file",
+          fixture.recordFile,
+        ]);
+        expect(repeated.exitCode, repeated.stderr).toBe(0);
+        expect(await readFile(fixture.recordFile)).toEqual(sealedBytes);
+      } finally {
+        await fixture.dispose();
+      }
+    },
+  );
+
   it("refuses ordinary scratch removal of a failed scope pair", async () => {
     const { cwd } = await makeProviderMultiFileWorkspace();
     try {
@@ -3886,3 +4017,69 @@ describe("pre-findings markdown extraction", () => {
     expect(markdown).not.toContain("- something");
   });
 });
+
+function recoveredOriginalFixtureRecord(record: JsonObject, files: string[]) {
+  return {
+    ...record,
+    production: "recovered",
+    source_refs: files.map((file) => ({ file, sha256: "" })),
+    recovery: {
+      original_owner: "original-fixture-owner",
+      operation_locator: String(record.operation_id),
+      custody_locator: files[0],
+      association_basis:
+        "genuine original captured allocation/seal receipt and unchanged owner source evidence",
+      captured_at_production: false,
+      allocation_receipt_present: true,
+    },
+  };
+}
+async function makeOriginalProducerFixture() {
+  const { cwd } = await makeProviderMultiFileWorkspace();
+  const primary = await realpath(cwd);
+  const producer = `${primary}-original-producer`;
+  const previousRepository = process.env.REPOSITORY;
+  const previousPrNumber = process.env.PR_NUMBER;
+  await execFileAsync(
+    "git",
+    ["worktree", "add", "--detach", producer, "HEAD"],
+    { cwd: primary },
+  );
+  await mkdir(path.join(producer, ".ephemeral"));
+  process.chdir(producer);
+  Object.assign(process.env, { REPOSITORY: "owner/repo", PR_NUMBER: "480" });
+  const recordFile = path.join(
+    primary,
+    ".ephemeral/original-producer-record.json",
+  );
+  const allocated = await runPrReviewProviderScopeEvidenceCommand([
+    "allocate-original",
+    "--record-file",
+    recordFile,
+  ]);
+  expect(allocated.exitCode, allocated.stderr).toBe(0);
+  const resource = allocated.stdout.trim();
+  await writeFile(
+    path.join(producer, resource, "failed-scope.json"),
+    "original rejected candidate\n",
+  );
+  return {
+    primary,
+    producer,
+    recordFile,
+    resource,
+    async dispose() {
+      process.chdir(originalCwd);
+      if (previousRepository === undefined)
+        Reflect.deleteProperty(process.env, "REPOSITORY");
+      else process.env.REPOSITORY = previousRepository;
+      if (previousPrNumber === undefined)
+        Reflect.deleteProperty(process.env, "PR_NUMBER");
+      else process.env.PR_NUMBER = previousPrNumber;
+      await execFileAsync("git", ["worktree", "remove", "--force", producer], {
+        cwd: primary,
+      });
+      await cleanupTempDir(cwd);
+    },
+  };
+}

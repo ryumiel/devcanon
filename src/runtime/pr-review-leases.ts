@@ -532,6 +532,28 @@ function validateAttemptRetirementRequest(
   }
 }
 
+async function retirementSourceMatches(
+  source: OriginalReviewArtifact["source_refs"][number],
+  worktreePath: string,
+  leasePreimage?: { file: string; original: Buffer; released: Buffer },
+): Promise<boolean> {
+  await assertOriginalEvidencePath(source.file);
+  if (source.file.startsWith(`${worktreePath}${path.sep}`)) return false;
+  const current = await readFile(source.file);
+  let original: Buffer = current;
+  if (leasePreimage !== undefined && source.file === leasePreimage.file) {
+    // The immutable operation already verifies these exact lease versions.
+    // Recheck actual raw bytes here; only this known source may use its preimage.
+    if (
+      !current.equals(leasePreimage.original) &&
+      !current.equals(leasePreimage.released)
+    )
+      return false;
+    original = leasePreimage.original;
+  }
+  return createHash("sha256").update(original).digest("hex") === source.sha256;
+}
+
 async function retireAttempt(
   args: readonly string[],
 ): Promise<RuntimeCommandOutcome> {
@@ -657,11 +679,7 @@ async function retireAttempt(
         );
       const record = await readOriginalReviewRecord(reference.file);
       for (const source of record.source_refs) {
-        await assertOriginalEvidencePath(source.file);
-        if (
-          source.file.startsWith(`${request.worktree_path}${path.sep}`) ||
-          sha256Text(await readFile(source.file, "utf8")) !== source.sha256
-        )
+        if (!(await retirementSourceMatches(source, request.worktree_path)))
           throw new PrReviewLeaseError(
             "original producer source evidence changed or is current-resource-only",
           );
@@ -962,8 +980,13 @@ async function retireAttempt(
         throw new PrReviewLeaseError("retirement original evidence changed");
       const record = await readOriginalReviewRecord(reference.file);
       for (const source of record.source_refs) {
-        await assertOriginalEvidencePath(source.file);
-        if (sha256Text(await readFile(source.file, "utf8")) !== source.sha256)
+        if (
+          !(await retirementSourceMatches(source, request.worktree_path, {
+            file: path.join(identity.primaryRoot, request.lease_file),
+            original: Buffer.from(operation.original_lease, "utf8"),
+            released: Buffer.from(operation.released_lease, "utf8"),
+          }))
+        )
           throw new PrReviewLeaseError(
             "retirement original production source changed",
           );
@@ -1117,6 +1140,7 @@ async function retireAttempt(
       await writeTextAtomically(leasePath, operation.released_lease);
     if ((await readFile(leasePath, "utf8")) !== operation.released_lease)
       throw new PrReviewLeaseError("released lease publication uncertain");
+    await binding();
     operation.outcome = "retired";
     await save();
     if (

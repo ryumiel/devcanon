@@ -853,7 +853,7 @@ async function originalProducerOperation(
       if (
         reference.file === evidenceFile ||
         reference.file === recordFile ||
-        path.dirname(path.dirname(reference.file)) === root ||
+        reference.file.startsWith(`${root}${path.sep}`) ||
         createHash("sha256")
           .update(await readFile(reference.file))
           .digest("hex") !== reference.sha256
@@ -884,10 +884,13 @@ async function originalProducerOperation(
     return ok(`${recordFile}\n`);
   }
   if (entries.length === 0) fail("original production has no bytes");
-  await writeTextAtomically(
-    recordFile,
-    `${JSON.stringify({ ...record, production: "sealed", entries })}\n`,
-  );
+  const sealed: OriginalReviewArtifact = {
+    ...record,
+    production: "sealed",
+    entries,
+  };
+  validateOriginalReviewRecord(sealed);
+  await writeTextAtomically(recordFile, `${JSON.stringify(sealed)}\n`);
   return ok(`${recordFile}\n`);
 }
 
