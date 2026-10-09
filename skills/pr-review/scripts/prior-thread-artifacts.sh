@@ -438,6 +438,6 @@ case "$command_name" in
     validate_scope_decision
     ;;
   *)
-    fail "usage: prior-thread-artifacts.sh prepare-prior-threads-write|validate-prior-threads|prepare-scope-decision-write|prepare-provider-scope-evidence-write|materialize-provider-scope-capture|create-provider-scope-scratch|remove-provider-scope-scratch <scratch-dir>|reconcile-provider-scope-fetch <scratch-dir>|classify-provider-scope-capture|read-provider-scope-evidence-field --field <name>|render-scope-notice|write-provider-scope-evidence|validate-scope-decision"
+    fail "usage: prior-thread-artifacts.sh prepare-prior-threads-write|validate-prior-threads|prepare-scope-decision-write|prepare-provider-scope-evidence-write|materialize-provider-scope-capture|create-provider-scope-scratch|remove-provider-scope-scratch <scratch-dir>|reconcile-provider-scope-fetch <scratch-dir>|classify-provider-scope-capture|read-provider-scope-evidence-field --field <name>|render-scope-notice|write-provider-scope-evidence|validate-scope-decision|allocate-original|seal-original|qualify-original"
     ;;
 esac

@@ -331,7 +331,7 @@ export async function runPrReviewLeasesCommand(
         );
       default:
         throw new PrReviewLeaseError(
-          "usage: review-leases.sh derive-path|discover|session-create|write|record-audit-failure|validate|read-status|inspect-worktree|cleanup-worktree",
+          "usage: review-leases.sh derive-path|discover|retire-attempt|session-reconcile|session-create|write|record-audit-failure|validate|read-status|inspect-worktree|cleanup-worktree",
         );
     }
   } catch (err) {
