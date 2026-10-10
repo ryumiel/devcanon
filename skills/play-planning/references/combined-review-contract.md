@@ -81,9 +81,9 @@ before handoff. Any mismatch or intervening edit invalidates approval.
 The accepted scope is the approved Scope Envelope together with its governing
 project/design authority. The controller retains that identity, original plan
 bytes, validated result, stable gaps, input provenance and number of dispatched
-passes. One comprehensive initial pass and at most one additional pass are
-allowed. A dispatched failed, unavailable or incomplete attempt consumes its
-pass and stops automatic continuation; no retry chain is introduced. A
+semantic passes. One comprehensive initial semantic pass and at most one
+additional semantic pass are allowed. A dispatched failed, unavailable or
+incomplete semantic attempt consumes its pass and stops automatic continuation; no retry chain is introduced. A
 pre-dispatch validation failure consumes no pass but blocks dispatch until fixed.
 Existing slot-recovery rules remain separate and cannot manufacture a result.
 
@@ -106,10 +106,59 @@ use comprehensive review within the remaining pass or stop for reassessment.
 Any genuine blocker prevents PASS, including a pre-existing inspectable defect
 missed initially and first found during correction or comprehensive re-review.
 Report it honestly as missed initially; finding-admission rules cannot suppress
-it. If it remains after the final pass, stop for reassessment. Renaming tasks,
+it. If it remains after the final semantic pass, stop for reassessment unless the
+source-established declaration exception below applies. Renaming tasks,
 findings, sessions, files or contracts never replenishes the budget. A correction
 made after the final PASS invalidates that PASS; it cannot be approved without
 an explicitly reopened review cycle.
+
+## Source-established declaration verification
+
+The planning producer may correct an omitted governing-entry declaration under
+this exception only after both semantic passes are consumed and the final
+complete FAIL is mapping-only. If a semantic pass remains, use the ordinary
+semantic correction pass above, not verification-only assurance. The current
+accepted issue/design sources must explicitly establish the exact mapping and
+the complete prior review must leave only that declaration omission unresolved. Unchanged task wording and a
+producer assertion of nonmateriality are insufficient. No new requirement or
+mapping, changed tasks, dependencies, normative ownership, design, permissions,
+proof obligations, acceptance criteria or reviewer judgment qualifies. Ambiguous,
+conflicting or uncertain meaning remains semantic work under the budget above.
+This exception does not cover edits after a final PASS.
+
+Before writing, retain original plan bytes and digest, every complete prior
+result and gap, consumed semantic passes, accepted source identities and the
+repository/root/base/head/dirty-state identity. Retain complete PLAN/task
+correctness and executability coverage with exact prior session identity,
+contract tag, digest and row identity. Missing, stale, contradictory or incomplete
+inputs stop; do not invent coverage or repair history. The producer applies only
+the source-established declaration correction and supplies the complete exact
+original/current diff, all gaps, relevant input changes and current mapping
+sources. A consumer cannot make this correction on the producer's behalf.
+
+Run canonical path/projection/digest preflight, then dispatch one fresh independent
+D5 using the existing source-immutable, external-none, response-only tuple and
+guard lifecycle. Set its purpose to verification-only; retain the consumed
+semantic history rather than assigning a third semantic review wave. D5 reads
+the authoritative mapping sources independently, checks the full diff and all
+gaps, and validates applicability of every retained coverage row to current
+sources and bytes. Every PLAN/task dimension must have current rechecked or
+justified carried evidence. This is complete current assurance, not a new
+semantic judgment or an old FAIL promoted to approval.
+
+A successful response uses the existing PASS/digest and combined-v1 lines,
+followed by `Review mode: verification-only`, complete `## Coverage`, and exact
+carried provenance. It binds corrected bytes without consuming a semantic pass.
+Verify the guard before interpreting the response, retain the validated current
+result together with every historical result/digest/gap and the unchanged
+semantic-pass count, complete exact cleanup, and rehash before handoff.
+
+Failed, incomplete, unavailable, malformed or uncertain verification stops
+local automatic continuation at the existing exhausted recovery/reassessment
+route. No automatic redispatch, repeated no-progress submission, semantic-budget
+reset, relabeling of historical FAILs or reopened cycle is authorized. Source or
+candidate drift invalidates dependent evidence. Other edits use ordinary review
+or reassessment. Nonblocking observations may remain separate and deferred.
 
 ## Material changes and reassessment
 
@@ -135,7 +184,7 @@ materially revised scope alone is insufficient. An unchanged-scope reopening
 must explicitly acknowledge exhausted/failed review and its remedy. `--auto`,
 renaming, a new session or repeated prompting is not such a decision. Retain
 prior outcomes; do not erase them or claim historical results cover new bytes.
-Each authorized new cycle again has at most two passes; it is not an automatic
+Each authorized new cycle again has at most two semantic passes; it is not an automatic
 continuation loop. Readiness is rechecked before drafting its revised plan.
 
 ## Exceptional specialist
@@ -164,6 +213,12 @@ consumers and the review budget remain unchanged.
 
 After a valid current combined PASS, retain producer identity, contract tag,
 plan path, digest, coverage and successful cleanup in controller-local state.
+For verification-only assurance, also retain explicit mode, full current/carried
+coverage provenance, original/current identities, historical semantic results
+and consumed passes. Consumers validate that composite evidence against the
+source-established declaration rule above; a historical PASS cannot authorize
+changed bytes. Rehash immediately before consumption. Unsupported or stale
+composite evidence stops without downgrade.
 Emit the existing `Plan written to <path>.` and `Reviewed digest: <sha256>`
 notices, followed by `Planning review contract: planning-review/combined-v1`.
 Consumers receive that exact tag alongside `Plan:` and `Expected digest:`.
@@ -196,8 +251,9 @@ completion requires its causal link, violated approved contract, necessity,
 design-determined result, and exact authority before mutation. The parent
 retains all separate execution proof and review gates.
 The parent owns that limited decision and rehashes immediately before execution.
-Any changed bytes require review within budget and a new parent authority
-assessment; prior approval cannot cover new bytes, and the human approval loop
+Any changed bytes require current assurance under this contract (semantic
+review within budget or the qualifying verification-only exception) and a new
+parent authority assessment; prior approval cannot cover new bytes, and the human approval loop
 has no automatic cycle-reset effect. Preserve mechanical
 execution's independent eligibility/guardrails and D14–D16. All producer and
 consumer changes must activate together; no intermediate one-PASS/two-PASS mix

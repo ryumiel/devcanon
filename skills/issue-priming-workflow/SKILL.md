@@ -996,12 +996,24 @@ Comment evidence: <repo-relative-path from payload.comment-evidence-path>
 
 Do not wait for user review of the plan — proceed directly to implementation after `play-planning` returns. The plan path is captured from the producer notice line emitted by `play-planning`.
 
+Current combined assurance may include the planning owner's narrow
+[source-established declaration verification](../play-planning/references/combined-review-contract.md#source-established-declaration-verification).
+Before execution or an approval assessment, validate its current corrected
+digest/tag, retained producer identity, explicit `Review mode: verification-only`,
+complete current/carried coverage and exact prior session/tag/digest/row
+provenance, original/current source identities, historical semantic results and
+consumed passes. Rehash immediately before consumption. Historical PASS alone
+cannot authorize changed bytes; missing, mixed, unsupported or stale composite
+evidence stops without downgrade. Execution/publication authority, auto evidence
+and final implementation review remain separate gates.
+
 ### Phase 6: Implement (reviewed-plan route)
 
 After `play-planning` returns, capture its literal
 `Plan written to <path>.`, `Reviewed digest: <sha256>`, and
 `Planning review contract: planning-review/combined-v1` lines. That return
-means one complete combined D5 review passed. Preserve the reviewed digest and
+means complete current combined D5 assurance passed, either semantic review
+or the qualifying verification-only composite. Preserve the reviewed digest and
 combined producer provenance in controller-local state, validate them, and stop
 if any value is missing or malformed. Invalid planning provenance must stop
 inside `play-planning` and must not reach this phase. Validate

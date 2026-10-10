@@ -287,6 +287,17 @@ extraction and must return to the owning planning workflow; never replace the
 expected digest with the current file digest. Keep both values controller-local
 and do not create a digest artifact, helper, parser, or registry.
 
+Current combined assurance may include the planning owner's narrow
+[source-established declaration verification](../play-planning/references/combined-review-contract.md#source-established-declaration-verification).
+Before execution or an approval assessment, validate its current corrected
+digest/tag, retained producer identity, explicit `Review mode: verification-only`,
+complete current/carried coverage and exact prior session/tag/digest/row
+provenance, original/current source identities, historical semantic results and
+consumed passes. Rehash immediately before consumption. Historical PASS alone
+cannot authorize changed bytes; missing, mixed, unsupported or stale composite
+evidence stops without downgrade. Execution/publication authority, auto evidence
+and final implementation review remain separate gates.
+
 For a reviewed route, validate the matching controller-held D5 producer
 identity, successful cleanup, complete coverage, and
 `planning-review/combined-v1` before mechanical eligibility or dispatch.

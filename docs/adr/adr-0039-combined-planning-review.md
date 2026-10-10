@@ -31,11 +31,22 @@ SHA-256 identity. Replace
 the two planning sessions with one independent reviewer responsible for both
 remits. Require explicit complete coverage rather than inferring executability
 from a correctness PASS. Permit one comprehensive initial review and at most
-one further pass per accepted scope. Focus correction on the full revision diff,
+one further semantic pass per accepted scope. Focus correction on the full revision diff,
 prior gaps and affected dependencies, carrying only proven unaffected coverage.
 Material changes require comprehensive review within the same budget or an
 explicit owning reassessment. Every genuine blocker prevents approval,
 including a defect inspectable but missed during the initial review.
+
+A final complete FAIL limited to an omitted declaration of a mapping explicitly
+established by current accepted sources may receive fresh independent D5
+verification-only assurance after the two semantic passes. It checks the full
+diff, sources, gaps and complete current/carried coverage, binds corrected bytes
+and preserves historical FAILs and consumed passes. New or uncertain mapping,
+changed meaning/judgment/source, incomplete evidence and failed verification
+stop under existing recovery; no automatic retries or budget resets result.
+The planning owner defines this narrow exception. Producer and coupled consumers
+validate explicit mode and composite provenance together; old PASS is never
+transplanted onto new bytes.
 
 Reuse source maps and scoped evidence in existing artifacts while inputs remain
 valid. Independent judgment requires checking relevant authoritative sources,

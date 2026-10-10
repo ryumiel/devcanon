@@ -1892,6 +1892,98 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     }
   });
 
+  it("preserves valid canonical and fixture input when derived body publication fails, then accepts producer regeneration", async () => {
+    const {
+      cwd,
+      reviewHeadSha,
+      findingsFile: canonicalFile,
+    } = await makeReviewSourceWorkspace();
+    try {
+      // Helper capability proof only: guarded native result intake is controller-owned.
+      const retainedInput = currentReviewEnvelope(reviewHeadSha, [
+        sourceFinding(),
+      ]);
+      const inputFile = path.join(cwd, ".ephemeral/retained-review-input.json");
+      const inputBytes = JSON.stringify(retainedInput);
+      await writeFile(inputFile, inputBytes);
+      const publicationEnv = {
+        HEAD_SHA: reviewHeadSha,
+        FINDINGS_FILE: canonicalFile,
+      };
+      const priorContents = JSON.stringify(
+        currentReviewEnvelope(reviewHeadSha, []),
+      );
+      await expect(
+        runHelperWithStdin(
+          cwd,
+          "publish-findings",
+          priorContents,
+          publicationEnv,
+        ),
+      ).resolves.toMatchObject({ stdout: `${canonicalFile}\n` });
+      await expect(
+        runHelper(cwd, "validate-findings", publicationEnv),
+      ).resolves.toMatchObject({ stdout: "" });
+
+      // Both producer attempts derive presentation from the same retained valid fields.
+      const produceEnvelope = (separator: string) => {
+        const envelope = structuredClone(retainedInput);
+        for (const entry of envelope.findings as Record<string, unknown>[]) {
+          entry.body = `**${entry.severity} | ${entry.category}**${separator}${entry.why}\n\n**Recommendation:** ${entry.recommendation}`;
+        }
+        return envelope;
+      };
+      const malformed = produceEnvelope(" - ");
+      await expect(
+        runHelperWithStdin(
+          cwd,
+          "publish-findings",
+          JSON.stringify(malformed),
+          publicationEnv,
+        ),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("envelope shape mismatch"),
+      });
+      expect(await readFile(path.join(cwd, canonicalFile), "utf-8")).toBe(
+        priorContents,
+      );
+      expect(await readFile(inputFile, "utf-8")).toBe(inputBytes);
+      await expect(
+        runHelper(cwd, "validate-findings", publicationEnv),
+      ).resolves.toMatchObject({ stdout: "" });
+      await expectNoPublishStaging(cwd);
+
+      const replacement = produceEnvelope(" — ");
+      expect(replacement).toEqual(retainedInput);
+      const withoutBody = (value: Record<string, unknown>) => {
+        const copy = structuredClone(value);
+        for (const entry of copy.findings as Record<string, unknown>[])
+          entry.body = undefined;
+        return copy;
+      };
+      expect(withoutBody(malformed)).toEqual(withoutBody(retainedInput));
+      expect(withoutBody(replacement)).toEqual(withoutBody(retainedInput));
+      await expect(
+        runHelperWithStdin(
+          cwd,
+          "publish-findings",
+          JSON.stringify(replacement),
+          publicationEnv,
+        ),
+      ).resolves.toMatchObject({ stdout: `${canonicalFile}\n` });
+      await expect(
+        runHelper(cwd, "validate-findings", publicationEnv),
+      ).resolves.toMatchObject({ stdout: "" });
+      expect(
+        JSON.parse(await readFile(path.join(cwd, canonicalFile), "utf-8")),
+      ).toEqual(retainedInput);
+      expect(await readFile(inputFile, "utf-8")).toBe(inputBytes);
+      await expectNoPublishStaging(cwd);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("preserves the prior canonical envelope and cleans staging for malformed or trailing findings input", async () => {
     const cwd = await makeTopicGitWorkspace();
     try {
