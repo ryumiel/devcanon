@@ -64,8 +64,8 @@ branch review. Under ROUTE-007-REVIEW, covered existing-PR corrections instead
 require classified dispositions, local validation, the concrete pre-push summary
 and exact plain-update binding, then successful publication and independent
 current published-head review through the same Connector-first accepted
-condition before readiness or merge. Applicable completed Connector evidence
-satisfies that condition after corrections without an additional automatic review.
+condition before readiness or merge. Applicable completed passing/thumbs-up
+Connector evidence satisfies that condition after corrections without an additional automatic review.
 Confirmed quota/unavailability selects one registered independent ordinary host
 review task with bound reporting; a coordinator child cannot replace that owner.
 The selected review workflow retains follow-up scope and internal delegation.

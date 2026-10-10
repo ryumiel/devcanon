@@ -813,10 +813,12 @@ response.
 Under an accepted conditional review/merge policy, supported provider evidence
 associated unambiguously with the current PR and head may satisfy the review
 condition for initial publication and corrected published heads alike: an
-applicable thumbs-up passes that condition after applicable
-findings and nits are dispositioned; eyes waits only while review is genuinely
+applicable completed passing/thumbs-up Connector result passes that condition
+after applicable findings and nits are dispositioned; eyes waits only while review is genuinely
 pending. A completed current provider result takes precedence over a lingering
-reaction. Missing, ambiguous, or stale association waits. Without an accepted
+reaction. A completed blocking result does not pass, even after findings/nits
+disposition; absent passing evidence waits and does not establish quota or
+unavailability. Missing, ambiguous, or stale association waits. Without an accepted
 policy, configured review and approval gates remain unchanged. A changed commit
 alone does not select an additional `pr-review` when applicable current-head
 Connector evidence satisfies the accepted condition. Slow review or lingering
@@ -864,8 +866,8 @@ push. After this concrete pre-push gate is satisfied and the exact branch/head
 update binding is refreshed, the existing publication owner may plain-push the
 covered correction to the existing PR branch. Then apply the same Connector-first
 selection above to the current published head before review readiness or merge.
-Applicable completed current-head Connector evidence satisfies the accepted
-condition after feedback disposition without an automatic additional `pr-review`.
+Applicable completed passing/thumbs-up current-head Connector evidence
+satisfies the accepted condition after feedback disposition without an automatic additional `pr-review`.
 When `pr-review` is selected, its full-versus-narrow follow-up scope and required
 verification remain its own policy; applicable prior coverage is context, never
 changed-head approval. A failed push leaves the new candidate
@@ -956,8 +958,9 @@ eyes waits, and a completed current result overrides lingering eyes. Verify
 these outcomes against source and both rendered target procedures; generated
 evidence supplies no authority.
 
-Conditional-review acceptance also covers completed Connector success after
-correction without another automatic review, genuinely pending review, confirmed
+Conditional-review acceptance also covers completed passing/thumbs-up Connector
+success after correction without another automatic review, completed blocking
+results holding readiness even after disposition, genuinely pending review, confirmed
 quota, compatible ordinary-task reuse, unsupported host dispatch/messaging,
 stale or ambiguous PR/head association, Connector recovery during fallback and
 complete verdict with cleanup still pending. The

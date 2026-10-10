@@ -31,8 +31,8 @@ new side effects require another gate summary.
 
 A changed candidate requires validation and current published-head review before
 readiness or merge. Under ROUTE-007-REVIEW's accepted conditional policy, use the
-same Connector-first selection: applicable completed current-head evidence after
-findings/nits disposition satisfies that condition without another automatic
+same Connector-first selection: applicable completed passing/thumbs-up
+current-head Connector evidence after findings/nits disposition satisfies that condition without another automatic
 `pr-review`. When that workflow is selected, retain its full-versus-narrow
 follow-up scope and required verification. Independently requested reviews and
 configured review/approval gates remain required. Prior coverage is context,

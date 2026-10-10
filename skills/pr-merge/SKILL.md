@@ -128,8 +128,9 @@ Without accepted policy, configured gates remain unchanged.
 
 For an authorized in-scope correction, require validation, the same Connector-first
 current published-head selection under the accepted condition, and a refreshed
-applicable action binding for the changed head. Applicable completed current-head
-Connector evidence requires no additional automatic `pr-review`; when that
+applicable action binding for the changed head. Applicable completed
+passing/thumbs-up current-head Connector evidence requires no additional
+automatic `pr-review`; when that
 workflow is selected, its full-versus-narrow follow-up and verification remain
 required. Prior coverage is
 context, never old-head approval. Covered conditional merge authority needs no

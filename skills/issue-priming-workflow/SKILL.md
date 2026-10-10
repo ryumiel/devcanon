@@ -1241,7 +1241,8 @@ published PR instead follows
 and review-response's concrete pre-push gate: classify dispositions, validate the
 candidate, present the exact summary and bind the covered plain update, publish,
 then apply ROUTE-007-REVIEW's Connector-first selection to the current published
-head before readiness or merge. Applicable completed current-head Connector
+head before readiness or merge. Applicable completed passing/thumbs-up
+current-head Connector
 evidence satisfies the accepted conditional review gate; selected `pr-review`
 retains its own full-versus-narrow follow-up scope and verification. That correction sequence
 does not waive initial Phase 7 review or transfer old-head approval.

@@ -713,8 +713,8 @@ For PR providers that expose these signals, evaluate gates in this order:
 1. Draft PRs wait unless the owner thread reports that draft status is stale.
 2. Reconcile supported current PR/head review evidence under the accepted
    conditional policy in ROUTE-007-REVIEW for both initial and corrected
-   published heads. Applicable thumbs-up may satisfy its
-   review condition after findings/nits disposition; eyes blocks only while
+   published heads. Applicable completed passing/thumbs-up Connector evidence
+   may satisfy its review condition after findings/nits disposition; eyes blocks only while
    genuinely pending. A completed current provider result overrides lingering
    reactions. Active blocking results still block merge. Missing, ambiguous,
    stale, or incomplete required evidence waits; without accepted policy,
@@ -746,7 +746,8 @@ requires repair is not pending merge-path polling.
 
 Use Connector-first published-head selection under the accepted conditional
 policy, including after corrections. A changed commit alone does not add
-`pr-review` when applicable current-head Connector evidence satisfies the condition.
+`pr-review` when applicable completed passing/thumbs-up current-head Connector
+evidence satisfies the condition.
 Pending review waits; slow review, lingering reactions, or missing/ambiguous head
 association cannot independently establish confirmed quota/unavailability.
 
@@ -783,8 +784,8 @@ pre-push summary of exact changes/commit, verification, classified dispositions
 and intended actions. Validate the local candidate and refresh the exact
 branch/head binding for the covered plain update before its publication. After
 successful publication, apply the same Connector-first selection to the current
-published head before review readiness or merge. Applicable completed Connector
-evidence satisfies the accepted condition without an extra automatic `pr-review`;
+published head before review readiness or merge. Applicable completed
+passing/thumbs-up Connector evidence satisfies the accepted condition without an extra automatic `pr-review`;
 when that workflow is selected, its existing full-versus-narrow follow-up scope
 and required verification remain required. A changed local or remote head invalidates old-head approval;
 carry applicable prior coverage only as context. Refresh the existing affected

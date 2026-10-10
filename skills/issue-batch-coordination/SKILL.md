@@ -169,8 +169,8 @@ concrete pre-push summary under retained human scope, and bind the covered plain
 update before publication. After successful publication, obtain independent
 current-head review through the same Connector-first accepted condition before
 readiness or merge; use `pr-review`'s full-versus-narrow follow-up scope only when
-that workflow is selected. Applicable completed Connector evidence requires no
-additional automatic `pr-review`; prior coverage is context, never new-head approval. A failed push leaves the candidate unpublished; neither a summary nor
+that workflow is selected. Applicable completed passing/thumbs-up Connector
+evidence requires no additional automatic `pr-review`; prior coverage is context, never new-head approval. A failed push leaves the candidate unpublished; neither a summary nor
 a requested follow-up proves success. Refresh the new head's dependent evidence
 and exact bindings. Conditional merge remains with `pr-merge` after genuine current-head review, CI, protection,
 mergeability and thread disposition, with no waiver. Scoped cleanup follows
@@ -338,8 +338,9 @@ validation proportional to the approved behavior; do not add a general repair
 or proof framework to clear a batch.
 
 Apply Connector-first selection under the accepted conditional policy in
-ROUTE-007-REVIEW to both initial and corrected published heads. Applicable completed
-current-head evidence satisfies that condition after findings/nits disposition.
+ROUTE-007-REVIEW to both initial and corrected published heads. Applicable
+completed passing/thumbs-up current-head Connector evidence satisfies that
+condition after findings/nits disposition.
 Genuinely pending review waits; slow review or lingering eyes alone is not
 confirmed quota/unavailability. Missing or ambiguous head association supplies
 neither approval nor that fallback trigger.
