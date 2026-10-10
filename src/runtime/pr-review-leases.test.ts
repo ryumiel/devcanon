@@ -1650,6 +1650,89 @@ describe("pr-review lease command validation", () => {
     },
   );
 
+  it.each(["unused", "active-consumer", "pending-publication"] as const)(
+    "applies finite retirement to synthetic completed evidence: %s",
+    async (purpose) => {
+      // Tiny stand-ins for a completed evidence tree, allocated and sealed
+      // through its actual scratch producer. This does not enroll a historical
+      // primary-root archive or establish live #842 ownership/cleanup authority.
+      const leaves = {
+        "source-history.bundle": "synthetic source identity\n",
+        "copied-guidance.md": "synthetic copied guidance\n",
+        "review.log": "synthetic completed review detail\n",
+      };
+      const fixture = await makeAttemptRetirementFixture(leaves);
+      const request = JSON.parse(await readFile(fixture.requestFile, "utf8"));
+      request.publication = {
+        status: "published",
+        references: ["https://github.com/owner/repo/pull/432"],
+      };
+      if (purpose === "active-consumer")
+        request.active_consumers = ["changed-head-comparison"];
+      if (purpose === "pending-publication")
+        request.publication = { status: "pending", references: [] };
+      await writeFile(fixture.requestFile, JSON.stringify(request));
+      const primaryEphemeral = path.join(
+        fixture.repository.physicalRepository,
+        ".ephemeral",
+      );
+      const primaryEntries = (await readdir(primaryEphemeral)).sort();
+      const scratchEntries = (
+        await readdir(path.join(fixture.worktree, ".ephemeral"))
+      ).sort();
+      const leaseBytes = await readFile(fixture.leasePath);
+      const originalBytes = await readFile(fixture.recordFile);
+
+      for (let invocation = 0; invocation < 2; invocation++) {
+        const result = await runPrReviewLeasesCommand([
+          "retire-attempt",
+          "--request-file",
+          fixture.requestFile,
+        ]);
+        expect(result.exitCode, result.stderr + result.stdout).toBe(
+          purpose === "unused" ? 0 : 1,
+        );
+        if (purpose === "unused")
+          expect(JSON.parse(result.stdout)).toMatchObject({
+            outcome: "retired",
+          });
+        else
+          expect(result.stderr).toContain(
+            purpose === "active-consumer"
+              ? "exhausted consumers/effects"
+              : "retirement requires verified durable publication",
+          );
+        expect(await readFile(fixture.leasePath)).toEqual(leaseBytes);
+        expect(await readFile(fixture.recordFile)).toEqual(originalBytes);
+        // Neither cleanup nor repeat reporting creates replacement evidence.
+        expect((await readdir(primaryEphemeral)).sort()).toEqual(
+          primaryEntries,
+        );
+        expect(
+          (await readdir(path.join(fixture.worktree, ".ephemeral"))).sort(),
+        ).toEqual(
+          purpose === "unused"
+            ? scratchEntries.filter(
+                (entry) => entry !== path.basename(fixture.resource),
+              )
+            : scratchEntries,
+        );
+        if (purpose === "unused")
+          await expect(
+            lstat(path.join(fixture.worktree, fixture.resource)),
+          ).rejects.toMatchObject({ code: "ENOENT" });
+        else
+          for (const [name, bytes] of Object.entries(leaves))
+            expect(
+              await readFile(
+                path.join(fixture.worktree, fixture.resource, name),
+                "utf8",
+              ),
+            ).toBe(bytes);
+      }
+    },
+  );
+
   it.each([
     "changed",
     "extra",
@@ -10722,7 +10805,12 @@ describe("pr-review lease wrapper trusted runtime bootstrap", () => {
   );
 });
 
-async function makeAttemptRetirementFixture() {
+async function makeAttemptRetirementFixture(
+  leaves: Record<string, string> = {
+    "failed-scope.json": "invalid original candidate\n",
+    "validator.stderr": "original diagnostic\n",
+  },
+) {
   const fixture = await makeTerminalAdvanceRefusalFixture({ canonical: true });
   process.chdir(fixture.worktree);
   Object.assign(process.env, { REPOSITORY: "owner/repo", PR_NUMBER: "432" });
@@ -10737,14 +10825,8 @@ async function makeAttemptRetirementFixture() {
   ]);
   expect(allocated.exitCode, allocated.stderr).toBe(0);
   const resource = allocated.stdout.trim();
-  await writeFile(
-    path.join(fixture.worktree, resource, "failed-scope.json"),
-    "invalid original candidate\n",
-  );
-  await writeFile(
-    path.join(fixture.worktree, resource, "validator.stderr"),
-    "original diagnostic\n",
-  );
+  for (const [name, bytes] of Object.entries(leaves))
+    await writeFile(path.join(fixture.worktree, resource, name), bytes);
   expect(
     (
       await runPrReviewProviderScopeEvidenceCommand([
