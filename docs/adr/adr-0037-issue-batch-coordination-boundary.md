@@ -41,7 +41,7 @@ human messaging authority where the sending host requires it. Compatible
 reporting authority is retained rather than requested again at every gate.
 The watchdog, when enabled, observes external events without becoming a second
 coordinator or substituting general progress polling for delivery. The accepted
-issue #852 exception reuses per-item wait reasons, existing owner/action bindings,
+bounded reconciliation exception reuses per-item wait reasons, existing owner/action bindings,
 cadence and notification state: while the coordinator is inactive, compact
 checks of registered ordinary owners with pending `owner_result` waits may
 request reconciliation. Internal sub-agents and user-confirmation waits are
