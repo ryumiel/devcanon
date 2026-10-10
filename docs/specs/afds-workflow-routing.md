@@ -501,8 +501,9 @@ path, the coordinator validates current referenced evidence, routes an authorize
 next action, and yields. Repeated coordinator reads, snapshots, or wait loops to
 discover ordinary owner progress or whether a gate appeared are prohibited,
 regardless of tool names or interval. This includes repeated `read_thread`,
-`wait_threads`, and equivalents. The watchdog observes external events, not
-owner progress; unsupported delivery never permits a polling fallback.
+`wait_threads`, and equivalents. The separate watchdog observes external events and only the bounded ordinary
+owner-result exception in ROUTE-007-EVENT. Unsupported delivery never permits
+a general polling fallback.
 
 Bounded owner reads may confirm initial binding before release, validate a
 received report, answer an explicit user status request, or reconcile the
@@ -669,19 +670,28 @@ new schema or persistence system.
 Current items retain provider identity, accepted scope and applicable authority,
 owner/host and repository binding, current branch/PR/head when present,
 dependencies, gate/blocker, next action, readiness and evidence references.
-Controller/successor, policy revision and active monitor identity/settings are
+Each pending item records `items[].wait_reason`: `owner_result`,
+`user_confirmation`, or `external_event`. The coordinator sets it before
+yielding and clears or updates it after reconciliation or a changed waiting
+condition. An owner report requiring user input changes that item to
+`user_confirmation`; processed waits leave the eligible set. Owner-result
+waits retain the existing registered ordinary owner/host and current
+dispatch/action binding, without a second registry. Mixed item waits are
+independent. Missing or unknown reasons enable no internal checks; normalize
+them from supported facts on an authorized coordinator resume, never from
+idleness. Controller/successor, policy revision and active monitor identity/settings are
 current batch context. Replace superseded values; remove resolved waits and
 completed queue entries. Derive every batch or monitor summary from these
 current items. Unknown facts and unresolved obligations remain explicit.
 
 Only the following bounded operational markers survive value replacement:
 
-| Operational purpose                        | Retain while needed                                                                                                                                                                                 | Replacement or removal condition                                                                                                                                                                                                                                                                                                                                                  |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Applicable authority                       | Accepted scope, authority evidence reference and exact current action binding                                                                                                                       | Refresh head-dependent bindings and readiness when their inputs change without revoking compatible standing scope. Replace superseded or revoked authority; retain only its identity/reference if an unresolved effect still requires it. Never keep an approval chronology.                                                                                                      |
-| Pending or uncertain effects               | Original complete route key, confirmed owner/host/repository binding, provisional creation identifier where applicable, and supported delivery/result reference                                     | Reconcile the original operation before retry. Replace uncertainty with its verified result; remove the pending marker only when resolved and any still-needed duplicate guard is retained. Missing evidence holds the action.                                                                                                                                                    |
-| Duplicate suppression and receipt recovery | Exact route identities still eligible for reconciliation or delayed delivery, highest accepted receipt sequence per such route, acknowledged next sequence, and required current handoff provenance | Binding changes alone cannot evict a needed guard. Retire a route entry only when its effects and obligations are resolved and it cannot become eligible again under the retained authority; delayed delivery for a retired or unknown route fails closed and cannot initialize authority or restart sequence numbering. Keep guards for unresolved routes across resume/handoff. |
-| Notification and monitor control           | Current event/head/recipient and delivery outcome needed to suppress repeat notice, failed or uncertain delivery, applicable explicit monitor stop and verified shutdown state                      | Replace superseded observations only after reconciling delivery; successful delivery is not inferred from an attempt. Retire resolved markers only when delayed input cannot repeat notice or recreate a stopped monitor. Retain an explicit stop until later scheduling authority supersedes it.                                                                                 |
+| Operational purpose                        | Retain while needed                                                                                                                                                                                                                    | Replacement or removal condition                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Applicable authority                       | Accepted scope, authority evidence reference and exact current action binding                                                                                                                                                          | Refresh head-dependent bindings and readiness when their inputs change without revoking compatible standing scope. Replace superseded or revoked authority; retain only its identity/reference if an unresolved effect still requires it. Never keep an approval chronology.                                                                                                      |
+| Pending or uncertain effects               | Original complete route key, confirmed owner/host/repository binding, provisional creation identifier where applicable, and supported delivery/result reference                                                                        | Reconcile the original operation before retry. Replace uncertainty with its verified result; remove the pending marker only when resolved and any still-needed duplicate guard is retained. Missing evidence holds the action.                                                                                                                                                    |
+| Duplicate suppression and receipt recovery | Exact route identities still eligible for reconciliation or delayed delivery, highest accepted receipt sequence per such route, acknowledged next sequence, and required current handoff provenance                                    | Binding changes alone cannot evict a needed guard. Retire a route entry only when its effects and obligations are resolved and it cannot become eligible again under the retained authority; delayed delivery for a retired or unknown route fails closed and cannot initialize authority or restart sequence numbering. Keep guards for unresolved routes across resume/handoff. |
+| Notification and monitor control           | Current event/head/recipient or owner-result item/owner/host/dispatch/action and coordinator recipient/host/recipient-action binding, delivery/wake outcome, unresolved delivery, applicable explicit stop and verified shutdown state | Replace superseded observations only after reconciling delivery; successful delivery is not inferred from an attempt. Retire resolved markers only when delayed input cannot repeat notice or recreate a stopped monitor. Retain an explicit stop until later scheduling authority supersedes it.                                                                                 |
 
 A terminal item keeps only identity, verified disposition/evidence references,
 remaining cleanup or other accepted obligations, and operational markers still
@@ -733,7 +743,8 @@ Exactly one monitoring mode may be active for a batch. When execution selects
 monitoring or it is explicitly requested, and separate task, schedule,
 observation, messaging, and task-model
 controls are supported and authorized, default to a separate watcher restricted
-to external observation and notification. A coordinator heartbeat requires
+to external observation and notification plus the ROUTE-007-EVENT bounded
+ordinary owner-result reconciliation check. A coordinator heartbeat requires
 explicit selection; unsupported or rejected watcher controls never silently
 select a heartbeat. Independently authorized owner-driven coordination continues
 when monitoring is unavailable.
@@ -749,10 +760,24 @@ rejected bindings or model
 controls hold watcher activation with the concrete limitation; do not substitute
 an ambient model or rediscover configuration.
 
+For owner-result readiness, the coordinator supplies the watcher a concrete
+read-only reference to its current ledger through permitted supported host
+access, alongside the existing batch/repository/controller/host and owner/action
+bindings. Before reading or claiming readiness on setup, reuse or resume, verify
+watcher readability, coordinator ownership, current batch association and
+refreshability; a copied snapshot is not current custody. Also verify exposed
+compact status for ordinary owner and coordinator chats and authorized supported
+transport that can start or resume the inactive named ordinary coordinator.
+Record readiness or its exact limitation in existing monitor state. Missing,
+stale or inaccessible ledger custody or unsupported status/wake holds this path;
+separately supported external observation and authorized owner reports continue.
+This reference supplies navigation and custody, not a second ledger or schema.
+
 Before claiming monitored operation, separately verify actual owner bindings,
 watchdog task identity and model, timer target and active status, and permitted
-notification recipients. The timer wakes the watchdog chat to inspect external
-events, not the coordinator for periodic owner observation. A selected heartbeat
+notification recipients. The timer wakes the watchdog chat for external
+events and the bounded owner-result check below, using the existing cadence.
+The coordinator does not periodically observe owners. A selected heartbeat
 may handle bounded events/recovery but must not periodically discover owner
 progress. Reuse compatible components, create only missing authorized ones, and
 retain partial startup in existing state. Pending or unknown creation, activation
@@ -778,9 +803,67 @@ batch ledger. Neither mode introduces a custom scheduler or mandatory agent.
 
 Owner reports wake the coordinator through the established reporting path.
 The coordinator validates required current evidence before routing, then yields;
-watchers cannot poll owner progress or act as a second coordinator. A separate watcher keeps
-the observed provider event identity, PR head, known recipient binding, and
-delivery outcome needed to suppress duplicate or unchanged observations. New
+watchers cannot generally poll owner progress or act as a second coordinator.
+The following is the sole scheduled internal-status exception for a separate
+watchdog; a coordinator heartbeat does not acquire it.
+
+On an existing authorized tick, validate and refresh the read-only ledger
+custody and ordinary-chat status/wake readiness from ROUTE-007-MONITOR. Only
+when supported compact host status proves the bound coordinator inactive, select each item whose recorded reason is
+`owner_result` and whose registered ordinary owner/host and existing current
+dispatch/action binding are complete, unambiguous and fresh. Internal sub-agents
+are excluded. Use compact host status, batching eligible targets where
+supported. On a Codex desktop host exposing the ordinary-chat `wait_threads`
+MCP surface, `wait_threads(timeoutMs: 0)` supports up to eight targets. A generic
+Codex host name does not establish that capability; internal-agent
+`list_agents`/`wait_agent` cannot substitute for ordinary-chat status access;
+do not scrape transcripts or wait for progress. Running owners stay quiet. An
+idle or terminal owner is only a candidate with a pending result: request that
+the existing coordinator inspect the actual outcome. Terminal status proves
+neither a passing verdict nor completion, readiness, or authority to continue.
+
+`user_confirmation` suppresses internal continuation notifications for that
+item and never implies approval. `external_event` keeps the existing external
+path. Missing/unknown reasons, stale or ambiguous bindings, unregistered owners,
+and unsupported or unknown compact coordinator/owner status do not enable
+speculative checks or continuation; use existing bounded limitation/recovery
+handling. An idle-owner notice racing a user-input report requests status
+reconciliation only; the coordinator consumes the actual outcome, updates the
+reason and preserves the intentional user wait.
+
+Before notifying, refresh ledger custody, the applicable item wait and binding,
+coordinator recipient/host and recipient action, observation/messaging authority,
+ordinary-chat wake transport, coordinator status and owner status; suppress
+cleared/reconciled waits, running owners and
+active-coordinator cases. Races remain possible: receivers revalidate current
+bindings, actual outcome, authority and all freshness/review/routing gates.
+Send only an authorized compact request identifying the canonical item,
+ordinary owner/host, existing dispatch/action, coordinator recipient/host and
+recipient action, observed wait/status and evidence reference. Require a
+supported delivery/wake result establishing that the transport starts or resumes
+the inactive named coordinator. Queue-only sends and non-root-only transports
+incapable of targeting that coordinator do not establish recovery success.
+Unsupported wake holds notification; failed or unknown delivery/wake remains
+unresolved under existing bounded recovery, with the concrete gap exposed only
+through an existing authorized path.
+Reuse existing local notification state, cadence and delivery recovery. Suppress
+successfully delivered reconciliation requests by existing item dispatch/action
+binding plus recipient action, not owner thread alone; a later assignment to
+the same owner uses its own existing binding. Missing/ambiguous bindings cannot
+create a counter or new notification identity. Failed/unknown delivery is
+unresolved, never successful deduplication. Supported delivery/wake success
+proves no consumption, verdict, readiness or continuation; there is no new
+consumption acknowledgement or guaranteed host-failure recovery.
+Only the coordinator writes the ledger and routes subsequent work.
+
+A separate watcher keeps the observed provider event identity, PR head, known
+recipient binding and delivery outcome for external notices. For owner-result
+requests it retains the canonical item, ordinary owner/host and existing
+dispatch/action, coordinator recipient/host and recipient action, and supported
+delivery/wake outcome. These existing local notification tuples survive ticks,
+reuse and resume while unresolved delivery or delayed duplicates need guards.
+Apply ROUTE-007-STATE retirement only when old input cannot repeat a notice;
+retirement cannot resurrect a notice or suppress a later assignment B2. New
 comments and applicable current-head review signals reach the known owner;
 confirmed Connector review quota or unavailability, failed delivery, ambiguous
 ownership, and completion needing coordination reach the controller. Slow or
@@ -924,8 +1007,13 @@ evidence, cadence/effort precedence, unavailable controls, and partial/unknown
 startup without duplicate activation. Verify efficient model resolution in fresh
 Claude/Codex projections without hard-coding a target model in portable source.
 Focused hypothetical scenarios and render inspection do not prove live scheduled
-delivery. Timer ticks inspect external events and leave unchanged observations
-quiet; coordinator owner-progress polling is prohibited.
+delivery. Timer ticks inspect external events and the ROUTE-007-EVENT owner-result
+exception, leaving unchanged observations quiet; coordinator owner-progress
+polling is prohibited. Focused cases also cover eligible idle/terminal and
+running owners, mixed wait reasons, user-input report races, inactive/active
+coordinators, missing reasons, unsupported status, stale bindings, cleared waits,
+duplicate ticks, failed/unknown delivery, successive assignments and stopped
+monitoring.
 
 Acceptance requires an authorized reused schedule with one active mode,
 duplicate suppression, an explicit event or authorized trigger after a no-code

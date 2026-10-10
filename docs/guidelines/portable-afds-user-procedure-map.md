@@ -355,8 +355,11 @@ cadence for enabled monitoring when no user/saved value or supported configured
 host default exists.
 Model tier, effort and cadence stay independent. Host restrictions hold the
 affected setup while independently authorized owner work continues. The watchdog
-observes external events; the coordinator does not periodically poll owner
-progress. Initial setup also establishes separately scoped publication, conditional
+observes external events and the narrow ROUTE-007-EVENT ordinary owner-result
+exception: eligible per-item waits with existing owner/action bindings may
+request actual-outcome reconciliation while the coordinator is inactive. User
+confirmation remains a wait; internal sub-agents are excluded. The coordinator
+does not periodically poll owner progress or treat terminal status as success. Initial setup also establishes separately scoped publication, conditional
 merge and scoped cleanup authority, reusing actual human decisions and asking
 only for missing scope. Compatible authority survives changed commits; current
 readiness and action bindings must be refreshed. Covered effects execute through

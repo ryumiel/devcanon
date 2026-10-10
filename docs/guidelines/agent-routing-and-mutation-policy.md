@@ -93,41 +93,41 @@ only the closed values above. An `external-mutable` entry records authority of
 the owning root/controller for that workflow, never authority of a semantic
 child role.
 
-| Skill                              | Demand / stance         | Source authority | External authority | Material override / owner note                                              |
-| ---------------------------------- | ----------------------- | ---------------- | ------------------ | --------------------------------------------------------------------------- |
-| `branch-review`                    | inherited / adversarial | source-mutable   | none               | Mutable only in explicit fix mode                                           |
-| `doc-gardening`                    | synthesis / adversarial | source-mutable   | none               | Audit immutable; selected fixes mutable                                     |
-| `git-workspace-cleanup`            | mechanical / normal     | source-mutable   | none               | Destructive local Git only after approval                                   |
-| `github-issue-priming`             | inherited / normal      | source-mutable   | external-mutable   | Worktree setup plus required auto-workflow handoff; downstream owns effects |
-| `issue-batch-coordination`         | synthesis / normal      | source-immutable | external-mutable   | Coordination and authorized host watchdog controls; routing delegated       |
-| `issue-batch-routing`              | synthesis / normal      | source-immutable | external-mutable   | Explicit routing/messages/archival only; implementation and merge delegated |
-| `issue-priming-workflow`           | synthesis / normal      | source-mutable   | external-mutable   | Auto flow may implement and create a gated PR; never merges                 |
-| `issue-slicing`                    | synthesis / normal      | source-immutable | none               | Draft only; live issue mutation excluded                                    |
-| `issue-worktree-setup`             | mechanical / normal     | source-mutable   | none               | Local worktree/ref mutation                                                 |
-| `linear-issue-priming`             | inherited / normal      | source-mutable   | external-mutable   | Worktree setup plus required auto-workflow handoff; Linear status excluded  |
-| `play-agent-dispatch`              | inherited / normal      | source-mutable   | none               | Each child independently classified; current integration may edit source    |
-| `play-brainstorm`                  | synthesis / normal      | source-immutable | none               | Named `.ephemeral` design only                                              |
-| `play-branch-finish`               | synthesis / normal      | source-mutable   | external-mutable   | Chosen local or gated push/PR action                                        |
-| `play-debug`                       | bounded / normal        | source-mutable   | none               | Investigation immutable; verified fix mutable                               |
-| `play-planning`                    | synthesis / normal      | source-immutable | none               | Named `.ephemeral` plan only                                                |
-| `play-review-response`             | synthesis / adversarial | source-mutable   | external-mutable   | Fix/commit and gated provider closeout phases                               |
-| `play-review`                      | synthesis / adversarial | source-immutable | none               | Named review artifacts only; never fixes/posts                              |
-| `play-skill-authoring`             | synthesis / adversarial | source-mutable   | none               | Authoring edits source; pressure children immutable                         |
-| `play-subagent-execution`          | inherited / normal      | source-mutable   | none               | Task edits/commits; reviews immutable                                       |
-| `play-tdd`                         | inherited / normal      | source-mutable   | none               | Task-owned test and implementation edits                                    |
-| `play-validate-review-artifacts`   | mechanical / normal     | source-immutable | none               | Schema/path validation only                                                 |
-| `play-verification`                | bounded / adversarial   | source-immutable | none               | Runs commands and reports evidence                                          |
-| `pr-authoring`                     | synthesis / normal      | source-immutable | none               | Returns title/body; wrapper owns GitHub effects                             |
-| `pr-merge`                         | inherited / normal      | source-mutable   | external-mutable   | CI fix may commit; root owns PR edit/push/merge                             |
-| `pr-review`                        | inherited / adversarial | source-mutable   | external-mutable   | Local review worktree plus approved GitHub effects                          |
-| `report-devcanon-issue`            | synthesis / normal      | source-immutable | external-mutable   | Explicit confirmation authorizes issue creation/linking                     |
-| `spec-readiness-review`            | synthesis / adversarial | source-immutable | none               | Read-only findings/status                                                   |
-| `subagent-lifecycle`               | bounded / normal        | source-immutable | none               | Controller-local session hygiene                                            |
-| `write-linear-project-description` | synthesis / normal      | source-immutable | external-mutable   | Apply mode updates selected Linear fields                                   |
-| `write-linear-project-update`      | synthesis / normal      | source-immutable | external-mutable   | Apply creates/updates the selected project update                           |
-| `write-product-requirements`       | synthesis / normal      | source-mutable   | none               | Scoped product-requirements edits                                           |
-| `write-product-spec`               | synthesis / normal      | source-mutable   | none               | Scoped behavior-spec edits                                                  |
-| `write-prose`                      | bounded / normal        | source-mutable   | none               | File mode is scoped; external writes forbidden                              |
+| Skill                              | Demand / stance         | Source authority | External authority | Material override / owner note                                                                                                     |
+| ---------------------------------- | ----------------------- | ---------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `branch-review`                    | inherited / adversarial | source-mutable   | none               | Mutable only in explicit fix mode                                                                                                  |
+| `doc-gardening`                    | synthesis / adversarial | source-mutable   | none               | Audit immutable; selected fixes mutable                                                                                            |
+| `git-workspace-cleanup`            | mechanical / normal     | source-mutable   | none               | Destructive local Git only after approval                                                                                          |
+| `github-issue-priming`             | inherited / normal      | source-mutable   | external-mutable   | Worktree setup plus required auto-workflow handoff; downstream owns effects                                                        |
+| `issue-batch-coordination`         | synthesis / normal      | source-immutable | external-mutable   | Coordination and authorized host watchdog controls; ROUTE-007-EVENT limits ordinary owner-result reconciliation; routing delegated |
+| `issue-batch-routing`              | synthesis / normal      | source-immutable | external-mutable   | Explicit routing/messages/archival only; implementation and merge delegated                                                        |
+| `issue-priming-workflow`           | synthesis / normal      | source-mutable   | external-mutable   | Auto flow may implement and create a gated PR; never merges                                                                        |
+| `issue-slicing`                    | synthesis / normal      | source-immutable | none               | Draft only; live issue mutation excluded                                                                                           |
+| `issue-worktree-setup`             | mechanical / normal     | source-mutable   | none               | Local worktree/ref mutation                                                                                                        |
+| `linear-issue-priming`             | inherited / normal      | source-mutable   | external-mutable   | Worktree setup plus required auto-workflow handoff; Linear status excluded                                                         |
+| `play-agent-dispatch`              | inherited / normal      | source-mutable   | none               | Each child independently classified; current integration may edit source                                                           |
+| `play-brainstorm`                  | synthesis / normal      | source-immutable | none               | Named `.ephemeral` design only                                                                                                     |
+| `play-branch-finish`               | synthesis / normal      | source-mutable   | external-mutable   | Chosen local or gated push/PR action                                                                                               |
+| `play-debug`                       | bounded / normal        | source-mutable   | none               | Investigation immutable; verified fix mutable                                                                                      |
+| `play-planning`                    | synthesis / normal      | source-immutable | none               | Named `.ephemeral` plan only                                                                                                       |
+| `play-review-response`             | synthesis / adversarial | source-mutable   | external-mutable   | Fix/commit and gated provider closeout phases                                                                                      |
+| `play-review`                      | synthesis / adversarial | source-immutable | none               | Named review artifacts only; never fixes/posts                                                                                     |
+| `play-skill-authoring`             | synthesis / adversarial | source-mutable   | none               | Authoring edits source; pressure children immutable                                                                                |
+| `play-subagent-execution`          | inherited / normal      | source-mutable   | none               | Task edits/commits; reviews immutable                                                                                              |
+| `play-tdd`                         | inherited / normal      | source-mutable   | none               | Task-owned test and implementation edits                                                                                           |
+| `play-validate-review-artifacts`   | mechanical / normal     | source-immutable | none               | Schema/path validation only                                                                                                        |
+| `play-verification`                | bounded / adversarial   | source-immutable | none               | Runs commands and reports evidence                                                                                                 |
+| `pr-authoring`                     | synthesis / normal      | source-immutable | none               | Returns title/body; wrapper owns GitHub effects                                                                                    |
+| `pr-merge`                         | inherited / normal      | source-mutable   | external-mutable   | CI fix may commit; root owns PR edit/push/merge                                                                                    |
+| `pr-review`                        | inherited / adversarial | source-mutable   | external-mutable   | Local review worktree plus approved GitHub effects                                                                                 |
+| `report-devcanon-issue`            | synthesis / normal      | source-immutable | external-mutable   | Explicit confirmation authorizes issue creation/linking                                                                            |
+| `spec-readiness-review`            | synthesis / adversarial | source-immutable | none               | Read-only findings/status                                                                                                          |
+| `subagent-lifecycle`               | bounded / normal        | source-immutable | none               | Controller-local session hygiene                                                                                                   |
+| `write-linear-project-description` | synthesis / normal      | source-immutable | external-mutable   | Apply mode updates selected Linear fields                                                                                          |
+| `write-linear-project-update`      | synthesis / normal      | source-immutable | external-mutable   | Apply creates/updates the selected project update                                                                                  |
+| `write-product-requirements`       | synthesis / normal      | source-mutable   | none               | Scoped product-requirements edits                                                                                                  |
+| `write-product-spec`               | synthesis / normal      | source-mutable   | none               | Scoped behavior-spec edits                                                                                                         |
+| `write-prose`                      | bounded / normal        | source-mutable   | none               | File mode is scoped; external writes forbidden                                                                                     |
 
 ## Direct-Child Route Inventory
 

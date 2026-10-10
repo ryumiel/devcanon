@@ -378,7 +378,10 @@ of owner progress is prohibited; bounded initial-binding, received-evidence,
 explicit-status and concrete-recovery reads remain available. Setup verifies
 reporting recipients and recipient-verifiable actual human messaging authority
 where the sender's host requires it, retaining valid scope across compatible
-reports/resume. External-event watchdog observation remains separate.
+reports/resume. Separate watchdog observation includes only the bounded
+ordinary owner-result reconciliation exception in ROUTE-007-EVENT, using
+per-item wait reasons and existing bindings while the coordinator is inactive.
+User waits and internal sub-agents are excluded; status is never a verdict.
 
 [ADR-0037](../adr/adr-0037-issue-batch-coordination-boundary.md) records the
 durable ownership decision, consequences, and rejected alternatives.
