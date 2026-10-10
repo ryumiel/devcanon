@@ -196,6 +196,20 @@ effects. Retain partial startup and unresolved limitations in existing monitor
 state; independent authorized owner work continues without an acknowledgement
 wait. Do not silently switch to a coordinator heartbeat when watchdog setup fails.
 
+For the separate watcher's owner-result path, supply a concrete read-only
+current-ledger reference through permitted supported host access, with the
+existing batch/repository/controller/host and owner/action bindings. On setup,
+reuse and resume, validate watcher readability, coordinator ownership, current
+association and refreshability before claiming owner-result readiness; a copied
+snapshot is not a current ledger. Validate exposed compact ordinary-chat status
+and authorized transport that starts or resumes the inactive named ordinary
+coordinator. Internal-agent status, queue-only sends and transports unable to
+wake that coordinator do not qualify. Record readiness or the exact custody,
+status or wake limitation in existing monitor state; independently supported
+external observation and authorized owner reports continue. The watcher uses
+this reference for refreshable reads only, never ledger writes or another
+registry. Retain notification guards under the router's Operational retention.
+
 ## Reporting path and bounded observation
 
 During initial setup, before releasing an owner into unattended work, establish

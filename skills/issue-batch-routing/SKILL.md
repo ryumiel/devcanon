@@ -230,11 +230,18 @@ a current decision or one of these operational purposes:
   authority, reset its sequence or continue from a delayed receipt: hold it for
   authoritative reconciliation. No transcript reconstruction is allowed.
 - **Notices and monitors:** retain the event/head/recipient and actual delivery
-  outcome needed for duplicate suppression, unresolved delivery, current
-  schedule/controller binding and applicable explicit stop. Replace superseded
+  outcome needed for duplicate suppression. For owner-result requests retain
+  canonical item, ordinary owner/host and existing dispatch/action, coordinator
+  recipient/host and recipient action, and supported delivery/wake outcome in
+  the existing local notification state across ticks, reuse and resume. Queue-only
+  send or failed/unknown wake is unresolved, never successful suppression.
+  Keep unresolved delivery, current schedule/controller binding and applicable
+  explicit stop. Replace superseded
   observations after delivery reconciliation; remove resolved guards only when
   delayed input cannot repeat notice or recreate a stopped monitor. An explicit
-  stop survives until later scheduling authority supersedes it.
+  stop survives until later scheduling authority supersedes it. Retiring an old
+  owner-result marker cannot resurrect its notice or suppress a later B2
+  assignment to the same owner; distinct existing bindings remain independent.
 
 Remove resolved waiting keys and completed queued actions after accepting their
 verified replacement; never retain them as current work. Replace superseded
