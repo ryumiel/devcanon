@@ -151,7 +151,12 @@ recipient from a PR alone. New review comments and applicable current-head revie
 the known owner. Confirmed Connector review quota or unavailability goes to
 the existing coordinator for policy/head validation and independent fallback
 under ROUTE-007-REVIEW; slow eyes alone does not establish that event. The
-watcher neither dispatches fallback nor decides review readiness. Failed
+watcher neither dispatches fallback nor decides review readiness. Applicable
+completed current-head Connector results, including corrected heads, take
+precedence over lingering reactions; missing/ambiguous head association cannot
+pass or establish fallback. Returning Connector evidence is reported through the
+known authorized path for reconciliation with any existing ordinary review owner,
+preserving its findings, result/disposition and cleanup obligations. Failed
 delivery, ambiguous ownership, or completion needing coordination goes to the
 existing controller only when its intervention is required. Bounded authorized
 delivery recovery stays local; exhausted recovery names the exact intervention.

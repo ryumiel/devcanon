@@ -895,20 +895,48 @@ response.
 
 Under an accepted conditional review/merge policy, supported provider evidence
 associated unambiguously with the current PR and head may satisfy the review
-condition: an applicable thumbs-up passes that condition after applicable
-findings and nits are dispositioned; eyes waits only while review is genuinely
+condition for initial publication and corrected published heads alike: an
+applicable completed passing/thumbs-up Connector result passes that condition
+after applicable findings and nits are dispositioned; eyes waits only while review is genuinely
 pending. A completed current provider result takes precedence over a lingering
-reaction. Missing, ambiguous, or stale association waits. Without an accepted
-policy, configured review and approval gates remain unchanged.
+reaction. A completed blocking result does not pass, even after findings/nits
+disposition; absent passing evidence waits and does not establish quota or
+unavailability. Missing, ambiguous, or stale association waits. Without an accepted
+policy, configured review and approval gates remain unchanged. A changed commit
+alone does not select an additional `pr-review` when applicable current-head
+Connector evidence satisfies the accepted condition. Slow review or lingering
+eyes alone is not confirmed quota/unavailability; missing or ambiguous head
+association establishes neither passing evidence nor a fallback trigger.
 
 Confirmed Connector quota or unavailability under that policy goes to the
 coordinator, which reconciles the existing bot-review-signal context and reuses
-or creates one independent `pr-review` task bound to the current recipient,
-reviewer, PR, and head. A complete current passing verdict with all required
-verification satisfies the review condition. Task creation, a partial result,
-missing required verification, or same-account GitHub APPROVE does not. Findings
-return to the implementation owner; missing authority, host control, or verdict
-waits or reports without duplicate tasks or review requests.
+or creates one dedicated independent ordinary host task invoking `pr-review`.
+Register its supported identity and reporting binding in existing state with the
+repository, PR, reviewed head, coordinator recipient/host and reviewer
+independence from the implementation owner. A coordinator child agent cannot
+replace this top-level workflow owner; `pr-review` owns its internal delegation,
+scope selection, execution, posting gates and resource lifecycle. Reuse compatible
+ownership and complete route bindings before creating another task. Missing task
+creation or messaging capability reports the concrete limitation without silently
+substituting a child or another execution mechanism.
+
+Receive the complete verdict and required verification references through the
+bound existing reporting path. A complete current passing verdict with all
+required verification satisfies the review condition. Task creation, completion
+status alone, a partial result, missing required verification, or same-account
+GitHub APPROVE does not. Findings return to the implementation owner; missing
+authority, host control, bindings or verdict waits or reports without duplicate
+tasks or review requests. GitHub posting is not implied by dispatch.
+
+If Connector evidence arrives or availability returns while fallback is in
+flight, reconcile both against the current PR/head and retain findings and
+outstanding result, disposition and cleanup obligations. Do not dispatch a
+duplicate owner, claim conflicting readiness, silently cancel the review task or
+abandon its resources. The review owner reports verdict readiness separately
+from retained resources and outstanding cleanup under the existing `pr-review`
+lifecycle. Retire resources only after consumers release them and lifecycle gates
+permit it; archive the ordinary task only after verified terminal and pending-work
+checks. A passing verdict does not itself prove cleanup or task retirement.
 
 An authorized in-scope correction retains covered fix and publication authority,
 including a scoped nit correction, without generic renewed permission. The
@@ -919,10 +947,13 @@ verification results, each concern's classified disposition, and intended
 external actions; present this summary even when retained authority covers the
 push. After this concrete pre-push gate is satisfied and the exact branch/head
 update binding is refreshed, the existing publication owner may plain-push the
-covered correction to the existing PR branch. Then obtain independent current
-published-head follow-up review selected by `pr-review` and its full-versus-narrow
-scope policy before review readiness or merge; applicable prior coverage is
-context, never changed-head approval. A failed push leaves the new candidate
+covered correction to the existing PR branch. Then apply the same Connector-first
+selection above to the current published head before review readiness or merge.
+Applicable completed passing/thumbs-up current-head Connector evidence
+satisfies the accepted condition after feedback disposition without an automatic additional `pr-review`.
+When `pr-review` is selected, its full-versus-narrow follow-up scope and required
+verification remain its own policy; applicable prior coverage is context, never
+changed-head approval. A failed push leaves the new candidate
 unpublished; a summary or requested follow-up never proves publication success.
 Changed local or remote heads invalidate affected head-bound evidence. The
 router refreshes the new head's action binding before each affected effect;
@@ -996,11 +1027,11 @@ shutdown. Verify these cases against the operational procedure and rendered
 target guidance without activating a live schedule.
 
 Conditional-review acceptance additionally requires this valid sequence: accepted
-policy at head H, confirmed quota, one reused independent review task, complete
+policy at head H, confirmed quota, one registered independent ordinary review task, complete
 passing H verdict, authorized in-scope nit correction to H2, local validation,
 concrete pre-push summary and exact covered plain-update binding, successful H2
-publication, independent scope-selected H2
-follow-up using applicable prior coverage, refreshed action binding, then
+publication, current H2 review selected Connector-first (or scope-selected
+`pr-review` fallback with applicable prior coverage), refreshed action binding, then
 remaining-feedback, CI, and protection checks before merge. Reject each
 single-dimension variant: absent accepted policy cannot enable the conditional
 path; stale association cannot pass; pending eyes cannot trigger quota fallback;
@@ -1010,10 +1041,21 @@ publication creates a rejected cycle; omitted feedback, current CI, protection
 or mergeability checks cannot permit merge. Initial publication separately
 retains implementation, validation and independent Phase 7 branch review before
 PR creation. A failed correction push cannot be reported as published H2. Repeated unchanged fallback reuses or suppresses the existing
-task. Current applicable thumbs-up reaches review readiness, genuinely pending
+ordinary task. Current applicable thumbs-up reaches review readiness, genuinely pending
 eyes waits, and a completed current result overrides lingering eyes. Verify
 these outcomes against source and both rendered target procedures; generated
 evidence supplies no authority.
+
+Conditional-review acceptance also covers completed passing/thumbs-up Connector
+success after correction without another automatic review, completed blocking
+results holding readiness even after disposition, genuinely pending review, confirmed
+quota, compatible ordinary-task reuse, unsupported host dispatch/messaging,
+stale or ambiguous PR/head association, Connector recovery during fallback and
+complete verdict with cleanup still pending. The
+[focused reporting scenarios](../../skills/issue-batch-coordination/references/reporting-scenarios.md#connector-first-review-and-ordinary-fallback-ownership)
+exercise provider selection, supported registered task identity/reporting,
+independence, deduplication and lifecycle closeout. Compare source and fresh target
+projections; contract review does not claim actual host dispatch or retirement.
 
 Evidence pointer: [GitHub issue #783](https://github.com/ryumiel/devcanon/issues/783)
 records the accepted monitor boundary and acceptance cases for ROUTE-007-MONITOR

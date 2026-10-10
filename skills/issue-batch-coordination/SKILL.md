@@ -176,9 +176,10 @@ branch review. For an authorized correction to an existing PR, follow
 classify findings/dispositions, validate the local candidate, present the exact
 concrete pre-push summary under retained human scope, and bind the covered plain
 update before publication. After successful publication, obtain independent
-current-head follow-up under `pr-review`'s full-versus-narrow scope selector
-before review readiness or merge; prior coverage is context, never new-head
-approval. A failed push leaves the candidate unpublished; neither a summary nor
+current-head review through the same Connector-first accepted condition before
+readiness or merge; use `pr-review`'s full-versus-narrow follow-up scope only when
+that workflow is selected. Applicable completed passing/thumbs-up Connector
+evidence requires no additional automatic `pr-review`; prior coverage is context, never new-head approval. A failed push leaves the candidate unpublished; neither a summary nor
 a requested follow-up proves success. Refresh the new head's dependent evidence
 and exact bindings. Conditional merge remains with `pr-merge` after genuine current-head review, CI, protection,
 mergeability and thread disposition, with no waiver. Scoped cleanup follows
@@ -369,19 +370,42 @@ fix, or a successful experiment into scope authority. Keep acceptance and
 validation proportional to the approved behavior; do not add a general repair
 or proof framework to clear a batch.
 
-For confirmed Connector review quota or unavailability, apply the accepted
-conditional policy in ROUTE-007-REVIEW.
+Apply Connector-first selection under the accepted conditional policy in
+ROUTE-007-REVIEW to both initial and corrected published heads. Applicable
+completed passing/thumbs-up current-head Connector evidence satisfies that
+condition after findings/nits disposition.
+Genuinely pending review waits; slow review or lingering eyes alone is not
+confirmed quota/unavailability. Missing or ambiguous head association supplies
+neither approval nor that fallback trigger.
+
+For confirmed Connector review quota or unavailability, apply that policy.
 Validate supported provider evidence, policy, current PR/head, and independent
 recipient/reviewer bindings before dispatch. Slow eyes alone is not this event.
 Use the router's existing complete `bot-review-signal` context to reconcile and
-reuse an existing independent `pr-review` task or create one when supported and
-authorized; suppress duplicate unchanged fallback tasks and review requests.
+reuse a compatible dedicated independent ordinary host task invoking `pr-review`
+or create one when supported and authorized; suppress duplicate unchanged
+fallback tasks and review requests. Register supported task identity,
+repository/PR/reviewed head, coordinator recipient/host and authorized reporting
+with reviewer independence from the implementation owner in existing state.
+A coordinator child agent cannot substitute for this top-level workflow owner.
+Missing task dispatch or messaging support reports the concrete limitation,
+without substituting another mechanism; dispatch does not authorize GitHub posting.
 Keep route eligibility and keys with the router and review lifecycle with
-`pr-review`. Only its complete current passing verdict, including all required
-verification, satisfies the conditional review gate; task creation, partial
-results, and same-account GitHub APPROVE do not. Return findings to the existing
+`pr-review`, including its internal delegation. Receive its complete current verdict
+and required verification references through the existing bound reporting path.
+Only complete current passing evidence satisfies the conditional review gate;
+task creation, completion status alone, partial results and same-account GitHub
+APPROVE do not. Return findings to the existing
 implementation owner for classified correction, validation, and independent
-scope-selected changed-head follow-up. Missing authority, host control,
+Connector-first changed-head selection; selected `pr-review` retains its own
+full-versus-narrow follow-up policy. Reconcile concurrent or returning Connector
+evidence against the current PR/head and existing review owner without duplicate
+dispatch, lost findings or conflicting readiness. Restoration never silently
+cancels the owner or abandons result, disposition and cleanup obligations.
+The review owner reports verdict readiness separately from outstanding resource
+retention/cleanup under `pr-review`; retire resources only after consumer release
+and lifecycle gates, and archive the ordinary task only after verified terminal
+and pending-work checks. Missing authority, host control,
 bindings, or complete verdict holds the affected handoff and reports the gap;
 never invent an owner or review approval.
 

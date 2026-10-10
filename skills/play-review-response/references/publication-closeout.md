@@ -29,9 +29,14 @@ intended-action summary. Present that summary even with retained authority.
 After the gate is satisfied, perform only the listed side effects;
 new side effects require another gate summary.
 
-A changed candidate requires validation and independent current follow-up under
-`pr-review`'s existing full-versus-narrow scope policy before review readiness
-or merge. Prior coverage is context, never changed-head approval. Report the
+A changed candidate requires validation and current published-head review before
+readiness or merge. Under ROUTE-007-REVIEW's accepted conditional policy, use the
+same Connector-first selection: applicable completed passing/thumbs-up
+current-head Connector evidence after findings/nits disposition satisfies that condition without another automatic
+`pr-review`. When that workflow is selected, retain its full-versus-narrow
+follow-up scope and required verification. Independently requested reviews and
+configured review/approval gates remain required. Prior coverage is context,
+never changed-head approval. Report the
 new local/pushed head so the router can refresh the affected action binding.
 Retained publication authority grants neither thread reply/resolve permission
 nor merge readiness; apply their separate current gates. Reviewer nits remain

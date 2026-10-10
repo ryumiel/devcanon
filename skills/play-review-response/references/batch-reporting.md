@@ -45,7 +45,8 @@ ROUTE-007-REVIEW; pending eyes alone is insufficient. Report the complete
 current verdict or the precise missing evidence, not task creation as approval.
 For a changed head, retain classification, retained covered authority, concrete
 pre-push summary, validation, local/pushed head, and the needed or completed
-independent scope-selected follow-up in the referenced report so the router
+Connector-first current-head review selection and, when `pr-review` is selected,
+its independent scope-selected follow-up in the referenced report so the router
 refreshes its action binding before acting.
 Do not request generic renewed publication/merge permission for a covered
 in-scope correction; genuine scope/authority gaps still stop. A thumbs-up is

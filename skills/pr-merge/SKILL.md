@@ -126,9 +126,13 @@ reactions. Missing, ambiguous, stale, partial, or task-only evidence cannot
 approve, and same-account GitHub APPROVE is not independent fallback evidence.
 Without accepted policy, configured gates remain unchanged.
 
-For an authorized in-scope correction, require validation, independent current
-follow-up selected by `pr-review`'s existing full-versus-narrow policy, and a
-refreshed applicable action binding for the changed head. Prior coverage is
+For an authorized in-scope correction, require validation, the same Connector-first
+current published-head selection under the accepted condition, and a refreshed
+applicable action binding for the changed head. Applicable completed
+passing/thumbs-up current-head Connector evidence requires no additional
+automatic `pr-review`; when that
+workflow is selected, its full-versus-narrow follow-up and verification remain
+required. Prior coverage is
 context, never old-head approval. Covered conditional merge authority needs no
 generic renewed
 permission; missing authority, scope expansion, new choices, or exceptions stop
