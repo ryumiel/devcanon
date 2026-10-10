@@ -118,7 +118,8 @@ controller state or raw evaluation transcripts.
 ## Execution startup scenarios
 
 Evaluate these startup decisions with the reporting cases above; timer ticks
-observe external events and never periodically discover owner progress. These
+observe external events and only the ROUTE-007-EVENT ordinary owner-result
+exception; general progress discovery remains prohibited. These
 are hypothetical method evaluations, not live scheduled-delivery evidence.
 
 | Case                       | Given / event                                                                                                                                              | Required outcome                                                                                                                                                                                                                                                        |
@@ -257,3 +258,33 @@ supported execution. Render parity never supplies permission or host proof.
 | Successor uncovered authority  | Original evidence covers C only, not C2.                                                                           | Hold recipient change until only missing supported human instruction is available to the sender; old permission is not transferable by assertion.                                                                                                                                            |
 | Premature retirement           | Timer transfer succeeds but one owner has not validated C2 context.                                                | Hold activation/dispatch and retirement of usable C reporting endpoint; timer evidence is not owner reporting readiness.                                                                                                                                                                     |
 | Invalid successor topology     | Omit one active owner, substitute a duplicate owner, or treat verification as policy authority.                    | Reject readiness; preserve exact existing participants, every active-owner validation and actual effect authority.                                                                                                                                                                           |
+
+## Ordinary owner-result recovery scenarios
+
+These hypothetical contract/tabletop cases evaluate ROUTE-007-STATE/EVENT and
+watchdog procedure in source plus fresh Claude/Codex projections. They do not
+prove live schedule delivery or a host notification defect. Use existing item
+owner/host and dispatch/action binding B, coordinator C and its recipient action;
+no internal sub-agent is eligible. Unless changed below, the authorized separate
+watchdog is active, C is compactly proven inactive, and a fresh bound item waits
+for `owner_result`. Refresh eligibility immediately before notice.
+
+| Case                    | Given / event                                                            | Required outcome                                                                                                         |
+| ----------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| Idle ordinary owner     | Bound owner is idle with pending B result.                               | Send C one reconciliation request; inspect actual outcome through gates, without asserting success.                      |
+| Terminal ordinary owner | Owner is terminal with pending B result.                                 | Same reconciliation request; terminal status supplies no passing verdict or readiness.                                   |
+| Running owner           | Compact status is running.                                               | Quiet; no continuation or result scraping.                                                                               |
+| User confirmation       | Item reason is `user_confirmation`.                                      | No internal check/notice; silence never approves.                                                                        |
+| External wait           | Item reason is `external_event`.                                         | Retain existing external-event path; no internal check.                                                                  |
+| Mixed waits             | A waits for owner result, B for user confirmation, D for external event. | Evaluate A independently; B suppresses internal notices and D uses external path.                                        |
+| Active coordinator      | C is active initially or on pre-send refresh.                            | No owner check initially; suppress a pending notice on refresh.                                                          |
+| Unknown status          | Compact C/owner status is unsupported or unknown.                        | No speculative continuation or transcript scraping; existing bounded limitation handling.                                |
+| Absent/unknown reason   | Reason is absent or outside the three values.                            | Ineligible; normalize only on authorized coordinator resume from supported facts.                                        |
+| Duplicate tick          | B reconciliation request was successfully delivered.                     | Suppress same binding/recipient-action request; delivery proves no consumption.                                          |
+| Failed/unknown delivery | B send failed or result is unknown.                                      | Retain unresolved outcome, use existing bounded recovery; never mark successful suppression.                             |
+| Stale/unbound owner     | Binding B is missing, stale, ambiguous or owner unregistered.            | Ineligible; no replacement owner, counter or notification identity.                                                      |
+| Cleared wait            | C reconciles result and clears reason before refreshed send.             | Suppress notice; processed item leaves eligible set.                                                                     |
+| Stopped monitoring      | Explicit stop is retained or timer is stopped.                           | No checks/notices, no recreation without later scheduling authority.                                                     |
+| User-input race         | Idle observation arrives before owner's user-input report is processed.  | Request reconciliation only; C inspects actual outcome and records `user_confirmation`, preserving the intentional wait. |
+| Successive assignments  | Same owner receives later binding B2 after B request was delivered.      | B suppresses only its recipient action; fresh eligible B2 may notify independently using existing binding.               |
+| Internal reviewer       | Internal sub-agent finishes without consumed result.                     | Excluded; internal reviewer recovery stays with its coordinator.                                                         |

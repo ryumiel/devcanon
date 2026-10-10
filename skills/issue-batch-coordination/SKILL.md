@@ -73,6 +73,15 @@ of that authority. Report an explicit host restriction or denial for the specifi
 action; do not invent an alternative permission or route around it. One
 blocked item does not hold independently eligible siblings.
 
+For pending work, set `items[].wait_reason` before yielding: `owner_result`,
+`user_confirmation`, or `external_event`. Update or clear it when the waiting
+condition changes or its result is reconciled. A user-input owner report sets
+`user_confirmation` for that item. Owner-result waits retain existing registered
+ordinary owner/host and current dispatch/action bindings; internal sub-agents
+are excluded. Handle mixed item waits independently. Normalize missing/unknown
+reasons only on an authorized resume from supported facts; never infer a stall
+from idleness. Only this coordinator writes the ledger.
+
 Keep the ledger as the single current view: provider identity, accepted scope
 and applicable authority, dependencies, owner/host/repository, current head,
 validation/readiness, gate/blocker/next action and evidence references. Keep
@@ -226,7 +235,10 @@ Do not poll owner progress: repeated reads, snapshots, or wait loops to discover
 ordinary progress or whether a gate appeared are prohibited, including
 `read_thread`, `wait_threads`, and equivalent tools. Longer intervals do not
 change the boundary. End a routing pass by yielding for delivered reports.
-A watchdog observes external events, never owner progress.
+The separate watchdog may also perform only the narrow ordinary owner-result
+check owned by ROUTE-007-EVENT and described in
+[Watchdog operation](references/watchdog.md#ordinary-owner-result-reconciliation).
+The coordinator and its heartbeat retain the prohibition on progress polling.
 
 Bounded purpose-specific owner reads are allowed:
 
@@ -242,7 +254,12 @@ Bounded purpose-specific owner reads are allowed:
   stop at the established outcome or exhausted supported recovery/gap. Do not
   use recovery as a pretext to watch ordinary progress.
 
-These reads create no unattended discovery loop or polling fallback. Missing
+A delivered watchdog reconciliation request permits a bounded actual-outcome
+read for its named current owner/action binding. Revalidate that binding and
+authority, inspect the actual result and preserve any intentional user wait;
+idle/terminal status alone grants no verdict or continuation. Stop at validated
+outcome or the concrete gap. These reads create no general discovery loop or
+polling fallback. Missing
 facts hold the affected action and expose the required evidence/intervention.
 
 ## Coordination cycle
@@ -310,7 +327,9 @@ facts hold the affected action and expose the required evidence/intervention.
    delivered initial handoff or gate report and validate its supported evidence.
    Yield for reports after routing; do not repeatedly inspect or wait for owner
    progress, and do not ask running owners to continue. The optional watchdog
-   checks external events under its separate notification boundary.
+   checks external events and eligible owner-result waits under its separate
+   notification boundary. Record the affected wait reason before yielding;
+   clear or update it after consuming actual outcomes, including a user wait.
 
 Use the [reporting scenarios](references/reporting-scenarios.md) to verify
 quiet local work, actionable delivery, evidence resolution and deduplication.

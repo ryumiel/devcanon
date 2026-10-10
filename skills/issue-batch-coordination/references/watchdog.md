@@ -3,7 +3,8 @@
 Use this procedure for the default watchdog setup of an accepted execution batch
 and for explicitly selected monitoring. Inspection and explicit no-monitor
 choices create no monitor. Owner reports remain the primary continuation signal.
-A host schedule wakes external-event observation; it is not a second controller
+A host schedule wakes external-event observation and the bounded ordinary
+owner-result reconciliation check below; it is not a second controller
 or a source of action authority. Do not create a custom scheduler or require a
 watcher agent.
 
@@ -93,8 +94,9 @@ For enabled monitoring, choose one active mode for the batch:
   messaging effects are authorized and supported. Bind its prompt to the
   verified batch, repository, controller, known recipients, and canonical
   policy. It may observe external PR events and send authorized notifications
-  to those existing recipients. Its tick inspects external events, never owner
-  progress. Unchanged or non-actionable events are quiet. It may retain local
+  to those existing recipients. Its tick inspects external events and only
+  the eligible ordinary owner-result waits below, with supported authority for
+  that observation and watchdog-to-coordinator reconciliation notification. Unchanged or non-actionable events are quiet. It may retain local
   notification state only;
   it cannot approve, implement, merge, mutate a provider, create or replace an
   owner, write the batch ledger, or route work. It must report missing authority
@@ -113,8 +115,9 @@ handling.
 
 ## Observe and notify
 
-Observe external issue/PR events only. Do not read or wait on owner chats to
-poll ordinary progress or discover gates; repeated snapshots and longer
+Observe external issue/PR events and only the bounded owner-result exception
+below. Do not read or wait on owner chats to generally
+poll progress or discover gates; repeated snapshots and longer
 intervals remain polling. Owners deliver their job reports through the supported
 setup reporting path. A watchdog cannot replace a missing owner return-message
 permission or transport with progress observation or become a second coordinator.
@@ -186,6 +189,51 @@ pass history. Notification markers follow the router’s Operational retention:
 keep unresolved delivery and still-needed duplicate guards; replace superseded
 observations only after reconciliation. Do not copy review or recovery history
 into watcher state.
+
+## Ordinary owner-result reconciliation
+
+Apply ROUTE-007-EVENT on the existing authorized separate-watchdog tick; no new
+schedule or observation scope is inferred for an already active monitor. Verify
+applicable observation and messaging authority for this exact coordinator
+recipient. Scheduling stops suppress this path along with external observation.
+
+1. Read the coordinator-owned ledger without writing it. Require supported
+   compact host status proving that the bound ordinary coordinator is inactive;
+   active or unknown status suppresses owner checks. Select each item separately
+   only for `items[].wait_reason: owner_result`, with a registered ordinary
+   owner/host and complete fresh existing dispatch/action binding. Exclude
+   internal sub-agents. `user_confirmation` produces no internal notice;
+   `external_event` retains the external path. Missing/unknown reasons or stale,
+   missing or ambiguous bindings enable no check and no invented identity.
+2. Use supported compact status for eligible ordinary owner threads, batching
+   where supported. Codex `wait_threads(timeoutMs: 0)` accepts up to eight
+   targets; retain matching host and supported cursor facts where applicable.
+   Do not load transcripts, scrape results, block waiting for progress, or
+   substitute another interface for unsupported status. Running owners stay
+   quiet; idle/terminal owners are candidates for actual-outcome reconciliation,
+   never evidence of success, passing review, completion or merge readiness.
+3. Immediately before notifying, refresh the item wait and existing binding,
+   coordinator inactivity and owner status. Suppress reconciled/cleared waits,
+   active coordinators, running owners and stale/unknown facts. Reconcile existing
+   delivery state and suppress a successfully delivered request for the same
+   item dispatch/action binding and recipient action. Thread identity alone is
+   insufficient: a successive assignment to that owner remains independently
+   eligible under its own existing binding. Missing bindings introduce no counter
+   or new notification identity.
+4. Send one authorized compact reconciliation request to the existing
+   coordinator with issue identity, ordinary owner/host, existing action binding,
+   observed status and evidence pointer. Ask it to inspect the actual outcome;
+   do not instruct automatic continuation or assert a verdict. Receivers refresh
+   bindings, authority and freshness and apply all existing gates. An idle owner
+   may already need user input before its report is processed: reconciliation
+   preserves that intentional wait and updates its reason accordingly.
+5. Reuse current local notification state and bounded delivery recovery. Failed
+   or unknown delivery remains unresolved and cannot mark successful suppression;
+   unsupported access or exhausted recovery exposes only the concrete limitation
+   through an authorized path. Successful delivery proves no consumption. No new
+   acknowledgement protocol or guarantee for every host delivery failure exists.
+   Only the coordinator clears/updates waits and routes; processed waits leave
+   eligibility. Quiet unchanged ticks and existing cadence remain unchanged.
 
 ## Recover, hand off, and stop
 

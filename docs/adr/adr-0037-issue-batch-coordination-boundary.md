@@ -40,7 +40,14 @@ Initial setup establishes a supported reporting path and recipient-verifiable
 human messaging authority where the sending host requires it. Compatible
 reporting authority is retained rather than requested again at every gate.
 The watchdog, when enabled, observes external events without becoming a second
-coordinator or substituting progress polling for delivery.
+coordinator or substituting general progress polling for delivery. The accepted
+issue #852 exception reuses per-item wait reasons, existing owner/action bindings,
+cadence and notification state: while the coordinator is inactive, compact
+checks of registered ordinary owners with pending `owner_result` waits may
+request reconciliation. Internal sub-agents and user-confirmation waits are
+excluded. Idle/terminal status supplies no verdict or continuation authority;
+the coordinator inspects actual outcomes through existing gates. No new
+registry, scheduler or consumption-acknowledgement protocol is introduced.
 
 Canonical policy refresh is part of coordination. Concrete execution defaults
 new eligible owners to autonomous execution and requests one separate host
@@ -67,7 +74,8 @@ published-current-head full-versus-narrow follow-up before readiness or merge.
 Old-head approval never transfers; feedback, current CI, protection, mergeability
 and exact bindings remain required at their owning gates. The watchdog
 observes external events and reports to known authorized recipients; periodic
-owner-progress polling is prohibited. It adds no DevCanon scheduler and does not
+general owner-progress polling is prohibited apart from that narrow separate
+watchdog exception. It adds no DevCanon scheduler and does not
 guarantee compliance. Invocation restrictions and timer behavior must
 be described according to each host's actual capabilities.
 
