@@ -403,7 +403,16 @@ PR publication retains implementation, validation and independent Phase 7
 branch review. Under ROUTE-007-REVIEW, covered existing-PR corrections instead
 require classified dispositions, local validation, the concrete pre-push summary
 and exact plain-update binding, then successful publication and independent
-published-current-head full-versus-narrow follow-up before readiness or merge.
+current published-head review through the same Connector-first accepted
+condition before readiness or merge. Applicable completed Connector evidence
+satisfies that condition after corrections without an additional automatic review.
+Confirmed quota/unavailability selects one registered independent ordinary host
+review task with bound reporting; a coordinator child cannot replace that owner.
+The selected review workflow retains follow-up scope and internal delegation.
+Returning provider evidence preserves findings and outstanding result, disposition
+and cleanup obligations; verdict readiness and resource retirement are separate.
+Consumer release and lifecycle gates precede resource retirement, and verified
+terminal/pending-work checks precede task archival.
 Old-head approval never transfers; feedback, current CI, protection, mergeability
 and exact bindings remain required at their owning gates.
 The efficient tier resolves through existing target bindings; model, effort and
