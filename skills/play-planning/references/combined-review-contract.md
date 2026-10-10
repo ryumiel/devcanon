@@ -114,11 +114,12 @@ an explicitly reopened review cycle.
 
 ## Source-established declaration verification
 
-The planning producer may correct an omitted governing-entry declaration after
-a final complete mapping-only FAIL, including when both semantic passes are
-consumed, only under this exception. The current accepted issue/design sources
-must explicitly establish the exact mapping and the complete prior review must
-leave only that declaration omission unresolved. Unchanged task wording and a
+The planning producer may correct an omitted governing-entry declaration under
+this exception only after both semantic passes are consumed and the final
+complete FAIL is mapping-only. If a semantic pass remains, use the ordinary
+semantic correction pass above, not verification-only assurance. The current
+accepted issue/design sources must explicitly establish the exact mapping and
+the complete prior review must leave only that declaration omission unresolved. Unchanged task wording and a
 producer assertion of nonmateriality are insufficient. No new requirement or
 mapping, changed tasks, dependencies, normative ownership, design, permissions,
 proof obligations, acceptance criteria or reviewer judgment qualifies. Ambiguous,

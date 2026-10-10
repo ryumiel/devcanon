@@ -1892,78 +1892,92 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     }
   });
 
-  it("refuses malformed derived body then publishes its correction without changing reviewer evidence", async () => {
-    const cwd = await makeTopicGitWorkspace();
+  it("preserves valid canonical and fixture input when derived body publication fails, then accepts producer regeneration", async () => {
+    const {
+      cwd,
+      reviewHeadSha,
+      findingsFile: canonicalFile,
+    } = await makeReviewSourceWorkspace();
     try {
-      const reviewHeadSha = await currentHeadSha(cwd);
-      const canonicalFile = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
-      const corrected = currentReviewEnvelope(reviewHeadSha, [finding()]);
-      const malformed = structuredClone(corrected);
-      const malformedFinding = (
-        malformed.findings as Record<string, unknown>[]
-      )[0];
-      malformedFinding.body = String(malformedFinding.body).replace(
-        " — ",
-        " - ",
+      // Helper capability proof only: guarded native result intake is controller-owned.
+      const retainedInput = currentReviewEnvelope(reviewHeadSha, [
+        sourceFinding(),
+      ]);
+      const inputFile = path.join(cwd, ".ephemeral/retained-review-input.json");
+      const inputBytes = JSON.stringify(retainedInput);
+      await writeFile(inputFile, inputBytes);
+      const publicationEnv = {
+        HEAD_SHA: reviewHeadSha,
+        FINDINGS_FILE: canonicalFile,
+      };
+      const priorContents = JSON.stringify(
+        currentReviewEnvelope(reviewHeadSha, []),
       );
-      const malformedBytes = JSON.stringify(malformed);
-      await writeFile(path.join(cwd, canonicalFile), malformedBytes);
+      await expect(
+        runHelperWithStdin(
+          cwd,
+          "publish-findings",
+          priorContents,
+          publicationEnv,
+        ),
+      ).resolves.toMatchObject({ stdout: `${canonicalFile}\n` });
+      await expect(
+        runHelper(cwd, "validate-findings", publicationEnv),
+      ).resolves.toMatchObject({ stdout: "" });
 
+      // Both producer attempts derive presentation from the same retained valid fields.
+      const produceEnvelope = (separator: string) => {
+        const envelope = structuredClone(retainedInput);
+        for (const entry of envelope.findings as Record<string, unknown>[]) {
+          entry.body = `**${entry.severity} | ${entry.category}**${separator}${entry.why}\n\n**Recommendation:** ${entry.recommendation}`;
+        }
+        return envelope;
+      };
+      const malformed = produceEnvelope(" - ");
       await expect(
-        runHelper(cwd, "validate-findings", {
-          HEAD_SHA: reviewHeadSha,
-          FINDINGS_FILE: canonicalFile,
-        }),
-      ).rejects.toMatchObject({
-        stderr: expect.stringContaining("envelope shape mismatch"),
-      });
-      await expect(
-        runHelperWithStdin(cwd, "publish-findings", malformedBytes, {
-          HEAD_SHA: reviewHeadSha,
-          FINDINGS_FILE: canonicalFile,
-        }),
+        runHelperWithStdin(
+          cwd,
+          "publish-findings",
+          JSON.stringify(malformed),
+          publicationEnv,
+        ),
       ).rejects.toMatchObject({
         stderr: expect.stringContaining("envelope shape mismatch"),
       });
       expect(await readFile(path.join(cwd, canonicalFile), "utf-8")).toBe(
-        malformedBytes,
+        priorContents,
       );
+      expect(await readFile(inputFile, "utf-8")).toBe(inputBytes);
+      await expect(
+        runHelper(cwd, "validate-findings", publicationEnv),
+      ).resolves.toMatchObject({ stdout: "" });
       await expectNoPublishStaging(cwd);
 
-      // The envelope producer derives only presentation from unchanged native fields.
-      const replacement = structuredClone(malformed);
-      const replacementFinding = (
-        replacement.findings as Record<string, unknown>[]
-      )[0];
-      replacementFinding.body = `**${replacementFinding.severity} | ${replacementFinding.category}** — ${replacementFinding.why}\n\n**Recommendation:** ${replacementFinding.recommendation}`;
-      expect(replacement).toEqual(corrected);
+      const replacement = produceEnvelope(" — ");
+      expect(replacement).toEqual(retainedInput);
       const withoutBody = (value: Record<string, unknown>) => {
         const copy = structuredClone(value);
         for (const entry of copy.findings as Record<string, unknown>[])
           entry.body = undefined;
         return copy;
       };
-      expect(withoutBody(replacement)).toEqual(withoutBody(malformed));
+      expect(withoutBody(malformed)).toEqual(withoutBody(retainedInput));
+      expect(withoutBody(replacement)).toEqual(withoutBody(retainedInput));
       await expect(
         runHelperWithStdin(
           cwd,
           "publish-findings",
           JSON.stringify(replacement),
-          {
-            HEAD_SHA: reviewHeadSha,
-            FINDINGS_FILE: canonicalFile,
-          },
+          publicationEnv,
         ),
       ).resolves.toMatchObject({ stdout: `${canonicalFile}\n` });
       await expect(
-        runHelper(cwd, "validate-findings", {
-          HEAD_SHA: reviewHeadSha,
-          FINDINGS_FILE: canonicalFile,
-        }),
+        runHelper(cwd, "validate-findings", publicationEnv),
       ).resolves.toMatchObject({ stdout: "" });
       expect(
         JSON.parse(await readFile(path.join(cwd, canonicalFile), "utf-8")),
-      ).toEqual(corrected);
+      ).toEqual(retainedInput);
+      expect(await readFile(inputFile, "utf-8")).toBe(inputBytes);
       await expectNoPublishStaging(cwd);
     } finally {
       await cleanupTempDir(cwd);
