@@ -171,6 +171,13 @@ active set becomes D1–D5, D7 and D10–D18 (15 routes); remove D6 from both th
 active inventory and escalation adoption inventory together. D5 remains opt-out
 with transition `none`. No new semantic agent or target override is needed.
 
+The same fresh independent D5 tuple also performs the planning owner's narrow
+verification-only check of accepted-source declaration corrections. Explicit
+mode and complete composite coverage/provenance distinguish current assurance
+from historical semantic results. Verification consumes no semantic pass;
+failed verification stops existing recovery without automatic redispatch.
+This adds no route, role, authority or budget reset.
+
 Exceptional planning specialists use the existing D4 declaration and source
 role constraints, with the planning owner's bounded evidence-only scope. They
 do not change D5's pass budget or borrow D10. D18 ownership, D7/D10 final-review

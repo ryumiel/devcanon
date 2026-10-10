@@ -1892,6 +1892,84 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     }
   });
 
+  it("refuses malformed derived body then publishes its correction without changing reviewer evidence", async () => {
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      const reviewHeadSha = await currentHeadSha(cwd);
+      const canonicalFile = `.ephemeral/topic-${reviewHeadSha}-findings.json`;
+      const corrected = currentReviewEnvelope(reviewHeadSha, [finding()]);
+      const malformed = structuredClone(corrected);
+      const malformedFinding = (
+        malformed.findings as Record<string, unknown>[]
+      )[0];
+      malformedFinding.body = String(malformedFinding.body).replace(
+        " — ",
+        " - ",
+      );
+      const malformedBytes = JSON.stringify(malformed);
+      await writeFile(path.join(cwd, canonicalFile), malformedBytes);
+
+      await expect(
+        runHelper(cwd, "validate-findings", {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: canonicalFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("envelope shape mismatch"),
+      });
+      await expect(
+        runHelperWithStdin(cwd, "publish-findings", malformedBytes, {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: canonicalFile,
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("envelope shape mismatch"),
+      });
+      expect(await readFile(path.join(cwd, canonicalFile), "utf-8")).toBe(
+        malformedBytes,
+      );
+      await expectNoPublishStaging(cwd);
+
+      // The envelope producer derives only presentation from unchanged native fields.
+      const replacement = structuredClone(malformed);
+      const replacementFinding = (
+        replacement.findings as Record<string, unknown>[]
+      )[0];
+      replacementFinding.body = `**${replacementFinding.severity} | ${replacementFinding.category}** — ${replacementFinding.why}\n\n**Recommendation:** ${replacementFinding.recommendation}`;
+      expect(replacement).toEqual(corrected);
+      const withoutBody = (value: Record<string, unknown>) => {
+        const copy = structuredClone(value);
+        for (const entry of copy.findings as Record<string, unknown>[])
+          entry.body = undefined;
+        return copy;
+      };
+      expect(withoutBody(replacement)).toEqual(withoutBody(malformed));
+      await expect(
+        runHelperWithStdin(
+          cwd,
+          "publish-findings",
+          JSON.stringify(replacement),
+          {
+            HEAD_SHA: reviewHeadSha,
+            FINDINGS_FILE: canonicalFile,
+          },
+        ),
+      ).resolves.toMatchObject({ stdout: `${canonicalFile}\n` });
+      await expect(
+        runHelper(cwd, "validate-findings", {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: canonicalFile,
+        }),
+      ).resolves.toMatchObject({ stdout: "" });
+      expect(
+        JSON.parse(await readFile(path.join(cwd, canonicalFile), "utf-8")),
+      ).toEqual(corrected);
+      await expectNoPublishStaging(cwd);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("preserves the prior canonical envelope and cleans staging for malformed or trailing findings input", async () => {
     const cwd = await makeTopicGitWorkspace();
     try {

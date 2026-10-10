@@ -249,6 +249,17 @@ handing off the plan. Its approval, authority, provenance, and digest checks
 remain required. If the reference is missing, blank, or unreadable, stop the
 dependent action and report the blocker.
 
+Current combined assurance may include the planning owner's narrow
+[source-established declaration verification](../play-planning/references/combined-review-contract.md#source-established-declaration-verification).
+Before execution or an approval assessment, validate its current corrected
+digest/tag, retained producer identity, explicit `Review mode: verification-only`,
+complete current/carried coverage and exact prior session/tag/digest/row
+provenance, original/current source identities, historical semantic results and
+consumed passes. Rehash immediately before consumption. Historical PASS alone
+cannot authorize changed bytes; missing, mixed, unsupported or stale composite
+evidence stops without downgrade. Execution/publication authority, auto evidence
+and final implementation review remain separate gates.
+
 ## YAGNI Check for "Professional" Features
 
 When a reviewer suggests "implementing properly", grep the codebase for actual

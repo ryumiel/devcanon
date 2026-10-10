@@ -727,7 +727,8 @@ wins whenever both forms were supplied; otherwise preserve the direct
 invocation's complete `## Design` payload. Freeze one digest-bound tuple
 containing the exact plan path, the selected design path or preserved inline
 design payload, criteria and readiness paths and results, optional supplied
-comment evidence, `review_wave` (one or two), prior validated gaps, and
+comment evidence, `review_wave` (one or two for semantic review; retain the consumed wave history
+for verification-only), prior validated gaps, and
 producer provenance. For a correction pass, also supply the retained original
 plan bytes, complete exact-byte revision diff, relevant input changes, and
 validated prior result with its coverage and evidence identities, as owned by
@@ -764,13 +765,23 @@ The D5 prompt requires the active tag `planning-review/combined-v1`, exact
 digest, complete coverage of correctness and executability, independent source
 inspection, classified gaps, full correction diff, and prior coverage
 provenance. Follow the combined contract for result shape, carried coverage,
-materiality, specialist evidence, reopening, and the two-pass limit. A late
+materiality, specialist evidence, reopening, the two-semantic-pass limit and the narrow
+[source-established declaration verification](references/combined-review-contract.md#source-established-declaration-verification)
+exception. For that exception, retain original/current identities, complete
+prior coverage and gaps, explicit accepted mapping and consumed semantic
+history; set D5 purpose to verification-only without a third semantic wave.
+Require `Review mode: verification-only` and full current/carried provenance
+in the current result. Failed verification stops exhausted recovery, without
+automatic redispatch. A late
 genuine blocker remains blocking even if it was missed on the first pass. Never
-create a third automatic pass or synthesize coverage from a tag or summary.
+create a third automatic semantic pass or synthesize coverage from a tag or summary.
 
 After one current valid combined PASS and exact cleanup, retain the plan path,
 digest, contract tag, coverage, and successful producer provenance in
-controller-local state. Emit:
+controller-local state, including explicit verification mode, composite
+coverage/provenance and historical semantic results/passes when the exception
+applies. Current PASS is independent assurance for these bytes; historical
+FAILs remain truthful. Emit:
 
 ```text
 Plan written to <repo-relative-path>.
@@ -794,7 +805,10 @@ Planning review contract: planning-review/combined-v1
 
 The three literal values identify a reviewed handoff; they are not persistent
 bearer tokens. Every reviewed consumer validates retained producer provenance,
-the contract tag, and the current exact plan bytes before using them.
+the contract tag, and the current exact plan bytes before using them. When
+verification-only applies, validate the retained composite mode, complete
+current/carried coverage and exact prior session/tag/digest/row provenance,
+historical results and consumed semantic passes under the combined owner.
 
 ## Execution Handoff
 

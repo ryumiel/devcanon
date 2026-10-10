@@ -76,7 +76,9 @@ rely on issue-priming `--auto` reduced-route behavior, because direct/manual
 review-response plans do not carry parent-owned issue-priming state, validated
 auto-handoff evidence, or a guaranteed downstream `branch-review --fix` loop.
 For `Route: review-response-parent-owned`, `play-planning` emits the plan path
-only after one complete combined D5 review passes both remits. Approval
+only after current combined D5 assurance covers both remits, including the
+qualifying verification-only composite defined by the
+[combined owner](../../play-planning/references/combined-review-contract.md#source-established-declaration-verification). Approval
 satisfaction is separate from planning review, binds the exact reviewed digest,
 and cannot repair missing, mixed, stale, or legacy planning provenance.
 
@@ -160,7 +162,8 @@ The plan approval gate is explicit:
 - Immediately before execution, recheck the retained authority against the
   current reviewed plan, its digest and producer provenance. Any changed plan
   bytes invalidate the prior review and approval assessment: use the remaining
-  combined D5 pass or the existing reassessment route, then reassess authority
+  combined D5 pass, the qualifying declaration-verification exception, or the
+  existing reassessment route, then reassess authority
   for the new exact plan. Do not reset the pass budget.
 - `play-planning` returns `Plan written to <path>.` for this route only after
   combined D5 review passes both remits; invalid planning provenance remains
@@ -171,7 +174,11 @@ The plan approval gate is explicit:
   through `play-planning`, including plan self-review and combined D5 review,
   before renewed approval assessment. A PASS reached on correction pass two
   leaves no pass, even when this is the user's first requested edit.
-- When no pass remains, pause the approval loop for the explicit owning
+- A final complete mapping-only FAIL may instead use the combined owner's
+  verification-only exception; validate explicit mode and full composite
+  provenance before reassessing authority for the corrected digest. Historical
+  FAILs and consumed semantic passes remain retained.
+- For other exhausted cases, when no pass remains, pause the approval loop for the explicit owning
   reassessment and cycle-reopening decision required by the combined-review
   contract. Present the exhausted budget and retained scope/pass history; do
   not dispatch another review until that owner decision explicitly authorizes a
