@@ -1,13 +1,17 @@
 import {
   CleanupUsageError,
+  type NestedRepositoryFact,
   type WorktreeRecord,
   collectWorktrees,
   countStatusLines,
   git,
+  inspectNestedRepositories,
   isBareRepository,
   isInsideWorktree,
   lineOutput,
   localBranches,
+  nestedRepositoryBlocker,
+  removeLinkedWorktree,
   resolveDefaultBranch,
   revParse,
   showRefExists,
@@ -58,6 +62,7 @@ interface WorkspaceFacts {
   lockedWorktrees: WorktreeRecord[];
   branches: BranchFact[];
   defaultBranchAheadCommits: number;
+  nestedRepositories: NestedRepositoryFact[];
 }
 
 export async function runGitWorkspaceCleanupCommand(
@@ -210,6 +215,14 @@ async function collectFacts(parsed: Args): Promise<WorkspaceFacts> {
     }
   }
 
+  const nestedRepositories = (
+    await Promise.all(
+      worktrees
+        .slice(1)
+        .map((entry) => inspectNestedRepositories(entry.realPath)),
+    )
+  ).flat();
+
   const branches = await collectBranches(
     repoRoot,
     defaultBranch,
@@ -231,16 +244,18 @@ async function collectFacts(parsed: Args): Promise<WorkspaceFacts> {
   const uniqueBranchCount = branches.filter(
     (branch) => branch.classification === "unique",
   ).length;
-  const status = reduceWorkspaceStatus({
-    mode: parsed.mode,
-    forceBranches: parsed.forceBranches,
-    forceDirtyWorktrees: parsed.forceDirtyWorktrees,
-    dirtyPrimaryCount,
-    dirtyLinkedCount,
-    lockedWorktreeCount: lockedWorktrees.length,
-    uniqueBranchCount,
-    defaultBranchAheadCommits,
-  });
+  const status = nestedRepositoryBlocker(nestedRepositories)
+    ? "blocked"
+    : reduceWorkspaceStatus({
+        mode: parsed.mode,
+        forceBranches: parsed.forceBranches,
+        forceDirtyWorktrees: parsed.forceDirtyWorktrees,
+        dirtyPrimaryCount,
+        dirtyLinkedCount,
+        lockedWorktreeCount: lockedWorktrees.length,
+        uniqueBranchCount,
+        defaultBranchAheadCommits,
+      });
 
   return {
     mode: parsed.mode,
@@ -253,6 +268,7 @@ async function collectFacts(parsed: Args): Promise<WorkspaceFacts> {
     lockedWorktrees,
     branches,
     defaultBranchAheadCommits,
+    nestedRepositories,
   };
 }
 
@@ -412,6 +428,12 @@ function formatReport(facts: WorkspaceFacts): string {
   for (const branch of uniqueBranches) {
     lines.push(["UNIQUE_BRANCH", `${branch.branch}|COMMITS=${branch.commits}`]);
   }
+  for (const nested of facts.nestedRepositories) {
+    lines.push([
+      "NESTED_REPOSITORY",
+      `${nested.path}|KIND=${nested.kind}|REASON=${nested.reason}|GIT_DIR=${nested.gitDir}|COMMON_DIR=${nested.commonDir}`,
+    ]);
+  }
   return lineOutput(lines);
 }
 
@@ -420,23 +442,11 @@ async function executeCleanup(
   facts: WorkspaceFacts,
 ): Promise<void> {
   for (const worktree of facts.worktrees.slice(1)) {
-    const status = await worktreeStatus(worktree.realPath);
-    if (status.length > 0) {
-      if (!parsed.forceDirtyWorktrees) {
-        throw new Error(
-          `linked worktree became dirty before removal: ${worktree.realPath}`,
-        );
-      }
-      await git(
-        ["worktree", "remove", "--force", worktree.realPath],
-        facts.primaryWorktree,
-      );
-    } else {
-      await git(
-        ["worktree", "remove", worktree.realPath],
-        facts.primaryWorktree,
-      );
-    }
+    await removeLinkedWorktree(
+      facts.primaryWorktree,
+      worktree.realPath,
+      parsed.forceDirtyWorktrees,
+    );
   }
 
   await git(["worktree", "prune"], facts.primaryWorktree);

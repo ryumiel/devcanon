@@ -78,3 +78,13 @@ primary checkout; `stop` requires surfacing the helper message and ending the
 current setup path. Never create another worktree from a stopped managed
 session. The caller continues from the returned worktree only after the helper's
 documented success contract.
+
+## Delivery and lifecycle handoff
+
+Retain the actual native attachment/ownership identity or ordinary Git checkout
+binding for the cleanup owner. Native setup does not authorize Git-only removal
+of host-managed resources. `pr-merge` owns scoped post-merge cleanup;
+`git-workspace-cleanup` owns repository-wide cleanup. Their shared
+[mechanism selection](../git-workspace-cleanup/references/git-workspace-cleanup-usage.md#mechanism-selection-and-verification)
+contract distinguishes filesystem/Git removal, host metadata, and chat archival.
+A native archive acceptance alone is not a terminal cleanup outcome.

@@ -1,5 +1,6 @@
 import { execFile, spawnSync } from "node:child_process";
-import { lstat, realpath } from "node:fs/promises";
+import type { Dirent } from "node:fs";
+import { lstat, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 
@@ -172,7 +173,12 @@ export async function collectWorktrees(cwd: string): Promise<WorktreeRecord[]> {
 export async function worktreeStatus(worktreePath: string): Promise<string> {
   return (
     await git(
-      ["status", "--porcelain=v1", "--untracked-files=normal"],
+      [
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=normal",
+        "--ignore-submodules=none",
+      ],
       worktreePath,
     )
   ).stdout.trim();
@@ -290,4 +296,231 @@ function execFileSyncStatus(command: string, args: readonly string[]): number {
     windowsHide: true,
   });
   return child.status ?? 1;
+}
+
+/** Nested repositories need their own custody checks; superproject status can ignore them. */
+export interface NestedRepositoryFact {
+  path: string;
+  kind: "submodule" | "embedded";
+  gitDir: string;
+  commonDir: string;
+  reason: string;
+}
+
+export async function inspectNestedRepositories(
+  worktree: string,
+): Promise<NestedRepositoryFact[]> {
+  const facts: NestedRepositoryFact[] = [];
+  const worktreeGitDir = await realpath(
+    (await git(["rev-parse", "--absolute-git-dir"], worktree)).stdout.trim(),
+  );
+  const privateModules = path.join(worktreeGitDir, "modules");
+
+  async function gitlinks(repo: string): Promise<Set<string>> {
+    const entries = (await git(["ls-files", "--stage", "-z"], repo)).stdout;
+    return new Set(
+      entries
+        .split("\0")
+        .filter((entry) => entry.startsWith("160000 "))
+        .map((entry) =>
+          path.resolve(repo, entry.slice(entry.indexOf("\t") + 1)),
+        ),
+    );
+  }
+
+  async function visit(directory: string, links: Set<string>): Promise<void> {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      if (entry.name === ".git" || !entry.isDirectory()) continue;
+      const child = path.join(directory, entry.name);
+      let markerExists = false;
+      try {
+        await lstat(path.join(child, ".git"));
+        markerExists = true;
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+      }
+      if (!markerExists) {
+        // Bare embedded repositories have no .git marker but still carry local Git custody.
+        try {
+          await lstat(path.join(child, "HEAD"));
+          markerExists =
+            (await canonicalPath(path.join(child, "objects"))) !== null;
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+        }
+      }
+      if (!markerExists) {
+        await visit(child, links);
+        continue;
+      }
+      const kind = links.has(child) ? "submodule" : "embedded";
+      let gitDir = "";
+      let commonDir = "";
+      let reason = "embedded-repository";
+      try {
+        gitDir = await realpath(
+          (await git(["rev-parse", "--absolute-git-dir"], child)).stdout.trim(),
+        );
+        commonDir = await realpath(
+          path.resolve(
+            child,
+            (await git(["rev-parse", "--git-common-dir"], child)).stdout.trim(),
+          ),
+        );
+        if (kind === "submodule") {
+          const relative = path.relative(privateModules, gitDir);
+          // Only checkout-private administration may be removed. Never deinit: config is shared.
+          if (
+            relative.startsWith(`..${path.sep}`) ||
+            relative === ".." ||
+            path.isAbsolute(relative) ||
+            commonDir !== gitDir
+          ) {
+            reason = "shared-or-external-submodule-git-dir";
+          } else if ((await collectWorktrees(child)).length !== 1) {
+            reason = "shared-submodule-worktrees";
+          } else if (
+            (
+              await git(
+                [
+                  "status",
+                  "--porcelain=v1",
+                  "--untracked-files=all",
+                  "--ignore-submodules=none",
+                ],
+                child,
+              )
+            ).stdout.trim()
+          ) {
+            reason = "dirty-or-untracked-submodule";
+          } else {
+            // Include refs, detached HEAD and reflogs, so a clean checkout cannot hide unpublished work.
+            const localOnly = (
+              await git(
+                ["rev-list", "--all", "--reflog", "HEAD", "--not", "--remotes"],
+                child,
+              )
+            ).stdout.trim();
+            reason = localOnly
+              ? "submodule-local-only-work"
+              : "clean-initialized-submodule";
+          }
+        }
+      } catch {
+        reason = "nested-repository-inspection-failed";
+      }
+      facts.push({ path: child, kind, gitDir, commonDir, reason });
+      // Do not follow an embedded repository's policy; it remains an unconditional blocker.
+      if (kind === "submodule" && gitDir)
+        await visit(child, await gitlinks(child));
+    }
+  }
+  await visit(worktree, await gitlinks(worktree));
+  // Deinitialized checkouts can still own cached refs/reflogs beneath their administration.
+  // No working-tree marker means their custody cannot be established by the checks above.
+  async function inspectCached(directory: string): Promise<void> {
+    let entries: Dirent[];
+    try {
+      entries = await readdir(directory, { withFileTypes: true });
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw err;
+    }
+    const names = new Set(entries.map((entry) => entry.name));
+    if (names.has("HEAD") && names.has("config")) {
+      const actual = await realpath(directory);
+      if (!facts.some((fact) => fact.gitDir === actual)) {
+        facts.push({
+          path: actual,
+          kind: "submodule",
+          gitDir: actual,
+          commonDir: actual,
+          reason: "uninitialized-submodule-administration",
+        });
+      }
+      await inspectCached(path.join(directory, "modules"));
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.isDirectory())
+        await inspectCached(path.join(directory, entry.name));
+    }
+  }
+  await inspectCached(privateModules);
+  return facts;
+}
+
+export function nestedRepositoryBlocker(facts: NestedRepositoryFact[]): string {
+  const blocked = facts.find(
+    (fact) => fact.reason !== "clean-initialized-submodule",
+  );
+  return blocked ? `${blocked.reason}:${blocked.path}` : "";
+}
+
+/** Called only for an authorized ordinary linked checkout, never a host lifecycle bypass. */
+export async function removeLinkedWorktree(
+  primary: string,
+  target: string,
+  allowDirty = false,
+): Promise<void> {
+  const records = await collectWorktrees(primary);
+  const canonicalTarget = await requireCanonicalDirectory(
+    target,
+    "cleanup target",
+  );
+  const record = records.find((entry) => entry.realPath === canonicalTarget);
+  if (!record || record === records[0] || record.locked) {
+    throw new Error(`protected or unregistered worktree: ${target}`);
+  }
+  const nested = await inspectNestedRepositories(canonicalTarget);
+  const blocker = nestedRepositoryBlocker(nested);
+  if (blocker) throw new Error(blocker);
+  // Force is needed by Git for initialized submodules even when all nested work is clean.
+  // It must not bypass the ordinary dirty-worktree authorization.
+  if ((await worktreeStatus(canonicalTarget)) && !allowDirty) {
+    throw new Error(`linked worktree became dirty before removal: ${target}`);
+  }
+  const removal = await git(
+    [
+      "worktree",
+      "remove",
+      ...(allowDirty || nested.length ? ["--force"] : []),
+      canonicalTarget,
+    ],
+    primary,
+    [0, 1, 2, 128, 255],
+  );
+  if (removal.exitCode !== 0) {
+    throw new Error(
+      `(exit code ${removal.exitCode})\n${removal.stderr.trimEnd()}`,
+    );
+  }
+  let targetExists = false;
+  try {
+    await lstat(target);
+    targetExists = true;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+  }
+  const remaining = await collectWorktrees(primary);
+  if (targetExists || remaining.some((entry) => entry.path === record.path)) {
+    throw new Error(`worktree removal not verified: ${target}`);
+  }
+  for (const unrelated of records.filter(
+    (entry) => entry !== record && !entry.prunable,
+  )) {
+    if (
+      !remaining.some(
+        (entry) =>
+          entry.realPath === unrelated.realPath &&
+          entry.branch === unrelated.branch &&
+          entry.locked === unrelated.locked,
+      ) ||
+      !(await canonicalPath(unrelated.realPath))
+    ) {
+      throw new Error(
+        `unrelated worktree changed during removal: ${unrelated.path}`,
+      );
+    }
+  }
 }

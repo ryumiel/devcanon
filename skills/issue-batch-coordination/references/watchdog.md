@@ -306,7 +306,11 @@ owner action. Archiving a chat does not transfer or stop its timer.
 
 The router verifies completion of every accepted item and all separately
 authorized post-merge obligations. No open PR is not completion. Preserve
-required evidence before removing a worktree. Then stop or pause the schedule
+required evidence under the router's Operational retention contract, using
+existing stable copies when sufficient. Follow the user's selected closure order;
+worktree removal, chat archival and milestone closure each require separate
+observed outcomes. Then, when the selected order and completion conditions permit,
+stop or pause the schedule
 through the owning host control and record the observed result separately from
 chat archival. Honor an explicit user stop and retain it to prevent automatic
 recreation unless superseded by later explicit scheduling authority. If the

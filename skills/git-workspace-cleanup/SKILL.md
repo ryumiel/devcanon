@@ -14,19 +14,27 @@ dry-run.
 Use this skill to return a Git repository to one primary checkout on the
 remote default branch.
 
-The bundled script owns the destructive operations. Do not hand-roll the
-cleanup sequence.
+The bundled script owns ordinary repository-wide destructive operations. Do not
+hand-roll the cleanup sequence. Before selecting it, read the usage reference's
+[mechanism selection](references/git-workspace-cleanup-usage.md#mechanism-selection-and-verification).
+Selected batch worktrees use `pr-merge` scoped cleanup; this helper does not
+accept a selected-worktree scope. Host-managed worktrees require a supported
+host lifecycle and attachment/ownership reconciliation path.
 
 ## Required Workflow
 
 1. Run the script in dry-run mode first.
 2. Report the dry-run summary to the user.
-3. If `STATUS=blocked`, stop and ask whether to force only the blocked category
-   that can be forced.
-4. Run `--execute` only after explicit user approval, using the same target repo
-   shown in dry-run output.
-5. Never use force flags unless the user approved them after seeing dry-run
-   output.
+3. If `STATUS=blocked`, classify each blocker. Ask only for a missing discard
+   decision in a forceable category; report a concrete remedy for protected
+   categories.
+4. Run `--execute` under explicit user approval covering the same repository-wide
+   scope shown in dry-run output. Reuse compatible standing approval after
+   presenting the current plan; ask again only for changed scope, newly identified
+   discard categories, or an applicable explicit host approval requirement.
+5. Never use force flags unless the user approved the corresponding discard
+   category after seeing its dry-run output. A new snapshot mechanism or a host
+   refusal is not discard authorization.
 
 ```bash
 SKILL_DIR="<path-to-git-workspace-cleanup-skill>"
@@ -68,6 +76,8 @@ The script blocks by default on:
   `origin/<default-branch>`
 - commits on the local default branch that are ahead of
   `origin/<default-branch>`
+- nested repository blockers reported as `NESTED_REPOSITORY` in the usage
+  reference; these are not bypassed by either force flag
 
 Only two blocker classes are forceable:
 
@@ -94,6 +104,13 @@ top of its merge base and `git cherry origin/<default-branch>` reports that
 patch as already present. Such branches can require `git branch -D` because
 their tips are not ancestors of the default branch, but they do not require
 `--force-branches`.
+
+Clean initialized submodules are inspected recursively. The helper uses Git's
+single `--force` only to remove a verified clean checkout with private submodule
+administration and no nested local-only work; this is not a broad dirty-work
+override. It never deinitializes submodules or changes shared registration.
+Dirty submodules, local-only nested work, shared/external administration and
+embedded repositories require preservation or an owner-supported remedy first.
 
 ## Output Contract
 
@@ -122,6 +139,11 @@ Detail lines repeat as needed:
 - `DELETE_BRANCH=<branch>`
 - `MERGED_BRANCH=<branch>|REASON=ancestor|squash`
 - `UNIQUE_BRANCH=<branch>|COMMITS=<count>`
+- `NESTED_REPOSITORY=<path>|KIND=submodule|embedded|REASON=<classification>|GIT_DIR=<path>|COMMON_DIR=<path>`
 
 Dry-run exits zero even when blocked so callers can inspect and report the
 blockers. Execute exits non-zero when blocked.
+
+Execute report counts describe the checked plan. Exit zero also requires verified
+checkout and registration removal; failure diagnostics name an incomplete
+operation. Neither plan counts nor an accepted host archive request prove cleanup.

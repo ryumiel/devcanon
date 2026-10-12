@@ -2,7 +2,10 @@
 
 ## Role
 
-Performs deterministic local cleanup after a verified merge.
+Performs scoped ordinary Git cleanup after a verified merge. Host-managed
+checkouts first require the shared
+[mechanism selection](../../git-workspace-cleanup/references/git-workspace-cleanup-usage.md#mechanism-selection-and-verification)
+contract; this helper cannot reconcile app attachments or ownership.
 
 ## Invocation
 
@@ -31,3 +34,11 @@ Successful cleanup may remove a linked worktree, update the local base branch, a
 ## Workflow boundary
 
 [PR merge workflow context](../SKILL.md) owns merge verification and manual-action decisions.
+
+The helper verifies targeted checkout and registration removal. It retains a
+checkout whose HEAD differs from `PR_HEAD_SHA`, and uses the shared nested
+repository inspection/removal implementation. Clean initialized submodules with
+private administration and no local-only work are eligible; dirty/local-only
+nested work, shared administration and embedded repositories are retained with
+classified reasons. No submodule deinit or shared-config mutation is performed.
+Only the selected PR checkout is removed; unrelated worktrees remain protected.

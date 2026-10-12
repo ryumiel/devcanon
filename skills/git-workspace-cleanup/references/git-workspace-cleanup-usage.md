@@ -57,3 +57,88 @@ Unknown or incomplete flags, a non-worktree or bare repository, or a missing rem
 ## Workflow boundary
 
 [Git workspace cleanup workflow context](../SKILL.md) owns authorization and result handling.
+
+## Mechanism selection and verification
+
+Worktree removal and recoverable archival are distinct outcomes. Delivery does
+not by itself prove all local work disposable. Check retained authorization,
+exact worktree ownership/scope, dirty and local-only work, and required artifacts
+before selecting a mechanism. Preserve user-selected ordering between cleanup,
+chat archival, milestone closure and watchdog shutdown; do not impose an
+incident-specific sequence on other workflows.
+
+- Ordinary repository-wide cleanup uses this helper under its approval policy.
+  Ordinary selected PR work uses `pr-merge`'s scoped helper, never this broad one.
+- For a host-managed checkout, first identify the host's supported lifecycle
+  mechanism and how it reconciles attachments and ownership records. A host
+  instruction or selected tool requiring a snapshot remains binding even when
+  delivered work is disposable. DevCanon does not mandate `archive_worktree`
+  universally. When Codex requires that tool, use its exact attached worktree
+  identity; initialized submodules and embedded Git repositories are unsupported
+  by that archive tool. Do not remove the checkout with a Git helper as a bypass.
+- Use a non-snapshot mechanism only when the host supports it for that checkout,
+  retained authorization covers it, and supported attachment/ownership
+  reconciliation is established before deletion. These Git helpers manage Git
+  and filesystem state only; they cannot reconcile Codex attachments. If no such
+  path exists, report the unsupported removal and remaining metadata obligation.
+  Do not edit app databases/global state, invoke private APIs, automate the UI as
+  a workaround, or delete first and leave stale attachments.
+
+After removal verify filesystem absence, Git registration absence, and the
+supported host attachment/ownership disposition separately. Record local and
+remote branch disposition independently. A snapshot or archived chat proves
+neither deletion nor branch cleanup.
+
+### Nested repository classifications
+
+The runtime scans checkout directories, including ignored directories, without
+following symlinks or traversing Git administration. Gitlinks distinguish
+registered submodules from embedded repositories; nested submodules are inspected
+recursively. Diagnostics resolve actual Git and common directories. A clean
+initialized submodule is eligible only when administration is private beneath
+this checkout's Git `modules` directory, the submodule has no other linked
+worktree registrations, its working tree is clean, and all refs,
+HEAD and reflog commits are covered by existing remote-tracking refs. This uses
+local remote-tracking evidence and does not verify remote availability anew.
+An unresolved inspection fails closed.
+
+`dirty-or-untracked-submodule` requires preserving or disposing that named work;
+`submodule-local-only-work` requires preserving/publishing its commits, refs or
+reflog work. Neither existing broad force flag discards nested work.
+`shared-submodule-worktrees` requires preserving/releasing the submodule's other
+registered checkouts before retry; cleanup never removes their administration.
+`shared-or-external-submodule-git-dir` requires the repository owner to establish
+checkout-private custody through a supported Git procedure before retry.
+`embedded-repository` requires its own disposition/preservation and removal
+under that repository's authority before retry; it is not a submodule. Never
+change shared submodule configuration merely to remove one checkout.
+`uninitialized-submodule-administration` identifies cached Git custody without an
+initialized checkout; preserve its refs/reflogs or restore the checkout for full
+inspection before retry. An empty submodule directory is not proof of no work.
+`nested-repository-inspection-failed` requires resolving that repository's Git
+metadata before retry. Re-run guards after the remedy. Preserve the primary and
+unrelated linked checkouts; verify targeted checkout and registration removal.
+
+### Accepted asynchronous requests
+
+For `queued`, retain the exact operation/resource identity, host/owner binding,
+and observed acceptance in existing pending-effect fields. Acceptance is not a
+terminal result. Use a supported terminal result or bounded authoritative
+reconciliation of filesystem, Git registration and host metadata. Record the
+observed outcome as pending (positive evidence of active execution), removed,
+retained/protected, unsupported, failed, or unknown. A remaining directory or
+restored attachment alone proves neither continued execution nor refusal;
+absence of immediate completion proves neither failure nor a stuck queue.
+
+A supported refusal with its reason establishes unsupported or retained status;
+clear obsolete queue claims and replace the blocker. When terminal feedback is
+unavailable, keep the execution outcome unknown, name the missing supported
+result, and stop bounded observation. A known archive precondition restriction
+can explain why a fresh attempt is unsupported without claiming a historical
+terminal refusal. Do not inspect undocumented app state or minified bundles in
+production workflows. Never retry an unresolved effect. A confirmed terminal
+refusal may be retried after an authorized remedy and fresh guards. Separate
+verified effects from unresolved ones; only dependent actions wait.
+
+Codex's supported tools must expose terminal archive outcomes and rejection
+reasons to close that product gap. DevCanon cannot supply those app capabilities.
