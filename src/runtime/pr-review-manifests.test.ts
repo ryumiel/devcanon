@@ -24,6 +24,7 @@ import {
 } from "vitest";
 import { PrReviewCommandHarness } from "../__test-helpers__/pr-review-command-harness.js";
 import { createReviewEnvelope } from "../__test-helpers__/review-evidence.js";
+import { runResolveBashCommand } from "./bash.js";
 
 const originalCwd = process.cwd();
 const reviewArtifactsHelper = path.join(
@@ -1154,18 +1155,31 @@ describe("pr-review Phase 5 audit summary renderer", () => {
       originalCwd,
       "skills/pr-review/scripts/prior-thread-artifacts.sh",
     );
+    const refuseGit = await writeExecutable(
+      path.join(workspace.tempRoot, "refuse-git.sh"),
+      'git() { printf "%s\\n" "Git must not run for missing provider input" >&2; return 1; }\n',
+    );
 
+    // Ambient bash.exe may be the Windows WSL launcher, not Git-for-Windows Bash.
+    const bash = await runResolveBashCommand([]);
+    expect(bash.exitCode, bash.stderr).toBe(0);
     await expect(
-      commandHarness.run("bash", [adapter, "validate-scope-decision"], {
-        cwd: workspace.repository,
-        env: {
-          ...process.env,
-          HEAD_SHA: headSha,
-          BASE_REF: headSha,
-          SCOPE_DECISION_FILE: `.ephemeral/main-${headSha}-scope-decision.json`,
-          PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: helper,
+      commandHarness.run(
+        bash.stdout.trim(),
+        [adapter, "validate-scope-decision"],
+        {
+          cwd: workspace.repository,
+          env: {
+            ...process.env,
+            HEAD_SHA: headSha,
+            BASE_REF: headSha,
+            SCOPE_DECISION_FILE: `.ephemeral/main-${headSha}-scope-decision.json`,
+            PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: helper,
+            PROVIDER_SCOPE_EVIDENCE_FILE: "",
+            BASH_ENV: refuseGit,
+          },
         },
-      }),
+      ),
     ).rejects.toMatchObject({
       stderr: expect.stringContaining(
         "PROVIDER_SCOPE_EVIDENCE_FILE is required",

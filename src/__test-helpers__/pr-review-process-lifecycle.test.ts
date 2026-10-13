@@ -15,6 +15,7 @@ import {
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -118,6 +119,7 @@ describe("pr-review process lifecycle", () => {
 
   it("records cooperative cancellation acknowledgement", async () => {
     const root = await generatedRoot();
+    const ready = path.join(root.path, "cooperative-ready");
     const source = [
       'const fs = require("node:fs");',
       "const read = fs.createReadStream(null, { fd: 3 });",
@@ -126,14 +128,34 @@ describe("pr-review process lifecycle", () => {
       "  const frame = Buffer.alloc(body.length + 4); frame.writeUInt32BE(body.length); body.copy(frame, 4);",
       "  fs.writeSync(3, frame); process.exit(0);",
       "});",
+      `fs.writeFileSync(${JSON.stringify(ready)}, "ready");`,
       "setInterval(() => {}, 1000);",
     ].join("\n");
-    const processLifecycle = await lifecycle(root, source);
-
-    const result = await processLifecycle.finish({
-      cancel: true,
-      cooperativeGraceMs: 100,
+    // Observe listener readiness: process startup is not part of the cancellation assertion.
+    const processLifecycle = await lifecycle(root, source, {
+      deadlineMs: 4000,
     });
+    let readyObserved = false;
+    let result: Awaited<ReturnType<typeof processLifecycle.finish>>;
+    try {
+      const readyDeadline = performance.now() + 2000;
+      while (performance.now() < readyDeadline) {
+        try {
+          await access(ready);
+          readyObserved = true;
+          break;
+        } catch (err) {
+          if (errorCode(err) !== "ENOENT") throw err;
+        }
+        await delay(10);
+      }
+    } finally {
+      result = await processLifecycle.finish({
+        cancel: true,
+        cooperativeGraceMs: 1000,
+      });
+    }
+    expect(readyObserved).toBe(true);
 
     expect(result.cooperative.descendantsAcknowledged).toBe(true);
     expect(result.cleanup.forceTermination).toBe("not-needed");

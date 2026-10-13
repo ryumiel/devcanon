@@ -4,9 +4,12 @@ import {
   collectWorktrees,
   currentBranch,
   git,
+  inspectNestedRepositories,
   isInsideWorktree,
   lineOutput,
+  nestedRepositoryBlocker,
   normalizeRemoteUrl,
+  removeLinkedWorktree,
   requireCanonicalDirectory,
   revParse,
   showRefExists,
@@ -230,6 +233,7 @@ export function reduceCleanup(input: {
   remoteSha: string;
   remoteTipMatches: boolean;
   worktreeRemoveFailed?: boolean;
+  worktreeBlocker?: string;
   baseUpdateFailed?: boolean;
   localDeleteFailed?: boolean;
   remoteDeleteFailed?: boolean;
@@ -272,6 +276,22 @@ export function reduceCleanup(input: {
     headBranchProtected = true;
     headBranchProtectedReason = report.worktreeCleanupReason;
     manual(`unlock or remove worktree manually: ${input.headWorktreeReal}`);
+  } else if (
+    input.worktreeBlocker &&
+    !(
+      input.headWorktreeDirty &&
+      ["head-worktree-binding-mismatch", "local-tip-mismatch"].includes(
+        input.worktreeBlocker,
+      )
+    )
+  ) {
+    report.worktreeCleanup = "retained";
+    report.worktreeCleanupReason = input.worktreeBlocker;
+    headBranchProtected = true;
+    headBranchProtectedReason = input.worktreeBlocker;
+    manual(
+      `preserve nested work or resolve Git directory ownership before retry: ${input.headWorktreeReal}`,
+    );
   } else if (input.headWorktreeDirty) {
     report.worktreeCleanup = "retained";
     report.worktreeCleanupReason = "dirty-or-untracked-worktree";
@@ -496,6 +516,19 @@ async function cleanup(
       : null;
   const primaryWorktreeDirty =
     (await worktreeStatus(primaryWorktreeReal)).length > 0;
+  const registeredHead = (await collectWorktrees(primaryWorktreeReal)).find(
+    (entry) => entry.realPath === headWorktreeReal,
+  );
+  const worktreeBlocker =
+    headWorktreeReal && headWorktreeReal !== primaryWorktreeReal
+      ? registeredHead?.branch !== env.prHeadBranch
+        ? "head-worktree-binding-mismatch"
+        : (await revParse(headWorktreeReal, "HEAD")) !== env.prHeadSha
+          ? "local-tip-mismatch"
+          : nestedRepositoryBlocker(
+              await inspectNestedRepositories(headWorktreeReal),
+            )
+      : "";
   const headWorktreeDirty =
     headWorktreeReal.length > 0 && headWorktreeReal !== primaryWorktreeReal
       ? (await worktreeStatus(headWorktreeReal)).length > 0
@@ -507,6 +540,9 @@ async function cleanup(
     } else if (headWorktreeLockedReason !== null) {
       headBranchProtected = true;
       headBranchProtectedReason = `locked-worktree${headWorktreeLockedReason ? `:${headWorktreeLockedReason}` : ""}`;
+    } else if (worktreeBlocker) {
+      headBranchProtected = true;
+      headBranchProtectedReason = worktreeBlocker;
     } else if (headWorktreeDirty) {
       headBranchProtected = true;
       headBranchProtectedReason = "dirty-or-untracked-head-worktree";
@@ -518,17 +554,15 @@ async function cleanup(
     headWorktreeReal.length > 0 &&
     headWorktreeReal !== primaryWorktreeReal &&
     headWorktreeLockedReason === null &&
-    !headWorktreeDirty
+    !headWorktreeDirty &&
+    !worktreeBlocker &&
+    (await revParse(headWorktreeReal, "HEAD")) === env.prHeadSha
   ) {
-    const removeResult = await git(
-      ["worktree", "remove", headWorktreeReal],
-      primaryWorktreeReal,
-      [0, 1, 2, 128, 255],
-    );
-    worktreeRemoveFailed = removeResult.exitCode !== 0;
-    if (worktreeRemoveFailed) {
-      stderr = `git worktree remove failed for ${JSON.stringify(headWorktreeReal)} (exit code ${removeResult.exitCode})\n${removeResult.stderr}`;
-      if (!stderr.endsWith("\n")) stderr += "\n";
+    try {
+      await removeLinkedWorktree(primaryWorktreeReal, headWorktreeReal);
+    } catch (err) {
+      worktreeRemoveFailed = true;
+      stderr = `git worktree remove failed for ${JSON.stringify(headWorktreeReal)} ${err instanceof Error ? err.message : String(err)}\n`;
       headBranchProtected = true;
       headBranchProtectedReason = "worktree-cleanup-failed";
     }
@@ -646,6 +680,7 @@ async function cleanup(
     remoteSha,
     remoteTipMatches: remoteSha === env.prHeadSha,
     worktreeRemoveFailed,
+    worktreeBlocker,
     baseUpdateFailed,
     localDeleteFailed,
     remoteDeleteFailed,

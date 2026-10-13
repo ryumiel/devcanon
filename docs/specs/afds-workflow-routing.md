@@ -336,6 +336,29 @@ merge and outstanding accepted work, preserving required evidence, unrelated
 work, the controller ledger and dependent resources. Terminal completion and
 verified timer shutdown include outstanding authorized cleanup obligations.
 
+Post-delivery lifecycle reconciliation consumes the existing cleanup owners'
+[mechanism selection and verification](../../skills/git-workspace-cleanup/references/git-workspace-cleanup-usage.md#mechanism-selection-and-verification)
+contract. Delivery/source disposition, required retention, checkout removal,
+Git registration, local/remote branches, host attachment/ownership, chat archival,
+milestone closure and watchdog shutdown remain distinct observed outcomes in
+existing obligation/result fields. Preserve user-selected order. A host snapshot
+requirement remains binding; a refusal does not authorize Git-only removal or
+private app-state reconciliation. A queued acceptance supplies no terminal or
+continued-execution proof. Reconcile through supported results or bounded
+observations, distinguish unknown from positively pending or confirmed refusal,
+and permit retry only after a terminal result and authorized remedy.
+
+Retain local artifacts only for named active consumers or explicit workflow
+requirements with usable references and release conditions. Stable copies and
+GitHub delivery evidence may satisfy actual requirements; preserve the controller
+ledger and explicit review/recovery custody contracts. Unresolved effects hold
+only dependent actions. An owner chat may archive separately after transferring
+its remaining cleanup obligation to the controller, when owner terminal gates
+and user ordering permit; verify archival without claiming worktree deletion.
+Milestone closure and watchdog stop each require separate observed verification.
+The regression scenario matrix is maintained at the existing
+[reporting scenarios](../../skills/issue-batch-coordination/references/reporting-scenarios.md#post-delivery-cleanup-outcomes).
+
 Priming retains every mandatory phase and ends its effects at the reviewed
 current PR/head report. The controller consumes that result under retained
 scope, routing validates the next instruction, and `pr-merge` owns polling,

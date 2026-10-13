@@ -182,9 +182,15 @@ invalidates the preflight result.
 
 ## Step 3b: Post-Merge Cleanup
 
-After every verified remote merge, run the
+After every verified remote merge, select scoped cleanup under retained
+cleanup authority and the shared
+[mechanism selection and verification](../git-workspace-cleanup/references/git-workspace-cleanup-usage.md#mechanism-selection-and-verification)
+contract. Preserve required artifacts and accepted active consumers first.
+For an ordinary Git checkout, run the
 [post-merge cleanup helper](references/post-merge-cleanup-usage.md) with its
-documented inputs.
+documented inputs. For a host-managed checkout, use the supported host lifecycle
+path; do not run the Git removal helper as an archive refusal workaround.
+Report an unsupported path or unknown host outcome separately from merge success.
 
 ```bash
 bash "$PR_MERGE_DIR/scripts/post-merge-cleanup.sh" --help
@@ -202,7 +208,7 @@ attempted":
 
 - Remote merge: merged, not merged, or unknown, with the PR URL when known.
 - Preflight: mode and reason, or helper failure.
-- Worktree cleanup: removed, retained, skipped, failed, or not attempted.
+- Worktree cleanup: removed, retained, skipped, failed, or not attempted; a host operation may instead be pending, unsupported, or unknown, with its exact identity and evidence.
 - Base checkout/pull: updated, skipped, failed, or not attempted.
 - Local branch cleanup: deleted, retained, skipped, failed, or not attempted.
 - Remote branch cleanup: deleted, retained, skipped, failed, or not attempted.
@@ -524,7 +530,7 @@ Always reproduce the failing CI steps locally (derived from workflow files) befo
 
 ### Skipping post-merge cleanup
 
-After merge, always run the cleanup helper and report its outcome. Leftover
+After merge, always select the supported cleanup path and report its verified outcome or limitation. Leftover
 worktrees accumulate and cause branch name conflicts on future work, but dirty,
 untracked, or locked worktrees must be retained for manual cleanup.
 

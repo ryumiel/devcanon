@@ -202,7 +202,36 @@ including one with a changed digest, must reconcile that pending creation before
 another dispatch and must not erase it or treat the provisional identifier as a
 confirmed owner mapping.
 
+## Post-delivery lifecycle reconciliation
+
+Consume the cleanup owner's
+[mechanism selection and verification](../git-workspace-cleanup/references/git-workspace-cleanup-usage.md#mechanism-selection-and-verification)
+contract. Track delivery/accepted source disposition, retention, filesystem and
+Git registration removal, local/remote branch disposition, host metadata, chat
+archival, milestone closure and watchdog shutdown as distinct observed facts in
+existing item/obligation/result fields. No new ledger or audit history is needed.
+Preserve the user's selected order and each operation's completion conditions.
+An unresolved result holds only dependent actions. Never infer worktree deletion
+from merged PRs, snapshots or archived chats, or a running queue from acceptance.
+
+A completed owner's chat may be archived while cleanup remains with a named
+controller obligation only when no work/follow-up remains assigned to that owner,
+required evidence stays usable, and user ordering permits it. Transfer and record
+that responsibility before archival; do not clear the batch cleanup obligation.
+Verify chat archival through the supported host state before reporting archived.
+Milestone closure and timer stop each need their own authorized operation and
+observed result; neither follows from chat archival or cleanup acceptance.
+
 ## Operational retention
+
+Each retained local artifact needs a named active consumer or explicit workflow
+requirement, a usable location/reference, and a release condition in its existing
+owner record. Reuse GitHub delivery evidence and stable copies when they satisfy
+that requirement; do not preserve duplicates or whole worktrees for unspecified
+future evidence. Release only when the identified consumer/requirement ends.
+Keep the controller ledger and required review/recovery evidence under their
+existing retention contracts; equivalent-copy substitution must satisfy those
+owners' custody and integrity rules.
 
 Review artifact lifecycle policy remains at its
 [review lifecycle owner](../pr-review/references/review-lease-lifecycle-contract.md#target-retention-and-supersession-contract).
@@ -1172,7 +1201,7 @@ Do not archive an owner thread until all of these are true:
 - the owner thread reports terminal owner-thread state;
 - the owner thread has no active gate;
 - no pending user or agent work remains;
-- no unresolved follow-up remains;
+- no unresolved follow-up remains assigned to that owner; any separately accepted controller cleanup obligation stays recorded;
 - the parent batch-routing thread records the terminal state.
 
 If any terminal-state check is unavailable, report waiting with the missing

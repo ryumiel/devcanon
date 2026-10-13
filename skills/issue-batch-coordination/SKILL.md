@@ -211,6 +211,19 @@ external observation and authorized owner reports continue. The watcher uses
 this reference for refreshable reads only, never ledger writes or another
 registry. Retain notification guards under the router's Operational retention.
 
+## Post-delivery closure
+
+Use the router's
+[post-delivery lifecycle reconciliation](../issue-batch-routing/SKILL.md#post-delivery-lifecycle-reconciliation)
+and Operational retention contracts. Reconcile cleanup acceptance separately from
+terminal outcome through its existing effect owner. Preserve user-selected
+ordering, release only artifacts whose named consumers/requirements have ended,
+and verify cleanup, chat archival, milestone closure and watchdog stop separately.
+A host archive restriction is a specific unsupported operation, not evidence of
+a stuck queue. Clear obsolete queue narratives after authoritative replacement;
+unknown effects retain their exact bindings without blind retry. Continue
+independently authorized work where its prerequisites permit.
+
 ## Reporting path and bounded observation
 
 During initial setup, before releasing an owner into unattended work, establish
