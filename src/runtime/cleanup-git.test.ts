@@ -130,6 +130,32 @@ describe("nested Git cleanup custody and removal", () => {
     ).toBe("preserve\n");
   });
 
+  it("retains ignored submodule artifacts even when ordinary dirty removal is authorized", async () => {
+    const { primary, linked } = await fixture();
+    const module = path.join(linked, "module");
+    const admin = (
+      await git(["rev-parse", "--absolute-git-dir"], module)
+    ).stdout.trim();
+    await writeFile(path.join(admin, "info", "exclude"), "artifact.cache\n");
+    await writeFile(
+      path.join(module, "artifact.cache"),
+      "required local artifact\n",
+    );
+    expect(
+      (await git(["status", "--porcelain", "--untracked-files=all"], module))
+        .stdout,
+    ).toBe("");
+    for (const allowDirty of [false, true]) {
+      await expect(
+        removeLinkedWorktree(primary, linked, allowDirty),
+      ).rejects.toThrow("dirty-or-untracked-submodule:");
+    }
+    expect(await readFile(path.join(module, "artifact.cache"), "utf8")).toBe(
+      "required local artifact\n",
+    );
+    expect(await canonicalPath(linked)).not.toBeNull();
+  });
+
   it("protects clean submodule-local commits including work reachable only through reflogs", async () => {
     const { primary, linked } = await fixture();
     const module = path.join(linked, "module");
@@ -269,6 +295,15 @@ describe("nested Git cleanup custody and removal", () => {
       );
       expect(await canonicalPath(unrelated)).not.toBeNull();
       process.env.HEAD_WORKTREE = linked;
+      const artifact = path.join(linked, "module", "local-artifact.txt");
+      await writeFile(artifact, "preserve me\n");
+      const dirtyNested = await runPrMergeWorktreeCommand(["cleanup"]);
+      expect(dirtyNested.stdout).toContain(
+        `WORKTREE_CLEANUP_REASON=dirty-or-untracked-submodule:${path.join((await canonicalPath(linked)) ?? linked, "module")}`,
+      );
+      expect(dirtyNested.stdout).toContain("LOCAL_BRANCH_CLEANUP=retained");
+      expect(await readFile(artifact, "utf8")).toBe("preserve me\n");
+      await rm(artifact);
       const result = await runPrMergeWorktreeCommand(["cleanup"]);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("WORKTREE_CLEANUP=removed");

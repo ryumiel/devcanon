@@ -90,7 +90,7 @@ Dirty primary worktrees, locked linked worktrees, and default-branch local-only
 commits are never forced. Ask the user to commit, stash, unlock, or otherwise
 resolve those manually before running cleanup.
 
-Ignored files alone are not blockers. Git can remove linked worktrees that
+Ignored files in ordinary superproject checkouts alone are not blockers. Git can remove linked worktrees that
 contain only ignored files without `--force`, and ignored files in the primary
 worktree do not represent source changes that cleanup must stop on.
 
@@ -109,7 +109,7 @@ Clean initialized submodules are inspected recursively. The helper uses Git's
 single `--force` only to remove a verified clean checkout with private submodule
 administration and no nested local-only work; this is not a broad dirty-work
 override. It never deinitializes submodules or changes shared registration.
-Dirty submodules, local-only nested work, shared/external administration and
+Dirty submodules (including ignored artifacts), local-only nested work, shared/external administration and
 embedded repositories require preservation or an owner-supported remedy first.
 
 ## Output Contract

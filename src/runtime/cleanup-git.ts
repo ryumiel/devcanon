@@ -386,6 +386,7 @@ export async function inspectNestedRepositories(
                   "status",
                   "--porcelain=v1",
                   "--untracked-files=all",
+                  "--ignored",
                   "--ignore-submodules=none",
                 ],
                 child,

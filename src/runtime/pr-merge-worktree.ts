@@ -276,13 +276,15 @@ export function reduceCleanup(input: {
     headBranchProtected = true;
     headBranchProtectedReason = report.worktreeCleanupReason;
     manual(`unlock or remove worktree manually: ${input.headWorktreeReal}`);
-  } else if (input.headWorktreeDirty) {
-    report.worktreeCleanup = "retained";
-    report.worktreeCleanupReason = "dirty-or-untracked-worktree";
-    headBranchProtected = true;
-    headBranchProtectedReason = "dirty-or-untracked-head-worktree";
-    manual(`inspect dirty worktree manually: ${input.headWorktreeReal}`);
-  } else if (input.worktreeBlocker) {
+  } else if (
+    input.worktreeBlocker &&
+    !(
+      input.headWorktreeDirty &&
+      ["head-worktree-binding-mismatch", "local-tip-mismatch"].includes(
+        input.worktreeBlocker,
+      )
+    )
+  ) {
     report.worktreeCleanup = "retained";
     report.worktreeCleanupReason = input.worktreeBlocker;
     headBranchProtected = true;
@@ -290,6 +292,12 @@ export function reduceCleanup(input: {
     manual(
       `preserve nested work or resolve Git directory ownership before retry: ${input.headWorktreeReal}`,
     );
+  } else if (input.headWorktreeDirty) {
+    report.worktreeCleanup = "retained";
+    report.worktreeCleanupReason = "dirty-or-untracked-worktree";
+    headBranchProtected = true;
+    headBranchProtectedReason = "dirty-or-untracked-head-worktree";
+    manual(`inspect dirty worktree manually: ${input.headWorktreeReal}`);
   } else if (input.worktreeRemoveFailed) {
     report.worktreeCleanup = "failed";
     report.worktreeCleanupReason = "git-worktree-remove-failed";

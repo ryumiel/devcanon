@@ -97,12 +97,14 @@ registered submodules from embedded repositories; nested submodules are inspecte
 recursively. Diagnostics resolve actual Git and common directories. A clean
 initialized submodule is eligible only when administration is private beneath
 this checkout's Git `modules` directory, the submodule has no other linked
-worktree registrations, its working tree is clean, and all refs,
+worktree registrations, its working tree has no modified, untracked or ignored files, and all refs,
 HEAD and reflog commits are covered by existing remote-tracking refs. This uses
 local remote-tracking evidence and does not verify remote availability anew.
 An unresolved inspection fails closed.
 
-`dirty-or-untracked-submodule` requires preserving or disposing that named work;
+`dirty-or-untracked-submodule` requires preserving or disposing that named work,
+including ignored submodule artifacts. Unlike ordinary ignored superproject
+files, these artifacts are protected before the helper enables Git's submodule-removal force;
 `submodule-local-only-work` requires preserving/publishing its commits, refs or
 reflog work. Neither existing broad force flag discards nested work.
 `shared-submodule-worktrees` requires preserving/releasing the submodule's other

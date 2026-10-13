@@ -1154,6 +1154,10 @@ describe("pr-review Phase 5 audit summary renderer", () => {
       originalCwd,
       "skills/pr-review/scripts/prior-thread-artifacts.sh",
     );
+    const refuseGit = await writeExecutable(
+      path.join(workspace.tempRoot, "refuse-git.sh"),
+      'git() { printf "%s\\n" "Git must not run for missing provider input" >&2; return 1; }\n',
+    );
 
     await expect(
       commandHarness.run("bash", [adapter, "validate-scope-decision"], {
@@ -1164,6 +1168,8 @@ describe("pr-review Phase 5 audit summary renderer", () => {
           BASE_REF: headSha,
           SCOPE_DECISION_FILE: `.ephemeral/main-${headSha}-scope-decision.json`,
           PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT: helper,
+          PROVIDER_SCOPE_EVIDENCE_FILE: "",
+          BASH_ENV: refuseGit,
         },
       }),
     ).rejects.toMatchObject({
