@@ -3,8 +3,11 @@
 Use these focused evaluator inputs to exercise cohesion, dependency judgment,
 simplification, and explicit batch requests. All artifacts, constraints, and
 identifiers below are hypothetical input evidence, not claims about this repo.
-Supply only the relevant scenario and its referenced baseline to the evaluator;
-keep expected outcomes separate. Request drafts only, with no tracker mutation.
+Supply only the relevant scenario and all recursively referenced baselines to
+the evaluator, including baselines linked from another file. Apply each scenario's
+explicit overrides after expanding its baselines; do not restore an expectation
+that an override removed. Keep expected outcomes separate. Request drafts only,
+with no tracker mutation.
 
 ## Bounded Drill Specification
 
@@ -44,7 +47,8 @@ draft plan with three issue titles: select card, define evaluation, define
 lifecycle. It proposes card → evaluation → lifecycle as blocking relationships.
 Its only rationale is that content is discussed before evaluation and evaluation
 before lifecycle. The card is already selected and accessible as in the baseline.
-Ask to assess the boundaries and proposed dependencies and return revised drafts.
+Ask to revise this explicit batch: assess the boundaries and dependencies,
+return revised drafts, and account for all three original entries.
 
 ## Reduced Scope
 
@@ -53,8 +57,9 @@ issues: content catalog, grading engine, drill lifecycle, and capability registr
 The user now confirms only the one-card drill and its bounded deterministic
 checks using existing voice lifecycle ownership. Catalogs, generic grading,
 registries, persistence, and synchronization are excluded. Ask to simplify the
-whole draft set while preserving the first drill's required design decisions
-and evidence, with no live issue closures or relationship changes.
+whole explicit batch while preserving the first drill's required design decisions
+and evidence, accounting for all four original entries, with no live issue
+closures or relationship changes.
 
 ## Reusable Prerequisite
 
@@ -70,7 +75,8 @@ contract decision remains. Current consumer fixtures live in
 
 The user requests a batch of implementation drafts. The parser is independently
 testable and publishable as a shared module before either consumer integration;
-each integration needs that landed module and separately demonstrates its
+the parser has not landed yet; each integration needs that landed module to
+start and separately demonstrates its
 spec's result. Verification requires parser valid/malformed/duplicate/failure
 tests and each consumer's integration test against those same fixtures.
 Describe the boundaries and required predecessor outputs. There is no reason

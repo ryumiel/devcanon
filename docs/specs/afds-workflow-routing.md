@@ -185,12 +185,23 @@ evidence, readiness, structural-shaping, or provider-mutation boundaries.
 
 Single-issue drafting remains the default. Explicit batch requests receive a
 set-level cohesion check, concise boundary/dependency rationale, and individually
-bounded draft bodies under the same origin and readiness rules. Report blocked
-items explicitly without treating them as executable or silently omitting them;
-unblocked independent drafts may still be returned. Missing prerequisites keep
-dependent implementation work blocked. Use the existing draft/blocked outcomes
-per item; the final mode is draft only when every requested item is ready,
-otherwise blocked. This is a completeness signal, not approval. No mandatory
+bounded draft bodies under the same origin and readiness rules. Distinguish
+readiness to draft from readiness to start: a known prerequisite that has not
+landed permits a dependent draft when its contract, acceptance criteria,
+verification, and evidence suffice. Record the prerequisite as a blocker to
+starting that work. Missing readiness evidence or unresolved execution-critical
+decisions, including unknown required predecessor output contracts, still produce
+blocked explanations; independent ready drafts may be returned.
+
+Account for every original entry by mapping absorbed entries to a cohesive
+replacement draft or explaining exclusions under confirmed scope reduction.
+Consolidated or excluded entries require neither duplicate drafts nor false
+readiness blockers. Preserve required behavior and evidence in replacements.
+Use draft/blocked outcomes for retained or replacement issues; the final mode is
+draft only when that reassessed set is ready to draft and every original entry is
+accounted for, otherwise blocked with the remaining gap. An unlanded known
+prerequisite alone does not make the batch blocked. This is drafting completeness,
+not permission to start dependent work, implement, or publish. No mandatory
 batch manifest, separate planning artifact, or new approval ceremony is added.
 Provider-specific relationship fields and mutations remain with their existing
 owners.

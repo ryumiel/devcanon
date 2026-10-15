@@ -135,10 +135,18 @@ evidence while removing obsolete divisions and edges.
 
 For an explicit batch request, briefly explain the selected boundaries and any
 blocking dependencies outside the issue bodies, then return individually bounded
-drafts. Apply readiness checks to each item and report blocked items explicitly;
-do not present them as executable drafts or silently drop requested work.
-Unblocked independent items may still be drafted. A missing prerequisite blocks
-its dependent implementation work under the existing readiness rules. No batch
+drafts. Distinguish readiness to describe work from readiness to start it: a
+known prerequisite that has not landed does not prevent a dependent issue draft
+when its contract, acceptance criteria, verification, and evidence are sufficient.
+Record that prerequisite in Blockers Or Follow-Up; implementation waits for it.
+Use `MODE=blocked` for missing readiness evidence or unresolved execution-critical
+decisions, including a predecessor whose required output contract is not yet
+known. Independent ready items may still be drafted.
+
+Account for every original batch entry in the rationale: map entries absorbed
+into a cohesive replacement to that draft, and explain entries excluded by the
+confirmed scope reduction. These entries need no duplicate draft or readiness
+blocker. Preserve required behavior and evidence in the replacement. No batch
 manifest, separate planning artifact, or additional approval ceremony is required.
 For a single issue, keep this assessment within ordinary drafting judgment;
 separate rationale is needed only when recommending a split or dependency.
@@ -295,12 +303,15 @@ Final mode: MODE=blocked
 ```
 
 For an explicit batch request, present the brief boundary/dependency rationale,
-then separate each item by its proposed title and give it the applicable
-`MODE=draft` body or `MODE=blocked` explanation. End the response with
-`Final mode: MODE=draft` only when every requested item is ready to draft;
-otherwise use `Final mode: MODE=blocked`. This final mode reports batch
-completeness; it does not invalidate independently ready drafts or authorize
-implementation or publication.
+then separate each retained or replacement issue by its proposed title and give
+it the applicable `MODE=draft` body or `MODE=blocked` explanation. Map original
+entries to their replacements or scope exclusions in the rationale rather than
+assigning them duplicate draft/blocked outcomes. End with `Final mode: MODE=draft`
+when the reassessed set is ready to draft and every original entry is accounted
+for; otherwise use `Final mode: MODE=blocked` and name the remaining gap. An
+unlanded known prerequisite alone does not force blocked mode. The final mode
+reports drafting completeness; it does not authorize starting dependent work,
+implementation, or publication, or invalidate independently ready drafts.
 
 ## Common Mistakes
 
