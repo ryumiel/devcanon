@@ -166,6 +166,35 @@ Proposal scope must include required documentation creation or updates with the
 affected owner or destination. A draft does not approve implementation or tracker
 publication; those actions remain separately authorized.
 
+Before drafting, select the smallest coherent, reviewable completion outcome.
+Related decisions that jointly establish that outcome remain together unless
+separate delivery is justified. Each recommended split must identify an
+independently verifiable completion boundary and a concrete benefit or constraint,
+such as bounded review size, a reusable prerequisite, distinct approval
+requirements, or an external constraint. Topic or file boundaries alone are
+insufficient; sharing one file does not require consolidation. Local
+issue-to-PR conventions inform review and integration costs without imposing
+a universal issue-count limit.
+
+Each proposed blocking dependency must identify the required predecessor output
+and why it needs separate completion. Reasoning or discussion order alone does
+not justify a hard dependency. Scope reduction or a request for simplification
+requires reassessing affected boundaries and dependencies while preserving
+necessary requirements and evidence. These checks do not weaken origin,
+evidence, readiness, structural-shaping, or provider-mutation boundaries.
+
+Single-issue drafting remains the default. Explicit batch requests receive a
+set-level cohesion check, concise boundary/dependency rationale, and individually
+bounded draft bodies under the same origin and readiness rules. Report blocked
+items explicitly without treating them as executable or silently omitting them;
+unblocked independent drafts may still be returned. Missing prerequisites keep
+dependent implementation work blocked. Use the existing draft/blocked outcomes
+per item; the final mode is draft only when every requested item is ready,
+otherwise blocked. This is a completeness signal, not approval. No mandatory
+batch manifest, separate planning artifact, or new approval ceremony is added.
+Provider-specific relationship fields and mutations remain with their existing
+owners.
+
 ### ROUTE-006: Semantic Direct-Child Routing
 
 Every current direct child surface must resolve to one of the six semantic
@@ -1883,6 +1912,12 @@ D14–D16 and final changed-head independent review remain required.
   structural proposal draft records its named shaping prerequisite, without an
   execution-ready implementation claim; broad or structural shaping and
   implementation remain separate under the unchanged policy owners.
+- Cohesion cases keep coupled decisions in one bounded deliverable unless a
+  split has an independent completion boundary and concrete delivery rationale.
+  Genuine prerequisites survive; discussion order alone creates no hard edge.
+  Simplification rechecks the affected set while preserving requirements and
+  evidence. Explicit batches distinguish ready and blocked items, preserve
+  shaping/readiness gates, and require no new planning artifacts or approval.
 - Missing, private, inaccessible, or incomplete evidence is represented as a
   blocker under EVID-003.
 - Agent-local evidence reuse follows EVID-004: session-local artifacts stay
