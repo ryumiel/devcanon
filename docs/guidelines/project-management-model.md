@@ -131,6 +131,15 @@ after product intent is clear enough for acceptance-ready requirements. It
 should identify the owning artifact, the uncertainty to resolve, and any
 implementation issues expected after the owning durable AFDS artifact lands.
 
+Related questions may jointly define one reviewable specification outcome and
+belong in that issue's acceptance criteria. Separate issues need independently
+verifiable completion boundaries and a concrete reason for separate delivery;
+reasoning order alone does not create a hard dependency. Consider local
+issue-to-PR conventions and reconsider the affected set when scope shrinks.
+Apply the cohesion and batch rules in
+[SLICE-001](../specs/afds-workflow-routing.md#slice-001-issue-draft-origins)
+without weakening shaping-before-implementation requirements.
+
 ### 5.3 Implementation issue
 
 An implementation issue is already sliced enough to execute. It may reference an

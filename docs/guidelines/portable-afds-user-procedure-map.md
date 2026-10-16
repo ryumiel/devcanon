@@ -151,6 +151,13 @@ authorize implementation or tracker publication. The
 [routing spec](../specs/afds-workflow-routing.md#slice-001-issue-draft-origins)
 and [EVID-005](../specs/afds-workflow-routing.md#evid-005-proposal-origin-evidence)
 own the exact route and evidence requirements.
+Before drafting, choose a coherent completion outcome; justify separate delivery
+and hard dependencies rather than mapping discussion topics directly to issues.
+Account for local issue-to-PR conventions, and reassess affected boundaries and
+dependencies after simplification. Explicit batch requests receive a cohesion
+check across the set and individually bounded ready drafts or blocker explanations;
+single-issue drafting stays lightweight. These checks preserve readiness and
+shaping requirements under SLICE-001.
 
 ### Execute Ready Issue
 

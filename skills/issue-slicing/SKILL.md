@@ -93,15 +93,63 @@ evidence. They do not override the owning durable artifact.
 5. For proposal work, put required documentation creation or updates, including
    their validated owners or destinations, in Scope. Treat those future docs as
    pending work, never as accepted evidence.
-6. Draft one provider-neutral issue body. A broad proposal draft records the
+6. Select a coherent completion outcome using [Cohesion and Dependencies](#cohesion-and-dependencies)
+   before drafting. For an explicit batch request, assess the set before its
+   individual bodies; apply origin and readiness checks to each proposed issue.
+7. Draft one provider-neutral issue body by default, or individually bounded
+   bodies for an explicit batch request. A broad proposal draft records the
    proposal and its pending decomposition prerequisite; a structural proposal
    draft records its pending shaping prerequisite. Neither claims execution-ready
    implementation work. Prefer Markdown that can be pasted into either GitHub
    Issues or Linear without provider-specific metadata.
-7. Stop after presenting the draft. A draft does not approve implementation or
+8. Stop after presenting the draft or requested batch. A draft does not approve implementation or
    publication. Do not create live issues, assign users, set
    status, mutate labels, link blockers in the tracker, or post comments unless
    a separate approved provider-specific workflow owns that behavior.
+
+## Cohesion and Dependencies
+
+Identify the smallest coherent, reviewable outcome before splitting work.
+Keep related decisions together when they jointly establish that outcome; for
+example, content, evaluation, and lifecycle may be acceptance criteria for one
+bounded specification issue. This does not combine unresolved structural shaping
+with implementation or waive readiness requirements.
+
+For each recommended split, identify an independently verifiable completion
+boundary and a concrete reason for separate delivery: bounded review size, a
+reusable prerequisite, distinct approval requirements, or an external constraint.
+Different topics or files alone do not justify a split, and sharing one file
+does not require consolidation. Account for local issue-to-PR conventions and
+the resulting review and integration overhead without imposing an issue-count
+limit or merging independently useful work just to reduce bookkeeping.
+
+For each proposed blocking dependency, name the predecessor output the successor
+requires and why it needs separate completion. Reasoning or discussion order
+alone does not establish a hard blocker. Describe justified prerequisites with
+provider-neutral references; live relationship mutation remains outside this
+skill.
+
+When scope shrinks or the user requests simplification, reassess the affected
+issue boundaries and dependencies together. Preserve necessary requirements and
+evidence while removing obsolete divisions and edges.
+
+For an explicit batch request, briefly explain the selected boundaries and any
+blocking dependencies outside the issue bodies, then return individually bounded
+drafts. Distinguish readiness to describe work from readiness to start it: a
+known prerequisite that has not landed does not prevent a dependent issue draft
+when its contract, acceptance criteria, verification, and evidence are sufficient.
+Record that prerequisite in Blockers Or Follow-Up; implementation waits for it.
+Use `MODE=blocked` for missing readiness evidence or unresolved execution-critical
+decisions, including a predecessor whose required output contract is not yet
+known. Independent ready items may still be drafted.
+
+Account for every original batch entry in the rationale: map entries absorbed
+into a cohesive replacement to that draft, and explain entries excluded by the
+confirmed scope reduction. These entries need no duplicate draft or readiness
+blocker. Preserve required behavior and evidence in the replacement. No batch
+manifest, separate planning artifact, or additional approval ceremony is required.
+For a single issue, keep this assessment within ordinary drafting judgment;
+separate rationale is needed only when recommending a split or dependency.
 
 ## Evidence Pointers
 
@@ -160,8 +208,9 @@ Name the blocker concretely, for example:
 
 ## Draft Shape
 
-When the origin is ready to draft, return `MODE=draft` and include exactly one
-draft issue body in this shape:
+When the origin is ready to draft, return `MODE=draft` and use this shape for
+each issue body. A single issue remains the default; an explicit batch request
+uses the same shape for each ready item:
 
 ```markdown
 Title: <type(scope): short draft summary>
@@ -231,7 +280,7 @@ priority fields, or provider-specific relationship metadata.
 
 ## Output Format
 
-Return one of these two outcomes.
+For a single issue, return one of these two outcomes.
 
 For a draft:
 
@@ -253,8 +302,23 @@ MODE=blocked
 Final mode: MODE=blocked
 ```
 
+For an explicit batch request, present the brief boundary/dependency rationale,
+then separate each retained or replacement issue by its proposed title and give
+it the applicable `MODE=draft` body or `MODE=blocked` explanation. Map original
+entries to their replacements or scope exclusions in the rationale rather than
+assigning them duplicate draft/blocked outcomes. End with `Final mode: MODE=draft`
+when the reassessed set is ready to draft and every original entry is accounted
+for; otherwise use `Final mode: MODE=blocked` and name the remaining gap. An
+unlanded known prerequisite alone does not force blocked mode. The final mode
+reports drafting completeness; it does not authorize starting dependent work,
+implementation, or publication, or invalidate independently ready drafts.
+
 ## Common Mistakes
 
+- Splitting one completion outcome by topic headings or file boundaries alone.
+- Turning reasoning order into separately landed prerequisites without evidence.
+- Removing one issue after scope reduction without reassessing the remaining set.
+- Treating consolidation as permission to bypass shaping or readiness gates.
 - Creating or posting the issue. This skill drafts only.
 - Treating a draft as implementation approval or publication permission.
 - Treating a readiness review as implementation approval. Readiness only means
@@ -278,6 +342,8 @@ Final mode: MODE=blocked
 
 ## Verification Scenarios
 
-Use [proposal scenarios](references/proposal-scenarios.md) for focused
-proposal-origin retests. They are evaluator inputs, not a replacement for the
-routing policy or an output protocol.
+Use [proposal scenarios](references/proposal-scenarios.md) for origin/readiness
+retests and [slicing scenarios](references/slicing-scenarios.md) for cohesion,
+dependencies, simplification, and batch output. They are evaluator inputs, not a
+replacement for the routing policy or an output protocol. Keep expected outcomes
+separate from the inputs supplied to evaluators.
