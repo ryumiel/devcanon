@@ -498,7 +498,7 @@ describe("git-workspace-cleanup skill helper", TEST_OPTIONS, () => {
     );
 
     expect(result.code).toBe(0);
-    expect(output.STATUS).toBe("ok");
+    expect(output.STATUS).toBe("blocked");
     expect(output.PRUNABLE_WORKTREES).toBe("1");
     expectNormalizedOutputToContain(
       result.stdout,
@@ -506,7 +506,7 @@ describe("git-workspace-cleanup skill helper", TEST_OPTIONS, () => {
     );
   });
 
-  it("prunes stale worktree metadata before deleting local branches", async () => {
+  it("retains unavailable registrations and their branches for explicit reconciliation", async () => {
     const rootDir = await createTempDir();
     tempDirs.push(rootDir);
     const { primaryDir } = await createOriginRepo(rootDir);
@@ -528,11 +528,11 @@ describe("git-workspace-cleanup skill helper", TEST_OPTIONS, () => {
       primaryDir,
     );
 
-    expect(result.code).toBe(0);
-    expect(output.STATUS).toBe("ok");
+    expect(result.code).toBe(1);
+    expect(output.STATUS).toBe("blocked");
     expect(output.PRUNABLE_WORKTREES).toBe("1");
-    expect(await listBranches(primaryDir)).toEqual(["main"]);
-    expect(worktrees).not.toContain("feature/stale");
+    expect(await listBranches(primaryDir)).toEqual(["feature/stale", "main"]);
+    expect(worktrees).toContain("feature/stale");
   });
 
   it("removes dirty linked worktrees only with the dirty-worktree force flag", async () => {
@@ -566,7 +566,7 @@ describe("git-workspace-cleanup skill helper", TEST_OPTIONS, () => {
     expect(await pathExists(linkedDir)).toBe(false);
   });
 
-  it("removes linked worktrees with only ignored files without dirty-worktree force", async () => {
+  it("retains arbitrary ignored files despite a clean Git status", async () => {
     const rootDir = await createTempDir();
     tempDirs.push(rootDir);
     const { primaryDir } = await createOriginRepo(rootDir);
@@ -589,7 +589,7 @@ describe("git-workspace-cleanup skill helper", TEST_OPTIONS, () => {
     const dryRunOutput = parseKeyValueOutput(dryRun.stdout);
 
     expect(dryRun.code).toBe(0);
-    expect(dryRunOutput.STATUS).toBe("ok");
+    expect(dryRunOutput.STATUS).toBe("blocked");
     expect(dryRunOutput.DIRTY_WORKTREES).toBe("0");
     expect(await pathExists(linkedDir)).toBe(true);
 
@@ -598,9 +598,10 @@ describe("git-workspace-cleanup skill helper", TEST_OPTIONS, () => {
       rootDir,
     );
 
-    expect(result.code).toBe(0);
-    expect(parseKeyValueOutput(result.stdout).STATUS).toBe("ok");
-    expect(await pathExists(linkedDir)).toBe(false);
+    expect(result.code).toBe(1);
+    expect(parseKeyValueOutput(result.stdout).STATUS).toBe("blocked");
+    expect(await pathExists(linkedDir)).toBe(true);
+    expect(result.stdout).toContain("ignored-content:local.cache");
   });
 
   it("does not block cleanup when the primary worktree has only ignored files", async () => {
@@ -808,8 +809,8 @@ describe("git-workspace-cleanup skill helper", TEST_OPTIONS, () => {
     const output = parseKeyValueOutput(result.stdout);
 
     expect(result.code).toBe(1);
-    expect(output.STATUS).toBe("ok");
-    expect(result.stderr).toContain("became dirty");
+    expect(output.STATUS).toBe("blocked");
+    expect(result.stdout).toMatch(/dirty-worktree|became dirty/u);
     expect(await pathExists(linkedDir)).toBe(true);
     expect(await pathExists(path.join(linkedDir, "drift.txt"))).toBe(true);
   });

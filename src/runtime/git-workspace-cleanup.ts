@@ -1,10 +1,14 @@
+import { realpath } from "node:fs/promises";
+import path from "node:path";
 import {
   CleanupUsageError,
-  type NestedRepositoryFact,
   type WorktreeRecord,
+  canonicalPath,
   collectWorktrees,
+  commitIsMerged,
   countStatusLines,
   git,
+  ignoredContentBlocker,
   inspectNestedRepositories,
   isBareRepository,
   isInsideWorktree,
@@ -16,55 +20,48 @@ import {
   revParse,
   showRefExists,
   showTopLevel,
+  validateDisposableDirectories,
   worktreeStatus,
 } from "./cleanup-git.js";
 import type { RuntimeCommandOutcome } from "./command.js";
-import { runTargetedCleanup } from "./targeted-workspace-cleanup.js";
+import {
+  type CleanupTarget,
+  runTargetedCleanup,
+} from "./targeted-workspace-cleanup.js";
 
 type CleanupMode = "dry-run" | "execute";
-
 const usage =
-  "usage: git-workspace-cleanup.sh [--repo <path>] [--dry-run|--execute] [--force-branches] [--force-dirty-worktrees] [--worktree <path> --branch <name> --expected-head <sha>]";
-
-class HelpRequested extends Error {
-  constructor() {
-    super(usage);
-  }
-}
-
+  "usage: git-workspace-cleanup.sh [--repo <path>] [--dry-run|--execute] [--retain-worktree <path>] [--retain-branch <name>] [--disposable-dir <relative-directory>] [--force-branches] [--force-dirty-worktrees] [--worktree <path> --branch <name> --expected-head <sha> | --detached --worktree <path> --expected-head <sha> | --branch-only --branch <name> --expected-head <sha>]";
+class HelpRequested extends Error {}
 interface Args {
   mode: CleanupMode;
   forceBranches: boolean;
   forceDirtyWorktrees: boolean;
   targetRepo: string;
-  target?: { worktree: string; branch: string; expectedHead: string };
+  retainedWorktrees: string[];
+  retainedBranches: string[];
+  disposableDirectories: string[];
+  target?: CleanupTarget;
 }
-
-interface DirtyWorktree {
-  path: string;
-  files: number;
-  primary: boolean;
+interface Outcome {
+  status:
+    | "eligible"
+    | "retained"
+    | "failed"
+    | "removed"
+    | "already-absent"
+    | "updated";
+  reason: string;
 }
-
-interface BranchFact {
+interface WorktreeFact extends Outcome {
+  record: WorktreeRecord;
+  head: string;
+  dirtyFiles: number;
+}
+interface BranchFact extends Outcome {
   branch: string;
-  ref: string;
+  head: string;
   classification: "ancestor" | "squash" | "unique";
-  commits: number;
-}
-
-interface WorkspaceFacts {
-  mode: CleanupMode;
-  status: "ok" | "blocked";
-  defaultBranch: string;
-  primaryWorktree: string;
-  worktrees: WorktreeRecord[];
-  prunableWorktrees: WorktreeRecord[];
-  dirtyWorktrees: DirtyWorktree[];
-  lockedWorktrees: WorktreeRecord[];
-  branches: BranchFact[];
-  defaultBranchAheadCommits: number;
-  nestedRepositories: NestedRepositoryFact[];
 }
 
 export async function runGitWorkspaceCleanupCommand(
@@ -72,41 +69,487 @@ export async function runGitWorkspaceCleanupCommand(
 ): Promise<RuntimeCommandOutcome> {
   try {
     const parsed = parseArgs(args);
-    if (parsed.target) {
+    if (parsed.target)
       return await runTargetedCleanup(
         parsed.targetRepo,
         parsed.mode,
         parsed.target,
       );
-    }
-    const facts = await collectFacts(parsed);
-    const stdout = formatReport(facts);
-    if (parsed.mode === "dry-run") {
-      return { exitCode: 0, stdout, stderr: "" };
-    }
-    if (facts.status !== "ok") {
-      return { exitCode: 1, stdout, stderr: "" };
-    }
-    try {
-      await executeCleanup(parsed, facts);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      return { exitCode: 1, stdout, stderr: `ERROR=${message}\n` };
-    }
-    return { exitCode: 0, stdout, stderr: "" };
+    return await workspaceCleanup(parsed);
   } catch (err) {
-    if (err instanceof HelpRequested) {
+    if (err instanceof HelpRequested)
       return { exitCode: 0, stdout: "", stderr: `${usage}\n` };
-    }
-    const message = err instanceof Error ? err.message : String(err);
     return {
       exitCode: 2,
       stdout: "",
-      stderr: `ERROR=${message}\n`,
+      stderr: `ERROR=${err instanceof Error ? err.message : String(err)}\n`,
     };
   }
 }
 
+function parseArgs(args: readonly string[]): Args {
+  const parsed: Args = {
+    mode: "dry-run",
+    forceBranches: false,
+    forceDirtyWorktrees: false,
+    targetRepo: "",
+    retainedWorktrees: [],
+    retainedBranches: [],
+    disposableDirectories: [],
+  };
+  const target = new Map<string, string>();
+  let kind: "paired" | "detached" | "branch-only" = "paired";
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    const value = () => {
+      const next = args[++i];
+      if (!next || next.startsWith("--") || /[\r\n\0]/u.test(next))
+        throw new CleanupUsageError(`${arg} requires one value`);
+      return next;
+    };
+    switch (arg) {
+      case "--dry-run":
+        parsed.mode = "dry-run";
+        break;
+      case "--execute":
+        parsed.mode = "execute";
+        break;
+      case "--force-branches":
+        parsed.forceBranches = true;
+        break;
+      case "--force-dirty-worktrees":
+        parsed.forceDirtyWorktrees = true;
+        break;
+      case "--repo":
+        parsed.targetRepo = value();
+        break;
+      case "--retain-worktree":
+        parsed.retainedWorktrees.push(value());
+        break;
+      case "--retain-branch":
+        parsed.retainedBranches.push(value());
+        break;
+      case "--disposable-dir":
+        parsed.disposableDirectories.push(value());
+        break;
+      case "--detached":
+      case "--branch-only":
+        if (kind !== "paired")
+          throw new CleanupUsageError(
+            "target selectors are mutually exclusive",
+          );
+        kind = arg === "--detached" ? "detached" : "branch-only";
+        break;
+      case "--worktree":
+      case "--branch":
+      case "--expected-head":
+        if (target.has(arg))
+          throw new CleanupUsageError(`${arg} requires one value`);
+        target.set(arg, value());
+        break;
+      case "--help":
+      case "-h":
+        throw new HelpRequested();
+      default:
+        throw new CleanupUsageError(`unknown argument: ${arg}`);
+    }
+  }
+  parsed.disposableDirectories = validateDisposableDirectories(
+    parsed.disposableDirectories,
+  );
+  if (target.size || kind !== "paired") {
+    const valid =
+      target.has("--expected-head") &&
+      (kind === "paired"
+        ? target.size === 3 &&
+          target.has("--worktree") &&
+          target.has("--branch")
+        : kind === "detached"
+          ? target.size === 2 && target.has("--worktree")
+          : target.size === 2 && target.has("--branch"));
+    if (
+      !valid ||
+      !parsed.targetRepo ||
+      parsed.forceBranches ||
+      parsed.forceDirtyWorktrees ||
+      parsed.retainedWorktrees.length ||
+      parsed.retainedBranches.length
+    ) {
+      throw new CleanupUsageError(
+        "targeted cleanup requires --repo and complete explicit target inputs, without force or retention overrides",
+      );
+    }
+    parsed.target = {
+      kind,
+      worktree: target.get("--worktree") ?? "",
+      branch: target.get("--branch") ?? "",
+      expectedHead: target.get("--expected-head") ?? "",
+      disposableDirectories: parsed.disposableDirectories,
+    };
+  }
+  parsed.targetRepo ||= process.cwd();
+  return parsed;
+}
+
+const message = (err: unknown) =>
+  err instanceof Error ? err.message : String(err);
+const oneLine = (value: string) => value.replace(/[\r\n]/gu, " ");
+const incomplete = (outcome: Outcome) =>
+  outcome.status === "retained" || outcome.status === "failed";
+
+async function workspaceCleanup(parsed: Args): Promise<RuntimeCommandOutcome> {
+  if (
+    !(await isInsideWorktree(parsed.targetRepo)) ||
+    (await isBareRepository(parsed.targetRepo))
+  )
+    throw new CleanupUsageError("repository must be a non-bare Git worktree");
+  const root = await showTopLevel(parsed.targetRepo);
+  if (parsed.mode === "dry-run")
+    await git(["fetch", "origin", "--prune"], root);
+  const defaultBranch = await resolveDefaultBranch(root);
+  if (
+    !defaultBranch ||
+    !(await showRefExists(root, `refs/remotes/origin/${defaultBranch}`))
+  )
+    throw new CleanupUsageError("could not resolve origin default branch");
+  const remoteDefault = `refs/remotes/origin/${defaultBranch}`;
+  const records = await collectWorktrees(root, true);
+  if (!records.length) throw new CleanupUsageError("no worktrees found");
+  const primary = records[0].realPath;
+  const retained = new Set(
+    await Promise.all(
+      parsed.retainedWorktrees.map(async (entry) => {
+        try {
+          return await realpath(path.resolve(entry));
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+          return path.resolve(entry);
+        }
+      }),
+    ),
+  );
+  const worktrees: WorktreeFact[] = [];
+  const branches: BranchFact[] = [];
+  const forceBranches = parsed.mode === "execute" && parsed.forceBranches;
+  const forceDirty = parsed.mode === "execute" && parsed.forceDirtyWorktrees;
+
+  async function classifyWorktree(
+    record: WorktreeRecord,
+    expected?: string,
+  ): Promise<WorktreeFact> {
+    const fact: WorktreeFact = {
+      record,
+      head: "",
+      dirtyFiles: 0,
+      status: "retained",
+      reason: "",
+    };
+    try {
+      if (
+        retained.has(record.realPath) ||
+        parsed.retainedBranches.includes(record.branch)
+      )
+        fact.reason = "caller-retained";
+      else if (record.locked) fact.reason = "locked-worktree";
+      else if (record.prunable || !(await canonicalPath(record.realPath)))
+        fact.reason = "unavailable-registration";
+      else {
+        fact.head = await revParse(record.realPath, "HEAD");
+        fact.dirtyFiles = countStatusLines(
+          await worktreeStatus(record.realPath),
+        );
+        if (expected && fact.head !== expected)
+          fact.reason = "worktree-identity-mismatch";
+        else if (fact.dirtyFiles > 0 && !forceDirty)
+          fact.reason = "dirty-worktree";
+        else if (
+          !(await commitIsMerged(primary, fact.head, remoteDefault)) &&
+          (!forceBranches || !record.branch)
+        )
+          fact.reason = "unique-commits";
+        else
+          fact.reason =
+            nestedRepositoryBlocker(
+              await inspectNestedRepositories(record.realPath),
+            ) ||
+            (await ignoredContentBlocker(
+              record.realPath,
+              parsed.disposableDirectories,
+            ));
+      }
+      if (!fact.reason) {
+        fact.status = "eligible";
+        fact.reason = "verified-target";
+      }
+    } catch (err) {
+      fact.status = "failed";
+      fact.reason = message(err);
+    }
+    return fact;
+  }
+  for (const record of records.slice(1))
+    worktrees.push(await classifyWorktree(record));
+  for (const ref of await localBranches(primary)) {
+    const branch = ref.slice("refs/heads/".length);
+    if (branch === defaultBranch) continue;
+    const fact: BranchFact = {
+      branch,
+      head: "",
+      status: "retained",
+      reason: "",
+      classification: "unique",
+    };
+    try {
+      fact.head = await revParse(primary, ref);
+      const ancestor =
+        (
+          await git(
+            ["merge-base", "--is-ancestor", ref, remoteDefault],
+            primary,
+            [0, 1],
+          )
+        ).exitCode === 0;
+      fact.classification = ancestor
+        ? "ancestor"
+        : (await commitIsMerged(primary, fact.head, remoteDefault))
+          ? "squash"
+          : "unique";
+      if (parsed.retainedBranches.includes(branch))
+        fact.reason = "caller-retained";
+      else if (
+        (await git(["symbolic-ref", "--quiet", ref], primary, [0, 1]))
+          .exitCode === 0
+      )
+        fact.reason = "symbolic-branch";
+      else if (
+        worktrees.some(
+          (entry) => entry.record.branch === branch && incomplete(entry),
+        )
+      )
+        fact.reason = "branch-in-retained-worktree";
+      else if (fact.classification === "unique" && !forceBranches)
+        fact.reason = "unique-commits";
+      else {
+        fact.status = "eligible";
+        fact.reason = "verified-tip";
+      }
+    } catch (err) {
+      fact.status = "failed";
+      fact.reason = message(err);
+    }
+    branches.push(fact);
+  }
+  let base: Outcome = { status: "eligible", reason: "verified-base" };
+  let ahead = 0;
+  let primaryDirtyFiles = 0;
+  try {
+    if (await showRefExists(primary, `refs/heads/${defaultBranch}`))
+      ahead = Number(
+        (
+          await git(
+            [
+              "rev-list",
+              "--count",
+              `${remoteDefault}..refs/heads/${defaultBranch}`,
+            ],
+            primary,
+          )
+        ).stdout.trim(),
+      );
+    primaryDirtyFiles = countStatusLines(await worktreeStatus(primary));
+    if (retained.has(primary))
+      base = { status: "retained", reason: "caller-retained" };
+    else if (primaryDirtyFiles)
+      base = { status: "retained", reason: "dirty-primary-worktree" };
+    else if (ahead)
+      base = {
+        status: "retained",
+        reason: "default-branch-local-only-commits",
+      };
+    else if (
+      worktrees.some(
+        (fact) => fact.record.branch === defaultBranch && incomplete(fact),
+      )
+    )
+      base = {
+        status: "retained",
+        reason: "default-branch-in-linked-worktree",
+      };
+  } catch (err) {
+    base = { status: "failed", reason: message(err) };
+  }
+
+  if (incomplete(base)) {
+    for (const fact of branches) {
+      if (fact.status === "eligible" && fact.branch === records[0].branch) {
+        fact.status = "retained";
+        fact.reason = "branch-in-retained-worktree";
+      }
+    }
+  }
+  const eligibleWorktrees = worktrees.filter(
+    (entry) => entry.status === "eligible",
+  ).length;
+  const eligibleBranches = branches.filter(
+    (entry) => entry.status === "eligible",
+  ).length;
+  if (parsed.mode === "execute") {
+    for (const fact of worktrees) {
+      if (fact.status !== "eligible") continue;
+      try {
+        const current = (await collectWorktrees(primary, true)).find(
+          (entry) => entry.realPath === fact.record.realPath,
+        );
+        if (!current || current.branch !== fact.record.branch)
+          throw new Error("worktree registration changed");
+        const fresh = await classifyWorktree(current, fact.head);
+        if (fresh.status !== "eligible") {
+          Object.assign(fact, fresh);
+          continue;
+        }
+        await removeLinkedWorktree(
+          primary,
+          current.realPath,
+          forceDirty,
+          parsed.disposableDirectories,
+          { head: fact.head, branch: fact.record.branch },
+        );
+        fact.status = "removed";
+        fact.reason = "directory-and-registration-removal-verified";
+      } catch (err) {
+        fact.status = "failed";
+        fact.reason = message(err);
+      }
+    }
+    if (base.status === "eligible") {
+      try {
+        if (await worktreeStatus(primary))
+          throw new Error("primary became dirty");
+        if (await showRefExists(primary, `refs/heads/${defaultBranch}`))
+          await git(["checkout", defaultBranch], primary);
+        else
+          await git(["checkout", "-b", defaultBranch, remoteDefault], primary);
+        await git(["merge", "--ff-only", remoteDefault], primary);
+        base = { status: "updated", reason: "default-checkout-fast-forwarded" };
+      } catch (err) {
+        base = { status: "failed", reason: message(err) };
+      }
+    }
+    for (const fact of branches) {
+      if (fact.status !== "eligible") continue;
+      if (
+        worktrees.some(
+          (entry) => entry.record.branch === fact.branch && incomplete(entry),
+        )
+      ) {
+        fact.status = "retained";
+        fact.reason = "branch-in-retained-worktree";
+        continue;
+      }
+      try {
+        const ref = `refs/heads/${fact.branch}`;
+        if (
+          (await collectWorktrees(primary, true)).some(
+            (entry) => entry.branch === fact.branch,
+          )
+        ) {
+          fact.status = "retained";
+          fact.reason = "branch-in-use";
+          continue;
+        }
+        if (!(await showRefExists(primary, ref))) {
+          fact.status = "already-absent";
+          fact.reason = "local-ref-absent";
+          continue;
+        }
+        if (
+          (await git(["symbolic-ref", "--quiet", ref], primary, [0, 1]))
+            .exitCode === 0 ||
+          (await revParse(primary, ref)) !== fact.head
+        ) {
+          fact.status = "retained";
+          fact.reason = "branch-tip-mismatch";
+          continue;
+        }
+        await git(["update-ref", "--no-deref", "-d", ref, fact.head], primary);
+        if (await showRefExists(primary, ref))
+          throw new Error("branch removal not verified");
+        fact.status = "removed";
+        fact.reason = "expected-local-ref-deleted";
+      } catch (err) {
+        fact.status = "failed";
+        fact.reason = message(err);
+      }
+    }
+  }
+  const blocked = [base, ...worktrees, ...branches].some(incomplete);
+  const fields: Array<[string, string | number | boolean]> = [
+    ["MODE", parsed.mode],
+    ["STATUS", blocked ? "blocked" : "ok"],
+    ["DEFAULT_BRANCH", defaultBranch],
+    ["PRIMARY_WORKTREE", primary],
+    ["CANDIDATE_WORKTREES", worktrees.length],
+    ["REMOVABLE_WORKTREES", eligibleWorktrees],
+    ["PRUNABLE_WORKTREES", records.filter((entry) => entry.prunable).length],
+    ["LOCKED_WORKTREES", records.filter((entry) => entry.locked).length],
+    [
+      "DIRTY_WORKTREES",
+      worktrees.filter((entry) => entry.reason === "dirty-worktree").length +
+        Number(base.reason === "dirty-primary-worktree"),
+    ],
+    ["LOCAL_BRANCHES_TO_DELETE", eligibleBranches],
+    [
+      "LOCAL_BRANCHES_WITH_UNIQUE_COMMITS",
+      branches.filter((entry) => entry.classification === "unique").length,
+    ],
+    ["DEFAULT_BRANCH_AHEAD_COMMITS", ahead],
+    ["BASE_UPDATE", base.status],
+    ["BASE_UPDATE_REASON", oneLine(base.reason)],
+  ];
+  if (primaryDirtyFiles)
+    fields.push([
+      "DIRTY_WORKTREE",
+      `${primary}|FILES=${primaryDirtyFiles}|PRIMARY=true`,
+    ]);
+  for (const fact of worktrees) {
+    if (fact.dirtyFiles)
+      fields.push([
+        "DIRTY_WORKTREE",
+        `${fact.record.realPath}|FILES=${fact.dirtyFiles}|PRIMARY=false`,
+      ]);
+    if (fact.record.locked)
+      fields.push([
+        "LOCKED_WORKTREE",
+        `${fact.record.realPath}|REASON=${fact.record.lockedReason}`,
+      ]);
+    if (fact.record.prunable)
+      fields.push(["PRUNABLE_WORKTREE", fact.record.path]);
+    fields.push([
+      "WORKTREE_RESULT",
+      `${fact.record.realPath}|STATUS=${fact.status}|REASON=${oneLine(fact.reason)}`,
+    ]);
+    if (fact.status === "eligible")
+      fields.push(["REMOVABLE_WORKTREE", fact.record.realPath]);
+  }
+  for (const fact of branches) {
+    fields.push([
+      "BRANCH_RESULT",
+      `${fact.branch}|STATUS=${fact.status}|REASON=${oneLine(fact.reason)}`,
+    ]);
+    if (fact.status === "eligible") fields.push(["DELETE_BRANCH", fact.branch]);
+    if (fact.classification !== "unique")
+      fields.push([
+        "MERGED_BRANCH",
+        `${fact.branch}|REASON=${fact.classification}`,
+      ]);
+    else fields.push(["UNIQUE_BRANCH", fact.branch]);
+  }
+  return {
+    exitCode: parsed.mode === "execute" && blocked ? 1 : 0,
+    stdout: lineOutput(fields),
+    stderr: "",
+  };
+}
 export function reduceWorkspaceStatus(input: {
   mode: CleanupMode;
   forceBranches: boolean;
@@ -133,385 +576,4 @@ export function reduceWorkspaceStatus(input: {
     return "blocked";
   }
   return "ok";
-}
-
-function parseArgs(args: readonly string[]): Args {
-  let mode: CleanupMode = "dry-run";
-  let forceBranches = false;
-  let forceDirtyWorktrees = false;
-  let targetRepo = "";
-  const targetValues = new Map<string, string>();
-
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index];
-    switch (arg) {
-      case "--dry-run":
-        mode = "dry-run";
-        break;
-      case "--execute":
-        mode = "execute";
-        break;
-      case "--force-branches":
-        forceBranches = true;
-        break;
-      case "--force-dirty-worktrees":
-        forceDirtyWorktrees = true;
-        break;
-      case "--worktree":
-      case "--branch":
-      case "--expected-head":
-        index += 1;
-        if (
-          !args[index] ||
-          args[index].startsWith("--") ||
-          targetValues.has(arg)
-        ) {
-          throw new CleanupUsageError(`${arg} requires one value`);
-        }
-        targetValues.set(arg, args[index]);
-        break;
-      case "--repo":
-        index += 1;
-        if (index >= args.length) {
-          throw new CleanupUsageError("--repo requires a path");
-        }
-        targetRepo = args[index];
-        break;
-      case "-h":
-      case "--help":
-        throw new HelpRequested();
-      default:
-        throw new CleanupUsageError(`unknown argument: ${arg}`);
-    }
-  }
-
-  if (
-    targetValues.size > 0 &&
-    (!targetRepo ||
-      targetValues.size !== 3 ||
-      forceBranches ||
-      forceDirtyWorktrees)
-  ) {
-    throw new CleanupUsageError(
-      "targeted cleanup requires --repo, --worktree, --branch and --expected-head, without force overrides",
-    );
-  }
-
-  return {
-    target: targetValues.size
-      ? {
-          worktree: targetValues.get("--worktree") ?? "",
-          branch: targetValues.get("--branch") ?? "",
-          expectedHead: targetValues.get("--expected-head") ?? "",
-        }
-      : undefined,
-    mode,
-    forceBranches,
-    forceDirtyWorktrees,
-    targetRepo: targetRepo.length === 0 ? process.cwd() : targetRepo,
-  };
-}
-
-async function collectFacts(parsed: Args): Promise<WorkspaceFacts> {
-  if (!(await isInsideWorktree(parsed.targetRepo))) {
-    throw new CleanupUsageError(
-      `not inside a git worktree: ${parsed.targetRepo}`,
-    );
-  }
-  if (await isBareRepository(parsed.targetRepo)) {
-    throw new CleanupUsageError("bare repositories are unsupported");
-  }
-
-  const repoRoot = await showTopLevel(parsed.targetRepo);
-  if (parsed.mode === "dry-run") {
-    await git(["fetch", "origin", "--prune"], repoRoot);
-  }
-
-  const defaultBranch = await resolveDefaultBranch(repoRoot);
-  if (defaultBranch === null) {
-    throw new CleanupUsageError("could not resolve origin default branch");
-  }
-  const remoteDefaultRef = `refs/remotes/origin/${defaultBranch}`;
-  if (!(await showRefExists(repoRoot, remoteDefaultRef))) {
-    throw new CleanupUsageError(`origin/${defaultBranch} does not exist`);
-  }
-
-  const allWorktrees = await collectWorktrees(repoRoot);
-  const worktrees = allWorktrees.filter((worktree) => !worktree.prunable);
-  const prunableWorktrees = allWorktrees.filter(
-    (worktree) => worktree.prunable,
-  );
-  if (worktrees.length === 0) {
-    throw new CleanupUsageError("no worktrees found");
-  }
-
-  const dirtyWorktrees: DirtyWorktree[] = [];
-  for (const [index, worktree] of worktrees.entries()) {
-    const status = await worktreeStatus(worktree.realPath);
-    if (status.length > 0) {
-      dirtyWorktrees.push({
-        path: worktree.realPath,
-        files: countStatusLines(status),
-        primary: index === 0,
-      });
-    }
-  }
-
-  const nestedRepositories = (
-    await Promise.all(
-      worktrees
-        .slice(1)
-        .map((entry) => inspectNestedRepositories(entry.realPath)),
-    )
-  ).flat();
-
-  const branches = await collectBranches(
-    repoRoot,
-    defaultBranch,
-    remoteDefaultRef,
-  );
-  const defaultBranchAheadCommits = await defaultAheadCount(
-    repoRoot,
-    defaultBranch,
-    remoteDefaultRef,
-  );
-
-  const dirtyPrimaryCount = dirtyWorktrees.filter(
-    (entry) => entry.primary,
-  ).length;
-  const dirtyLinkedCount = dirtyWorktrees.length - dirtyPrimaryCount;
-  const lockedWorktrees = worktrees
-    .slice(1)
-    .filter((worktree) => worktree.locked);
-  const uniqueBranchCount = branches.filter(
-    (branch) => branch.classification === "unique",
-  ).length;
-  const status = nestedRepositoryBlocker(nestedRepositories)
-    ? "blocked"
-    : reduceWorkspaceStatus({
-        mode: parsed.mode,
-        forceBranches: parsed.forceBranches,
-        forceDirtyWorktrees: parsed.forceDirtyWorktrees,
-        dirtyPrimaryCount,
-        dirtyLinkedCount,
-        lockedWorktreeCount: lockedWorktrees.length,
-        uniqueBranchCount,
-        defaultBranchAheadCommits,
-      });
-
-  return {
-    mode: parsed.mode,
-    status,
-    defaultBranch,
-    primaryWorktree: worktrees[0].realPath,
-    worktrees,
-    prunableWorktrees,
-    dirtyWorktrees,
-    lockedWorktrees,
-    branches,
-    defaultBranchAheadCommits,
-    nestedRepositories,
-  };
-}
-
-async function collectBranches(
-  repoRoot: string,
-  defaultBranch: string,
-  remoteDefaultRef: string,
-): Promise<BranchFact[]> {
-  const facts: BranchFact[] = [];
-  for (const branchRef of await localBranches(repoRoot)) {
-    const branch = branchRef.slice("refs/heads/".length);
-    if (branchRef === `refs/heads/${defaultBranch}`) {
-      continue;
-    }
-    if (
-      (
-        await git(
-          ["merge-base", "--is-ancestor", branchRef, remoteDefaultRef],
-          repoRoot,
-          [0, 1],
-        )
-      ).exitCode === 0
-    ) {
-      facts.push({
-        branch,
-        ref: branchRef,
-        classification: "ancestor",
-        commits: 0,
-      });
-    } else if (
-      await branchIsSquashMerged(repoRoot, branchRef, remoteDefaultRef)
-    ) {
-      facts.push({
-        branch,
-        ref: branchRef,
-        classification: "squash",
-        commits: 0,
-      });
-    } else {
-      const commits = Number(
-        (
-          await git(
-            ["rev-list", "--count", `${remoteDefaultRef}..${branchRef}`],
-            repoRoot,
-            [0, 1],
-          )
-        ).stdout.trim() || "1",
-      );
-      facts.push({
-        branch,
-        ref: branchRef,
-        classification: "unique",
-        commits: Number.isFinite(commits) ? commits : 1,
-      });
-    }
-  }
-  return facts;
-}
-
-async function branchIsSquashMerged(
-  repoRoot: string,
-  branchRef: string,
-  remoteDefaultRef: string,
-): Promise<boolean> {
-  const mergeBase = (
-    await git(["merge-base", remoteDefaultRef, branchRef], repoRoot, [0, 1])
-  ).stdout.trim();
-  if (mergeBase.length === 0) return false;
-  const tree = (
-    await git(["rev-parse", `${branchRef}^{tree}`], repoRoot, [0, 1])
-  ).stdout.trim();
-  if (tree.length === 0) return false;
-  const dummyCommit = (
-    await git(
-      ["commit-tree", tree, "-p", mergeBase, "-m", "_"],
-      repoRoot,
-      [0, 1],
-    )
-  ).stdout.trim();
-  if (dummyCommit.length === 0) return false;
-  const cherry = (
-    await git(["cherry", remoteDefaultRef, dummyCommit], repoRoot, [0, 1])
-  ).stdout.trim();
-  return cherry.startsWith("-");
-}
-
-async function defaultAheadCount(
-  repoRoot: string,
-  defaultBranch: string,
-  remoteDefaultRef: string,
-): Promise<number> {
-  const defaultRef = `refs/heads/${defaultBranch}`;
-  if (!(await showRefExists(repoRoot, remoteDefaultRef))) {
-    return 0;
-  }
-  if (!(await showRefExists(repoRoot, defaultRef))) {
-    return 0;
-  }
-  const value = (
-    await git(
-      ["rev-list", "--count", `${remoteDefaultRef}..${defaultRef}`],
-      repoRoot,
-      [0, 1],
-    )
-  ).stdout.trim();
-  const parsed = Number(value || "0");
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function formatReport(facts: WorkspaceFacts): string {
-  const mergedBranches = facts.branches.filter(
-    (branch) => branch.classification !== "unique",
-  );
-  const uniqueBranches = facts.branches.filter(
-    (branch) => branch.classification === "unique",
-  );
-  const lines: Array<[string, string | number | boolean]> = [
-    ["MODE", facts.mode],
-    ["STATUS", facts.status],
-    ["DEFAULT_BRANCH", facts.defaultBranch],
-    ["PRIMARY_WORKTREE", facts.primaryWorktree],
-    ["REMOVABLE_WORKTREES", Math.max(0, facts.worktrees.length - 1)],
-    ["PRUNABLE_WORKTREES", facts.prunableWorktrees.length],
-    ["LOCKED_WORKTREES", facts.lockedWorktrees.length],
-    ["DIRTY_WORKTREES", facts.dirtyWorktrees.length],
-    ["LOCAL_BRANCHES_TO_DELETE", facts.branches.length],
-    ["LOCAL_BRANCHES_WITH_UNIQUE_COMMITS", uniqueBranches.length],
-    ["DEFAULT_BRANCH_AHEAD_COMMITS", facts.defaultBranchAheadCommits],
-  ];
-  for (const worktree of facts.worktrees.slice(1)) {
-    lines.push(["REMOVABLE_WORKTREE", worktree.realPath]);
-  }
-  for (const worktree of facts.prunableWorktrees) {
-    lines.push(["PRUNABLE_WORKTREE", worktree.path]);
-  }
-  for (const dirty of facts.dirtyWorktrees) {
-    lines.push([
-      "DIRTY_WORKTREE",
-      `${dirty.path}|FILES=${dirty.files}|PRIMARY=${dirty.primary}`,
-    ]);
-  }
-  for (const locked of facts.lockedWorktrees) {
-    lines.push([
-      "LOCKED_WORKTREE",
-      `${locked.realPath}${locked.lockedReason ? `|REASON=${locked.lockedReason}` : ""}`,
-    ]);
-  }
-  for (const branch of facts.branches) {
-    lines.push(["DELETE_BRANCH", branch.branch]);
-  }
-  for (const branch of mergedBranches) {
-    lines.push([
-      "MERGED_BRANCH",
-      `${branch.branch}|REASON=${branch.classification}`,
-    ]);
-  }
-  for (const branch of uniqueBranches) {
-    lines.push(["UNIQUE_BRANCH", `${branch.branch}|COMMITS=${branch.commits}`]);
-  }
-  for (const nested of facts.nestedRepositories) {
-    lines.push([
-      "NESTED_REPOSITORY",
-      `${nested.path}|KIND=${nested.kind}|REASON=${nested.reason}|GIT_DIR=${nested.gitDir}|COMMON_DIR=${nested.commonDir}`,
-    ]);
-  }
-  return lineOutput(lines);
-}
-
-async function executeCleanup(
-  parsed: Args,
-  facts: WorkspaceFacts,
-): Promise<void> {
-  for (const worktree of facts.worktrees.slice(1)) {
-    await removeLinkedWorktree(
-      facts.primaryWorktree,
-      worktree.realPath,
-      parsed.forceDirtyWorktrees,
-    );
-  }
-
-  await git(["worktree", "prune"], facts.primaryWorktree);
-  if (
-    await showRefExists(
-      facts.primaryWorktree,
-      `refs/heads/${facts.defaultBranch}`,
-    )
-  ) {
-    await git(["checkout", facts.defaultBranch], facts.primaryWorktree);
-  } else {
-    await git(
-      ["checkout", "-b", facts.defaultBranch, `origin/${facts.defaultBranch}`],
-      facts.primaryWorktree,
-    );
-  }
-  await git(
-    ["merge", "--ff-only", `origin/${facts.defaultBranch}`],
-    facts.primaryWorktree,
-  );
-  for (const branch of facts.branches) {
-    await git(["branch", "-D", branch.branch], facts.primaryWorktree);
-  }
-  await git(["worktree", "prune"], facts.primaryWorktree);
-  await revParse(facts.primaryWorktree, "HEAD");
 }

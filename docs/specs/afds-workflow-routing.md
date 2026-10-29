@@ -1339,6 +1339,37 @@ skill-reporting workflow. The shared owner should be a shared system, artifact,
 policy, process, workflow component, or blocker, not a private person, live
 tracker assignment, or schedule.
 
+### EVID-004-CLEANUP: Session artifact lifetime
+
+Authorized cleanup of completed session resources includes `.ephemeral/` and
+other explicitly designated disposable session directories. This is disposal
+within existing cleanup authority, not automatic deletion at session end and
+not a separate discard approval. Review, issue, merge and batch owners use the
+same rule. Missing lifecycle records, diagnostic provenance or artifact ownership
+metadata alone do not extend the lifetime of completed session data or require
+fabricating replacement records.
+
+Retain only resources covered by an explicit retention request, concrete active
+consumer or unresolved operation. The owner records the reason and condition for
+release in its existing context; uncertain active work remains retained until
+resolved. Publish information needed after completion to its durable destination.
+A directory's `.gitignore` status alone does not designate it as disposable;
+other ignored files, including user configuration and datasets, remain protected.
+Source changes, unique commits and nested repositories retain their Git guards.
+
+Cleanup is resource-local: a host refusal, active consumer, explicit retention
+or failure holds that resource and dependent branch deletion only. Continue
+independent eligible work and report each verified outcome. Host-managed
+resources require supported lifecycle/attachment reconciliation before Git
+removal. Never bypass a host refusal with the Git helper. The caller identifies
+protected and still-needed resources explicitly; the runtime cannot infer host
+ownership or completion from filenames, missing records or task age.
+
+The workspace helper provides the local completed-session disposal route,
+including detached worktrees and unused branches. Review owners use their
+completed-session adapter after establishing completion and no active retention;
+ongoing review recovery and posting still require their existing evidence.
+
 ### EVID-005: Proposal-Origin Evidence
 
 Existing-spec issue drafts must point to the owning durable artifact. Proposal

@@ -6,7 +6,17 @@ Performs the deterministic cleanup operation for a selected Git repository.
 
 ## Invocation
 
-Run `bash "$SKILL_DIR/scripts/git-workspace-cleanup.sh" [--repo <path>] [--dry-run|--execute] [--force-branches] [--force-dirty-worktrees]`.
+Run `bash "$SKILL_DIR/scripts/git-workspace-cleanup.sh" [--repo <path>] [--dry-run|--execute] [--retain-worktree <path>] [--retain-branch <name>] [--disposable-dir <relative-directory>] [--force-branches] [--force-dirty-worktrees]`.
+
+Retention and disposable-directory arguments may repeat. The caller establishes
+host lifecycle permission, completed-session authority, active dependencies and
+explicit retention before invocation. Retained paths are canonicalized; used
+branches are retained with their worktree. Record the concrete caller reason and
+release condition alongside the command. Host refusals do not hold unrelated
+cleanup. `.ephemeral` is the default disposable directory; additional designations
+must be safe relative directories, never files, parent traversals or `.git`.
+Ignoring a file does not itself authorize deletion. Nested Git guards still apply
+inside disposable directories, and arbitrary ignored content retains its checkout.
 
 ### Selected local cleanup
 
@@ -19,7 +29,23 @@ bash "$SKILL_DIR/scripts/git-workspace-cleanup.sh" --repo "$TARGET_REPO" \
 Use the same inputs with `--execute` after the workflow validates disposal
 and host lifecycle authority. Any of `--worktree`, `--branch`, or
 `--expected-head` selects targeted mode: all three and an explicit `--repo`
-are required. The branch is a local short name and expected HEAD is its full
+are required in paired mode. Two additional explicit selectors are supported:
+
+```bash
+bash "$SKILL_DIR/scripts/git-workspace-cleanup.sh" --repo "$TARGET_REPO" \
+  --detached --worktree "$TARGET_WORKTREE" --expected-head "$EXPECTED_HEAD" --dry-run
+bash "$SKILL_DIR/scripts/git-workspace-cleanup.sh" --repo "$TARGET_REPO" \
+  --branch-only --branch "$TARGET_BRANCH" --expected-head "$EXPECTED_HEAD" --dry-run
+```
+
+Detached mode omits `--branch` and requires a detached target; branch-only mode
+omits `--worktree`. Neither permits incomplete inputs, retention overrides or
+broad force flags. `--disposable-dir` is supported for targeted checkouts.
+An unselected resource reports `skipped` with `not-selected`. All selected commit
+tips need ancestry or squash-equivalence to the remote default branch. Squash
+inspection is read-only, without synthetic commit writes.
+
+The branch is a local short name and expected HEAD is its full
 commit SHA. Partial inputs, invalid identities and broad force flags are rejected;
 there is no fallback to repository-wide cleanup. Resolve the expected commit
 from retained delivery evidence, not a changed branch at cleanup time.
@@ -40,7 +66,7 @@ Targeted output includes `MODE`, `SCOPE=targeted`, `STATUS=ok|blocked`,
 `WORKTREE`, `BRANCH`, `EXPECTED_HEAD`, and independent `WORKTREE_STATUS` /
 `BRANCH_STATUS` plus `WORKTREE_REASON` / `BRANCH_REASON`.
 Resource statuses are `eligible` (dry-run), `removed`, `already-absent`,
-`retained` or `failed`. Reasons describe verified absence, identity/protection
+`retained`, `failed` or `skipped`. Reasons describe verified absence, identity/protection
 blockers or operation failures. Dry-run exits zero for inspected blocked plans;
 execute exits 1 for retained/failed resources; invalid inputs exit 2.
 
@@ -96,7 +122,16 @@ Unknown or incomplete flags, a non-worktree or bare repository, or a missing rem
 
 ## Side effects
 
-In repository-wide mode, `--dry-run` fetches `origin --prune` before reporting. `--execute` can prune and remove worktrees and branches; it also checks out the local default branch (creating it from `origin/<default>` when absent) and fast-forwards it to `origin/<default>`. Dry-run is not mutation-free.
+In repository-wide mode, `--dry-run` fetches `origin --prune` before reporting.
+`--execute` removes eligible worktrees and branches independently, and updates
+the default checkout only when its guards pass. Retention/failure of one resource
+does not stop unrelated eligible work; branches in surviving registrations stay.
+Unavailable registrations are retained, not pruned. Execution does not fetch again.
+`WORKTREE_RESULT=<path>|STATUS=<status>|REASON=<reason>` and `BRANCH_RESULT` name
+actual outcomes; `BASE_UPDATE`/`BASE_UPDATE_REASON` describe the base operation.
+Candidate/eligible counts are inspection counts, never proof of deletion.
+A partial execution exits 1 even when some resources were removed successfully.
+Dry-run is not mutation-free; selected-target dry-run remains read-only.
 
 ## Workflow boundary
 
@@ -116,7 +151,9 @@ reconciliation, selected checkout removal, then selected local branch deletion.
 Archival can itself remove the checkout; inspect its effect before Git cleanup.
 
 - Ordinary repository-wide cleanup uses this helper under its approval policy.
-  Ordinary selected PR work uses `pr-merge`'s scoped helper. Completed-owner
+  Ordinary selected PR work uses `pr-merge`'s scoped helper. Completed review
+  sessions use `pr-review`'s completed-session adapter or the explicit detached
+  workspace target after the same completion/retention and host checks. Completed-owner
   local-only cleanup uses this helper's explicit-target mode, never broad mode.
 - For a host-managed checkout, first identify the host's supported lifecycle
   mechanism and how it reconciles attachments and ownership records. A host

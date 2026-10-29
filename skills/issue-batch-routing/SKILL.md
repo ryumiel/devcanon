@@ -25,6 +25,15 @@ codex_sidecar:
 
 # Issue Batch Routing
 
+Completed-session cleanup follows
+[EVID-004-CLEANUP](../../docs/specs/afds-workflow-routing.md#evid-004-cleanup-session-artifact-lifetime).
+Existing cleanup authority includes disposable session data; retain only explicit
+retention, concrete active consumers or unresolved effects. Missing records alone
+do not extend completed-session retention. Use the workspace helper's independent
+resource outcomes and completed-review adapter where applicable. A protected or
+failed resource holds only its dependent cleanup; continue eligible independent
+resources without bypassing host lifecycle restrictions.
+
 Coordinate a batch of issue-provider records by inspecting live state, routing
 work to existing owning workflows, and keeping a compact monitor ledger. This
 is a routing workflow only: it may inspect, classify, route, send

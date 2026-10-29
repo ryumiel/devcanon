@@ -1,8 +1,9 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { execFile, spawnSync } from "node:child_process";
+import { execFile, spawn, spawnSync } from "node:child_process";
 import type { Dirent } from "node:fs";
 import { lstat, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
+import { pipeline } from "node:stream/promises";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -477,11 +478,196 @@ export function nestedRepositoryBlocker(facts: NestedRepositoryFact[]): string {
   return blocked ? `${blocked.reason}:${blocked.path}` : "";
 }
 
+/** Designation is explicit; ignoring a file does not make it disposable. */
+export function validateDisposableDirectories(
+  values: readonly string[],
+): string[] {
+  for (const value of values) {
+    if (
+      !value ||
+      value.includes("\\") ||
+      /[\r\n\0]/u.test(value) ||
+      path.posix.isAbsolute(value) ||
+      value
+        .split("/")
+        .some(
+          (part) => !part || part === "." || part === ".." || part === ".git",
+        )
+    ) {
+      throw new CleanupUsageError(
+        "disposable directory must be a safe relative directory",
+      );
+    }
+  }
+  return [...new Set([".ephemeral", ...values])];
+}
+
+export async function ignoredContentBlocker(
+  worktree: string,
+  disposableDirectories: readonly string[] = [],
+): Promise<string> {
+  const directories = validateDisposableDirectories(disposableDirectories);
+  // Enumerate leaves so a broad ignore rule cannot conceal unrelated user files.
+  const ignored = (
+    await git(
+      ["ls-files", "--others", "--ignored", "--exclude-standard", "-z"],
+      worktree,
+    )
+  ).stdout
+    .split("\0")
+    .filter(Boolean);
+  for (const file of ignored) {
+    const directory = directories.find((candidate) =>
+      file.startsWith(`${candidate}/`),
+    );
+    if (!directory) return `ignored-content:${file}`;
+    // A designated directory must be a physical directory within this checkout.
+    let current = worktree;
+    for (const part of directory.split("/")) {
+      current = path.join(current, part);
+      const stat = await lstat(current);
+      if (!stat.isDirectory() || stat.isSymbolicLink())
+        return `unsafe-disposable-directory:${directory}`;
+    }
+  }
+  return "";
+}
+
+/** Read-only ancestry or squash-patch equivalence; never writes synthetic objects. */
+export async function commitIsMerged(
+  repo: string,
+  commit: string,
+  base: string,
+): Promise<boolean> {
+  if (
+    (await git(["merge-base", "--is-ancestor", commit, base], repo, [0, 1]))
+      .exitCode === 0
+  )
+    return true;
+  const mergeBase = (
+    await git(["merge-base", base, commit], repo, [0, 1])
+  ).stdout.trim();
+  if (!mergeBase) return false;
+  const rawPatchOptions = [
+    "--binary",
+    "--no-textconv",
+    "--no-ext-diff",
+    "--ignore-submodules=none",
+    "--submodule=short",
+  ];
+  const expected = await streamedPatchId(repo, [
+    "diff",
+    ...rawPatchOptions,
+    mergeBase,
+    commit,
+  ]);
+  if (!expected) return false;
+  return Boolean(
+    await streamedPatchId(
+      repo,
+      [
+        "log",
+        "--no-merges",
+        "--format=%H",
+        ...rawPatchOptions,
+        "-p",
+        `${mergeBase}..${base}`,
+      ],
+      expected,
+    ),
+  );
+}
+
+/** Drain complete raw patches with backpressure; accept only successful inspections. */
+async function streamedPatchId(
+  repo: string,
+  args: readonly string[],
+  expected?: string,
+): Promise<string> {
+  const children: ReturnType<typeof spawn>[] = [];
+  const completions: Promise<void>[] = [];
+  let failure: Error | undefined;
+  let diagnostic = "";
+  let pending = "";
+  let found = "";
+  const fail = (error: Error) => {
+    failure ??= error;
+    for (const child of children) child.kill("SIGKILL");
+  };
+  const start = (command: readonly string[]) => {
+    const child = spawn(
+      "git",
+      [
+        ...(localInspection.getStore() ? ["--no-lazy-fetch"] : []),
+        "-C",
+        repo,
+        ...command,
+      ],
+      { cwd: repo, shell: false, windowsHide: true, stdio: "pipe" },
+    );
+    children.push(child);
+    completions.push(
+      new Promise<void>((resolve) => {
+        child.on("error", fail);
+        child.on("close", (code) => {
+          if (code !== 0)
+            fail(new Error("patch equivalence inspection failed"));
+          resolve();
+        });
+      }),
+    );
+    for (const stream of [child.stdin, child.stdout, child.stderr]) {
+      stream.on("error", fail);
+    }
+    child.stderr.on("data", (chunk: Buffer) => {
+      if (diagnostic.length + chunk.length > 64 * 1024) {
+        fail(new Error("patch equivalence diagnostics exceeded limit"));
+      } else diagnostic += chunk.toString("utf8");
+    });
+    return child;
+  };
+  const consumeLine = (line: string) => {
+    const id = line.split(/\s/u)[0];
+    if (/^[a-f0-9]{40,64}$/u.test(id) && (!expected || id === expected)) {
+      found ||= id;
+    }
+  };
+  let transfer: Promise<void> | undefined;
+  try {
+    const producer = start(args);
+    producer.stdin.end();
+    const consumer = start(["patch-id", "--stable"]);
+    consumer.stdout.on("data", (chunk: Buffer) => {
+      pending += chunk.toString("utf8");
+      let newline = pending.indexOf("\n");
+      while (newline !== -1) {
+        consumeLine(pending.slice(0, newline));
+        pending = pending.slice(newline + 1);
+        newline = pending.indexOf("\n");
+      }
+      if (pending.length > 256) fail(new Error("invalid patch-id output"));
+    });
+    transfer = pipeline(producer.stdout, consumer.stdin).catch(fail);
+  } catch (error) {
+    fail(error instanceof Error ? error : new Error(String(error)));
+  }
+  await Promise.all(completions);
+  await transfer;
+  if (failure)
+    throw new Error(
+      `patch equivalence inspection failed: ${diagnostic.trim() || failure.message}`,
+    );
+  if (pending) consumeLine(pending);
+  return found;
+}
+
 /** Called only for an authorized ordinary linked checkout, never a host lifecycle bypass. */
 export async function removeLinkedWorktree(
   primary: string,
   target: string,
   allowDirty = false,
+  disposableDirectories: readonly string[] = [],
+  expected?: { head: string; branch: string },
 ): Promise<void> {
   const records = await collectWorktrees(primary);
   const canonicalTarget = await requireCanonicalDirectory(
@@ -492,9 +678,21 @@ export async function removeLinkedWorktree(
   if (!record || record === records[0] || record.locked) {
     throw new Error(`protected or unregistered worktree: ${target}`);
   }
+  if (
+    expected &&
+    (record.branch !== expected.branch ||
+      (await revParse(canonicalTarget, "HEAD")) !== expected.head)
+  ) {
+    throw new Error("worktree identity changed before removal");
+  }
   const nested = await inspectNestedRepositories(canonicalTarget);
   const blocker = nestedRepositoryBlocker(nested);
   if (blocker) throw new Error(blocker);
+  const ignoredBlocker = await ignoredContentBlocker(
+    canonicalTarget,
+    disposableDirectories,
+  );
+  if (ignoredBlocker) throw new Error(ignoredBlocker);
   // Force is needed by Git for initialized submodules even when all nested work is clean.
   // It must not bypass the ordinary dirty-worktree authorization.
   if ((await worktreeStatus(canonicalTarget)) && !allowDirty) {

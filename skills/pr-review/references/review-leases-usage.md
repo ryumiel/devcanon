@@ -16,6 +16,32 @@ For `write`, `CREATED_AT` is optional (otherwise `UPDATED_AT` is used); `HANDOFF
 
 `record-audit-failure` requires `REPOSITORY`, `PR_NUMBER`, `PRIMARY_REPOSITORY_ROOT`, `LEASE_FILE`, `STATE=failed`, `BASE_REF`, `HEAD_REF`, `FAILURE_PHASE=preview-render`, `FAILURE_REASON`, `FAILURE_RECOVERABILITY`, and `EXPECTED_STATE=gated`; it is accepted only for an existing gated lease with gated preview-render evidence. `inspect-worktree` and `cleanup-worktree` require `REPOSITORY`, `PR_NUMBER`, `PRIMARY_REPOSITORY_ROOT`, `WORKTREE_PATH`, and `LEASE_FILE`. For `cleanup-worktree`, optional `ALLOW_POLICY_OVERRIDE=yes` permits removal from a non-`posted`/non-`aborted` state when all other cleanup guards permit it. `session-create` also accepts optional `ALLOW_TERMINAL_ADVANCE=yes`; absence preserves the default route and any other supplied value is invalid. No command reads stdin. `DEVCANON_RUNTIME_DIR` is optional for runtime diagnostics.
 
+## Completed-session disposal
+
+For a completed review session whose cleanup is authorized, set
+`SESSION_COMPLETED=yes` and `HEAD_SHA=<expected-full-commit>` on `inspect-worktree`
+or `cleanup-worktree`, with their existing identity inputs. The caller must first
+resolve actual active consumers, uncertain posting or cleanup effects and host
+lifecycle restrictions. `RETAIN_SESSION_REASON=<concrete-reason>` retains the
+checkout for explicit retention, active use or an unresolved operation.
+These facts are caller responsibility; absence of records does not prove completion.
+No additional artifact-discard approval is needed within existing cleanup scope.
+
+This route uses shared detached-target Git checks and returns the workspace
+helper's `MODE`, `SCOPE`, `STATUS`, `WORKTREE_STATUS`, `WORKTREE_REASON` and skipped
+branch outcome. Consumers must inspect those fields, not infer success from the
+review command's exit-zero result envelope. It does not synthesize, modify or
+validate historical lease/artifact records: missing or invalid lifecycle records
+alone cannot preserve obsolete `.ephemeral` data indefinitely. Records outside
+the selected checkout remain outside its deletion scope. Existing live review
+operations and their evidence requirements are unchanged.
+
+The exact expected HEAD, detached registration, merged commit, clean source,
+ignored-content designation, primary/lock and nested-repository guards apply.
+Arbitrary ignored files retain the checkout. Use the workspace helper with explicit
+`--disposable-dir` selections if other directories are known disposable. Host
+refusal is never bypassed through either adapter.
+
 ## Timestamp and presentation applicability
 
 Absent routine timestamps use one current UTC operation instant: `UPDATED_AT`,

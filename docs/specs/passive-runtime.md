@@ -49,8 +49,9 @@ retains its PR-specific interface.
 
 ### CLEANUP-01: Explicit local scope
 
-The caller supplies the repository, worktree path, local branch and expected
-HEAD, selecting dry-run or execute. All target inputs are required; missing or
+The caller supplies the repository and expected HEAD with either a paired
+worktree/local branch, an explicitly detached worktree, or an explicit branch-only
+selection, choosing dry-run or execute. Each selection requires its own inputs; missing or
 invalid inputs must not fall back to broad cleanup. Resolve the repository and
 worktree as canonical directory identities and verify Git registration, branch
 and commit agree with the selected target before removal. Reject primary,
@@ -594,3 +595,23 @@ a controlled Git-for-Windows Bash candidate as the behavior under proof.
   do not add N-version negotiation, legacy runtime shims, or whole-directory
   replacement.
 - Do not turn native Windows proof status into a normative dependency.
+
+### CLEANUP-04: Independent workspace cleanup
+
+Repository-wide cleanup accepts retained worktree and branch selections, and
+explicit additional disposable directories. `.ephemeral` is disposable by default
+under EVID-004-CLEANUP. Other ignored content retains the affected checkout.
+Git eligibility does not establish host permission: callers retain every
+host-protected or unresolved resource and select only authorized completed work.
+
+Dry-run reports candidates, eligible resources and retained resources separately.
+Execute rechecks identity and preservation guards, records actual per-resource
+outcomes and continues independent operations after retention or failure. A branch
+used by any remaining registration is retained. Default-checkout protection or
+update failure does not prevent independent local cleanup. No remote refs are deleted.
+A partial result is nonzero on execution and never reported as full success.
+
+Detached targets require expected HEAD and merged-commit evidence; branch-only
+targets require expected tip, merged-commit evidence and absence from every
+worktree registration. Paired targets use the same commit guard. Targeted retries
+never discover new resources or perform fetch, prune or base updates.
