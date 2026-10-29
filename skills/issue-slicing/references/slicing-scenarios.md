@@ -114,6 +114,26 @@ selection constraints. Both specs are complete, and each export has independent
 consumers and can ship without the other. Ask for two drafts in one response,
 with no tracker fields, manifests, or live mutation.
 
+## Independent Approval Deliveries
+
+Use Explicit Independent Batch unchanged. Each export needs a separate approval
+delivery under `docs/guidelines/export-review.md`: a records maintainer accepts
+the records export and an audit maintainer accepts the audit export. Each can
+review and accept its own export against its complete contract without the
+other's code, artifacts, or approval. The user supplies an unpublished batch
+with a records-export issue and an audit-export issue, with a proposed records
+→ audit blocking edge justified only by the order of their reviews. Request
+revised drafts and a boundary/dependency rationale respecting separate approvals.
+
+## Independent Review-Size Deliveries
+
+Use Explicit Independent Batch unchanged. `docs/guidelines/export-review.md`
+limits one review delivery to one export endpoint because each endpoint has
+its own complete acceptance matrix. Both exports fit that limit individually;
+combining them exceeds it. Neither export consumes the other's implementation,
+artifacts, or approval. Ask for the two implementation drafts and their
+boundary/dependency rationale under this concrete review-size constraint.
+
 ## Batch With Blocked Work
 
 Use Explicit Independent Batch, but remove only the audit export's verification

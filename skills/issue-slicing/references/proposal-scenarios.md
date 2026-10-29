@@ -40,6 +40,49 @@ already accepted content in the current spec. The required automated
 verification covers the four `id`, `name`, `status`, and `created_at` columns.
 This request is not a request to slice the existing spec.
 
+## Confirmed Diagnostic Policy Change
+
+All paths and behavior below are hypothetical evaluator inputs. An existing
+helper at `src/checks/diagnostic-tail.ts` shows the final 10 lines of a failed
+check's output by default and already accepts an explicit excerpt-length
+override. `src/checks/diagnostic-tail.test.ts` verifies its current behavior.
+The owning `docs/guidelines/check-diagnostics.md`, at `## Output Policy`,
+documents the default and override precedence. That guideline is current
+behavior evidence; its update is pending scope work.
+
+The user confirms changing the default to 20 lines. Outputs of 20 lines or
+fewer must appear in full; longer outputs must show their final 20 lines in
+original order. An explicit override must continue to take precedence. Exit
+status, sanitization, and the diagnostic source remain unchanged. The scope is
+one default value, its existing tests, and the matching guideline paragraph.
+Verification covers empty output, output below and at the new limit, output
+above the limit, and an explicit override. No new command, configuration schema,
+ownership boundary, security policy, migration, or cross-workflow contract is
+involved. There is no separate approval, external dependency, or review-size
+constraint. Request an issue draft delivering the confirmed helper behavior and
+updating the documented diagnostic-output policy together.
+
+## Existing Policy-Only Draft
+
+Use Confirmed Diagnostic Policy Change unchanged. The user supplies an
+unpublished draft titled "Revise diagnostic-output policy" whose scope and
+acceptance criteria only change the guideline from 10 to 20 lines. It excludes
+the helper default and tests as future work because the guideline is called
+shared policy; it names no unresolved decision or other delivery constraint.
+The user asks to revise this draft to deliver the confirmed working outcome,
+including the helper behavior, documentation, and verification.
+
+## Small Structural Proposal
+
+Use Confirmed Diagnostic Policy Change, but replace its unchanged-sanitization
+and no-security-policy statements with this requirement: the helper will show
+previously redacted credential values to a new operator role. Whether that role
+may see those values is a new, unresolved security-policy decision owned by
+`docs/guidelines/diagnostic-access.md`. The user confirms that this decision
+requires shaping first and requests a proposal draft identifying that owner.
+The code edit remains one default value and one disclosure branch; no permission
+to disclose credentials or implement before that decision is supplied.
+
 ## Structural Proposal With Pending Shaping
 
 All paths and identifiers in this scenario are hypothetical evaluator inputs.

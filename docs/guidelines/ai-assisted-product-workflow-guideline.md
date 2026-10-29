@@ -100,13 +100,30 @@ immediate execution contract.
 
 ### 2.3 Narrow Hybrid Pass
 
-The two paths can collapse into one narrow hybrid pass when the change is small
-and the owning durable AFDS artifact can be updated in the same PR without a new
-architectural decision, contract boundary, schema migration, security policy, or
-broad workflow change.
+Prefer one coherent issue and delivery containing implementation, required
+durable documentation, and verification when behavior, boundaries, acceptance
+criteria, verification expectations, and documentation owners are sufficiently
+confirmed, the change is small, and no concrete structural blocker or justified
+separate-delivery constraint is present. Updating policy or specification text,
+changing several files, or taking several implementation steps does not alone
+require a policy-only or spec-only prerequisite.
 
-If any of those blockers appear, split the work: shape the owning durable AFDS
-artifact first, then slice implementation issues.
+Before requiring prior shaping, name the actual new architectural decision,
+contract boundary, schema migration, security-policy decision, or broad workflow
+change and why it requires that prerequisite. If such a blocker exists, shape
+the owning durable AFDS artifact first, then slice implementation issues. Small
+size does not waive this gate; broad scope still requires decomposition, and
+missing execution-critical requirements still require precise clarification.
+
+Under [SLICE-001](../specs/afds-workflow-routing.md#slice-001-issue-draft-origins),
+each recommended split needs an independently verifiable completion boundary
+and a concrete delivery reason, such as review size, separate approval, or an
+external constraint. Only a blocking dependency additionally needs the required
+predecessor output and why it must complete separately. Independent deliveries
+need no invented dependency; sequencing steps within one issue is not itself a
+reason to split. Preserve the requested working outcome, and explain any
+necessary scope reduction and its actual prerequisite instead of silently
+replacing implementation with policy-only work.
 
 ## 3. When Product Requirements or Behavior Specs Are Required
 

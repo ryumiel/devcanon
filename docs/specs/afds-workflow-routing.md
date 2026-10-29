@@ -143,11 +143,19 @@ An actual request to slice an existing spec retains its readiness requirements
 and cannot evade them by relabeling that work as a proposal. Missing
 execution-critical requirements or unresolved conflicts block until clarified.
 
-An execution-ready proposal draft that combines implementation with required
-documentation creation or updates is allowed only for a narrow change with no
-new architectural decision, contract boundary, schema migration, security
-policy, or broad workflow shaping. Size and those structural blockers are
-independent conditions.
+For a narrow proposal with sufficient confirmed behavior, boundaries, acceptance
+criteria, verification expectations, and documentation owners, prefer one
+execution-ready draft containing the requested implementation, required durable
+documentation, and verification when no concrete structural blocker or justified
+separate-delivery constraint is present. A policy/spec update, several affected
+files, or multiple implementation steps alone must not produce a shaping-only
+prerequisite.
+
+A structural-blocker classification must name the actual new architectural
+decision, contract boundary, schema migration, security-policy decision, or broad
+workflow-shaping need and why it requires prior shaping. A shared-policy or
+specification keyword is not evidence of a blocker. Size and structural blockers
+remain independent: small size does not waive a genuine shaping prerequisite.
 
 When a concrete proposal is broad without a structural blocker, its draft may
 record the proposal with a named decomposition prerequisite. It must not claim
@@ -171,14 +179,22 @@ Related decisions that jointly establish that outcome remain together unless
 separate delivery is justified. Each recommended split must identify an
 independently verifiable completion boundary and a concrete benefit or constraint,
 such as bounded review size, a reusable prerequisite, distinct approval
-requirements, or an external constraint. Topic or file boundaries alone are
-insufficient; sharing one file does not require consolidation. Local
+requirements, or an external constraint. Policy/spec classification, multiple
+implementation steps, and topic or file boundaries alone are insufficient;
+sharing one file does not require consolidation. Local
 issue-to-PR conventions inform review and integration costs without imposing
 a universal issue-count limit.
 
 Each proposed blocking dependency must identify the required predecessor output
-and why it needs separate completion. Reasoning or discussion order alone does
-not justify a hard dependency. Scope reduction or a request for simplification
+and why it needs separate completion. This requirement applies only to blocking
+dependencies; independent deliveries justified by review size or separate
+approval requirements must not acquire invented predecessor outputs or edges.
+Sequencing steps within one issue is distinct from requiring separately completed
+work; reasoning or discussion order alone does not justify a hard dependency.
+Preserve the requested observable implementation outcome. When a genuine shaping
+or decomposition prerequisite reduces the next draft's scope, explain the
+reduction and actual prerequisite rather than silently substituting policy-only
+work. Scope reduction or a request for simplification
 requires reassessing affected boundaries and dependencies while preserving
 necessary requirements and evidence. These checks do not weaken origin,
 evidence, readiness, structural-shaping, or provider-mutation boundaries.
@@ -1961,6 +1977,15 @@ D14–D16 and final changed-head independent review remain required.
   structural proposal draft records its named shaping prerequisite, without an
   execution-ready implementation claim; broad or structural shaping and
   implementation remain separate under the unchanged policy owners.
+- A narrow confirmed policy/default change with no concrete blocker or delivery
+  constraint retains implementation, documentation, and verification in one
+  issue; a policy-only draft fails if it omits the requested working outcome.
+  Structural classifications name the actual shaping need, including for small
+  changes; broad-scope and missing-critical-requirement controls retain their gates.
+- Independent deliveries justified by a concrete review or approval constraint
+  retain verifiable completion boundaries without invented predecessor outputs
+  or dependency edges; actual blocking dependencies name their required output
+  and why separate completion is necessary.
 - Cohesion cases keep coupled decisions in one bounded deliverable unless a
   split has an independent completion boundary and concrete delivery rationale.
   Genuine prerequisites survive; discussion order alone creates no hard edge.
