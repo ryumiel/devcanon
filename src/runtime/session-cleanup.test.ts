@@ -101,6 +101,37 @@ describe("independent completed-session cleanup", () => {
     expect((await collectWorktrees(repo)).length).toBe(2);
   });
 
+  // CLEANUP-04, runtime layer: linked retention did not cover an excluded primary.
+  it("preserves an explicitly retained primary while completing independent cleanup", async () => {
+    const { repo, head, detached } = await fixture();
+    await git(["checkout", "-b", "active"], repo);
+    const completed = await detached("completed");
+    await git(["branch", "delivered"], repo);
+    const result = await cleanup([
+      "--repo",
+      repo,
+      "--retain-worktree",
+      repo,
+      "--execute",
+    ]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toContain("BASE_UPDATE=retained");
+    expect(result.stdout).toContain("BASE_UPDATE_REASON=caller-retained");
+    expect(result.stdout).toContain(
+      "active|STATUS=retained|REASON=branch-in-retained-worktree",
+    );
+    expect(await revParse(repo, "HEAD")).toBe(head);
+    expect((await git(["branch", "--show-current"], repo)).stdout.trim()).toBe(
+      "active",
+    );
+    expect(await showRefExists(repo, "refs/heads/active")).toBe(true);
+    expect(await canonicalPath(completed)).toBeNull();
+    expect(
+      (await collectWorktrees(repo)).map((record) => record.realPath),
+    ).toEqual([repo]);
+    expect(await showRefExists(repo, "refs/heads/delivered")).toBe(false);
+  });
+
   it("continues after a branch deletion failure and protects dirty and locked worktrees", async () => {
     const { repo, detached } = await fixture();
     const locked = await detached("locked");

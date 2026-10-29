@@ -1,7 +1,8 @@
+import * as childProcess from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   canonicalPath,
   collectWorktrees,
@@ -13,6 +14,11 @@ import {
 } from "./cleanup-git.js";
 import { runGitWorkspaceCleanupCommand } from "./git-workspace-cleanup.js";
 import { runPrMergeWorktreeCommand } from "./pr-merge-worktree.js";
+
+vi.mock("node:child_process", async (importOriginal) => {
+  const actual = await importOriginal<typeof childProcess>();
+  return { ...actual, spawn: vi.fn(actual.spawn) };
+});
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -362,6 +368,104 @@ describe("nested Git cleanup custody and removal", () => {
 });
 
 describe("raw squash equivalence", () => {
+  // CLEANUP-04, shared runtime proof: small patches lacked large-history coverage.
+  it.each(["single", "aggregate"])(
+    "recognizes squash delivery through %s history above the buffered limit",
+    async (kind) => {
+      const root = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-large-patch-"),
+      );
+      roots.push(root);
+      await initRepo(root);
+      await git(["checkout", "-b", "feature"], root);
+      await writeFile(path.join(root, "tracked.txt"), "small feature\n");
+      await git(["commit", "-am", "feature"], root);
+      await git(["checkout", "main"], root);
+      const count = kind === "single" ? 1 : 2;
+      const size = kind === "single" ? 11 : 6;
+      for (let index = 0; index < count; index++) {
+        await writeFile(
+          path.join(root, `unrelated-${index}`),
+          "unrelated text line\n".repeat(Math.ceil((size * 1024 * 1024) / 20)),
+        );
+        await git(["add", "."], root);
+        await git(["commit", "-m", "unrelated history"], root);
+      }
+      await git(["merge", "--squash", "feature"], root);
+      await git(["commit", "-m", "squash delivery"], root);
+      expect(await commitIsMerged(root, "feature", "main")).toBe(true);
+    },
+  );
+
+  // CLEANUP-04 shared proof owns complete producer/consumer termination, even after a match.
+  it.each(["producer", "consumer"])(
+    "rejects a failed %s after matching output and reaps inspection children",
+    async (failure) => {
+      const root = await mkdtemp(
+        path.join(os.tmpdir(), "devcanon-failed-patch-"),
+      );
+      roots.push(root);
+      await initRepo(root);
+      await git(["checkout", "-b", "feature"], root);
+      await writeFile(path.join(root, "tracked.txt"), "feature\n");
+      await git(["commit", "-am", "feature"], root);
+      await git(["checkout", "main"], root);
+      await git(["merge", "--squash", "feature"], root);
+      await git(["commit", "-m", "delivered"], root);
+      const patch = (await git(["show", "--format=%H", "HEAD"], root)).stdout;
+      const id = childProcess.spawnSync("git", ["patch-id", "--stable"], {
+        input: patch,
+        encoding: "utf8",
+      }).stdout;
+      const spawn = (
+        await vi.importActual<typeof childProcess>("node:child_process")
+      ).spawn;
+      const children: ReturnType<typeof spawn>[] = [];
+      let consumers = 0;
+      const spy = vi
+        .mocked(childProcess.spawn)
+        .mockImplementation((...args: Parameters<typeof spawn>) => {
+          const gitArgs = args[1] as string[];
+          if (gitArgs.includes("patch-id")) consumers++;
+          const inject =
+            failure === "producer"
+              ? gitArgs.includes("log")
+              : consumers === 2 && gitArgs.includes("patch-id");
+          const child = inject
+            ? spawn(
+                process.execPath,
+                [
+                  "-e",
+                  failure === "producer"
+                    ? "process.stdout.write(process.argv[1], () => process.exit(1))"
+                    : "process.stdin.resume(); process.stdout.write(process.argv[1], () => process.exit(1))",
+                  failure === "producer" ? patch : id,
+                ],
+                args[2],
+              )
+            : spawn(...args);
+          children.push(child);
+          return child;
+        });
+      try {
+        await expect(commitIsMerged(root, "feature", "main")).rejects.toThrow(
+          "patch equivalence inspection failed",
+        );
+        expect(children.length).toBeGreaterThan(0);
+        expect(
+          children.every(
+            (child) => child.exitCode !== null || child.signalCode !== null,
+          ),
+        ).toBe(true);
+      } finally {
+        spy.mockImplementation(spawn);
+        for (const child of children)
+          if (child.exitCode === null && child.signalCode === null)
+            child.kill("SIGKILL");
+      }
+    },
+  );
+
   it("retains unique content hidden by a configured text conversion", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "devcanon-raw-patch-"));
     roots.push(root);

@@ -357,7 +357,9 @@ async function workspaceCleanup(parsed: Args): Promise<RuntimeCommandOutcome> {
         ).stdout.trim(),
       );
     primaryDirtyFiles = countStatusLines(await worktreeStatus(primary));
-    if (primaryDirtyFiles)
+    if (retained.has(primary))
+      base = { status: "retained", reason: "caller-retained" };
+    else if (primaryDirtyFiles)
       base = { status: "retained", reason: "dirty-primary-worktree" };
     else if (ahead)
       base = {
