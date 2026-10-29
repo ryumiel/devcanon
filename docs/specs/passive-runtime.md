@@ -39,6 +39,100 @@ finalization retry against complete intact same-head evidence applicable to the
 failed operation; it preserves existing review, approval, provider, and cleanup
 authority.
 
+## Targeted local cleanup
+
+This section defines intended behavior for an explicit-target cleanup mode;
+it is not an available-command claim. The current
+[workspace helper](../../skills/git-workspace-cleanup/references/git-workspace-cleanup-usage.md)
+is repository-wide, while the
+[post-merge helper](../../skills/pr-merge/references/post-merge-cleanup-usage.md)
+requires PR context. Their existing interfaces remain unchanged until the
+targeted mode is implemented.
+
+### CLEANUP-01: Explicit local scope
+
+The caller supplies the repository, worktree path, local branch and expected
+HEAD, selecting dry-run or execute. All target inputs are required; missing or
+invalid inputs must not fall back to broad cleanup. Resolve the repository and
+worktree as canonical directory identities and verify Git registration, branch
+and commit agree with the selected target before removal. Reject primary,
+locked, unrelated or mismatched targets. An absent target is handled only by
+CLEANUP-03, never by searching for another checkout to delete.
+
+Dry-run inspects and reports eligibility without mutation, including no fetch
+or prune. Execute removes only the selected eligible worktree and local branch;
+it does not update the base checkout, prune other registrations, delete remote
+branches, or change unrelated worktrees. The selected branch must not be the
+base/default branch and must still have the expected tip immediately before
+deletion. A branch used by any remaining worktree is retained.
+
+### CLEANUP-02: Existing preservation guards
+
+Reuse the shared nested-repository inspection and removal in
+[`cleanup-git.ts`](../../src/runtime/cleanup-git.ts). Initialized submodules that
+pass its existing preservation checks use `git worktree remove --force`.
+This is Git's submodule-removal mechanism, not permission to discard dirty,
+untracked, local-only or shared nested work, bypass a lock, or remove the primary
+checkout. The targeted mode adds no dirty-work or lock override.
+
+The owning workflow establishes disposal authority and required evidence
+preservation. For host-managed checkouts it also establishes a supported removal
+and attachment/ownership reconciliation path under
+[mechanism selection](../../skills/git-workspace-cleanup/references/git-workspace-cleanup-usage.md#mechanism-selection-and-verification).
+The Git helper neither archives chats nor changes host metadata; a host refusal
+cannot be bypassed with this helper. Batch lifecycle ordering belongs to
+[ROUTE-007-CLEANUP](afds-workflow-routing.md#route-007-cleanup-completed-owner-cleanup).
+
+### CLEANUP-03: Outcomes and partial completion
+
+Report worktree and local-branch outcomes independently with reasons. Verify
+filesystem and Git-registration absence after removal; a successful command
+alone is insufficient. Report already-absent resources distinctly from resources
+removed by this invocation. A remaining directory or registration is not an
+already-removed target. Do not proceed to branch deletion after failed or
+unverified worktree removal.
+
+A retry uses the same explicit target and expected commit. When both checkout
+and registration are absent, it may delete the remaining branch only if that
+branch still has the expected tip, is unprotected and is not used by any
+worktree. An already-absent branch needs no deletion. A changed branch tip,
+replacement checkout with a different binding, or unresolved host effect must
+remain retained for reconciliation rather than broadening or forcing cleanup.
+No persistent retry ledger or new host adapter is required.
+
+### Cleanup verification and implementation boundary
+
+Acceptance requires focused coverage for:
+
+- an ordinary selected worktree and branch, with unrelated resources unchanged;
+- an eligible initialized submodule using guarded force;
+- dirty/local-only nested work, locked and primary targets remaining protected;
+- missing or mismatched target inputs, including a changed branch tip;
+- mutation-free dry-run and unchanged base/remote branches during execute;
+- already-absent resources and checkout removal followed by branch-deletion
+  failure, with a retry limited to the remaining eligible resource.
+
+Workflow scenarios additionally cover archive-triggered removal, supported host
+refusal, pending/unknown outcomes, and required evidence retention. They must not
+claim that a Git-only test proves host attachment reconciliation.
+
+The bounded implementation follow-up is an explicit-target mode in the existing
+workspace-cleanup helper, reusing shared Git removal, with matching usage and
+coordination/routing guidance. Keep post-merge cleanup's existing PR-specific
+behavior; its guidance must distinguish this local-only mode. The public helper
+registry owns membership, the usage reference owns exact invocation/output
+syntax, and runtime source owns validation. No new top-level CLI command,
+background worker or host-private integration is needed. Host support that is
+unavailable remains a reported limitation, not a blocker to ordinary Git-target
+support. Readiness review precedes implementation issue slicing.
+
+Evidence: [DevCanon issue #862](https://github.com/ryumiel/devcanon/issues/862)
+records the confirmed proposal for archive-first coordination and explicit local
+targets. Shared force-removal guards already exist in `cleanup-git.ts` and
+[`cleanup-git.test.ts`](../../src/runtime/cleanup-git.test.ts); the new mode and
+host lifecycle behavior require the verification above before being reported as
+implemented. The cleanup workflow owns follow-up on unsupported host removal.
+
 ## Terms
 
 - **Authored adapters:** the source-controlled shell compatibility adapter and
