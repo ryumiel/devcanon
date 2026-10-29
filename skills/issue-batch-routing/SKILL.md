@@ -217,7 +217,7 @@ from merged PRs, snapshots or archived chats, or a running queue from acceptance
 For a completed owner, default to evidence/responsibility transfer → owner chat
 archival → supported host reconciliation → selected worktree removal → selected
 local branch deletion, under
-[ROUTE-007-CLEANUP](../../docs/specs/afds-workflow-routing.md#route-007-cleanup-completed-owner-cleanup).
+[cleanup mechanism selection](../git-workspace-cleanup/references/git-workspace-cleanup-usage.md#mechanism-selection-and-verification).
 Explicit user ordering takes precedence. Before archival, the controller outside
 the target accepts the cleanup obligation, required evidence stays usable outside
 it, and no work/follow-up remains assigned to the terminal owner. Do not wake the

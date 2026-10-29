@@ -92,8 +92,14 @@ async function inspectAndCleanTarget(
   let ancestor = path.dirname(requested);
   const missingParts = [path.basename(requested)];
   while (!(await exists(ancestor))) {
+    const parent = path.dirname(ancestor);
+    if (parent === ancestor) {
+      throw new CleanupUsageError(
+        `no existing ancestor for cleanup target: ${requested}`,
+      );
+    }
     missingParts.unshift(path.basename(ancestor));
-    ancestor = path.dirname(ancestor);
+    ancestor = parent;
   }
   const selected = path.join(await realpath(ancestor), ...missingParts);
   const ref = `refs/heads/${target.branch}`;

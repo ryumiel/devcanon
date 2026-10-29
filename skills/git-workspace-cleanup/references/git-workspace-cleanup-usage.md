@@ -110,7 +110,7 @@ exact worktree ownership/scope, dirty and local-only work, and required artifact
 before selecting a mechanism. Preserve user-selected ordering between cleanup,
 chat archival, milestone closure and watchdog shutdown; do not impose an
 incident-specific sequence on other workflows. For completed batch owners,
-[ROUTE-007-CLEANUP](../../../docs/specs/afds-workflow-routing.md#route-007-cleanup-completed-owner-cleanup)
+[post-delivery lifecycle reconciliation](../../issue-batch-routing/SKILL.md#post-delivery-lifecycle-reconciliation)
 defaults to evidence/responsibility transfer, chat archival, supported host
 reconciliation, selected checkout removal, then selected local branch deletion.
 Archival can itself remove the checkout; inspect its effect before Git cleanup.

@@ -1,3 +1,4 @@
+import * as fs from "node:fs/promises";
 import {
   mkdir,
   mkdtemp,
@@ -9,7 +10,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   canonicalPath,
   collectWorktrees,
@@ -19,8 +20,16 @@ import {
 } from "./cleanup-git.js";
 import { runGitWorkspaceCleanupCommand } from "./git-workspace-cleanup.js";
 
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof fs>();
+  return { ...actual, lstat: vi.fn(actual.lstat) };
+});
+
 const roots: string[] = [];
 afterEach(async () => {
+  vi.mocked(fs.lstat).mockImplementation(
+    (await vi.importActual<typeof fs>("node:fs/promises")).lstat,
+  );
   await Promise.all(
     roots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
   );
@@ -54,6 +63,33 @@ async function fixture() {
 }
 
 describe("targeted local cleanup", () => {
+  it("refuses an unavailable filesystem root instead of repeating ancestor traversal", async () => {
+    const { repo, args } = await fixture();
+    const root = path.parse(repo).root;
+    const unavailable = path.join(
+      root,
+      `unavailable-${path.basename(path.dirname(repo))}`,
+    );
+    args[3] = path.join(unavailable, "checkout");
+    const originalLstat = (await vi.importActual<typeof fs>("node:fs/promises"))
+      .lstat;
+    let rootVisits = 0;
+    vi.mocked(fs.lstat).mockImplementation(async (...parameters) => {
+      const candidate = String(parameters[0]);
+      if (candidate === root || candidate === unavailable) {
+        if (candidate === root && ++rootVisits > 1)
+          throw new Error("ancestor traversal repeated the unavailable root");
+        throw Object.assign(new Error("unavailable root"), { code: "ENOENT" });
+      }
+      return originalLstat(...parameters);
+    });
+    const result = await runGitWorkspaceCleanupCommand([...args, "--execute"]);
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("no existing ancestor for cleanup target");
+    expect(rootVisits).toBe(1);
+    expect(await showRefExists(repo, "refs/heads/feature/selected")).toBe(true);
+  });
+
   it("rejects a missing expected commit without lazy-fetching from a promisor", async () => {
     const { root, repo } = await fixture();
     await git(["config", "uploadpack.allowFilter", "true"], repo);
