@@ -84,7 +84,7 @@ documented success contract.
 Retain the actual native attachment/ownership identity or ordinary Git checkout
 binding for the cleanup owner. Native setup does not authorize Git-only removal
 of host-managed resources. `pr-merge` owns scoped post-merge cleanup;
-`git-workspace-cleanup` owns repository-wide cleanup. Their shared
+`git-workspace-cleanup` owns explicit-target local cleanup and repository-wide cleanup. Their shared
 [mechanism selection](../git-workspace-cleanup/references/git-workspace-cleanup-usage.md#mechanism-selection-and-verification)
 contract distinguishes filesystem/Git removal, host metadata, and chat archival.
 A native archive acceptance alone is not a terminal cleanup outcome.

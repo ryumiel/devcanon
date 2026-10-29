@@ -75,6 +75,47 @@ async function fixture(nested = false) {
 }
 
 describe("nested Git cleanup custody and removal", () => {
+  it.each(["clean", "dirty", "local-only", "shared"])(
+    "applies targeted cleanup to %s submodule custody",
+    async (kind) => {
+      const { root, primary, linked } = await fixture();
+      const module = path.join(linked, "module");
+      if (kind === "dirty")
+        await writeFile(path.join(module, "untracked"), "keep");
+      if (kind === "local-only") {
+        await git(["config", "user.name", "Test"], module);
+        await git(["config", "user.email", "test@example.com"], module);
+        await writeFile(path.join(module, "local"), "keep");
+        await git(["add", "."], module);
+        await git(["commit", "-m", "local"], module);
+        await git(["reset", "--hard", "origin/main"], module);
+      }
+      if (kind === "shared")
+        await git(
+          ["worktree", "add", "--detach", path.join(root, "external")],
+          module,
+        );
+      const head = (await git(["rev-parse", "HEAD"], linked)).stdout.trim();
+      const result = await runGitWorkspaceCleanupCommand([
+        "--repo",
+        primary,
+        "--worktree",
+        linked,
+        "--branch",
+        "feature/delivered",
+        "--expected-head",
+        head,
+        "--execute",
+      ]);
+      expect(result.exitCode).toBe(kind === "clean" ? 0 : 1);
+      expect(result.stdout).toContain(
+        `WORKTREE_STATUS=${kind === "clean" ? "removed" : "retained"}`,
+      );
+      if (kind === "clean") expect(await canonicalPath(linked)).toBeNull();
+      if (kind !== "clean") expect(await canonicalPath(linked)).not.toBeNull();
+    },
+  );
+
   it("removes clean initialized submodules without changing shared configuration or other worktrees", async () => {
     const { root, primary, linked } = await fixture();
     const unrelated = path.join(root, "active");

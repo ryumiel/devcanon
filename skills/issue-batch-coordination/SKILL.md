@@ -509,3 +509,18 @@ Scheduling requires supported host functionality and actual authorization; this
 skill creates no timer by itself. Missing scheduling support does not prevent independently authorized
 owner-driven coordination. A refresh can reveal drift, but neither prose nor a
 timer guarantees policy compliance.
+
+## Completed-owner cleanup
+
+Apply the router's
+[post-delivery lifecycle reconciliation](../issue-batch-routing/SKILL.md#post-delivery-lifecycle-reconciliation):
+accept the evidence and cleanup obligation outside the target, archive the
+terminal owner, reconcile supported host effects, then remove only the eligible
+selected checkout and local branch. Honor explicit user ordering and retained
+authority. Use the cleanup owner's explicit-target mode for local-only work;
+PR merge effects remain with `pr-merge`. An archived chat alone proves neither
+worktree removal nor release of host protection. Retain unsupported, failed or
+unknown effects in existing obligations; do not wake an archived owner solely
+for cleanup or bypass the host with Git. The
+[cleanup scenarios](references/reporting-scenarios.md#post-delivery-cleanup-outcomes)
+cover archive-triggered removal, refusal and partial retries.

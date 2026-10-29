@@ -1,6 +1,6 @@
 ---
 name: git-workspace-cleanup
-description: Deterministic cleanup of Git worktrees and local branches back to the remote default branch. Use when the user asks to clean all linked worktrees, return the primary checkout to the remote default branch, or delete local branches after work is complete.
+description: Deterministic cleanup of selected local worktrees and branches or an entire Git workspace. Use when the user asks to clean all linked worktrees, return the primary checkout to the remote default branch, or delete local branches after work is complete.
 ---
 
 # Git Workspace Cleanup
@@ -11,17 +11,33 @@ When invoking this Bash helper from Windows PowerShell, use the environment-
 specific path conversion route in that usage reference before the required
 dry-run.
 
-Use this skill to return a Git repository to one primary checkout on the
-remote default branch.
+Use this skill for explicit local-target cleanup or to return a Git repository
+to one primary checkout on the remote default branch.
 
 The bundled script owns ordinary repository-wide destructive operations. Do not
 hand-roll the cleanup sequence. Before selecting it, read the usage reference's
 [mechanism selection](references/git-workspace-cleanup-usage.md#mechanism-selection-and-verification).
-Selected batch worktrees use `pr-merge` scoped cleanup; this helper does not
-accept a selected-worktree scope. Host-managed worktrees require a supported
+Selected PR cleanup remains with `pr-merge`; completed-owner local cleanup uses
+this helper's explicit-target mode. Host-managed worktrees require a supported
 host lifecycle and attachment/ownership reconciliation path.
 
-## Required Workflow
+## Selected local cleanup
+
+Read the usage reference's **Selected local cleanup** contract. Preserve required
+evidence and establish disposal authority for the exact path, local branch and
+expected commit. For completed batch owners, transfer cleanup to a controller
+outside the target, archive the terminal owner, reconcile the supported host
+result, then dry-run and execute selected cleanup. Honor explicit user ordering;
+never archive an owner with assigned work or wake it solely to remove its checkout.
+Host refusal or pending/unknown effects hold dependent Git cleanup.
+
+Present the dry-run result and reuse compatible standing cleanup authority.
+No broad force flags are allowed. The runtime's clean-submodule force is guarded,
+not permission to discard nested work. Report worktree and branch statuses
+separately; use the same inputs for an eligible partial retry. Missing target
+inputs must never route to broad cleanup.
+
+## Repository-wide workflow
 
 1. Run the script in dry-run mode first.
 2. Report the dry-run summary to the user.
@@ -65,7 +81,7 @@ bash "$SKILL_DIR/scripts/git-workspace-cleanup.sh" --repo "$TARGET_REPO" --execu
 Use both force flags only when both categories were shown in dry-run output and
 the user explicitly approved both.
 
-## Safety Policy
+## Repository-wide safety policy
 
 The script blocks by default on:
 
@@ -112,7 +128,7 @@ override. It never deinitializes submodules or changes shared registration.
 Dirty submodules (including ignored artifacts), local-only nested work, shared/external administration and
 embedded repositories require preservation or an owner-supported remedy first.
 
-## Output Contract
+## Repository-wide output contract
 
 The script writes `KEY=VALUE` lines.
 

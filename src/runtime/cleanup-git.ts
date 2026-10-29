@@ -122,7 +122,10 @@ export async function currentBranch(cwd: string): Promise<string> {
   return result.exitCode === 0 ? result.stdout.trim() : "";
 }
 
-export async function collectWorktrees(cwd: string): Promise<WorktreeRecord[]> {
+export async function collectWorktrees(
+  cwd: string,
+  includeUnavailable = false,
+): Promise<WorktreeRecord[]> {
   const result = await git(["worktree", "list", "--porcelain", "-z"], cwd);
   const records: WorktreeRecord[] = [];
   let current: WorktreeRecord | null = null;
@@ -137,6 +140,8 @@ export async function collectWorktrees(cwd: string): Promise<WorktreeRecord[]> {
       const real = await canonicalPath(current.path);
       if (real !== null) {
         records.push({ ...current, realPath: real });
+      } else if (includeUnavailable) {
+        records.push(current);
       }
     }
     current = null;
@@ -174,6 +179,7 @@ export async function worktreeStatus(worktreePath: string): Promise<string> {
   return (
     await git(
       [
+        "--no-optional-locks",
         "status",
         "--porcelain=v1",
         "--untracked-files=normal",
@@ -188,7 +194,7 @@ export async function resolveDefaultBranch(
   cwd: string,
 ): Promise<string | null> {
   const symbolicRef = await git(
-    ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+    ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"],
     cwd,
     [0, 1],
   );
@@ -383,6 +389,7 @@ export async function inspectNestedRepositories(
             (
               await git(
                 [
+                  "--no-optional-locks",
                   "status",
                   "--porcelain=v1",
                   "--untracked-files=all",

@@ -433,8 +433,8 @@ unknown completion that retains the obligation; and successful checkout removal
 followed by failed branch deletion, where a later attempt addresses only the
 remaining eligible branch. Each preserves unrelated work and required evidence.
 
-This intended flow requires corresponding coordination/routing and cleanup-skill
-updates when implemented. Existing mechanism-selection restrictions remain in
+This flow is implemented by corresponding coordination/routing and cleanup-skill
+guidance updates. Existing mechanism-selection restrictions remain in
 force; the specification does not make an unsupported host operation available.
 
 Priming retains every mandatory phase and ends its effects at the reviewed
