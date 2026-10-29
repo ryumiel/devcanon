@@ -1,6 +1,14 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   canonicalPath,
@@ -46,6 +54,58 @@ async function fixture() {
 }
 
 describe("targeted local cleanup", () => {
+  it("rejects a missing expected commit without lazy-fetching from a promisor", async () => {
+    const { root, repo } = await fixture();
+    await git(["config", "uploadpack.allowFilter", "true"], repo);
+    const partial = path.join(root, "partial");
+    await git(
+      ["clone", "--filter=blob:none", pathToFileURL(repo).href, partial],
+      root,
+    );
+    await writeFile(path.join(repo, "file"), "remote-only commit");
+    await git(["commit", "-am", "remote update"], repo);
+    const missing = await revParse(repo, "HEAD");
+    const packs = path.join(partial, ".git", "objects", "pack");
+    const before = (await readdir(packs)).sort();
+    const result = await runGitWorkspaceCleanupCommand([
+      "--repo",
+      partial,
+      "--worktree",
+      path.join(root, "absent"),
+      "--branch",
+      "feature/missing",
+      "--expected-head",
+      missing,
+      "--dry-run",
+    ]);
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("expected HEAD is not a commit");
+    expect((await readdir(packs)).sort()).toEqual(before);
+    // Positive control: the same object lookup without suppression really fetches it.
+    expect(
+      (await git(["cat-file", "-t", missing], partial)).stdout.trim(),
+    ).toBe("commit");
+    expect((await readdir(packs)).sort()).not.toEqual(before);
+  });
+
+  it("retries branch deletion after all checkout parent directories disappear", async () => {
+    const { root, repo, target, args } = await fixture();
+    const parent = path.join(root, "removed", "nested");
+    await mkdir(parent, { recursive: true });
+    const moved = path.join(parent, "checkout");
+    await git(["worktree", "move", target, moved], repo);
+    args[3] = moved;
+    await git(["worktree", "remove", moved], repo);
+    await rm(path.join(root, "removed"), { recursive: true });
+    const result = await runGitWorkspaceCleanupCommand([...args, "--execute"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("WORKTREE_STATUS=already-absent");
+    expect(result.stdout).toContain("BRANCH_STATUS=removed");
+    expect(await showRefExists(repo, "refs/heads/feature/selected")).toBe(
+      false,
+    );
+  });
+
   it("rejects incomplete target selection and broad force overrides before any cleanup", async () => {
     const { repo, target, args } = await fixture();
     for (const invalid of [

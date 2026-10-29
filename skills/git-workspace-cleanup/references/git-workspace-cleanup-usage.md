@@ -24,7 +24,9 @@ commit SHA. Partial inputs, invalid identities and broad force flags are rejecte
 there is no fallback to repository-wide cleanup. Resolve the expected commit
 from retained delivery evidence, not a changed branch at cleanup time.
 The repository must have a locally resolvable origin default branch; no fetch is
-performed to discover it. Run from outside the selected checkout and use a
+performed to discover it. Targeted inspection uses Git's `--no-lazy-fetch`
+to prevent implicit promisor downloads; Git versions without that option refuse
+the operation. Missing expected objects fail locally. Run from outside the selected checkout and use a
 surviving repository checkout for `--repo`.
 
 Targeted dry-run performs no writes, fetch or prune. Execute removes only the
@@ -43,7 +45,8 @@ blockers or operation failures. Dry-run exits zero for inspected blocked plans;
 execute exits 1 for retained/failed resources; invalid inputs exit 2.
 
 Both directory and registration must be absent before branch deletion. A retry
-uses the same inputs and removes only a still-matching unused local ref;
+uses the same inputs, including when the checkout's parent directories are gone,
+and removes only a still-matching unused local ref;
 changed refs, replacement checkouts and stale registrations remain protected.
 Ref deletion compares the expected SHA atomically. Existing branch configuration
 is left unchanged. A failed branch deletion does not erase a verified worktree

@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { execFile, spawnSync } from "node:child_process";
 import type { Dirent } from "node:fs";
 import { lstat, readdir, realpath } from "node:fs/promises";
@@ -5,6 +6,12 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
+const localInspection = new AsyncLocalStorage<boolean>();
+
+/** Scope implicit-fetch suppression to one cleanup invocation and its shared helpers. */
+export function withoutLazyFetch<T>(operation: () => Promise<T>): Promise<T> {
+  return localInspection.run(true, operation);
+}
 
 export interface ExecResult {
   exitCode: number;
@@ -29,7 +36,12 @@ export async function git(
   try {
     const { stdout, stderr } = await execFileAsync(
       "git",
-      ["-C", cwd, ...args],
+      [
+        ...(localInspection.getStore() ? ["--no-lazy-fetch"] : []),
+        "-C",
+        cwd,
+        ...args,
+      ],
       {
         cwd,
         encoding: "utf8",

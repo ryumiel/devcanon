@@ -14,6 +14,7 @@ import {
   revParse,
   showRefExists,
   showTopLevel,
+  withoutLazyFetch,
   worktreeStatus,
 } from "./cleanup-git.js";
 import type { RuntimeCommandOutcome } from "./command.js";
@@ -39,7 +40,15 @@ async function exists(target: string): Promise<boolean> {
 }
 
 /** Local Git effects only; the caller owns disposal and host lifecycle authority. */
-export async function runTargetedCleanup(
+export function runTargetedCleanup(
+  repo: string,
+  mode: "dry-run" | "execute",
+  target: Target,
+): Promise<RuntimeCommandOutcome> {
+  return withoutLazyFetch(() => inspectAndCleanTarget(repo, mode, target));
+}
+
+async function inspectAndCleanTarget(
   repo: string,
   mode: "dry-run" | "execute",
   target: Target,
@@ -77,12 +86,16 @@ export async function runTargetedCleanup(
     );
   }
 
-  // Resolve the parent for absent-target retries; never follow a replacement leaf symlink.
+  // Resolve missing parents through an existing ancestor, without following a
+  // replacement leaf or treating a dangling ancestor symlink as absent.
   const requested = path.resolve(target.worktree);
-  const selected = path.join(
-    await realpath(path.dirname(requested)),
-    path.basename(requested),
-  );
+  let ancestor = path.dirname(requested);
+  const missingParts = [path.basename(requested)];
+  while (!(await exists(ancestor))) {
+    missingParts.unshift(path.basename(ancestor));
+    ancestor = path.dirname(ancestor);
+  }
+  const selected = path.join(await realpath(ancestor), ...missingParts);
   const ref = `refs/heads/${target.branch}`;
   let worktree: ResourceOutcome = {
     status: "retained",
