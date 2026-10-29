@@ -437,6 +437,15 @@ async function workspaceCleanup(parsed: Args): Promise<RuntimeCommandOutcome> {
     }
     for (const fact of branches) {
       if (fact.status !== "eligible") continue;
+      if (
+        worktrees.some(
+          (entry) => entry.record.branch === fact.branch && incomplete(entry),
+        )
+      ) {
+        fact.status = "retained";
+        fact.reason = "branch-in-retained-worktree";
+        continue;
+      }
       try {
         const ref = `refs/heads/${fact.branch}`;
         if (

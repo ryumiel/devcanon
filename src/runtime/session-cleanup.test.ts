@@ -10,6 +10,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import * as cleanupGit from "./cleanup-git.js";
 import {
   canonicalPath,
   collectWorktrees,
@@ -156,6 +157,44 @@ describe("independent completed-session cleanup", () => {
     expect((await cleanup(["--repo", repo, "--execute"])).stdout).toContain(
       "a-locked-ref|STATUS=removed",
     );
+  });
+
+  // EVID-004-CLEANUP, runtime layer: current registrations miss failed dependencies after detachment.
+  it("retains a failed checkout's original branch after detachment and removes independent branches", async () => {
+    const { root, repo, head } = await fixture();
+    const target = path.join(root, "completed");
+    await git(["worktree", "add", "-b", "dependent", target], repo);
+    await git(["branch", "unrelated"], repo);
+    const collect = cleanupGit.collectWorktrees;
+    const spy = vi
+      .spyOn(cleanupGit, "collectWorktrees")
+      .mockImplementationOnce(collect)
+      .mockImplementationOnce(async (...args) => {
+        await git(["checkout", "--detach"], target);
+        return collect(...args);
+      });
+    try {
+      const result = await cleanup(["--repo", repo, "--execute"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.stdout).toContain("STATUS=blocked");
+      expect(result.stdout).toContain(
+        `${target}|STATUS=failed|REASON=worktree registration changed`,
+      );
+      expect(await showRefExists(repo, "refs/heads/dependent")).toBe(true);
+      expect(await revParse(repo, "refs/heads/dependent")).toBe(head);
+      expect(result.stdout).toContain(
+        "dependent|STATUS=retained|REASON=branch-in-retained-worktree",
+      );
+      expect(await canonicalPath(target)).not.toBeNull();
+      expect(
+        (await collect(repo)).find((record) => record.realPath === target)
+          ?.branch,
+      ).toBe("");
+      expect(await showRefExists(repo, "refs/heads/unrelated")).toBe(false);
+      expect(result.stdout).toContain("unrelated|STATUS=removed");
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("protects arbitrary ignored files and permits explicit disposable directories", async () => {
