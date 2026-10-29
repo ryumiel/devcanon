@@ -13,6 +13,15 @@ codex_sidecar:
 
 # PR Review
 
+Completed-session cleanup follows
+[EVID-004-CLEANUP](../../docs/specs/afds-workflow-routing.md#evid-004-cleanup-session-artifact-lifetime).
+Existing cleanup authority includes disposable session data; retain only explicit
+retention, concrete active consumers or unresolved effects. Missing records alone
+do not extend completed-session retention. Use the workspace helper's independent
+resource outcomes and completed-review adapter where applicable. A protected or
+failed resource holds only its dependent cleanup; continue eligible independent
+resources without bypassing host lifecycle restrictions.
+
 The [lifecycle target contract](references/review-lease-lifecycle-contract.md#target-retention-and-supersession-contract)
 owns artifact purpose/retirement and completed unposted review supersession.
 This wrapper checks current authority and scope, preserves needed continuity

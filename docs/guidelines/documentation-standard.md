@@ -46,7 +46,10 @@ to both humans and agents.
   authoritative after a single issue, PR, or agent session ends.
 - **Agent-local artifact**: temporary execution context produced or used by an
   agent session, such as plans, scratch files, preserved issue context, or
-  `.ephemeral/` files.
+  `.ephemeral/` files. Authorized completed-session cleanup disposes of these by
+  default under [EVID-004-CLEANUP](../specs/afds-workflow-routing.md#evid-004-cleanup-session-artifact-lifetime).
+  Retention needs an explicit request or concrete active dependency. Arbitrary
+  ignored files are not automatically session data.
 - **Generated output**: a disposable render result under `generated/<target>/`.
 - **Installed managed output**: a target-home file or directory installed by
   `devcanon sync` and tracked by the install manifest.

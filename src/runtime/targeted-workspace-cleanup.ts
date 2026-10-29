@@ -3,7 +3,9 @@ import path from "node:path";
 import {
   CleanupUsageError,
   collectWorktrees,
+  commitIsMerged,
   git,
+  ignoredContentBlocker,
   inspectNestedRepositories,
   isBareRepository,
   lineOutput,
@@ -19,13 +21,21 @@ import {
 } from "./cleanup-git.js";
 import type { RuntimeCommandOutcome } from "./command.js";
 
-interface Target {
+export interface CleanupTarget {
   worktree: string;
   branch: string;
   expectedHead: string;
+  kind?: "paired" | "detached" | "branch-only";
+  disposableDirectories?: string[];
 }
 interface ResourceOutcome {
-  status: "eligible" | "already-absent" | "removed" | "retained" | "failed";
+  status:
+    | "eligible"
+    | "already-absent"
+    | "removed"
+    | "retained"
+    | "failed"
+    | "skipped";
   reason: string;
 }
 
@@ -43,7 +53,7 @@ async function exists(target: string): Promise<boolean> {
 export function runTargetedCleanup(
   repo: string,
   mode: "dry-run" | "execute",
-  target: Target,
+  target: CleanupTarget,
 ): Promise<RuntimeCommandOutcome> {
   return withoutLazyFetch(() => inspectAndCleanTarget(repo, mode, target));
 }
@@ -51,7 +61,7 @@ export function runTargetedCleanup(
 async function inspectAndCleanTarget(
   repo: string,
   mode: "dry-run" | "execute",
-  target: Target,
+  target: CleanupTarget,
 ): Promise<RuntimeCommandOutcome> {
   const repoDirectory = await requireCanonicalDirectory(repo, "repository");
   const root = await requireCanonicalDirectory(
@@ -60,17 +70,20 @@ async function inspectAndCleanTarget(
   );
   if (await isBareRepository(root))
     throw new CleanupUsageError("bare repositories are unsupported");
+  const selectedWorktree = target.kind !== "branch-only";
+  const selectedBranch = target.kind !== "detached";
   if (
     !/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(target.expectedHead) ||
-    (
-      await git(
-        ["check-ref-format", `refs/heads/${target.branch}`],
-        root,
-        [0, 1],
-      )
-    ).exitCode !== 0 ||
-    target.branch.startsWith("-") ||
-    target.branch.startsWith("refs/")
+    (selectedBranch &&
+      ((
+        await git(
+          ["check-ref-format", `refs/heads/${target.branch}`],
+          root,
+          [0, 1],
+        )
+      ).exitCode !== 0 ||
+        target.branch.startsWith("-") ||
+        target.branch.startsWith("refs/")))
   ) {
     throw new CleanupUsageError(
       "target requires a local branch name and full expected commit SHA",
@@ -88,7 +101,7 @@ async function inspectAndCleanTarget(
 
   // Resolve missing parents through an existing ancestor, without following a
   // replacement leaf or treating a dangling ancestor symlink as absent.
-  const requested = path.resolve(target.worktree);
+  const requested = path.resolve(selectedWorktree ? target.worktree : root);
   let ancestor = path.dirname(requested);
   const missingParts = [path.basename(requested)];
   while (!(await exists(ancestor))) {
@@ -101,16 +114,30 @@ async function inspectAndCleanTarget(
     missingParts.unshift(path.basename(ancestor));
     ancestor = parent;
   }
-  const selected = path.join(await realpath(ancestor), ...missingParts);
+  const selected = selectedWorktree
+    ? path.join(await realpath(ancestor), ...missingParts)
+    : "";
   const ref = `refs/heads/${target.branch}`;
   let worktree: ResourceOutcome = {
-    status: "retained",
-    reason: "not-inspected",
+    status: selectedWorktree ? "retained" : "skipped",
+    reason: selectedWorktree ? "not-inspected" : "not-selected",
   };
   let branch: ResourceOutcome = {
-    status: "retained",
-    reason: "worktree-not-removed",
+    status: selectedBranch ? "retained" : "skipped",
+    reason: selectedBranch ? "worktree-not-removed" : "not-selected",
   };
+
+  async function commitBlocker(): Promise<string> {
+    const defaultBranch = await resolveDefaultBranch(root);
+    if (!defaultBranch) return "default-branch-unknown";
+    return (await commitIsMerged(
+      root,
+      target.expectedHead,
+      `refs/remotes/origin/${defaultBranch}`,
+    ))
+      ? ""
+      : "unique-commits";
+  }
 
   async function branchBlocker(): Promise<string> {
     const records = await collectWorktrees(root, true);
@@ -133,7 +160,7 @@ async function inspectAndCleanTarget(
       )
     )
       return "branch-in-use";
-    return "";
+    return (await showRefExists(root, ref)) ? commitBlocker() : "";
   }
 
   async function inspect(): Promise<ResourceOutcome> {
@@ -163,26 +190,39 @@ async function inspectAndCleanTarget(
     ) {
       return { status: "retained", reason: "worktree-identity-mismatch" };
     }
-    const blocker = await branchBlocker();
+    const blocker = selectedBranch
+      ? await branchBlocker()
+      : await commitBlocker();
     if (blocker) return { status: "retained", reason: blocker };
     const nested = nestedRepositoryBlocker(
       await inspectNestedRepositories(selected),
     );
     if (nested) return { status: "retained", reason: nested };
+    const ignored = await ignoredContentBlocker(
+      selected,
+      target.disposableDirectories,
+    );
+    if (ignored) return { status: "retained", reason: ignored };
     if (await worktreeStatus(selected))
       return { status: "retained", reason: "dirty-worktree" };
     return { status: "eligible", reason: "verified-target" };
   }
 
   try {
-    worktree = await inspect();
+    if (selectedWorktree) worktree = await inspect();
     if (worktree.status === "eligible" && mode === "execute") {
       // Reinspect identity immediately before the shared primitive repeats preservation guards.
       worktree = await inspect();
       if (worktree.status === "eligible") {
         try {
           const records = await collectWorktrees(root, true);
-          await removeLinkedWorktree(records[0].realPath, selected);
+          await removeLinkedWorktree(
+            records[0].realPath,
+            selected,
+            false,
+            target.disposableDirectories,
+            { head: target.expectedHead, branch: target.branch },
+          );
           worktree = {
             status: "removed",
             reason: "directory-and-registration-removal-verified",
@@ -195,7 +235,12 @@ async function inspectAndCleanTarget(
         }
       }
     }
-    if (["eligible", "removed", "already-absent"].includes(worktree.status)) {
+    if (
+      selectedBranch &&
+      ["eligible", "removed", "already-absent", "skipped"].includes(
+        worktree.status,
+      )
+    ) {
       const blocker = await branchBlocker();
       if (blocker) branch = { status: "retained", reason: blocker };
       else if (!(await showRefExists(root, ref)))
@@ -203,7 +248,7 @@ async function inspectAndCleanTarget(
       else if (mode === "dry-run")
         branch = { status: "eligible", reason: "expected-tip-verified" };
       else if (
-        (await exists(selected)) ||
+        (selectedWorktree && (await exists(selected))) ||
         (await collectWorktrees(root, true)).some(
           (entry) =>
             entry.realPath === selected || entry.branch === target.branch,
@@ -236,7 +281,11 @@ async function inspectAndCleanTarget(
       status: "failed",
       reason: error instanceof Error ? error.message : String(error),
     };
-    if (worktree.status === "removed" || worktree.status === "already-absent")
+    if (
+      !selectedWorktree ||
+      worktree.status === "removed" ||
+      worktree.status === "already-absent"
+    )
       branch = failure;
     else worktree = failure;
   }

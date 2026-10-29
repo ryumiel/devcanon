@@ -477,11 +477,121 @@ export function nestedRepositoryBlocker(facts: NestedRepositoryFact[]): string {
   return blocked ? `${blocked.reason}:${blocked.path}` : "";
 }
 
+/** Designation is explicit; ignoring a file does not make it disposable. */
+export function validateDisposableDirectories(
+  values: readonly string[],
+): string[] {
+  for (const value of values) {
+    if (
+      !value ||
+      value.includes("\\") ||
+      /[\r\n\0]/u.test(value) ||
+      path.posix.isAbsolute(value) ||
+      value
+        .split("/")
+        .some(
+          (part) => !part || part === "." || part === ".." || part === ".git",
+        )
+    ) {
+      throw new CleanupUsageError(
+        "disposable directory must be a safe relative directory",
+      );
+    }
+  }
+  return [...new Set([".ephemeral", ...values])];
+}
+
+export async function ignoredContentBlocker(
+  worktree: string,
+  disposableDirectories: readonly string[] = [],
+): Promise<string> {
+  const directories = validateDisposableDirectories(disposableDirectories);
+  // Enumerate leaves so a broad ignore rule cannot conceal unrelated user files.
+  const ignored = (
+    await git(
+      ["ls-files", "--others", "--ignored", "--exclude-standard", "-z"],
+      worktree,
+    )
+  ).stdout
+    .split("\0")
+    .filter(Boolean);
+  for (const file of ignored) {
+    const directory = directories.find((candidate) =>
+      file.startsWith(`${candidate}/`),
+    );
+    if (!directory) return `ignored-content:${file}`;
+    // A designated directory must be a physical directory within this checkout.
+    let current = worktree;
+    for (const part of directory.split("/")) {
+      current = path.join(current, part);
+      const stat = await lstat(current);
+      if (!stat.isDirectory() || stat.isSymbolicLink())
+        return `unsafe-disposable-directory:${directory}`;
+    }
+  }
+  return "";
+}
+
+/** Read-only ancestry or squash-patch equivalence; never writes synthetic objects. */
+export async function commitIsMerged(
+  repo: string,
+  commit: string,
+  base: string,
+): Promise<boolean> {
+  if (
+    (await git(["merge-base", "--is-ancestor", commit, base], repo, [0, 1]))
+      .exitCode === 0
+  )
+    return true;
+  const mergeBase = (
+    await git(["merge-base", base, commit], repo, [0, 1])
+  ).stdout.trim();
+  if (!mergeBase) return false;
+  const patch = (await git(["diff", "--binary", mergeBase, commit], repo))
+    .stdout;
+  if (!patch.trim()) return false;
+  const patchId = (input: string) => {
+    const result = spawnSync("git", ["patch-id", "--stable"], {
+      cwd: repo,
+      input,
+      encoding: "utf8",
+      maxBuffer: 10 * 1024 * 1024,
+      shell: false,
+      windowsHide: true,
+    });
+    if (result.status !== 0 || result.error)
+      throw new Error("patch equivalence inspection failed");
+    return result.stdout;
+  };
+  const expected = patchId(patch).split(/\s/u)[0];
+  const history = (
+    await git(
+      [
+        "log",
+        "--no-merges",
+        "--format=%H",
+        "--binary",
+        "-p",
+        `${mergeBase}..${base}`,
+      ],
+      repo,
+    )
+  ).stdout;
+  return (
+    Boolean(expected) &&
+    patchId(history)
+      .split(/\r?\n/u)
+      .some((line) => line.startsWith(`${expected} `))
+  );
+}
+
 /** Called only for an authorized ordinary linked checkout, never a host lifecycle bypass. */
 export async function removeLinkedWorktree(
   primary: string,
   target: string,
   allowDirty = false,
+  disposableDirectories: readonly string[] = [],
+  expected?: { head: string; branch: string },
 ): Promise<void> {
   const records = await collectWorktrees(primary);
   const canonicalTarget = await requireCanonicalDirectory(
@@ -492,9 +602,21 @@ export async function removeLinkedWorktree(
   if (!record || record === records[0] || record.locked) {
     throw new Error(`protected or unregistered worktree: ${target}`);
   }
+  if (
+    expected &&
+    (record.branch !== expected.branch ||
+      (await revParse(canonicalTarget, "HEAD")) !== expected.head)
+  ) {
+    throw new Error("worktree identity changed before removal");
+  }
   const nested = await inspectNestedRepositories(canonicalTarget);
   const blocker = nestedRepositoryBlocker(nested);
   if (blocker) throw new Error(blocker);
+  const ignoredBlocker = await ignoredContentBlocker(
+    canonicalTarget,
+    disposableDirectories,
+  );
+  if (ignoredBlocker) throw new Error(ignoredBlocker);
   // Force is needed by Git for initialized submodules even when all nested work is clean.
   // It must not bypass the ordinary dirty-worktree authorization.
   if ((await worktreeStatus(canonicalTarget)) && !allowDirty) {

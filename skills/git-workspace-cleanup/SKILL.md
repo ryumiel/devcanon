@@ -29,7 +29,20 @@ expected commit. For completed batch owners, transfer cleanup to a controller
 outside the target, archive the terminal owner, reconcile the supported host
 result, then dry-run and execute selected cleanup. Honor explicit user ordering;
 never archive an owner with assigned work or wake it solely to remove its checkout.
-Host refusal or pending/unknown effects hold dependent Git cleanup.
+Host refusal or pending/unknown effects hold only dependent Git cleanup.
+Pass those exact resources as retained selections and continue independent
+eligible cleanup; never stop unrelated work merely because one checkout is held.
+
+Completed-session cleanup includes `.ephemeral/` under
+[EVID-004-CLEANUP](../../docs/specs/afds-workflow-routing.md#evid-004-cleanup-session-artifact-lifetime).
+Missing review records or diagnostic provenance alone do not require preservation.
+Establish completion and resolve active consumers and uncertain effects; retain
+explicitly requested resources with a concrete reason. This is included in existing
+cleanup approval, not another per-artifact discard question. Designate additional
+disposable directories explicitly; `.gitignore` alone is not a disposal policy.
+For detached worktrees or unused branches, use the helper's explicit detached or
+branch-only mode rather than inventing a branch/worktree pairing. For completed
+reviews, use the review adapter's completed-session route after these checks.
 
 Present the dry-run result and reuse compatible standing cleanup authority.
 No broad force flags are allowed. The runtime's clean-submodule force is guarded,
@@ -39,7 +52,12 @@ inputs must never route to broad cleanup.
 
 ## Repository-wide workflow
 
-1. Run the script in dry-run mode first.
+1. Establish current-session/host protection, explicit retention requests,
+   active consumers and unresolved effects. Pass each held checkout using
+   `--retain-worktree` and each independently held branch using `--retain-branch`.
+   Record each reason and release condition in existing workflow context. Host
+   ownership is not inferred by this Git helper. Run dry-run with those same
+   selections and any explicitly designated disposable directories.
 2. Report the dry-run summary to the user.
 3. If `STATUS=blocked`, classify each blocker. Ask only for a missing discard
    decision in a forceable category; report a concrete remedy for protected
@@ -83,7 +101,7 @@ the user explicitly approved both.
 
 ## Repository-wide safety policy
 
-The script blocks by default on:
+The script retains each affected resource by default on:
 
 - uncommitted or untracked files in any worktree
 - locked linked worktrees
@@ -103,12 +121,15 @@ Only two blocker classes are forceable:
   including uncommitted or untracked files in those linked worktrees.
 
 Dirty primary worktrees, locked linked worktrees, and default-branch local-only
-commits are never forced. Ask the user to commit, stash, unlock, or otherwise
-resolve those manually before running cleanup.
+commits are never forced. Retain them with their reason and continue independent
+eligible cleanup. Their owner must resolve the particular condition before a
+later attempt. Retained worktrees also retain branches they use.
 
-Ignored files in ordinary superproject checkouts alone are not blockers. Git can remove linked worktrees that
-contain only ignored files without `--force`, and ignored files in the primary
-worktree do not represent source changes that cleanup must stop on.
+Ignored content in `.ephemeral/` is disposable for authorized completed-session
+cleanup. Use `--disposable-dir <relative-directory>` for other explicitly
+identified disposable directories. Arbitrary ignored files retain that checkout,
+even with force flags. Ignored primary files alone do not stop independent work.
+Detached local-only commits are retained; branch force does not discard them.
 
 Dry-run refreshes `origin/*` with `git fetch origin --prune` before reporting.
 Execute intentionally does not fetch again, so the destructive run uses the
@@ -160,6 +181,12 @@ Detail lines repeat as needed:
 Dry-run exits zero even when blocked so callers can inspect and report the
 blockers. Execute exits non-zero when blocked.
 
-Execute report counts describe the checked plan. Exit zero also requires verified
-checkout and registration removal; failure diagnostics name an incomplete
-operation. Neither plan counts nor an accepted host archive request prove cleanup.
+Counts describe inspected candidates and eligibility, not completed effects.
+`CANDIDATE_WORKTREES` includes retained targets; `REMOVABLE_WORKTREES` counts only
+eligible ones. `WORKTREE_RESULT` and `BRANCH_RESULT` report actual resource status
+and reason; `BASE_UPDATE` reports the independent default-checkout update.
+Execution continues after resource-local refusal or failure and exits nonzero
+when any requested resource remains retained or failed. Verify each outcome;
+neither plan counts nor an accepted host archive request prove cleanup.
+Repository-wide cleanup leaves unavailable registrations for explicit resolution;
+it does not prune unrelated registrations as a side effect.

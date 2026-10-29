@@ -12,6 +12,15 @@ requires:
 
 # PR Merge
 
+Completed-session cleanup follows
+[EVID-004-CLEANUP](../../docs/specs/afds-workflow-routing.md#evid-004-cleanup-session-artifact-lifetime).
+Existing cleanup authority includes disposable session data; retain only explicit
+retention, concrete active consumers or unresolved effects. Missing records alone
+do not extend completed-session retention. Use the workspace helper's independent
+resource outcomes and completed-review adapter where applicable. A protected or
+failed resource holds only its dependent cleanup; continue eligible independent
+resources without bypassing host lifecycle restrictions.
+
 Use the adjacent [preflight-worktree-context usage](references/preflight-worktree-context-usage.md), [source-immutability usage](references/source-immutability-usage.md), and [post-merge-cleanup usage](references/post-merge-cleanup-usage.md) for helper mechanics. This workflow owns CI investigation and merge continuation.
 
 Poll CI status on a pull request, merge when green, investigate and fix failures automatically.

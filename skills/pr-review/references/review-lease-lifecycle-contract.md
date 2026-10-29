@@ -33,6 +33,19 @@ Runtime types and validators remain authority for exact deployed fields. The
 public usage reference owns invocation mechanics. These responsibilities do not
 overlap: this target chooses policy, not an alternate executable interface.
 
+### Completed-session lifetime boundary
+
+[EVID-004-CLEANUP](../../../docs/specs/afds-workflow-routing.md#evid-004-cleanup-session-artifact-lifetime)
+owns disposal after session work is complete and cleanup is authorized. Use the
+[completed-session adapter](review-leases-usage.md#completed-session-disposal)
+when no explicit retention request, active consumer or unresolved operation needs
+the selected checkout. Missing lifecycle records, unmanaged session scratch and
+historical failed diagnostics alone do not require preservation in that route.
+Do not invent replacement records or ask again to discard designated session data.
+The provenance/retirement and classifier rules below govern ongoing review,
+recovery, posting, attempt replacement and evidence reuse; they do not extend
+completed-session artifact lifetime. Git and host protections still apply.
+
 ### Artifact purpose and retirement
 
 Each retained local artifact needs a named current consumer, unresolved effect,

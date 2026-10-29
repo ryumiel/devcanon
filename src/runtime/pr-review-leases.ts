@@ -26,6 +26,7 @@ import {
   createPrReviewResultValidationContext,
   validatePrReviewResultCommandAuthority,
 } from "./pr-review-result-validation.js";
+import { runTargetedCleanup } from "./targeted-workspace-cleanup.js";
 
 import {
   type ProviderScopeSnapshot,
@@ -4081,7 +4082,35 @@ async function readStatus(
   });
 }
 
+/** Completion/retention are caller decisions, never inferred from absent lease bytes. */
+async function completedSessionCleanup(
+  mode: "dry-run" | "execute",
+): Promise<string> {
+  const identity = await readCleanupIdentity();
+  const head = requiredEnv("HEAD_SHA");
+  const retention = optionalEnv("RETAIN_SESSION_REASON");
+  if (retention)
+    return [
+      "OUTCOME=retained",
+      "CAN_REMOVE=no",
+      "REFUSAL_REASON=session-retained",
+      `MESSAGE=${retention.replace(/[\r\n]/gu, " ")}`,
+      "",
+    ].join("\n");
+  const result = await runTargetedCleanup(identity.primaryRoot, mode, {
+    kind: "detached",
+    worktree: requiredEnv("WORKTREE_PATH"),
+    branch: "",
+    expectedHead: head,
+  });
+  if (result.stderr) throw new PrReviewLeaseError(result.stderr.trim());
+  // Deliberately do not fabricate or rewrite missing/invalid lifecycle records.
+  return result.stdout.trimEnd();
+}
+
 async function inspectWorktree(): Promise<string> {
+  if (optionalEnv("SESSION_COMPLETED") === "yes")
+    return completedSessionCleanup("dry-run");
   const identity = await readCleanupIdentity();
   const decision = await classifyCleanup(identity);
   if (shouldRecordCleanupMetadata(decision)) {
@@ -4096,6 +4125,8 @@ async function inspectWorktree(): Promise<string> {
 }
 
 async function cleanupWorktree(): Promise<string> {
+  if (optionalEnv("SESSION_COMPLETED") === "yes")
+    return completedSessionCleanup("execute");
   const identity = await readCleanupIdentity();
   const decision = await classifyCleanup(identity);
   if (!decision.canRemove) {
