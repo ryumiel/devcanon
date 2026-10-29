@@ -263,7 +263,7 @@ async function workspaceCleanup(parsed: Args): Promise<RuntimeCommandOutcome> {
         else if (fact.dirtyFiles > 0 && !forceDirty)
           fact.reason = "dirty-worktree";
         else if (
-          !(await commitIsMerged(root, fact.head, remoteDefault)) &&
+          !(await commitIsMerged(primary, fact.head, remoteDefault)) &&
           (!forceBranches || !record.branch)
         )
           fact.reason = "unique-commits";
@@ -289,7 +289,7 @@ async function workspaceCleanup(parsed: Args): Promise<RuntimeCommandOutcome> {
   }
   for (const record of records.slice(1))
     worktrees.push(await classifyWorktree(record));
-  for (const ref of await localBranches(root)) {
+  for (const ref of await localBranches(primary)) {
     const branch = ref.slice("refs/heads/".length);
     if (branch === defaultBranch) continue;
     const fact: BranchFact = {
@@ -300,25 +300,25 @@ async function workspaceCleanup(parsed: Args): Promise<RuntimeCommandOutcome> {
       classification: "unique",
     };
     try {
-      fact.head = await revParse(root, ref);
+      fact.head = await revParse(primary, ref);
       const ancestor =
         (
           await git(
             ["merge-base", "--is-ancestor", ref, remoteDefault],
-            root,
+            primary,
             [0, 1],
           )
         ).exitCode === 0;
       fact.classification = ancestor
         ? "ancestor"
-        : (await commitIsMerged(root, fact.head, remoteDefault))
+        : (await commitIsMerged(primary, fact.head, remoteDefault))
           ? "squash"
           : "unique";
       if (parsed.retainedBranches.includes(branch))
         fact.reason = "caller-retained";
       else if (
-        (await git(["symbolic-ref", "--quiet", ref], root, [0, 1])).exitCode ===
-        0
+        (await git(["symbolic-ref", "--quiet", ref], primary, [0, 1]))
+          .exitCode === 0
       )
         fact.reason = "symbolic-branch";
       else if (
@@ -343,7 +343,7 @@ async function workspaceCleanup(parsed: Args): Promise<RuntimeCommandOutcome> {
   let ahead = 0;
   let primaryDirtyFiles = 0;
   try {
-    if (await showRefExists(root, `refs/heads/${defaultBranch}`))
+    if (await showRefExists(primary, `refs/heads/${defaultBranch}`))
       ahead = Number(
         (
           await git(
@@ -352,7 +352,7 @@ async function workspaceCleanup(parsed: Args): Promise<RuntimeCommandOutcome> {
               "--count",
               `${remoteDefault}..refs/heads/${defaultBranch}`,
             ],
-            root,
+            primary,
           )
         ).stdout.trim(),
       );
@@ -395,7 +395,7 @@ async function workspaceCleanup(parsed: Args): Promise<RuntimeCommandOutcome> {
     for (const fact of worktrees) {
       if (fact.status !== "eligible") continue;
       try {
-        const current = (await collectWorktrees(root, true)).find(
+        const current = (await collectWorktrees(primary, true)).find(
           (entry) => entry.realPath === fact.record.realPath,
         );
         if (!current || current.branch !== fact.record.branch)
@@ -438,7 +438,7 @@ async function workspaceCleanup(parsed: Args): Promise<RuntimeCommandOutcome> {
       try {
         const ref = `refs/heads/${fact.branch}`;
         if (
-          (await collectWorktrees(root, true)).some(
+          (await collectWorktrees(primary, true)).some(
             (entry) => entry.branch === fact.branch,
           )
         ) {
@@ -446,22 +446,22 @@ async function workspaceCleanup(parsed: Args): Promise<RuntimeCommandOutcome> {
           fact.reason = "branch-in-use";
           continue;
         }
-        if (!(await showRefExists(root, ref))) {
+        if (!(await showRefExists(primary, ref))) {
           fact.status = "already-absent";
           fact.reason = "local-ref-absent";
           continue;
         }
         if (
-          (await git(["symbolic-ref", "--quiet", ref], root, [0, 1]))
+          (await git(["symbolic-ref", "--quiet", ref], primary, [0, 1]))
             .exitCode === 0 ||
-          (await revParse(root, ref)) !== fact.head
+          (await revParse(primary, ref)) !== fact.head
         ) {
           fact.status = "retained";
           fact.reason = "branch-tip-mismatch";
           continue;
         }
-        await git(["update-ref", "--no-deref", "-d", ref, fact.head], root);
-        if (await showRefExists(root, ref))
+        await git(["update-ref", "--no-deref", "-d", ref, fact.head], primary);
+        if (await showRefExists(primary, ref))
           throw new Error("branch removal not verified");
         fact.status = "removed";
         fact.reason = "expected-local-ref-deleted";

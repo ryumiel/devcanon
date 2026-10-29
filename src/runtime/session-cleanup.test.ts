@@ -62,6 +62,18 @@ async function fixture() {
 }
 
 describe("independent completed-session cleanup", () => {
+  it("continues from the primary checkout after removing the selected linked repository", async () => {
+    const { repo, detached } = await fixture();
+    const selected = await detached("a-selected");
+    const other = await detached("b-other");
+    await git(["branch", "delivered"], repo);
+    const result = await cleanup(["--repo", selected, "--execute"]);
+    expect(result.exitCode).toBe(0);
+    expect(await canonicalPath(selected)).toBeNull();
+    expect(await canonicalPath(other)).toBeNull();
+    expect(await showRefExists(repo, "refs/heads/delivered")).toBe(false);
+  });
+
   it("retains the current checkout while removing completed detached reviews and unused merged branches", async () => {
     const { repo, detached } = await fixture();
     const current = await detached("current");

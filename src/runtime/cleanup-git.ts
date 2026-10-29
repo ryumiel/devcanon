@@ -547,8 +547,16 @@ export async function commitIsMerged(
     await git(["merge-base", base, commit], repo, [0, 1])
   ).stdout.trim();
   if (!mergeBase) return false;
-  const patch = (await git(["diff", "--binary", mergeBase, commit], repo))
-    .stdout;
+  const rawPatchOptions = [
+    "--binary",
+    "--no-textconv",
+    "--no-ext-diff",
+    "--ignore-submodules=none",
+    "--submodule=short",
+  ];
+  const patch = (
+    await git(["diff", ...rawPatchOptions, mergeBase, commit], repo)
+  ).stdout;
   if (!patch.trim()) return false;
   const patchId = (input: string) => {
     const result = spawnSync("git", ["patch-id", "--stable"], {
@@ -570,7 +578,7 @@ export async function commitIsMerged(
         "log",
         "--no-merges",
         "--format=%H",
-        "--binary",
+        ...rawPatchOptions,
         "-p",
         `${mergeBase}..${base}`,
       ],

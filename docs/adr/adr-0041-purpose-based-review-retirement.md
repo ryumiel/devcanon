@@ -60,6 +60,26 @@ Useful durable context must be published or explicitly not required before local
 sole-context bytes retire. Live legacy action remains an original owner/controller
 responsibility after current implementation validation.
 
+### Completed-session disposal
+
+The replacement and recovery rules above apply while a session still has an
+active consumer or unresolved operation. Once that purpose ends, authorized
+cleanup follows the shared
+[session artifact lifetime boundary](../specs/afds-workflow-routing.md#evid-004-cleanup-session-artifact-lifetime).
+`.ephemeral/` and explicitly designated session directories are disposable;
+arbitrary ignored files are not. Explicit retention requests and concrete
+remaining consumers retain only the resources they need. Missing historical
+lease records do not require reconstruction merely to discard a completed
+session's selected worktree.
+
+Cleanup uses the existing Git and filesystem helpers to verify current target
+identity, source changes, merged content and nested repositories. The caller
+establishes completion, action authority and host protection. A retained or
+failed resource does not stop unrelated eligible worktree or branch cleanup;
+branches referenced by remaining worktrees remain protected. This separates
+completed-session disposal from live replacement recovery without adding
+lifecycle states, receipts, archives or a retention service.
+
 ## Consequences
 
 - Eligible routine diagnostic retirement and changed-head review do not need

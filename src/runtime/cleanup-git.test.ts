@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   canonicalPath,
   collectWorktrees,
+  commitIsMerged,
   git,
   inspectNestedRepositories,
   nestedRepositoryBlocker,
@@ -357,5 +358,40 @@ describe("nested Git cleanup custody and removal", () => {
     } finally {
       process.env = previous;
     }
+  });
+});
+
+describe("raw squash equivalence", () => {
+  it("retains unique content hidden by a configured text conversion", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "devcanon-raw-patch-"));
+    roots.push(root);
+    await initRepo(root);
+    await writeFile(path.join(root, "document"), "title\noriginal bytes\n");
+    await writeFile(
+      path.join(root, ".gitattributes"),
+      "document diff=summary\n",
+    );
+    await git(
+      [
+        "config",
+        "diff.summary.textconv",
+        'node -e "process.stdout.write(1+String.fromCharCode(10))"',
+      ],
+      root,
+    );
+    await git(["add", "."], root);
+    await git(["commit", "-m", "document"], root);
+    await git(["checkout", "-b", "feature"], root);
+    await writeFile(path.join(root, "tracked.txt"), "updated\n");
+    await writeFile(path.join(root, "document"), "title\nunique work\n");
+    await git(["commit", "-am", "mixed changes"], root);
+    await git(["checkout", "main"], root);
+    await writeFile(path.join(root, "tracked.txt"), "updated\n");
+    await git(["commit", "-am", "delivered change"], root);
+    expect(await commitIsMerged(root, "feature", "main")).toBe(false);
+    await writeFile(path.join(root, "document"), "title\nunique work\n");
+    await git(["commit", "--amend", "--no-edit", "-a"], root);
+    await git(["config", "diff.external", "false"], root);
+    expect(await commitIsMerged(root, "feature", "main")).toBe(true);
   });
 });

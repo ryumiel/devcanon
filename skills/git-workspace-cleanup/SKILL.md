@@ -175,8 +175,9 @@ Detail lines repeat as needed:
 - `DIRTY_WORKTREE=<path>|FILES=<count>|PRIMARY=true|false`
 - `DELETE_BRANCH=<branch>`
 - `MERGED_BRANCH=<branch>|REASON=ancestor|squash`
-- `UNIQUE_BRANCH=<branch>|COMMITS=<count>`
-- `NESTED_REPOSITORY=<path>|KIND=submodule|embedded|REASON=<classification>|GIT_DIR=<path>|COMMON_DIR=<path>`
+- `UNIQUE_BRANCH=<branch>`
+
+Nested-repository blockers appear in the affected `WORKTREE_RESULT` reason.
 
 Dry-run exits zero even when blocked so callers can inspect and report the
 blockers. Execute exits non-zero when blocked.
