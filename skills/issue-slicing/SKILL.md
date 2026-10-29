@@ -70,11 +70,19 @@ evidence. They do not override the owning durable artifact.
      an intended constraint change must be explicit and user-confirmed.
      Missing execution-critical requirements or unresolved conflicts return
      `MODE=blocked` with the concrete clarification needed.
-   - A proposal may claim an execution-ready draft that combines implementation
-     with required documentation creation or updates only when the change is
-     narrow and has no new architectural decision, contract boundary, schema
-     migration, security policy, or broad workflow shaping. Check size and
-     structural blockers independently.
+   - Prefer one execution-ready draft containing the requested implementation,
+     required documentation creation or updates, and verification when confirmed
+     behavior, boundaries, acceptance criteria, and documentation owners are
+     sufficient, the change is narrow, and no concrete structural blocker or
+     justified separate-delivery constraint is present. A policy/spec update,
+     several affected files, or multiple implementation steps alone do not
+     require a shaping-only prerequisite. Check size and structural blockers
+     independently.
+   - Before classifying a structural blocker, name the actual new architectural
+     decision, contract boundary, schema migration, security-policy decision, or
+     broad workflow-shaping need and why it requires prior shaping. Mentioning
+     shared policy or specification text is not evidence of such a blocker;
+     small size does not waive a genuine one.
    - When a concrete proposal is broad without a structural blocker, name the
      decomposition prerequisite in the draft. Do not call it an execution-ready
      implementation slice or use narrow-hybrid treatment for that prerequisite
@@ -118,14 +126,22 @@ with implementation or waive readiness requirements.
 For each recommended split, identify an independently verifiable completion
 boundary and a concrete reason for separate delivery: bounded review size, a
 reusable prerequisite, distinct approval requirements, or an external constraint.
-Different topics or files alone do not justify a split, and sharing one file
+Policy/spec classification, multiple implementation steps, and different topics
+or files alone do not justify a split, and sharing one file
 does not require consolidation. Account for local issue-to-PR conventions and
 the resulting review and integration overhead without imposing an issue-count
 limit or merging independently useful work just to reduce bookkeeping.
 
 For each proposed blocking dependency, name the predecessor output the successor
-requires and why it needs separate completion. Reasoning or discussion order
-alone does not establish a hard blocker. Describe justified prerequisites with
+requires and why it needs separate completion. Apply this predecessor-output
+requirement only to blocking dependencies: independent deliveries justified by
+review size or separate approval need no invented predecessor or dependency
+edge. Sequence steps within one issue when they need no separate completion;
+reasoning or discussion order alone does not establish a hard blocker.
+Preserve the requested observable implementation outcome. If a genuine shaping
+or decomposition prerequisite requires reducing the next draft's scope, explain
+that reduction and the actual prerequisite; do not silently substitute a
+policy-only deliverable. Describe justified prerequisites with
 provider-neutral references; live relationship mutation remains outside this
 skill.
 
