@@ -214,11 +214,22 @@ Preserve the user's selected order and each operation's completion conditions.
 An unresolved result holds only dependent actions. Never infer worktree deletion
 from merged PRs, snapshots or archived chats, or a running queue from acceptance.
 
-A completed owner's chat may be archived while cleanup remains with a named
-controller obligation only when no work/follow-up remains assigned to that owner,
-required evidence stays usable, and user ordering permits it. Transfer and record
-that responsibility before archival; do not clear the batch cleanup obligation.
-Verify chat archival through the supported host state before reporting archived.
+For a completed owner, default to evidence/responsibility transfer → owner chat
+archival → supported host reconciliation → selected worktree removal → selected
+local branch deletion, under
+[cleanup mechanism selection](../git-workspace-cleanup/references/git-workspace-cleanup-usage.md#mechanism-selection-and-verification).
+Explicit user ordering takes precedence. Before archival, the controller outside
+the target accepts the cleanup obligation, required evidence stays usable outside
+it, and no work/follow-up remains assigned to the terminal owner. Do not wake the
+owner solely to remove its checkout or clear the transferred obligation.
+
+Verify chat archival through supported host state and reconcile any worktree
+removal it triggered. Archival does not prove protection released. A remaining
+eligible ordinary checkout may use the cleanup helper's explicit-target mode;
+for host-managed checkouts, its supported lifecycle/reconciliation rules still
+apply. Host refusal, unsupported removal and pending/unknown effects retain the
+obligation and hold dependent cleanup. Never substitute broad cleanup. Track
+already-absent versus newly removed resources and branch-only retries separately.
 Milestone closure and timer stop each need their own authorized operation and
 observed result; neither follows from chat archival or cleanup acceptance.
 

@@ -41,13 +41,11 @@ authority.
 
 ## Targeted local cleanup
 
-This section defines intended behavior for an explicit-target cleanup mode;
-it is not an available-command claim. The current
+The existing
 [workspace helper](../../skills/git-workspace-cleanup/references/git-workspace-cleanup-usage.md)
-is repository-wide, while the
-[post-merge helper](../../skills/pr-merge/references/post-merge-cleanup-usage.md)
-requires PR context. Their existing interfaces remain unchanged until the
-targeted mode is implemented.
+supports an explicit-target local-only mode alongside repository-wide cleanup.
+The [post-merge helper](../../skills/pr-merge/references/post-merge-cleanup-usage.md)
+retains its PR-specific interface.
 
 ### CLEANUP-01: Explicit local scope
 
@@ -116,7 +114,7 @@ Workflow scenarios additionally cover archive-triggered removal, supported host
 refusal, pending/unknown outcomes, and required evidence retention. They must not
 claim that a Git-only test proves host attachment reconciliation.
 
-The bounded implementation follow-up is an explicit-target mode in the existing
+The implementation is an explicit-target mode in the existing
 workspace-cleanup helper, reusing shared Git removal, with matching usage and
 coordination/routing guidance. Keep post-merge cleanup's existing PR-specific
 behavior; its guidance must distinguish this local-only mode. The public helper
@@ -124,14 +122,14 @@ registry owns membership, the usage reference owns exact invocation/output
 syntax, and runtime source owns validation. No new top-level CLI command,
 background worker or host-private integration is needed. Host support that is
 unavailable remains a reported limitation, not a blocker to ordinary Git-target
-support. Readiness review precedes implementation issue slicing.
+support. The accepted scope was readiness-reviewed before implementation issue slicing.
 
 Evidence: [DevCanon issue #862](https://github.com/ryumiel/devcanon/issues/862)
 records the confirmed proposal for archive-first coordination and explicit local
 targets. Shared force-removal guards already exist in `cleanup-git.ts` and
-[`cleanup-git.test.ts`](../../src/runtime/cleanup-git.test.ts); the new mode and
-host lifecycle behavior require the verification above before being reported as
-implemented. The cleanup workflow owns follow-up on unsupported host removal.
+[`cleanup-git.test.ts`](../../src/runtime/cleanup-git.test.ts); the targeted mode is covered in
+[`targeted-workspace-cleanup.test.ts`](../../src/runtime/targeted-workspace-cleanup.test.ts).
+Host lifecycle scenarios remain workflow checks, not a claim of new host capabilities. The cleanup workflow owns follow-up on unsupported host removal.
 
 ## Terms
 

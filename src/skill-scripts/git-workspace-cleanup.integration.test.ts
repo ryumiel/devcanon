@@ -154,6 +154,38 @@ describe("git-workspace-cleanup skill helper", TEST_OPTIONS, () => {
     tempDirs.length = 0;
   });
 
+  it("dispatches explicit-target cleanup through the installed adapter", async () => {
+    const rootDir = await createTempDir();
+    tempDirs.push(rootDir);
+    const { primaryDir } = await createOriginRepo(rootDir);
+    const linkedDir = path.join(rootDir, "selected");
+    await runGit(
+      ["worktree", "add", "-b", "feature/selected", linkedDir],
+      primaryDir,
+    );
+    const head = await runGit(["rev-parse", "HEAD"], linkedDir);
+    const result = await runScript(
+      [
+        "--repo",
+        primaryDir,
+        "--worktree",
+        linkedDir,
+        "--branch",
+        "feature/selected",
+        "--expected-head",
+        head,
+        "--execute",
+      ],
+      rootDir,
+    );
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("SCOPE=targeted");
+    expect(result.stdout).toContain("WORKTREE_STATUS=removed");
+    expect(result.stdout).toContain("BRANCH_STATUS=removed");
+    expect(await pathExists(linkedDir)).toBe(false);
+    expect(await listBranches(primaryDir)).toEqual(["main"]);
+  });
+
   it("fails before dispatch when the sibling passive runtime is missing", async () => {
     const rootDir = await createTempDir();
     tempDirs.push(rootDir);
@@ -750,7 +782,7 @@ describe("git-workspace-cleanup skill helper", TEST_OPTIONS, () => {
         `MARKER=${JSON.stringify(
           normalizeGitPath(path.join(rootDir, "status-count")),
         )}`,
-        'if [ "$#" -ge 4 ] && [ "$1" = "-C" ] && [ "$2" = "$LINKED_DIR" ] && [ "$3" = "status" ]; then',
+        'if [ "$#" -ge 4 ] && [ "$1" = "-C" ] && [ "$2" = "$LINKED_DIR" ] && { [ "$3" = "status" ] || { [ "$3" = "--no-optional-locks" ] && [ "$4" = "status" ]; }; }; then',
         "  count=0",
         '  [ -f "$MARKER" ] && count=$(cat "$MARKER")',
         "  count=$((count + 1))",

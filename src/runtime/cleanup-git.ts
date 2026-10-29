@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { execFile, spawnSync } from "node:child_process";
 import type { Dirent } from "node:fs";
 import { lstat, readdir, realpath } from "node:fs/promises";
@@ -5,6 +6,12 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
+const localInspection = new AsyncLocalStorage<boolean>();
+
+/** Scope implicit-fetch suppression to one cleanup invocation and its shared helpers. */
+export function withoutLazyFetch<T>(operation: () => Promise<T>): Promise<T> {
+  return localInspection.run(true, operation);
+}
 
 export interface ExecResult {
   exitCode: number;
@@ -29,7 +36,12 @@ export async function git(
   try {
     const { stdout, stderr } = await execFileAsync(
       "git",
-      ["-C", cwd, ...args],
+      [
+        ...(localInspection.getStore() ? ["--no-lazy-fetch"] : []),
+        "-C",
+        cwd,
+        ...args,
+      ],
       {
         cwd,
         encoding: "utf8",
@@ -122,7 +134,10 @@ export async function currentBranch(cwd: string): Promise<string> {
   return result.exitCode === 0 ? result.stdout.trim() : "";
 }
 
-export async function collectWorktrees(cwd: string): Promise<WorktreeRecord[]> {
+export async function collectWorktrees(
+  cwd: string,
+  includeUnavailable = false,
+): Promise<WorktreeRecord[]> {
   const result = await git(["worktree", "list", "--porcelain", "-z"], cwd);
   const records: WorktreeRecord[] = [];
   let current: WorktreeRecord | null = null;
@@ -137,6 +152,8 @@ export async function collectWorktrees(cwd: string): Promise<WorktreeRecord[]> {
       const real = await canonicalPath(current.path);
       if (real !== null) {
         records.push({ ...current, realPath: real });
+      } else if (includeUnavailable) {
+        records.push(current);
       }
     }
     current = null;
@@ -174,6 +191,7 @@ export async function worktreeStatus(worktreePath: string): Promise<string> {
   return (
     await git(
       [
+        "--no-optional-locks",
         "status",
         "--porcelain=v1",
         "--untracked-files=normal",
@@ -188,7 +206,7 @@ export async function resolveDefaultBranch(
   cwd: string,
 ): Promise<string | null> {
   const symbolicRef = await git(
-    ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+    ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"],
     cwd,
     [0, 1],
   );
@@ -383,6 +401,7 @@ export async function inspectNestedRepositories(
             (
               await git(
                 [
+                  "--no-optional-locks",
                   "status",
                   "--porcelain=v1",
                   "--untracked-files=all",

@@ -19,11 +19,12 @@ import {
   worktreeStatus,
 } from "./cleanup-git.js";
 import type { RuntimeCommandOutcome } from "./command.js";
+import { runTargetedCleanup } from "./targeted-workspace-cleanup.js";
 
 type CleanupMode = "dry-run" | "execute";
 
 const usage =
-  "usage: git-workspace-cleanup.sh [--repo <path>] [--dry-run|--execute] [--force-branches] [--force-dirty-worktrees]";
+  "usage: git-workspace-cleanup.sh [--repo <path>] [--dry-run|--execute] [--force-branches] [--force-dirty-worktrees] [--worktree <path> --branch <name> --expected-head <sha>]";
 
 class HelpRequested extends Error {
   constructor() {
@@ -36,6 +37,7 @@ interface Args {
   forceBranches: boolean;
   forceDirtyWorktrees: boolean;
   targetRepo: string;
+  target?: { worktree: string; branch: string; expectedHead: string };
 }
 
 interface DirtyWorktree {
@@ -70,6 +72,13 @@ export async function runGitWorkspaceCleanupCommand(
 ): Promise<RuntimeCommandOutcome> {
   try {
     const parsed = parseArgs(args);
+    if (parsed.target) {
+      return await runTargetedCleanup(
+        parsed.targetRepo,
+        parsed.mode,
+        parsed.target,
+      );
+    }
     const facts = await collectFacts(parsed);
     const stdout = formatReport(facts);
     if (parsed.mode === "dry-run") {
@@ -131,6 +140,7 @@ function parseArgs(args: readonly string[]): Args {
   let forceBranches = false;
   let forceDirtyWorktrees = false;
   let targetRepo = "";
+  const targetValues = new Map<string, string>();
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -147,6 +157,19 @@ function parseArgs(args: readonly string[]): Args {
       case "--force-dirty-worktrees":
         forceDirtyWorktrees = true;
         break;
+      case "--worktree":
+      case "--branch":
+      case "--expected-head":
+        index += 1;
+        if (
+          !args[index] ||
+          args[index].startsWith("--") ||
+          targetValues.has(arg)
+        ) {
+          throw new CleanupUsageError(`${arg} requires one value`);
+        }
+        targetValues.set(arg, args[index]);
+        break;
       case "--repo":
         index += 1;
         if (index >= args.length) {
@@ -162,7 +185,26 @@ function parseArgs(args: readonly string[]): Args {
     }
   }
 
+  if (
+    targetValues.size > 0 &&
+    (!targetRepo ||
+      targetValues.size !== 3 ||
+      forceBranches ||
+      forceDirtyWorktrees)
+  ) {
+    throw new CleanupUsageError(
+      "targeted cleanup requires --repo, --worktree, --branch and --expected-head, without force overrides",
+    );
+  }
+
   return {
+    target: targetValues.size
+      ? {
+          worktree: targetValues.get("--worktree") ?? "",
+          branch: targetValues.get("--branch") ?? "",
+          expectedHead: targetValues.get("--expected-head") ?? "",
+        }
+      : undefined,
     mode,
     forceBranches,
     forceDirtyWorktrees,

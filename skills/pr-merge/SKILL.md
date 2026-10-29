@@ -182,6 +182,13 @@ invalidates the preflight result.
 
 ## Step 3b: Post-Merge Cleanup
 
+For completed-owner cleanup transferred to a controller, follow
+[archive-first lifecycle reconciliation](../issue-batch-routing/SKILL.md#post-delivery-lifecycle-reconciliation).
+That controller may use the workspace helper's explicit-target mode for the
+remaining local checkout/branch after host reconciliation. This does not replace
+this skill's PR-specific helper or authorize base updates or remote deletion
+through the local-only mode.
+
 After every verified remote merge, select scoped cleanup under retained
 cleanup authority and the shared
 [mechanism selection and verification](../git-workspace-cleanup/references/git-workspace-cleanup-usage.md#mechanism-selection-and-verification)
