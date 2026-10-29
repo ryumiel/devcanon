@@ -110,8 +110,8 @@ The script retains each affected resource by default on:
   `origin/<default-branch>`
 - commits on the local default branch that are ahead of
   `origin/<default-branch>`
-- nested repository blockers reported as `NESTED_REPOSITORY` in the usage
-  reference; these are not bypassed by either force flag
+- nested repository blockers reported in the affected `WORKTREE_RESULT` reason;
+  these are not bypassed by either force flag
 
 Only two blocker classes are forceable:
 
