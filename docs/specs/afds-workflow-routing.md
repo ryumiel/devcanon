@@ -399,6 +399,44 @@ Milestone closure and watchdog stop each require separate observed verification.
 The regression scenario matrix is maintained at the existing
 [reporting scenarios](../../skills/issue-batch-coordination/references/reporting-scenarios.md#post-delivery-cleanup-outcomes).
 
+#### ROUTE-007-CLEANUP: Completed-owner cleanup
+
+For a completed batch owner whose chat archival and local cleanup are authorized,
+the default order is evidence transfer, owner-chat archival, host reconciliation,
+selected worktree removal, then selected local-branch deletion. An explicit user
+order takes precedence. This order does not change terminal-owner gates or grant
+cleanup authority.
+
+Before archival, the coordinator accepts the remaining cleanup obligation and
+ensures required evidence remains usable outside the removable checkout. No
+implementation, active gate, or follow-up may remain assigned to the owner.
+The coordinator continues cleanup from outside that checkout; it does not ask
+the archived owner to resume solely to remove its own worktree.
+
+Verify chat archival, then inspect supported host outcomes before another removal
+attempt: archival may already have removed the checkout. It is not proof that
+host protection has been released. Preserve the existing distinction between
+pending, unknown, refused and completed effects. If no supported removal and
+attachment/ownership reconciliation path exists, retain the exact cleanup
+obligation and report the host limitation; do not substitute Git force removal.
+
+For eligible Git removal, consume the
+[targeted local cleanup contract](passive-runtime.md#targeted-local-cleanup)
+rather than repository-wide pruning. Verify filesystem and Git-registration
+absence and host disposition separately before reporting worktree cleanup.
+Delete the selected local branch only after its expected tip and lack of use by
+any worktree are verified. Chat archival does not clear remaining cleanup work.
+
+Acceptance scenarios are a completed owner whose archival removes the checkout;
+archival that leaves an eligible checkout for selected removal; host refusal or
+unknown completion that retains the obligation; and successful checkout removal
+followed by failed branch deletion, where a later attempt addresses only the
+remaining eligible branch. Each preserves unrelated work and required evidence.
+
+This intended flow requires corresponding coordination/routing and cleanup-skill
+updates when implemented. Existing mechanism-selection restrictions remain in
+force; the specification does not make an unsupported host operation available.
+
 Priming retains every mandatory phase and ends its effects at the reviewed
 current PR/head report. The controller consumes that result under retained
 scope, routing validates the next instruction, and `pr-merge` owns polling,
