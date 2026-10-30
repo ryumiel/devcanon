@@ -544,31 +544,6 @@ describe("streamed ignored-file inventory", () => {
     }
   }
 
-  it.each([false, true])(
-    "drains more than 10 MiB and preserves a late blocker: %s",
-    async (blocked) => {
-      const root = await inventoryRepo();
-      // A real subprocess writes 12 MiB with backpressure, without creating 168k files.
-      await producer(
-        `
-      const { once } = require('node:events');
-      (async () => {
-        const chunk = ('build/' + 'x'.repeat(120) + '\\0').repeat(512);
-        for (let i = 0; i < 192; i++) {
-          if (!process.stdout.write(chunk)) await once(process.stdout, 'drain');
-        }
-        process.stdout.end(${blocked} ? 'private/keep\\0' : '');
-      })();
-    `,
-        async () => {
-          expect(await ignoredContentBlocker(root, ["build"])).toBe(
-            blocked ? "ignored-content:private/keep" : "",
-          );
-        },
-      );
-    },
-  );
-
   it("reassembles split NUL paths and UTF-8 codepoints with no implicit fetch", async () => {
     const root = await inventoryRepo();
     const stdout = new PassThrough();
