@@ -1,16 +1,21 @@
 import * as childProcess from "node:child_process";
+import { EventEmitter } from "node:events";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { symlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   canonicalPath,
   collectWorktrees,
   commitIsMerged,
   git,
+  ignoredContentBlocker,
   inspectNestedRepositories,
   nestedRepositoryBlocker,
   removeLinkedWorktree,
+  withoutLazyFetch,
 } from "./cleanup-git.js";
 import { runGitWorkspaceCleanupCommand } from "./git-workspace-cleanup.js";
 import { runPrMergeWorktreeCommand } from "./pr-merge-worktree.js";
@@ -497,5 +502,183 @@ describe("raw squash equivalence", () => {
     await git(["commit", "--amend", "--no-edit", "-a"], root);
     await git(["config", "diff.external", "false"], root);
     expect(await commitIsMerged(root, "feature", "main")).toBe(true);
+  });
+});
+
+describe("streamed ignored-file inventory", () => {
+  async function inventoryRepo() {
+    const root = await mkdtemp(path.join(os.tmpdir(), "devcanon-ignored-"));
+    roots.push(root);
+    await initRepo(root);
+    await mkdir(path.join(root, "build"));
+    return root;
+  }
+
+  async function producer(script: string, inspect: () => Promise<void>) {
+    const actual = (
+      await vi.importActual<typeof childProcess>("node:child_process")
+    ).spawn;
+    const children: ReturnType<typeof actual>[] = [];
+    vi.mocked(childProcess.spawn).mockImplementation(
+      (...args: Parameters<typeof actual>) => {
+        const child = (args[1] as string[]).includes("ls-files")
+          ? actual(process.execPath, ["-e", script], args[2])
+          : actual(...args);
+        children.push(child);
+        return child;
+      },
+    );
+    try {
+      await inspect();
+      expect(children.length).toBeGreaterThan(0);
+      expect(
+        children.every(
+          (child) => child.exitCode !== null || child.signalCode !== null,
+        ),
+      ).toBe(true);
+    } finally {
+      vi.mocked(childProcess.spawn).mockImplementation(actual);
+      for (const child of children)
+        if (child.exitCode === null && child.signalCode === null)
+          child.kill("SIGKILL");
+    }
+  }
+
+  it.each([false, true])(
+    "drains more than 10 MiB and preserves a late blocker: %s",
+    async (blocked) => {
+      const root = await inventoryRepo();
+      // A real subprocess writes 12 MiB with backpressure, without creating 168k files.
+      await producer(
+        `
+      const { once } = require('node:events');
+      (async () => {
+        const chunk = ('build/' + 'x'.repeat(120) + '\\0').repeat(512);
+        for (let i = 0; i < 192; i++) {
+          if (!process.stdout.write(chunk)) await once(process.stdout, 'drain');
+        }
+        process.stdout.end(${blocked} ? 'private/keep\\0' : '');
+      })();
+    `,
+        async () => {
+          expect(await ignoredContentBlocker(root, ["build"])).toBe(
+            blocked ? "ignored-content:private/keep" : "",
+          );
+        },
+      );
+    },
+  );
+
+  it("reassembles split NUL paths and UTF-8 codepoints with no implicit fetch", async () => {
+    const root = await inventoryRepo();
+    const stdout = new PassThrough();
+    const stderr = new PassThrough();
+    const child = Object.assign(new EventEmitter(), {
+      stdout,
+      stderr,
+      kill: vi.fn(),
+    });
+    const actual = (
+      await vi.importActual<typeof childProcess>("node:child_process")
+    ).spawn;
+    vi.mocked(childProcess.spawn).mockReturnValueOnce(
+      child as unknown as ReturnType<typeof actual>,
+    );
+    const promise = withoutLazyFetch(() =>
+      ignoredContentBlocker(root, ["build"]),
+    );
+    const bytes = Buffer.from("build/잘린\0private/보존\nfile\0");
+    // Force individual byte chunks to exercise every UTF-8 and record boundary.
+    for (const byte of bytes) {
+      stdout.write(Buffer.from([byte]));
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    stdout.end();
+    stderr.end();
+    child.emit("close", 0, null);
+    expect(await promise).toBe("ignored-content:private/보존\nfile");
+    expect(vi.mocked(childProcess.spawn).mock.calls.at(-1)?.[1]).toContain(
+      "--no-lazy-fetch",
+    );
+  });
+
+  it.each([
+    "exit",
+    "signal",
+    "truncated",
+    "diagnostics",
+    "missing-directory",
+  ] as const)("rejects %s failures after valid output", async (failure) => {
+    const root = await inventoryRepo();
+    const script = {
+      exit: "process.stdout.write('build/safe\\0'); process.stderr.write('inventory failure'); process.exitCode = 2;",
+      signal:
+        "process.stdout.write('private/keep\\0', () => process.kill(process.pid, 'SIGTERM'));",
+      truncated: "process.stdout.write('build/safe\\0build/unfinished');",
+      diagnostics:
+        "process.stdout.write('build/safe\\0'); process.stderr.write('x'.repeat(128 * 1024));",
+      "missing-directory":
+        "process.stdout.write('missing/file\\0'); setInterval(() => {}, 1000);",
+    }[failure];
+    await producer(script, async () => {
+      await expect(
+        ignoredContentBlocker(root, ["build", "missing"]),
+      ).rejects.toThrow("ignored-file inspection failed:");
+    });
+  });
+
+  it("rejects launch and stdout stream failures", async () => {
+    const root = await inventoryRepo();
+    await expect(
+      ignoredContentBlocker(path.join(root, "absent")),
+    ).rejects.toThrow("ignored-file inspection failed:");
+    const stdout = new PassThrough();
+    const stderr = new PassThrough();
+    const child = Object.assign(new EventEmitter(), {
+      stdout,
+      stderr,
+      kill: vi.fn(() => {
+        stdout.destroy();
+        stderr.end();
+        setImmediate(() => child.emit("close", null, "SIGKILL"));
+        return true;
+      }),
+    });
+    vi.mocked(childProcess.spawn).mockReturnValueOnce(
+      child as unknown as ReturnType<typeof childProcess.spawn>,
+    );
+    const promise = ignoredContentBlocker(root, ["build"]);
+    stdout.destroy(new Error("broken inventory stream"));
+    await expect(promise).rejects.toThrow("broken inventory stream");
+    expect(child.kill).toHaveBeenCalled();
+  });
+
+  it("uses real Git ignores and preserves physical-directory and prefix safeguards", async () => {
+    const root = await inventoryRepo();
+    await writeFile(
+      path.join(root, ".gitignore"),
+      "build/\nbuild-other/\nlinked/\n",
+    );
+    await writeFile(path.join(root, "build", "generated"), "generated");
+    expect(await ignoredContentBlocker(root, ["build"])).toBe("");
+    await mkdir(path.join(root, "build-other"));
+    await writeFile(path.join(root, "build-other", "keep"), "keep");
+    expect(await ignoredContentBlocker(root, ["build"])).toBe(
+      "ignored-content:build-other/keep",
+    );
+    await rm(path.join(root, "build-other"), { recursive: true });
+    await symlink(
+      path.join(root, "build"),
+      path.join(root, "linked"),
+      process.platform === "win32" ? "junction" : "dir",
+    );
+    await producer("process.stdout.write('linked/generated\\0')", async () => {
+      expect(await ignoredContentBlocker(root, ["linked"])).toBe(
+        "unsafe-disposable-directory:linked",
+      );
+    });
+    await expect(ignoredContentBlocker(root, ["../build"])).rejects.toThrow(
+      "safe relative directory",
+    );
   });
 });
