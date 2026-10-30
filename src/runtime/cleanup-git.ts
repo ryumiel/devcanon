@@ -507,30 +507,102 @@ export async function ignoredContentBlocker(
   disposableDirectories: readonly string[] = [],
 ): Promise<string> {
   const directories = validateDisposableDirectories(disposableDirectories);
-  // Enumerate leaves so a broad ignore rule cannot conceal unrelated user files.
-  const ignored = (
-    await git(
-      ["ls-files", "--others", "--ignored", "--exclude-standard", "-z"],
-      worktree,
-    )
-  ).stdout
-    .split("\0")
-    .filter(Boolean);
-  for (const file of ignored) {
+  let blocker = "";
+  const checkedDirectories = new Set<string>();
+  const inspect = async (file: string): Promise<void> => {
+    if (blocker || !file) return;
     const directory = directories.find((candidate) =>
       file.startsWith(`${candidate}/`),
     );
-    if (!directory) return `ignored-content:${file}`;
+    if (!directory) {
+      blocker = `ignored-content:${file}`;
+      return;
+    }
+    if (checkedDirectories.has(directory)) return;
     // A designated directory must be a physical directory within this checkout.
     let current = worktree;
     for (const part of directory.split("/")) {
       current = path.join(current, part);
       const stat = await lstat(current);
-      if (!stat.isDirectory() || stat.isSymbolicLink())
-        return `unsafe-disposable-directory:${directory}`;
+      if (!stat.isDirectory() || stat.isSymbolicLink()) {
+        blocker = `unsafe-disposable-directory:${directory}`;
+        return;
+      }
     }
+    checkedDirectories.add(directory);
+  };
+
+  // Enumerate leaves without buffering the complete inventory. Keep draining
+  // after finding a blocker so a later subprocess failure cannot look successful.
+  const child = spawn(
+    "git",
+    [
+      ...(localInspection.getStore() ? ["--no-lazy-fetch"] : []),
+      "-C",
+      worktree,
+      "ls-files",
+      "--others",
+      "--ignored",
+      "--exclude-standard",
+      "-z",
+    ],
+    {
+      cwd: worktree,
+      shell: false,
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  let failure: Error | undefined;
+  let diagnostic = "";
+  let diagnosticBytes = 0;
+  const fail = (error: Error) => {
+    failure ??= error;
+    child.kill("SIGKILL");
+  };
+  const completion = new Promise<void>((resolve) => {
+    child.on("error", fail);
+    child.on("close", (code, signal) => {
+      if (code !== 0)
+        failure ??= new Error(`git exited with ${signal ?? code}`);
+      resolve();
+    });
+  });
+  child.stderr.on("error", fail);
+  child.stderr.on("data", (chunk: Buffer) => {
+    diagnosticBytes += chunk.length;
+    if (diagnosticBytes > 64 * 1024) {
+      fail(new Error("ignored-file inspection diagnostics exceeded limit"));
+    } else diagnostic += chunk.toString("utf8");
+  });
+  // Node's decoder preserves multibyte characters split across stream chunks.
+  child.stdout.setEncoding("utf8");
+  let pending = "";
+  try {
+    for await (const chunk of child.stdout) {
+      const data = pending + chunk;
+      let start = 0;
+      let end = data.indexOf("\0");
+      while (end !== -1) {
+        await inspect(data.slice(start, end));
+        start = end + 1;
+        end = data.indexOf("\0", start);
+      }
+      pending = data.slice(start);
+      // Bound malformed unterminated records as well as aggregate memory.
+      if (pending.length > 1024 * 1024)
+        throw new Error("ignored-file inspection path exceeded limit");
+    }
+    if (pending) throw new Error("unterminated ignored-file inspection path");
+  } catch (error) {
+    fail(error instanceof Error ? error : new Error(String(error)));
   }
-  return "";
+  await completion;
+  if (failure)
+    throw new Error(
+      `ignored-file inspection failed: ${diagnostic.trim() || failure.message}`,
+    );
+  return blocker;
 }
 
 /** Read-only ancestry or squash-patch equivalence; never writes synthetic objects. */

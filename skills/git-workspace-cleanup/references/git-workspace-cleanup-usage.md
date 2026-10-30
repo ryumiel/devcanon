@@ -17,6 +17,9 @@ cleanup. `.ephemeral` is the default disposable directory; additional designatio
 must be safe relative directories, never files, parent traversals or `.git`.
 Ignoring a file does not itself authorize deletion. Nested Git guards still apply
 inside disposable directories, and arbitrary ignored content retains its checkout.
+Ignored paths are inspected as a NUL-separated stream, so large generated inventories
+do not require an aggregate output buffer. Subprocess or stream failures block
+inspection rather than establish cleanup eligibility.
 
 ### Selected local cleanup
 
