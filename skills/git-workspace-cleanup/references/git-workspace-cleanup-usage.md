@@ -83,7 +83,8 @@ and removes only a still-matching unused local ref;
 changed refs, replacement checkouts and stale registrations remain protected.
 Ref deletion compares the expected SHA atomically. Existing branch configuration
 is left unchanged. A failed branch deletion does not erase a verified worktree
-removal result. Reconcile any pending/unknown host effect before invoking a retry.
+removal result. Reconcile pending/unknown removal or identity/protection effects before invoking
+a retry. Attachment-only metadata reconciliation does not hold the Git retry.
 
 ### Windows PowerShell to Bash
 

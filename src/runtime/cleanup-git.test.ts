@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { canCreateSymlinks } from "../__test-helpers__/fixtures.js";
 import {
   canonicalPath,
   collectWorktrees,
@@ -25,6 +26,7 @@ vi.mock("node:child_process", async (importOriginal) => {
   return { ...actual, spawn: vi.fn(actual.spawn) };
 });
 
+const symlinkAvailable = await canCreateSymlinks();
 const roots: string[] = [];
 afterEach(async () => {
   await Promise.all(
@@ -320,22 +322,29 @@ describe("nested Git cleanup custody and removal", () => {
     );
   });
 
-  it("does not treat exact-file selections as directories or follow symlink leaves", async () => {
-    const { root, linked } = await fixture();
+  it("does not treat exact-file selections as directories", async () => {
+    const { linked } = await fixture();
     await mkdir(path.join(linked, "ignored"));
     await writeFile(path.join(linked, "ignored", "output"), "generated");
     expect(await ignoredContentBlocker(linked, [], ["ignored"])).toBe(
       "ignored-content:ignored/output",
     );
-    await rm(path.join(linked, "ignored", "output"));
-    const outside = path.join(root, "private");
-    await writeFile(outside, "preserve");
-    await symlink(outside, path.join(linked, "ignored", "output"));
-    expect(await ignoredContentBlocker(linked, [], ["ignored/output"])).toBe(
-      "unsafe-disposable-file:ignored/output",
-    );
-    expect(await readFile(outside, "utf8")).toBe("preserve");
   });
+
+  it.skipIf(!symlinkAvailable)(
+    "does not follow exact disposable symlink leaves",
+    async () => {
+      const { root, linked } = await fixture();
+      await mkdir(path.join(linked, "ignored"));
+      const outside = path.join(root, "private");
+      await writeFile(outside, "preserve");
+      await symlink(outside, path.join(linked, "ignored", "output"));
+      expect(await ignoredContentBlocker(linked, [], ["ignored/output"])).toBe(
+        "unsafe-disposable-file:ignored/output",
+      );
+      expect(await readFile(outside, "utf8")).toBe("preserve");
+    },
+  );
 
   it("uses nested handling in scoped PR cleanup and leaves an unrelated active worktree", async () => {
     const { root, primary, linked } = await fixture();

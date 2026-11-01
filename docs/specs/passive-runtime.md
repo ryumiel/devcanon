@@ -96,7 +96,8 @@ A retry uses the same explicit target and expected commit. When both checkout
 and registration are absent, it may delete the remaining branch only if that
 branch still has the expected tip, is unprotected and is not used by any
 worktree. An already-absent branch needs no deletion. A changed branch tip,
-replacement checkout with a different binding, or unresolved host effect must
+replacement checkout with a different binding, or unresolved removal or
+identity/protection effect must
 remain retained for reconciliation rather than broadening or forcing cleanup.
 No persistent retry ledger or new host adapter is required.
 

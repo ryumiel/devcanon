@@ -1369,8 +1369,9 @@ A directory's `.gitignore` status alone does not designate it as disposable;
 other ignored files, including user configuration and datasets, remain protected.
 Source changes, unique commits and nested repositories retain their Git guards.
 
-Cleanup is resource-local: a host refusal, active consumer, explicit retention
-or failure holds that resource and dependent branch deletion only. Continue
+Cleanup is resource-local: an active consumer, explicit retention, unresolved
+removal effect or Git preservation/removal failure holds that resource and
+dependent branch deletion only. A terminal archive-capability refusal does not. Continue
 independent eligible work and report each verified outcome. Completed host-managed
 resources may use guarded Git removal without waiting for attachment
 reconciliation under ROUTE-007-CLEANUP. Pending/unknown removal effects must be
