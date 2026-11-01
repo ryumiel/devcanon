@@ -32,7 +32,8 @@ retention, concrete active consumers or unresolved effects. Missing records alon
 do not extend completed-session retention. Use the workspace helper's independent
 resource outcomes and completed-review adapter where applicable. A protected or
 failed resource holds only its dependent cleanup; continue eligible independent
-resources without bypassing host lifecycle restrictions.
+resources while tracking host attachment reconciliation separately. Unknown
+removal effects still hold competing cleanup of the same resource.
 
 Coordinate a batch of issue-provider records by inspecting live state, routing
 work to existing owning workflows, and keeping a compact monitor ledger. This
@@ -224,7 +225,7 @@ An unresolved result holds only dependent actions. Never infer worktree deletion
 from merged PRs, snapshots or archived chats, or a running queue from acceptance.
 
 For a completed owner, default to evidence/responsibility transfer → owner chat
-archival → supported host reconciliation → selected worktree removal → selected
+archival → reconcile issued removal effects → selected worktree removal → selected
 local branch deletion, under
 [cleanup mechanism selection](../git-workspace-cleanup/references/git-workspace-cleanup-usage.md#mechanism-selection-and-verification).
 Explicit user ordering takes precedence. Before archival, the controller outside
@@ -234,10 +235,12 @@ owner solely to remove its checkout or clear the transferred obligation.
 
 Verify chat archival through supported host state and reconcile any worktree
 removal it triggered. Archival does not prove protection released. A remaining
-eligible ordinary checkout may use the cleanup helper's explicit-target mode;
-for host-managed checkouts, its supported lifecycle/reconciliation rules still
-apply. Host refusal, unsupported removal and pending/unknown effects retain the
-obligation and hold dependent cleanup. Never substitute broad cleanup. Track
+eligible checkout, including a completed host-managed checkout, may use the
+cleanup helper's explicit-target mode. Unsupported archival or stale attachments
+alone do not hold Git removal. Pending/unknown removal effects, active consumers,
+explicit retention and Git guards still hold the selected resource. Record host
+metadata reconciliation separately, with its identity and follow-up owner; do
+not repeat an unsupported host operation without a relevant change. Never substitute broad cleanup. Track
 already-absent versus newly removed resources and branch-only retries separately.
 Milestone closure and timer stop each need their own authorized operation and
 observed result; neither follows from chat archival or cleanup acceptance.

@@ -82,8 +82,11 @@ documented success contract.
 ## Delivery and lifecycle handoff
 
 Retain the actual native attachment/ownership identity or ordinary Git checkout
-binding for the cleanup owner. Native setup does not authorize Git-only removal
-of host-managed resources. `pr-merge` owns scoped post-merge cleanup;
+binding for the cleanup owner, together with known archive limitations and the
+surviving controller checkout. Setup itself does not authorize disposal. Once
+work is complete and released under cleanup authority, guarded Git removal does
+not depend on host attachment cleanup. Reconcile any issued removal effect first;
+record unsupported archival and residual metadata separately. `pr-merge` owns scoped post-merge cleanup;
 `git-workspace-cleanup` owns explicit-target local cleanup and repository-wide cleanup. Their shared
 [mechanism selection](../git-workspace-cleanup/references/git-workspace-cleanup-usage.md#mechanism-selection-and-verification)
 contract distinguishes filesystem/Git removal, host metadata, and chat archival.

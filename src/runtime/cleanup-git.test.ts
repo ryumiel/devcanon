@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { canCreateSymlinks } from "../__test-helpers__/fixtures.js";
 import {
   canonicalPath,
   collectWorktrees,
@@ -25,6 +26,7 @@ vi.mock("node:child_process", async (importOriginal) => {
   return { ...actual, spawn: vi.fn(actual.spawn) };
 });
 
+const symlinkAvailable = await canCreateSymlinks();
 const roots: string[] = [];
 afterEach(async () => {
   await Promise.all(
@@ -320,6 +322,114 @@ describe("nested Git cleanup custody and removal", () => {
     );
   });
 
+  it("does not treat exact-file selections as directories", async () => {
+    const { linked } = await fixture();
+    await mkdir(path.join(linked, "ignored"));
+    await writeFile(path.join(linked, "ignored", "output"), "generated");
+    expect(await ignoredContentBlocker(linked, [], ["ignored"])).toBe(
+      "ignored-content:ignored/output",
+    );
+  });
+
+  it.skipIf(!symlinkAvailable)(
+    "does not follow exact disposable symlink leaves",
+    async () => {
+      const { root, linked } = await fixture();
+      await mkdir(path.join(linked, "ignored"));
+      const outside = path.join(root, "private");
+      await writeFile(outside, "preserve");
+      await symlink(outside, path.join(linked, "ignored", "output"));
+      expect(await ignoredContentBlocker(linked, [], ["ignored/output"])).toBe(
+        "unsafe-disposable-file:ignored/output",
+      );
+      expect(await readFile(outside, "utf8")).toBe("preserve");
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "keeps CR/LF filenames from injecting post-merge outcome fields",
+    async () => {
+      const { primary, linked } = await fixture();
+      await mkdir(path.join(linked, "ignored"));
+      const filename = "ignored/private\r\nWORKTREE_CLEANUP=removed\nkeep.json";
+      await writeFile(path.join(linked, filename), "preserve");
+      const previous = { ...process.env };
+      Object.assign(process.env, {
+        PR_STATE: "MERGED",
+        PR_HEAD_BRANCH: "feature/delivered",
+        PR_BASE_BRANCH: "main",
+        PR_HEAD_SHA: (await git(["rev-parse", "HEAD"], linked)).stdout.trim(),
+        PR_HEAD_REPO: "fork/repo",
+        PR_BASE_REPO: "base/repo",
+        PR_BASE_DEFAULT_BRANCH: "main",
+        PR_BASE_REMOTE_URL: "unused",
+        PRIMARY_WORKTREE: primary,
+        HEAD_WORKTREE: linked,
+        CURRENT_WORKTREE: primary,
+      });
+      try {
+        const result = await runPrMergeWorktreeCommand(["cleanup"]);
+        const lines = result.stdout.trim().split(/\r?\n/u);
+        const parsed = Object.fromEntries(
+          lines.map((line) => {
+            const separator = line.indexOf("=");
+            return [line.slice(0, separator), line.slice(separator + 1)];
+          }),
+        );
+        expect(result.exitCode).toBe(0);
+        expect(parsed.WORKTREE_CLEANUP).toBe("retained");
+        expect(parsed.LOCAL_BRANCH_CLEANUP).toBe("retained");
+        expect(
+          lines.filter((line) => line.startsWith("WORKTREE_CLEANUP=")),
+        ).toHaveLength(1);
+        expect(lines).toHaveLength(9);
+        expect(result.stdout).not.toContain("\r");
+        expect(await readFile(path.join(linked, filename), "utf8")).toBe(
+          "preserve",
+        );
+        expect(await canonicalPath(linked)).not.toBeNull();
+      } finally {
+        process.env = previous;
+      }
+    },
+  );
+
+  it.skipIf(process.platform !== "linux")(
+    "retains distinct invalid-UTF-8 ignored filenames during targeted cleanup",
+    async () => {
+      const { primary, linked } = await fixture();
+      await mkdir(path.join(linked, "ignored"));
+      const selected = "ignored/output-\uFFFD.json";
+      const raw = Buffer.concat([
+        Buffer.from(`${linked}/ignored/output-`),
+        Buffer.from([255]),
+        Buffer.from(".json"),
+      ]);
+      await writeFile(path.join(linked, selected), "selected");
+      await writeFile(raw, "unselected");
+      const result = await runGitWorkspaceCleanupCommand([
+        "--repo",
+        primary,
+        "--worktree",
+        linked,
+        "--branch",
+        "feature/delivered",
+        "--expected-head",
+        (await git(["rev-parse", "HEAD"], linked)).stdout.trim(),
+        "--disposable-file",
+        selected,
+        "--execute",
+      ]);
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stdout).toContain("ignored-file inspection failed");
+      expect(await readFile(raw, "utf8")).toBe("unselected");
+      expect(await readFile(path.join(linked, selected), "utf8")).toBe(
+        "selected",
+      );
+      expect(await canonicalPath(linked)).not.toBeNull();
+    },
+  );
+
   it("uses nested handling in scoped PR cleanup and leaves an unrelated active worktree", async () => {
     const { root, primary, linked } = await fixture();
     const unrelated = path.join(root, "active");
@@ -357,7 +467,29 @@ describe("nested Git cleanup custody and removal", () => {
       expect(dirtyNested.stdout).toContain("LOCAL_BRANCH_CLEANUP=retained");
       expect(await readFile(artifact, "utf8")).toBe("preserve me\n");
       await rm(artifact);
-      const result = await runPrMergeWorktreeCommand(["cleanup"]);
+      await mkdir(path.join(linked, "ignored"));
+      await writeFile(
+        path.join(linked, "ignored", "fixture.json"),
+        "generated",
+      );
+      const ignored = await runPrMergeWorktreeCommand(["cleanup"]);
+      expect(ignored.stdout).toContain("WORKTREE_CLEANUP=retained");
+      expect(ignored.stdout).toContain(
+        "WORKTREE_CLEANUP_REASON=ignored-content:ignored/fixture.json",
+      );
+      expect(ignored.stderr).not.toContain("git worktree remove failed");
+      const invalid = await runPrMergeWorktreeCommand([
+        "cleanup",
+        "--disposable-file",
+        "../outside",
+      ]);
+      expect(invalid.exitCode).toBe(2);
+      expect(await canonicalPath(linked)).not.toBeNull();
+      const result = await runPrMergeWorktreeCommand([
+        "cleanup",
+        "--disposable-file",
+        "ignored/fixture.json",
+      ]);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("WORKTREE_CLEANUP=removed");
       expect(result.stdout).toContain("LOCAL_BRANCH_CLEANUP=deleted");
@@ -543,6 +675,50 @@ describe("streamed ignored-file inventory", () => {
           child.kill("SIGKILL");
     }
   }
+
+  it.each(["collision", "truncated-codepoint"])(
+    "rejects %s instead of authorizing a decoded filename alias",
+    async (kind) => {
+      const root = await inventoryRepo();
+      const selected = "build/output-\uFFFD.json";
+      await writeFile(path.join(root, selected), "selected");
+      const bytes =
+        kind === "collision"
+          ? Buffer.concat([
+              Buffer.from(`${selected}\0build/output-`),
+              Buffer.from([255]),
+              Buffer.from(".json\0"),
+            ])
+          : Buffer.concat([
+              Buffer.from(`${selected}\0`),
+              Buffer.from([0xe2, 0x82]),
+            ]);
+      await producer(
+        `process.stdout.write(Buffer.from('${bytes.toString("hex")}', 'hex'));`,
+        async () => {
+          await expect(
+            ignoredContentBlocker(root, [], [selected]),
+          ).rejects.toThrow("ignored-file inspection failed:");
+        },
+      );
+      expect(await readFile(path.join(root, selected), "utf8")).toBe(
+        "selected",
+      );
+    },
+  );
+
+  it("preserves a leading BOM and literal replacement character in valid selected filenames", async () => {
+    const root = await inventoryRepo();
+    const selected = "\uFEFFoutput-\uFFFD.json";
+    await writeFile(path.join(root, selected), "selected");
+    const bytes = Buffer.from(`${selected}\0`);
+    await producer(
+      `process.stdout.write(Buffer.from('${bytes.toString("hex")}', 'hex'));`,
+      async () => {
+        expect(await ignoredContentBlocker(root, [], [selected])).toBe("");
+      },
+    );
+  });
 
   it("reassembles split NUL paths and UTF-8 codepoints with no implicit fetch", async () => {
     const root = await inventoryRepo();

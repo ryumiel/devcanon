@@ -75,11 +75,12 @@ untracked, local-only or shared nested work, bypass a lock, or remove the primar
 checkout. The targeted mode adds no dirty-work or lock override.
 
 The owning workflow establishes disposal authority and required evidence
-preservation. For host-managed checkouts it also establishes a supported removal
-and attachment/ownership reconciliation path under
+preservation, released active consumers, and absence of competing unresolved
+removal effects. Host-managed checkouts may use guarded Git disposal under
 [mechanism selection](../../skills/git-workspace-cleanup/references/git-workspace-cleanup-usage.md#mechanism-selection-and-verification).
-The Git helper neither archives chats nor changes host metadata; a host refusal
-cannot be bypassed with this helper. Batch lifecycle ordering belongs to
+The Git helper neither archives chats nor changes host metadata. Unsupported
+archive capabilities and stale attachments alone do not block Git removal;
+explicit protection, active work and pending/unknown removal operations do. Batch lifecycle ordering belongs to
 [ROUTE-007-CLEANUP](afds-workflow-routing.md#route-007-cleanup-completed-owner-cleanup).
 
 ### CLEANUP-03: Outcomes and partial completion
@@ -95,7 +96,8 @@ A retry uses the same explicit target and expected commit. When both checkout
 and registration are absent, it may delete the remaining branch only if that
 branch still has the expected tip, is unprotected and is not used by any
 worktree. An already-absent branch needs no deletion. A changed branch tip,
-replacement checkout with a different binding, or unresolved host effect must
+replacement checkout with a different binding, or unresolved removal or
+identity/protection effect must
 remain retained for reconciliation rather than broadening or forcing cleanup.
 No persistent retry ledger or new host adapter is required.
 
@@ -599,10 +601,15 @@ a controlled Git-for-Windows Bash candidate as the behavior under proof.
 ### CLEANUP-04: Independent workspace cleanup
 
 Repository-wide cleanup accepts retained worktree and branch selections, and
-explicit additional disposable directories. `.ephemeral` is disposable by default
+explicit additional disposable directories and exact regular files. `.ephemeral` is disposable by default
 under EVID-004-CLEANUP. Other ignored content retains the affected checkout.
-Git eligibility does not establish host permission: callers retain every
-host-protected or unresolved resource and select only authorized completed work.
+Git eligibility does not establish disposal authority: callers retain active
+consumers, explicit protection and unresolved removal effects, selecting only
+authorized completed work. Residual host attachment metadata is tracked separately.
+Exact-file designations do not authorize siblings or directories and cannot
+follow symlinks. Both workspace and post-merge cleanup accept these designations;
+post-merge inspection reports ignored-content preservation as retained with its
+concrete reason, before attempting removal.
 
 Dry-run reports candidates, eligible resources and retained resources separately.
 Execute rechecks identity and preservation guards, records actual per-resource

@@ -4,6 +4,7 @@ import {
   collectWorktrees,
   currentBranch,
   git,
+  ignoredContentBlocker,
   inspectNestedRepositories,
   isInsideWorktree,
   lineOutput,
@@ -15,6 +16,8 @@ import {
   showRefExists,
   showTopLevel,
   validateBranchName,
+  validateDisposableDirectories,
+  validateDisposableFiles,
   validateSha,
   worktreeStatus,
 } from "./cleanup-git.js";
@@ -78,10 +81,27 @@ export async function runPrMergeWorktreeCommand(
           stderr: "",
         };
       case "cleanup": {
-        if (rest.length > 0) {
-          throw new CleanupUsageError("cleanup does not accept arguments");
+        const directories: string[] = [];
+        const files: string[] = [];
+        for (let i = 0; i < rest.length; i += 2) {
+          const flag = rest[i];
+          const value = rest[i + 1];
+          if (
+            !value ||
+            value.startsWith("--") ||
+            (flag !== "--disposable-dir" && flag !== "--disposable-file")
+          ) {
+            throw new CleanupUsageError(
+              "cleanup accepts only --disposable-dir or --disposable-file with a relative path",
+            );
+          }
+          (flag === "--disposable-dir" ? directories : files).push(value);
         }
-        const { report, stderr } = await cleanup(readCleanupEnv());
+        const { report, stderr } = await cleanup(
+          readCleanupEnv(),
+          validateDisposableDirectories(directories),
+          validateDisposableFiles(files),
+        );
         return { exitCode: 0, stdout: formatCleanup(report), stderr };
       }
       default:
@@ -480,6 +500,8 @@ async function validatePreflightMetadata(
 
 async function cleanup(
   env: CleanupEnv,
+  disposableDirectories: string[],
+  disposableFiles: string[],
 ): Promise<{ report: CleanupReport; stderr: string }> {
   for (const [name, value] of [
     ["PR_HEAD_BRANCH", env.prHeadBranch],
@@ -527,7 +549,12 @@ async function cleanup(
           ? "local-tip-mismatch"
           : nestedRepositoryBlocker(
               await inspectNestedRepositories(headWorktreeReal),
-            )
+            ) ||
+            (await ignoredContentBlocker(
+              headWorktreeReal,
+              disposableDirectories,
+              disposableFiles,
+            ))
       : "";
   const headWorktreeDirty =
     headWorktreeReal.length > 0 && headWorktreeReal !== primaryWorktreeReal
@@ -559,7 +586,14 @@ async function cleanup(
     (await revParse(headWorktreeReal, "HEAD")) === env.prHeadSha
   ) {
     try {
-      await removeLinkedWorktree(primaryWorktreeReal, headWorktreeReal);
+      await removeLinkedWorktree(
+        primaryWorktreeReal,
+        headWorktreeReal,
+        false,
+        disposableDirectories,
+        { head: env.prHeadSha, branch: env.prHeadBranch },
+        disposableFiles,
+      );
     } catch (err) {
       worktreeRemoveFailed = true;
       stderr = `git worktree remove failed for ${JSON.stringify(headWorktreeReal)} ${err instanceof Error ? err.message : String(err)}\n`;
@@ -808,7 +842,7 @@ function formatPreflight(report: PreflightResult): string {
 }
 
 function formatCleanup(report: CleanupReport): string {
-  return lineOutput([
+  const fields: Array<[string, string]> = [
     ["WORKTREE_CLEANUP", report.worktreeCleanup],
     ["WORKTREE_CLEANUP_REASON", report.worktreeCleanupReason],
     ["BASE_UPDATE", report.baseUpdate],
@@ -821,5 +855,9 @@ function formatCleanup(report: CleanupReport): string {
       "MANUAL_ACTION",
       report.manualActions.length > 0 ? report.manualActions.join(";") : "none",
     ],
-  ]);
+  ];
+  // Paths and diagnostics may contain CR/LF; each result must remain one record.
+  return lineOutput(
+    fields.map(([key, value]) => [key, value.replace(/[\r\n]+/gu, " ")]),
+  );
 }

@@ -397,9 +397,11 @@ Post-delivery lifecycle reconciliation consumes the existing cleanup owners'
 contract. Delivery/source disposition, required retention, checkout removal,
 Git registration, local/remote branches, host attachment/ownership, chat archival,
 milestone closure and watchdog shutdown remain distinct observed outcomes in
-existing obligation/result fields. Preserve user-selected order. A host snapshot
-requirement remains binding; a refusal does not authorize Git-only removal or
-private app-state reconciliation. A queued acceptance supplies no terminal or
+existing obligation/result fields. Preserve user-selected order. An explicit mandatory host snapshot
+instruction remains binding, but attachment existence and archive-tool limits do
+not themselves require archival. Completed, released worktrees may use guarded
+Git removal under retained disposal authority, with host metadata tracked
+separately. Private app-state reconciliation is forbidden. A queued acceptance supplies no terminal or
 continued-execution proof. Reconcile through supported results or bounded
 observations, distinguish unknown from positively pending or confirmed refusal,
 and permit retry only after a terminal result and authorized remedy.
@@ -418,7 +420,8 @@ The regression scenario matrix is maintained at the existing
 #### ROUTE-007-CLEANUP: Completed-owner cleanup
 
 For a completed batch owner whose chat archival and local cleanup are authorized,
-the default order is evidence transfer, owner-chat archival, host reconciliation,
+the default order is evidence transfer, owner-chat archival, reconciliation of
+issued removal effects,
 selected worktree removal, then selected local-branch deletion. An explicit user
 order takes precedence. This order does not change terminal-owner gates or grant
 cleanup authority.
@@ -432,20 +435,28 @@ the archived owner to resume solely to remove its own worktree.
 Verify chat archival, then inspect supported host outcomes before another removal
 attempt: archival may already have removed the checkout. It is not proof that
 host protection has been released. Preserve the existing distinction between
-pending, unknown, refused and completed effects. If no supported removal and
-attachment/ownership reconciliation path exists, retain the exact cleanup
-obligation and report the host limitation; do not substitute Git force removal.
+pending, unknown, refused and completed effects. A pending or unknown removal
+operation holds competing removal until reconciled. An unsupported archive
+precondition with no invocation, or a terminal capability refusal, permits
+selected Git cleanup under existing disposal authority after fresh guards.
+A host task-primary label is not Git's primary-worktree protection. Active
+consumers, explicit retention, locks and Git's actual primary remain protected.
+Unsupported attachment reconciliation is a separate obligation with an exact
+resource identity, responsible controller and supported follow-up action. It does
+not hold Git cleanup or justify repeated unchanged archive attempts.
 
 For eligible Git removal, consume the
 [targeted local cleanup contract](passive-runtime.md#targeted-local-cleanup)
 rather than repository-wide pruning. Verify filesystem and Git-registration
-absence and host disposition separately before reporting worktree cleanup.
+absence before reporting Git cleanup complete; report host disposition separately
+and never imply attachment reconciliation from filesystem removal.
 Delete the selected local branch only after its expected tip and lack of use by
 any worktree are verified. Chat archival does not clear remaining cleanup work.
 
 Acceptance scenarios are a completed owner whose archival removes the checkout;
-archival that leaves an eligible checkout for selected removal; host refusal or
-unknown completion that retains the obligation; and successful checkout removal
+archival that leaves an eligible checkout for selected removal; a terminal
+archive-capability refusal followed by guarded Git removal with host metadata
+still outstanding; unknown completion that holds competing removal; and successful checkout removal
 followed by failed branch deletion, where a later attempt addresses only the
 remaining eligible branch. Each preserves unrelated work and required evidence.
 
@@ -1387,7 +1398,8 @@ tracker assignment, or schedule.
 ### EVID-004-CLEANUP: Session artifact lifetime
 
 Authorized cleanup of completed session resources includes `.ephemeral/` and
-other explicitly designated disposable session directories. This is disposal
+other explicitly designated disposable session directories or exact generated
+files. This is disposal
 within existing cleanup authority, not automatic deletion at session end and
 not a separate discard approval. Review, issue, merge and batch owners use the
 same rule. Missing lifecycle records, diagnostic provenance or artifact ownership
@@ -1402,11 +1414,13 @@ A directory's `.gitignore` status alone does not designate it as disposable;
 other ignored files, including user configuration and datasets, remain protected.
 Source changes, unique commits and nested repositories retain their Git guards.
 
-Cleanup is resource-local: a host refusal, active consumer, explicit retention
-or failure holds that resource and dependent branch deletion only. Continue
-independent eligible work and report each verified outcome. Host-managed
-resources require supported lifecycle/attachment reconciliation before Git
-removal. Never bypass a host refusal with the Git helper. The caller identifies
+Cleanup is resource-local: an active consumer, explicit retention, unresolved
+removal effect or Git preservation/removal failure holds that resource and
+dependent branch deletion only. A terminal archive-capability refusal does not. Continue
+independent eligible work and report each verified outcome. Completed host-managed
+resources may use guarded Git removal without waiting for attachment
+reconciliation under ROUTE-007-CLEANUP. Pending/unknown removal effects must be
+reconciled before another removal mechanism acts on the same checkout. The caller identifies
 protected and still-needed resources explicitly; the runtime cannot infer host
 ownership or completion from filenames, missing records or task age.
 

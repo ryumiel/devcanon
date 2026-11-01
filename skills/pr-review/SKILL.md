@@ -20,7 +20,8 @@ retention, concrete active consumers or unresolved effects. Missing records alon
 do not extend completed-session retention. Use the workspace helper's independent
 resource outcomes and completed-review adapter where applicable. A protected or
 failed resource holds only its dependent cleanup; continue eligible independent
-resources without bypassing host lifecycle restrictions.
+resources while tracking host attachment reconciliation separately. Unknown
+removal effects still hold competing cleanup of the same resource.
 
 The [lifecycle target contract](references/review-lease-lifecycle-contract.md#target-retention-and-supersession-contract)
 owns artifact purpose/retirement and completed unposted review supersession.
