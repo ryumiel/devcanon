@@ -320,6 +320,23 @@ describe("nested Git cleanup custody and removal", () => {
     );
   });
 
+  it("does not treat exact-file selections as directories or follow symlink leaves", async () => {
+    const { root, linked } = await fixture();
+    await mkdir(path.join(linked, "ignored"));
+    await writeFile(path.join(linked, "ignored", "output"), "generated");
+    expect(await ignoredContentBlocker(linked, [], ["ignored"])).toBe(
+      "ignored-content:ignored/output",
+    );
+    await rm(path.join(linked, "ignored", "output"));
+    const outside = path.join(root, "private");
+    await writeFile(outside, "preserve");
+    await symlink(outside, path.join(linked, "ignored", "output"));
+    expect(await ignoredContentBlocker(linked, [], ["ignored/output"])).toBe(
+      "unsafe-disposable-file:ignored/output",
+    );
+    expect(await readFile(outside, "utf8")).toBe("preserve");
+  });
+
   it("uses nested handling in scoped PR cleanup and leaves an unrelated active worktree", async () => {
     const { root, primary, linked } = await fixture();
     const unrelated = path.join(root, "active");
@@ -357,7 +374,29 @@ describe("nested Git cleanup custody and removal", () => {
       expect(dirtyNested.stdout).toContain("LOCAL_BRANCH_CLEANUP=retained");
       expect(await readFile(artifact, "utf8")).toBe("preserve me\n");
       await rm(artifact);
-      const result = await runPrMergeWorktreeCommand(["cleanup"]);
+      await mkdir(path.join(linked, "ignored"));
+      await writeFile(
+        path.join(linked, "ignored", "fixture.json"),
+        "generated",
+      );
+      const ignored = await runPrMergeWorktreeCommand(["cleanup"]);
+      expect(ignored.stdout).toContain("WORKTREE_CLEANUP=retained");
+      expect(ignored.stdout).toContain(
+        "WORKTREE_CLEANUP_REASON=ignored-content:ignored/fixture.json",
+      );
+      expect(ignored.stderr).not.toContain("git worktree remove failed");
+      const invalid = await runPrMergeWorktreeCommand([
+        "cleanup",
+        "--disposable-file",
+        "../outside",
+      ]);
+      expect(invalid.exitCode).toBe(2);
+      expect(await canonicalPath(linked)).not.toBeNull();
+      const result = await runPrMergeWorktreeCommand([
+        "cleanup",
+        "--disposable-file",
+        "ignored/fixture.json",
+      ]);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("WORKTREE_CLEANUP=removed");
       expect(result.stdout).toContain("LOCAL_BRANCH_CLEANUP=deleted");

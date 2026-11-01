@@ -27,4 +27,4 @@ fi
   fail "devcanon-runtime passive runtime bundle missing for pr-merge cleanup"
 
 runtime_entrypoint="$("$runtime_resolver" resolve-entrypoint --from "$script_path" --entrypoint "scripts/devcanon-runtime.sh")"
-exec "$runtime_entrypoint" runtime pr-merge-worktree cleanup
+exec "$runtime_entrypoint" runtime pr-merge-worktree cleanup "$@"

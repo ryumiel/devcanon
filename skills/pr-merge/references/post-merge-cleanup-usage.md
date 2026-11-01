@@ -3,13 +3,19 @@
 ## Role
 
 Performs scoped ordinary Git cleanup after a verified merge. Host-managed
-checkouts first require the shared
+checkouts use the shared
 [mechanism selection](../../git-workspace-cleanup/references/git-workspace-cleanup-usage.md#mechanism-selection-and-verification)
 contract; this helper cannot reconcile app attachments or ownership.
 
 ## Invocation
 
-Run `bash "$PR_MERGE_DIR/scripts/post-merge-cleanup.sh"` with no arguments.
+Run `bash "$PR_MERGE_DIR/scripts/post-merge-cleanup.sh" [--disposable-dir <relative-directory>] [--disposable-file <relative-file>]`.
+
+Both options may repeat and use the workspace helper's safe relative-path and
+physical-directory/regular-file validation. They designate only authorized
+ignored outputs; they do not discard dirty source or nested repository work.
+Ignored content outside the selections reports `retained` with its concrete
+`ignored-content` reason before removal, not a Git execution failure.
 
 ## Inputs
 

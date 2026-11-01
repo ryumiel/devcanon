@@ -19,7 +19,8 @@ retention, concrete active consumers or unresolved effects. Missing records alon
 do not extend completed-session retention. Use the workspace helper's independent
 resource outcomes and completed-review adapter where applicable. A protected or
 failed resource holds only its dependent cleanup; continue eligible independent
-resources without bypassing host lifecycle restrictions.
+resources while tracking host attachment reconciliation separately. Unknown
+removal effects still hold competing cleanup of the same resource.
 
 Use the adjacent [preflight-worktree-context usage](references/preflight-worktree-context-usage.md), [source-immutability usage](references/source-immutability-usage.md), and [post-merge-cleanup usage](references/post-merge-cleanup-usage.md) for helper mechanics. This workflow owns CI investigation and merge continuation.
 
@@ -194,7 +195,7 @@ invalidates the preflight result.
 For completed-owner cleanup transferred to a controller, follow
 [archive-first lifecycle reconciliation](../issue-batch-routing/SKILL.md#post-delivery-lifecycle-reconciliation).
 That controller may use the workspace helper's explicit-target mode for the
-remaining local checkout/branch after host reconciliation. This does not replace
+remaining local checkout/branch after reconciling any issued removal effect. This does not replace
 this skill's PR-specific helper or authorize base updates or remote deletion
 through the local-only mode.
 
@@ -202,11 +203,12 @@ After every verified remote merge, select scoped cleanup under retained
 cleanup authority and the shared
 [mechanism selection and verification](../git-workspace-cleanup/references/git-workspace-cleanup-usage.md#mechanism-selection-and-verification)
 contract. Preserve required artifacts and accepted active consumers first.
-For an ordinary Git checkout, run the
+For an eligible ordinary or completed host-managed checkout, run the
 [post-merge cleanup helper](references/post-merge-cleanup-usage.md) with its
-documented inputs. For a host-managed checkout, use the supported host lifecycle
-path; do not run the Git removal helper as an archive refusal workaround.
-Report an unsupported path or unknown host outcome separately from merge success.
+documented inputs and explicitly designated disposable outputs. An unsupported
+archive capability does not veto Git cleanup; an unresolved removal effect or
+active consumer still does. Report residual host attachment reconciliation
+separately from Git cleanup and merge success.
 
 ```bash
 bash "$PR_MERGE_DIR/scripts/post-merge-cleanup.sh" --help

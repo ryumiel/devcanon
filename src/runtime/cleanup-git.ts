@@ -502,11 +502,19 @@ export function validateDisposableDirectories(
   return [...new Set([".ephemeral", ...values])];
 }
 
+/** Exact ignored leaves may be designated without authorizing their siblings. */
+export function validateDisposableFiles(values: readonly string[]): string[] {
+  validateDisposableDirectories(values);
+  return [...new Set(values)];
+}
+
 export async function ignoredContentBlocker(
   worktree: string,
   disposableDirectories: readonly string[] = [],
+  disposableFiles: readonly string[] = [],
 ): Promise<string> {
   const directories = validateDisposableDirectories(disposableDirectories);
+  const files = new Set(validateDisposableFiles(disposableFiles));
   let blocker = "";
   const checkedDirectories = new Set<string>();
   const inspect = async (file: string): Promise<void> => {
@@ -514,6 +522,22 @@ export async function ignoredContentBlocker(
     const directory = directories.find((candidate) =>
       file.startsWith(`${candidate}/`),
     );
+    if (!directory && files.has(file)) {
+      let current = worktree;
+      const parts = file.split("/");
+      for (const [index, part] of parts.entries()) {
+        current = path.join(current, part);
+        const stat = await lstat(current);
+        if (
+          stat.isSymbolicLink() ||
+          (index === parts.length - 1 ? !stat.isFile() : !stat.isDirectory())
+        ) {
+          blocker = `unsafe-disposable-file:${file}`;
+          return;
+        }
+      }
+      return;
+    }
     if (!directory) {
       blocker = `ignored-content:${file}`;
       return;
@@ -740,6 +764,7 @@ export async function removeLinkedWorktree(
   allowDirty = false,
   disposableDirectories: readonly string[] = [],
   expected?: { head: string; branch: string },
+  disposableFiles: readonly string[] = [],
 ): Promise<void> {
   const records = await collectWorktrees(primary);
   const canonicalTarget = await requireCanonicalDirectory(
@@ -763,6 +788,7 @@ export async function removeLinkedWorktree(
   const ignoredBlocker = await ignoredContentBlocker(
     canonicalTarget,
     disposableDirectories,
+    disposableFiles,
   );
   if (ignoredBlocker) throw new Error(ignoredBlocker);
   // Force is needed by Git for initialized submodules even when all nested work is clean.

@@ -434,6 +434,38 @@ describe("pr-merge worktree helper scripts", { timeout: TEST_TIMEOUT }, () => {
     },
   );
 
+  it("forwards exact disposable paths with spaces to post-merge cleanup", async () => {
+    const rootDir = await createTempDir();
+    tempDirs.push(rootDir);
+    const { originDir, primaryDir } = await createOriginRepo(rootDir);
+    const headSha = await createFeatureBranch(primaryDir);
+    const featureDir = await createFeatureWorktree(primaryDir, rootDir);
+    await writeFile(
+      path.join(primaryDir, ".git", "info", "exclude"),
+      "generated output.json\ncache/\n",
+    );
+    await writeFile(
+      path.join(featureDir, "generated output.json"),
+      "generated",
+    );
+    await mkdir(path.join(featureDir, "cache"));
+    await writeFile(path.join(featureDir, "cache", "output"), "generated");
+    const { stdout } = await runCommand(
+      "bash",
+      [
+        cleanupScript,
+        "--disposable-file",
+        "generated output.json",
+        "--disposable-dir",
+        "cache",
+      ],
+      primaryDir,
+      cleanupEnv({ primaryDir, featureDir, headSha, baseRemoteUrl: originDir }),
+    );
+    expect(parseKeyValueOutput(stdout).WORKTREE_CLEANUP).toBe("removed");
+    expect(await pathExists(featureDir)).toBe(false);
+  });
+
   it.skipIf(isWindows)(
     "reports a failed removal diagnostic and retains the local branch",
     async () => {
