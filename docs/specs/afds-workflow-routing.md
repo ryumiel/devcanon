@@ -1012,6 +1012,43 @@ completion nor route, approval, or current-head authority. Receivers reconcile
 current evidence through their owning workflows; an old-head signal cannot
 authorize a new-head merge.
 
+#### ROUTE-007-PUBLICATION: PR publication state
+
+Initial PR publication defaults to ready for review (non-draft) after
+implementation, required local validation and independent prepublication
+review are complete. `play-branch-finish` owns creation and verifies the
+provider's resulting PR state; `pr-authoring` retains title/body ownership.
+Phase 8 and batch handoffs carry any applicable exception through their
+existing context rather than introducing a separate approval or artifact.
+
+Draft publication requires a concrete, explicitly stated reason and a condition
+for clearing it, such as an authorized early design handoff or a required
+qualification that cannot run before publication. A draft does not waive
+publication prerequisites: any early-publication exception must be covered by
+the applicable human decision and owning workflow. Missing implementation,
+required local validation or prepublication review otherwise holds publication.
+Ordinary pending post-push CI or Connector review alone is not a draft reason.
+An explicit applicable human instruction or repository requirement is respected;
+missing or conflicting authority holds only the affected action.
+
+Provider ready-for-review state is separate from satisfying the accepted
+independent-review condition or merge readiness. Initial and corrected heads
+retain their existing publication sequence, current-head review, CI,
+protection, mergeability and thread-disposition gates. Promoting a PR grants no
+merge authority and transfers no old-head approval.
+
+For an existing draft, reconcile its stated reason against current owner and
+provider evidence. A still-applicable reason waits for its clearing condition;
+a missing or unclear reason requires clarification from the existing owner,
+not indefinite passive waiting or automatic promotion. Once the reason is
+verified cleared and applicable publication prerequisites hold, route the
+ready-for-review transition to the existing effect owner under current exact
+PR/head and retained applicable authority. Do not wait for ordinary pending
+post-push CI or Connector review solely to clear draft status. Verify the
+provider transition before recording success; failed or unknown effects remain
+unresolved under existing routing and receipt rules. Explicit instructions to
+retain draft status require the corresponding decision before promotion.
+
 #### ROUTE-007-REVIEW: Review waits and merge evidence
 
 After a no-code reply, the review-response owner decides whether a fresh-review

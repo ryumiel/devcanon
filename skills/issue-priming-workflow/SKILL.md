@@ -1235,7 +1235,11 @@ read files from disk for the rerun rather than using snapshot content.
 ### Phase 8: Create PR
 
 This is initial PR publication: implementation, validation and independent
-Phase 7 branch review precede creation. An authorized correction to an existing
+Phase 7 branch review precede creation. Publish ready for review by default;
+pass any concrete draft exception and clearing condition through the existing
+handoff context to `play-branch-finish`, which owns publication-state selection
+and verification. Pending post-push CI or Connector review alone does not
+justify a draft, and a draft cannot bypass Phase 7. An authorized correction to an existing
 published PR instead follows
 [ROUTE-007-REVIEW](../../docs/specs/afds-workflow-routing.md#route-007-review-review-waits-and-merge-evidence)
 and review-response's concrete pre-push gate: classify dispositions, validate the

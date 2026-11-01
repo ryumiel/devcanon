@@ -48,6 +48,17 @@ Dependency, security, or audit remediation must follow
 [dependency-audit-guideline.md](dependency-audit-guideline.md), including its
 evidence and lockfile-scope review expectations.
 
+### Publication State
+
+Open PRs ready for review after implementation, required local validation and
+independent prepublication review are complete. Use a draft only for a concrete,
+explicitly stated reason with a clearing condition. Ordinary pending GitHub CI
+or Connector review alone does not justify a draft; all merge gates still apply.
+Draft status does not waive publication prerequisites. Follow the reusable
+[PR publication-state contract](../specs/afds-workflow-routing.md#route-007-publication-pr-publication-state)
+and the creation owner's
+[Option 2 procedure](../../skills/play-branch-finish/SKILL.md#option-2-push-and-create-pr).
+
 ### Reviewer / Assignee Expectations
 
 - Assign yourself when you are actively responsible for carrying the PR through

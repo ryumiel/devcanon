@@ -773,7 +773,19 @@ after matching approval evidence has been routed to the owner thread.
 
 For PR providers that expose these signals, evaluate gates in this order:
 
-1. Draft PRs wait unless the owner thread reports that draft status is stale.
+1. For a draft PR, reconcile its concrete stated reason and clearing condition
+   against current owner/provider evidence. A valid remaining reason waits;
+   missing or unclear reasons route clarification to the existing owner under
+   current authority. When the reason is verified cleared and applicable
+   publication prerequisites hold, route the ready-for-review transition to
+   that owner under exact current PR/head and retained applicable authority,
+   using existing gate, route and receipt rules. Ordinary pending post-push CI
+   or Connector review alone does not justify retaining draft status. Honor
+   explicit applicable human instructions or repository requirements to retain
+   draft; obtain only a genuinely missing decision. Verify provider non-draft
+   state before recording transition success or proceeding to merge routing.
+   Unknown or failed transitions remain unresolved; never promote directly,
+   waive publication prerequisites or merge gates, or create a duplicate owner.
 2. Reconcile supported current PR/head review evidence under the accepted
    conditional policy in ROUTE-007-REVIEW for both initial and corrected
    published heads. Applicable completed passing/thumbs-up Connector evidence
