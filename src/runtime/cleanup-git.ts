@@ -4,7 +4,7 @@ import type { Dirent } from "node:fs";
 import { lstat, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
-import { promisify } from "node:util";
+import { TextDecoder, promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 const localInspection = new AsyncLocalStorage<boolean>();
@@ -599,12 +599,13 @@ export async function ignoredContentBlocker(
       fail(new Error("ignored-file inspection diagnostics exceeded limit"));
     } else diagnostic += chunk.toString("utf8");
   });
-  // Node's decoder preserves multibyte characters split across stream chunks.
-  child.stdout.setEncoding("utf8");
+  // Reject malformed bytes instead of aliasing distinct POSIX filenames to U+FFFD.
+  // Preserve a leading BOM: it is part of a pathname, not a text-file marker.
+  const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
   let pending = "";
   try {
     for await (const chunk of child.stdout) {
-      const data = pending + chunk;
+      const data = pending + decoder.decode(chunk, { stream: true });
       let start = 0;
       let end = data.indexOf("\0");
       while (end !== -1) {
@@ -617,6 +618,7 @@ export async function ignoredContentBlocker(
       if (pending.length > 1024 * 1024)
         throw new Error("ignored-file inspection path exceeded limit");
     }
+    pending += decoder.decode();
     if (pending) throw new Error("unterminated ignored-file inspection path");
   } catch (error) {
     fail(error instanceof Error ? error : new Error(String(error)));

@@ -22,8 +22,10 @@ or repository guidance under retained cleanup authority, not from its name.
 Ignoring a file does not itself authorize deletion. Nested Git guards still apply
 inside disposable directories, and arbitrary ignored content retains its checkout.
 Ignored paths are inspected as a NUL-separated stream, so large generated inventories
-do not require an aggregate output buffer. Subprocess or stream failures block
-inspection rather than establish cleanup eligibility.
+do not require an aggregate output buffer. Invalid or truncated UTF-8 fails
+inspection rather than matching a replacement-character filename. Valid leading
+BOMs and split multibyte characters remain pathname data. Subprocess or stream
+failures block inspection rather than establish cleanup eligibility.
 
 ### Selected local cleanup
 

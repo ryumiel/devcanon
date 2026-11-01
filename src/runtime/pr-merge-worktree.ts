@@ -842,7 +842,7 @@ function formatPreflight(report: PreflightResult): string {
 }
 
 function formatCleanup(report: CleanupReport): string {
-  return lineOutput([
+  const fields: Array<[string, string]> = [
     ["WORKTREE_CLEANUP", report.worktreeCleanup],
     ["WORKTREE_CLEANUP_REASON", report.worktreeCleanupReason],
     ["BASE_UPDATE", report.baseUpdate],
@@ -855,5 +855,9 @@ function formatCleanup(report: CleanupReport): string {
       "MANUAL_ACTION",
       report.manualActions.length > 0 ? report.manualActions.join(";") : "none",
     ],
-  ]);
+  ];
+  // Paths and diagnostics may contain CR/LF; each result must remain one record.
+  return lineOutput(
+    fields.map(([key, value]) => [key, value.replace(/[\r\n]+/gu, " ")]),
+  );
 }

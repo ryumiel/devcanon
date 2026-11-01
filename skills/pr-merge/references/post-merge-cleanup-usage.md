@@ -29,6 +29,10 @@ Run from the repository context selected by the preflight result.
 
 Its primary result channel is structured `KEY=VALUE` stdout: `WORKTREE_CLEANUP`, `BASE_UPDATE`, `LOCAL_BRANCH_CLEANUP`, and `REMOTE_BRANCH_CLEANUP`, each with a corresponding `_REASON`, plus `MANUAL_ACTION`. A failed `git worktree remove` also emits its worktree target, Git exit code, and Git stderr on the diagnostic stderr channel without changing those stdout fields or the cleanup command's exit-zero outcome. Successful removal emits no failure diagnostic. Thrown input or runtime errors are emitted on stderr.
 
+CR/LF runs in output values are replaced with a space so filenames and
+diagnostics cannot inject additional `KEY=VALUE` records. These display values
+are not round-trip pathname identities; retain the selected inputs for retries.
+
 ## Refusal and failures
 
 A present `PR_STATE` other than `MERGED`, dirty or locked worktrees, and individual Git cleanup-operation failures return exit zero with structured `skipped`, `retained`, `failed`, or manual-cleanup outcomes. A missing required `PR_STATE` (or other required input), invalid paths or branch names, and unavailable runtime are thrown errors that exit nonzero (the runtime reports these as exit 2 on stderr).
