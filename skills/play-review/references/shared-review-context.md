@@ -56,7 +56,9 @@ The controller verifies before parsing or semantic validation, retains a valid
 report only in memory, cleans the exact baseline, and applies it only after
 cleanup. Cleanup removes only guard-owned bookkeeping. Source mutation remains
 untouched whether cleanup succeeds or fails. No controller-summary or
-partial-context fallback exists.
+partial-context fallback exists. A rejected preparation may be followed by the
+fresh attempt defined in [routine recovery](terminal-result-boundaries.md#routine-recovery);
+the rejected semantic result is never reused.
 
 ## Input Manifest
 

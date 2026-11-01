@@ -44,6 +44,13 @@ scenarios, and migration. The code-review guideline continues to own local
 finding admission and duplicate retention; consumer repositories retain their
 own merge obligations. This record does not create a second procedure owner.
 
+Routine correction stays within the original review authorization and the
+existing route, with bounded recovery owned by the review workflow. Derive
+presentation from canonical semantic fields; do not make redundant rendering a
+new approval decision. A failed semantic attempt remains rejected until a valid
+complete replacement is independently returned. Integrity failures stop, coverage
+remains mandatory, and recovery never permits shopping for a different judgment.
+
 Use versioned findings and approval evidence to distinguish completed,
 unnecessary, and incomplete verification. Preserve unchanged nit identity and
 original evidence provenance after a current reuse check; do not describe

@@ -1984,6 +1984,116 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     }
   });
 
+  it("derives canonical bodies without changing evidence or incomplete coverage", async () => {
+    const {
+      cwd,
+      reviewHeadSha,
+      findingsFile: canonicalFile,
+    } = await makeReviewSourceWorkspace();
+    try {
+      const envelope = currentReviewEnvelope(reviewHeadSha, [sourceFinding()]);
+      envelope.carry_forward = structuredClone(envelope.findings);
+      const input = structuredClone(envelope);
+      for (const key of ["findings", "carry_forward"])
+        for (const finding of input[key] as Record<string, unknown>[])
+          finding.body = undefined;
+      await runHelperWithStdin(
+        cwd,
+        "publish-canonical-findings",
+        JSON.stringify(input),
+        {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: canonicalFile,
+        },
+      );
+      const actual = JSON.parse(
+        await readFile(path.join(cwd, canonicalFile), "utf8"),
+      );
+      expect(actual).toEqual(envelope);
+      validateTargetedReviewEvidence(actual);
+      const incomplete = currentReviewEnvelope(reviewHeadSha, []);
+      incomplete.incomplete_review_routes = [
+        { route: "D7", disposition: "NEEDS_CONTEXT" },
+      ];
+      await runHelperWithStdin(
+        cwd,
+        "publish-canonical-findings",
+        JSON.stringify(incomplete),
+        {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: canonicalFile,
+        },
+      );
+      expect(
+        JSON.parse(await readFile(path.join(cwd, canonicalFile), "utf8")),
+      ).toEqual(incomplete);
+
+      await runHelper(cwd, "validate-findings", {
+        HEAD_SHA: reviewHeadSha,
+        FINDINGS_FILE: canonicalFile,
+      });
+      await expectNoPublishStaging(cwd);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("rejects invalid canonical evidence without replacing the last usable artifact", async () => {
+    const {
+      cwd,
+      reviewHeadSha,
+      findingsFile: canonicalFile,
+    } = await makeReviewSourceWorkspace();
+    try {
+      const envelope = currentReviewEnvelope(reviewHeadSha, [sourceFinding()]);
+      const env = { HEAD_SHA: reviewHeadSha, FINDINGS_FILE: canonicalFile };
+      const original = JSON.stringify(envelope);
+      await runHelperWithStdin(cwd, "publish-findings", original, env);
+      const canonical = structuredClone(envelope);
+      for (const entry of canonical.findings as Record<string, unknown>[])
+        entry.body = undefined;
+      const mutations = [
+        (value: typeof canonical) => {
+          (value.findings as Record<string, unknown>[])[0].anchor =
+            "prose quotation";
+        },
+        (value: typeof canonical) => {
+          (value.findings as Record<string, unknown>[])[0].severity = [
+            "Blocking",
+          ];
+        },
+        (value: typeof canonical) => {
+          (value.findings as Record<string, unknown>[])[0].why = " ";
+        },
+        (value: typeof canonical) => {
+          (value.findings as Record<string, unknown>[])[0].body =
+            "silently repair me";
+        },
+        (value: typeof canonical) => {
+          value.review_head_sha = headSha;
+        },
+      ];
+      for (const mutate of mutations) {
+        const input = structuredClone(canonical);
+        mutate(input);
+        await expect(
+          runHelperWithStdin(
+            cwd,
+            "publish-canonical-findings",
+            JSON.stringify(input),
+            env,
+          ),
+        ).rejects.toThrow();
+        expect(await readFile(path.join(cwd, canonicalFile), "utf8")).toBe(
+          original,
+        );
+        await expectNoPublishStaging(cwd);
+      }
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("preserves the prior canonical envelope and cleans staging for malformed or trailing findings input", async () => {
     const cwd = await makeTopicGitWorkspace();
     try {

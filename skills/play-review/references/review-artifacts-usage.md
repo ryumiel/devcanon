@@ -28,14 +28,21 @@ if ($LASTEXITCODE -ne 0) { throw "prepare-judgment-nits failed" }
 
 `<operation>` is exactly one of: `validate-findings`, `validate-nits-file`, `project-nits`,
 `derive-nits-pending`, `prepare-judgment-nits`, `prepare-findings-write`,
-`publish-findings`, `render-review-preview`, or
+`publish-findings`, `publish-canonical-findings`, `render-review-preview`, or
 `build-github-review-payload`.
 
 ## Inputs
 
 `validate-findings` requires `HEAD_SHA` and `FINDINGS_FILE`. `validate-nits-file` and `project-nits` require `HEAD_SHA` and `NITS_FILE`, binding the embedded review head to the checked posting head. `project-nits` emits the validated current findings presentation array, applying overrides and DOWNGRADE bodies without changing evidence. `derive-nits-pending` requires `HEAD_SHA` and `FINDINGS_FILE`. `prepare-judgment-nits` requires `HEAD_SHA`, `FINDINGS_FILE`, and comma-separated zero-based `JUDGMENT_REQUIRED_FINDING_INDEXES`. `prepare-findings-write` requires `HEAD_SHA`; `FINDINGS_FILE` is optional and otherwise derives from the current branch and head. `publish-findings` requires `HEAD_SHA` and `FINDINGS_FILE`, accepts no extra arguments, and reads exactly one UTF-8 JSON findings envelope from stdin.
 
-`render-review-preview` requires `HEAD_SHA`, `FINDINGS_FILE`, and `REVIEW_SURFACE`; it additionally requires `REVIEW_BODY_FILE` when `REVIEW_SURFACE=pr-review`. `build-github-review-payload` requires `HEAD_SHA`, `FINDINGS_FILE`, `REVIEW_SURFACE=pr-review`, `REVIEW_BODY_FILE`, and `REVIEW_EVENT` (`APPROVE`, `REQUEST_CHANGES`, or `COMMENT`). No other operation reads stdin.
+`render-review-preview` requires `HEAD_SHA`, `FINDINGS_FILE`, and `REVIEW_SURFACE`; it additionally requires `REVIEW_BODY_FILE` when `REVIEW_SURFACE=pr-review`. `build-github-review-payload` requires `HEAD_SHA`, `FINDINGS_FILE`, `REVIEW_SURFACE=pr-review`, `REVIEW_BODY_FILE`, and `REVIEW_EVENT` (`APPROVE`, `REQUEST_CHANGES`, or `COMMENT`). `publish-canonical-findings` reads stdin under the same head, path, UTF-8,
+single-document, validation, and atomic replacement contract as `publish-findings`.
+Its input uses the existing envelope fields but every finding and carry-forward
+entry must omit `body`. It derives that field exactly from severity, category,
+why, and recommendation, then validates the complete envelope before publication.
+A supplied body is rejected; invalid enums or other evidence are never repaired.
+The input is transient producer data, not a readable findings/v3 artifact.
+No other operation reads stdin.
 
 ## Working directory
 
@@ -43,7 +50,7 @@ Every operation requires the target repository root. Artifact paths are direct c
 
 ## Outputs
 
-Validation commands are silent on success. `derive-nits-pending`, `prepare-judgment-nits`, and `prepare-findings-write` print their repo-relative paths. `publish-findings` prints its canonical findings path. `render-review-preview` emits Markdown; `build-github-review-payload` emits one JSON payload. Diagnostics use stderr and refusals exit nonzero.
+Validation commands are silent on success. `derive-nits-pending`, `prepare-judgment-nits`, and `prepare-findings-write` print their repo-relative paths. Both publication operations print the canonical findings path. `render-review-preview` emits Markdown; `build-github-review-payload` emits one JSON payload. Diagnostics use stderr and refusals exit nonzero.
 
 ## Refusal and failures
 
@@ -51,7 +58,7 @@ The helper rejects unknown commands, bad cwd, missing environment, invalid head 
 
 ## Side effects
 
-Preparation creates `.ephemeral` and validates targets; `derive-nits-pending`, `prepare-judgment-nits`, and `prepare-findings-write` may unlink an existing target symlink before later work. `prepare-judgment-nits` and `publish-findings` write their artifact, with publication replacing the canonical findings path only after staging and validation. Rendering and validation are read-only.
+Preparation creates `.ephemeral` and validates targets; `derive-nits-pending`, `prepare-judgment-nits`, and `prepare-findings-write` may unlink an existing target symlink before later work. `prepare-judgment-nits` and both publication operations write their artifact, with publication replacing the canonical findings path only after staging and validation. Rendering and validation are read-only.
 
 ## Workflow boundary
 
