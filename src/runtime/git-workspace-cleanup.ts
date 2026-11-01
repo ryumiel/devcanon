@@ -21,6 +21,7 @@ import {
   showRefExists,
   showTopLevel,
   validateDisposableDirectories,
+  validateDisposableFiles,
   worktreeStatus,
 } from "./cleanup-git.js";
 import type { RuntimeCommandOutcome } from "./command.js";
@@ -31,7 +32,7 @@ import {
 
 type CleanupMode = "dry-run" | "execute";
 const usage =
-  "usage: git-workspace-cleanup.sh [--repo <path>] [--dry-run|--execute] [--retain-worktree <path>] [--retain-branch <name>] [--disposable-dir <relative-directory>] [--force-branches] [--force-dirty-worktrees] [--worktree <path> --branch <name> --expected-head <sha> | --detached --worktree <path> --expected-head <sha> | --branch-only --branch <name> --expected-head <sha>]";
+  "usage: git-workspace-cleanup.sh [--repo <path>] [--dry-run|--execute] [--retain-worktree <path>] [--retain-branch <name>] [--disposable-dir <relative-directory>] [--disposable-file <relative-file>] [--force-branches] [--force-dirty-worktrees] [--worktree <path> --branch <name> --expected-head <sha> | --detached --worktree <path> --expected-head <sha> | --branch-only --branch <name> --expected-head <sha>]";
 class HelpRequested extends Error {}
 interface Args {
   mode: CleanupMode;
@@ -41,6 +42,7 @@ interface Args {
   retainedWorktrees: string[];
   retainedBranches: string[];
   disposableDirectories: string[];
+  disposableFiles: string[];
   target?: CleanupTarget;
 }
 interface Outcome {
@@ -96,6 +98,7 @@ function parseArgs(args: readonly string[]): Args {
     retainedWorktrees: [],
     retainedBranches: [],
     disposableDirectories: [],
+    disposableFiles: [],
   };
   const target = new Map<string, string>();
   let kind: "paired" | "detached" | "branch-only" = "paired";
@@ -132,6 +135,9 @@ function parseArgs(args: readonly string[]): Args {
       case "--disposable-dir":
         parsed.disposableDirectories.push(value());
         break;
+      case "--disposable-file":
+        parsed.disposableFiles.push(value());
+        break;
       case "--detached":
       case "--branch-only":
         if (kind !== "paired")
@@ -157,6 +163,7 @@ function parseArgs(args: readonly string[]): Args {
   parsed.disposableDirectories = validateDisposableDirectories(
     parsed.disposableDirectories,
   );
+  parsed.disposableFiles = validateDisposableFiles(parsed.disposableFiles);
   if (target.size || kind !== "paired") {
     const valid =
       target.has("--expected-head") &&
@@ -185,6 +192,7 @@ function parseArgs(args: readonly string[]): Args {
       branch: target.get("--branch") ?? "",
       expectedHead: target.get("--expected-head") ?? "",
       disposableDirectories: parsed.disposableDirectories,
+      disposableFiles: parsed.disposableFiles,
     };
   }
   parsed.targetRepo ||= process.cwd();
@@ -275,6 +283,7 @@ async function workspaceCleanup(parsed: Args): Promise<RuntimeCommandOutcome> {
             (await ignoredContentBlocker(
               record.realPath,
               parsed.disposableDirectories,
+              parsed.disposableFiles,
             ));
       }
       if (!fact.reason) {
@@ -413,6 +422,7 @@ async function workspaceCleanup(parsed: Args): Promise<RuntimeCommandOutcome> {
           forceDirty,
           parsed.disposableDirectories,
           { head: fact.head, branch: fact.record.branch },
+          parsed.disposableFiles,
         );
         fact.status = "removed";
         fact.reason = "directory-and-registration-removal-verified";

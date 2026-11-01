@@ -18,18 +18,19 @@ The bundled script owns ordinary repository-wide destructive operations. Do not
 hand-roll the cleanup sequence. Before selecting it, read the usage reference's
 [mechanism selection](references/git-workspace-cleanup-usage.md#mechanism-selection-and-verification).
 Selected PR cleanup remains with `pr-merge`; completed-owner local cleanup uses
-this helper's explicit-target mode. Host-managed worktrees require a supported
-host lifecycle and attachment/ownership reconciliation path.
+this helper's explicit-target mode. Completed host-managed worktrees may use guarded Git removal under the shared
+mechanism-selection contract; attachment reconciliation is a separate obligation.
 
 ## Selected local cleanup
 
 Read the usage reference's **Selected local cleanup** contract. Preserve required
 evidence and establish disposal authority for the exact path, local branch and
 expected commit. For completed batch owners, transfer cleanup to a controller
-outside the target, archive the terminal owner, reconcile the supported host
-result, then dry-run and execute selected cleanup. Honor explicit user ordering;
+outside the target, archive the terminal owner, reconcile any issued removal operation,
+then dry-run and execute selected cleanup. Honor explicit user ordering;
 never archive an owner with assigned work or wake it solely to remove its checkout.
-Host refusal or pending/unknown effects hold only dependent Git cleanup.
+An unsupported archive capability or stale attachment does not hold Git cleanup.
+Active consumers, explicit protection and pending/unknown removal effects do.
 Pass those exact resources as retained selections and continue independent
 eligible cleanup; never stop unrelated work merely because one checkout is held.
 
@@ -39,7 +40,7 @@ Missing review records or diagnostic provenance alone do not require preservatio
 Establish completion and resolve active consumers and uncertain effects; retain
 explicitly requested resources with a concrete reason. This is included in existing
 cleanup approval, not another per-artifact discard question. Designate additional
-disposable directories explicitly; `.gitignore` alone is not a disposal policy.
+disposable directories or exact generated files explicitly; `.gitignore` alone is not a disposal policy.
 For detached worktrees or unused branches, use the helper's explicit detached or
 branch-only mode rather than inventing a branch/worktree pairing. For completed
 reviews, use the review adapter's completed-session route after these checks.
@@ -127,7 +128,9 @@ later attempt. Retained worktrees also retain branches they use.
 
 Ignored content in `.ephemeral/` is disposable for authorized completed-session
 cleanup. Use `--disposable-dir <relative-directory>` for other explicitly
-identified disposable directories. Arbitrary ignored files retain that checkout,
+identified disposable directories or `--disposable-file <relative-file>` for
+individual generated files. Designating a file does not designate its siblings.
+Arbitrary ignored files retain that checkout,
 even with force flags. Ignored primary files alone do not stop independent work.
 Detached local-only commits are retained; branch force does not discard them.
 

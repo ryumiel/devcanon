@@ -27,6 +27,7 @@ export interface CleanupTarget {
   expectedHead: string;
   kind?: "paired" | "detached" | "branch-only";
   disposableDirectories?: string[];
+  disposableFiles?: string[];
 }
 interface ResourceOutcome {
   status:
@@ -201,6 +202,7 @@ async function inspectAndCleanTarget(
     const ignored = await ignoredContentBlocker(
       selected,
       target.disposableDirectories,
+      target.disposableFiles,
     );
     if (ignored) return { status: "retained", reason: ignored };
     if (await worktreeStatus(selected))
@@ -222,6 +224,7 @@ async function inspectAndCleanTarget(
             false,
             target.disposableDirectories,
             { head: target.expectedHead, branch: target.branch },
+            target.disposableFiles,
           );
           worktree = {
             status: "removed",

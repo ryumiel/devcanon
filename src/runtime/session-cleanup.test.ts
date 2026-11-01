@@ -232,6 +232,63 @@ describe("independent completed-session cleanup", () => {
     );
   });
 
+  it.each(["targeted", "repository-wide"])(
+    "removes only designated ignored leaves in %s cleanup",
+    async (mode) => {
+      const { repo, head, detached } = await fixture();
+      const target = await detached("generated");
+      await mkdir(path.join(target, "cache"));
+      await writeFile(path.join(target, "cache", "output.json"), "generated");
+      await writeFile(path.join(target, "cache", "private.json"), "preserve");
+      const args = [
+        "--repo",
+        repo,
+        ...(mode === "targeted"
+          ? ["--detached", "--worktree", target, "--expected-head", head]
+          : []),
+        "--disposable-file",
+        "cache/output.json",
+      ];
+      const held = await cleanup([...args, "--execute"]);
+      expect(held.exitCode).toBe(1);
+      expect(held.stdout).toContain("ignored-content:cache/private.json");
+      expect(
+        await readFile(path.join(target, "cache", "private.json"), "utf8"),
+      ).toBe("preserve");
+      await rm(path.join(target, "cache", "private.json"));
+      const preview = await cleanup([...args, "--dry-run"]);
+      expect(preview.stdout).toContain("STATUS=ok");
+      expect(await canonicalPath(target)).not.toBeNull();
+      expect((await cleanup([...args, "--execute"])).exitCode).toBe(0);
+      expect(await canonicalPath(target)).toBeNull();
+    },
+  );
+
+  it.each([
+    "../outside",
+    "/absolute",
+    "cache/../private",
+    ".git/config",
+    "cache\\leaf",
+  ])("rejects unsafe disposable file %s before effects", async (file) => {
+    const { repo, head, detached } = await fixture();
+    const target = await detached("protected");
+    const result = await cleanup([
+      "--repo",
+      repo,
+      "--detached",
+      "--worktree",
+      target,
+      "--expected-head",
+      head,
+      "--disposable-file",
+      file,
+      "--execute",
+    ]);
+    expect(result.exitCode).toBe(2);
+    expect(await canonicalPath(target)).not.toBeNull();
+  });
+
   it("guards branch-only identity, unique commits, and branches used by retained worktrees", async () => {
     const { root, repo, head } = await fixture();
     const target = path.join(root, "active");

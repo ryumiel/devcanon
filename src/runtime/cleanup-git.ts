@@ -4,7 +4,7 @@ import type { Dirent } from "node:fs";
 import { lstat, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
-import { promisify } from "node:util";
+import { TextDecoder, promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 const localInspection = new AsyncLocalStorage<boolean>();
@@ -502,11 +502,19 @@ export function validateDisposableDirectories(
   return [...new Set([".ephemeral", ...values])];
 }
 
+/** Exact ignored leaves may be designated without authorizing their siblings. */
+export function validateDisposableFiles(values: readonly string[]): string[] {
+  validateDisposableDirectories(values);
+  return [...new Set(values)];
+}
+
 export async function ignoredContentBlocker(
   worktree: string,
   disposableDirectories: readonly string[] = [],
+  disposableFiles: readonly string[] = [],
 ): Promise<string> {
   const directories = validateDisposableDirectories(disposableDirectories);
+  const files = new Set(validateDisposableFiles(disposableFiles));
   let blocker = "";
   const checkedDirectories = new Set<string>();
   const inspect = async (file: string): Promise<void> => {
@@ -514,6 +522,22 @@ export async function ignoredContentBlocker(
     const directory = directories.find((candidate) =>
       file.startsWith(`${candidate}/`),
     );
+    if (!directory && files.has(file)) {
+      let current = worktree;
+      const parts = file.split("/");
+      for (const [index, part] of parts.entries()) {
+        current = path.join(current, part);
+        const stat = await lstat(current);
+        if (
+          stat.isSymbolicLink() ||
+          (index === parts.length - 1 ? !stat.isFile() : !stat.isDirectory())
+        ) {
+          blocker = `unsafe-disposable-file:${file}`;
+          return;
+        }
+      }
+      return;
+    }
     if (!directory) {
       blocker = `ignored-content:${file}`;
       return;
@@ -575,12 +599,13 @@ export async function ignoredContentBlocker(
       fail(new Error("ignored-file inspection diagnostics exceeded limit"));
     } else diagnostic += chunk.toString("utf8");
   });
-  // Node's decoder preserves multibyte characters split across stream chunks.
-  child.stdout.setEncoding("utf8");
+  // Reject malformed bytes instead of aliasing distinct POSIX filenames to U+FFFD.
+  // Preserve a leading BOM: it is part of a pathname, not a text-file marker.
+  const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
   let pending = "";
   try {
     for await (const chunk of child.stdout) {
-      const data = pending + chunk;
+      const data = pending + decoder.decode(chunk, { stream: true });
       let start = 0;
       let end = data.indexOf("\0");
       while (end !== -1) {
@@ -593,6 +618,7 @@ export async function ignoredContentBlocker(
       if (pending.length > 1024 * 1024)
         throw new Error("ignored-file inspection path exceeded limit");
     }
+    pending += decoder.decode();
     if (pending) throw new Error("unterminated ignored-file inspection path");
   } catch (error) {
     fail(error instanceof Error ? error : new Error(String(error)));
@@ -740,6 +766,7 @@ export async function removeLinkedWorktree(
   allowDirty = false,
   disposableDirectories: readonly string[] = [],
   expected?: { head: string; branch: string },
+  disposableFiles: readonly string[] = [],
 ): Promise<void> {
   const records = await collectWorktrees(primary);
   const canonicalTarget = await requireCanonicalDirectory(
@@ -763,6 +790,7 @@ export async function removeLinkedWorktree(
   const ignoredBlocker = await ignoredContentBlocker(
     canonicalTarget,
     disposableDirectories,
+    disposableFiles,
   );
   if (ignoredBlocker) throw new Error(ignoredBlocker);
   // Force is needed by Git for initialized submodules even when all nested work is clean.

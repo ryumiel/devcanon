@@ -24,7 +24,8 @@ retention, concrete active consumers or unresolved effects. Missing records alon
 do not extend completed-session retention. Use the workspace helper's independent
 resource outcomes and completed-review adapter where applicable. A protected or
 failed resource holds only its dependent cleanup; continue eligible independent
-resources without bypassing host lifecycle restrictions.
+resources while tracking host attachment reconciliation separately. Unknown
+removal effects still hold competing cleanup of the same resource.
 
 Keep the user's accepted batch moving through its existing owners. This skill
 owns coordination policy; explicitly invoke
@@ -524,12 +525,13 @@ timer guarantees policy compliance.
 Apply the router's
 [post-delivery lifecycle reconciliation](../issue-batch-routing/SKILL.md#post-delivery-lifecycle-reconciliation):
 accept the evidence and cleanup obligation outside the target, archive the
-terminal owner, reconcile supported host effects, then remove only the eligible
+terminal owner, reconcile issued removal effects, then remove only the eligible
 selected checkout and local branch. Honor explicit user ordering and retained
 authority. Use the cleanup owner's explicit-target mode for local-only work;
 PR merge effects remain with `pr-merge`. An archived chat alone proves neither
-worktree removal nor release of host protection. Retain unsupported, failed or
-unknown effects in existing obligations; do not wake an archived owner solely
-for cleanup or bypass the host with Git. The
+worktree removal nor release of active consumers. Unsupported archival or stale
+attachments alone do not block guarded Git cleanup. Track residual host metadata
+separately; pending/unknown removal effects still block competing removal. Do not
+wake an archived owner solely for cleanup. The
 [cleanup scenarios](references/reporting-scenarios.md#post-delivery-cleanup-outcomes)
 cover archive-triggered removal, refusal and partial retries.

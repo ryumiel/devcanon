@@ -6,20 +6,26 @@ Performs the deterministic cleanup operation for a selected Git repository.
 
 ## Invocation
 
-Run `bash "$SKILL_DIR/scripts/git-workspace-cleanup.sh" [--repo <path>] [--dry-run|--execute] [--retain-worktree <path>] [--retain-branch <name>] [--disposable-dir <relative-directory>] [--force-branches] [--force-dirty-worktrees]`.
+Run `bash "$SKILL_DIR/scripts/git-workspace-cleanup.sh" [--repo <path>] [--dry-run|--execute] [--retain-worktree <path>] [--retain-branch <name>] [--disposable-dir <relative-directory>] [--disposable-file <relative-file>] [--force-branches] [--force-dirty-worktrees]`.
 
-Retention and disposable-directory arguments may repeat. The caller establishes
-host lifecycle permission, completed-session authority, active dependencies and
+Retention and disposable-path arguments may repeat. The caller establishes
+completed-session disposal authority, active dependencies, unresolved removal effects and
 explicit retention before invocation. Retained paths are canonicalized; used
 branches are retained with their worktree. Record the concrete caller reason and
 release condition alongside the command. Host refusals do not hold unrelated
 cleanup. `.ephemeral` is the default disposable directory; additional designations
-must be safe relative directories, never files, parent traversals or `.git`.
+must be safe relative paths, never absolute paths, parent traversals or `.git`.
+`--disposable-dir` designates a physical directory; `--disposable-file` designates
+only an exact regular-file leaf with physical parent directories, not symlinks
+or siblings. Establish generated-output disposability from the owning workflow
+or repository guidance under retained cleanup authority, not from its name.
 Ignoring a file does not itself authorize deletion. Nested Git guards still apply
 inside disposable directories, and arbitrary ignored content retains its checkout.
 Ignored paths are inspected as a NUL-separated stream, so large generated inventories
-do not require an aggregate output buffer. Subprocess or stream failures block
-inspection rather than establish cleanup eligibility.
+do not require an aggregate output buffer. Invalid or truncated UTF-8 fails
+inspection rather than matching a replacement-character filename. Valid leading
+BOMs and split multibyte characters remain pathname data. Subprocess or stream
+failures block inspection rather than establish cleanup eligibility.
 
 ### Selected local cleanup
 
@@ -30,7 +36,7 @@ bash "$SKILL_DIR/scripts/git-workspace-cleanup.sh" --repo "$TARGET_REPO" \
 ```
 
 Use the same inputs with `--execute` after the workflow validates disposal
-and host lifecycle authority. Any of `--worktree`, `--branch`, or
+and reconciles any pending/unknown removal effect. Any of `--worktree`, `--branch`, or
 `--expected-head` selects targeted mode: all three and an explicit `--repo`
 are required in paired mode. Two additional explicit selectors are supported:
 
@@ -43,7 +49,7 @@ bash "$SKILL_DIR/scripts/git-workspace-cleanup.sh" --repo "$TARGET_REPO" \
 
 Detached mode omits `--branch` and requires a detached target; branch-only mode
 omits `--worktree`. Neither permits incomplete inputs, retention overrides or
-broad force flags. `--disposable-dir` is supported for targeted checkouts.
+broad force flags. `--disposable-dir` and `--disposable-file` are supported for targeted checkouts.
 An unselected resource reports `skipped` with `not-selected`. All selected commit
 tips need ancestry or squash-equivalence to the remote default branch. Squash
 inspection is read-only, without synthetic commit writes.
@@ -79,7 +85,8 @@ and removes only a still-matching unused local ref;
 changed refs, replacement checkouts and stale registrations remain protected.
 Ref deletion compares the expected SHA atomically. Existing branch configuration
 is left unchanged. A failed branch deletion does not erase a verified worktree
-removal result. Reconcile any pending/unknown host effect before invoking a retry.
+removal result. Reconcile pending/unknown removal or identity/protection effects before invoking
+a retry. Attachment-only metadata reconciliation does not hold the Git retry.
 
 ### Windows PowerShell to Bash
 
@@ -149,34 +156,40 @@ before selecting a mechanism. Preserve user-selected ordering between cleanup,
 chat archival, milestone closure and watchdog shutdown; do not impose an
 incident-specific sequence on other workflows. For completed batch owners,
 [post-delivery lifecycle reconciliation](../../issue-batch-routing/SKILL.md#post-delivery-lifecycle-reconciliation)
-defaults to evidence/responsibility transfer, chat archival, supported host
-reconciliation, selected checkout removal, then selected local branch deletion.
-Archival can itself remove the checkout; inspect its effect before Git cleanup.
+defaults to evidence/responsibility transfer, chat archival, reconciliation of
+any issued removal effect, selected checkout removal, then selected local branch
+deletion. Archival can itself remove the checkout; inspect its effect before Git
+cleanup. Host attachment reconciliation is tracked separately.
 
 - Ordinary repository-wide cleanup uses this helper under its approval policy.
-  Ordinary selected PR work uses `pr-merge`'s scoped helper. Completed review
-  sessions use `pr-review`'s completed-session adapter or the explicit detached
-  workspace target after the same completion/retention and host checks. Completed-owner
-  local-only cleanup uses this helper's explicit-target mode, never broad mode.
-- For a host-managed checkout, first identify the host's supported lifecycle
-  mechanism and how it reconciles attachments and ownership records. A host
-  instruction or selected tool requiring a snapshot remains binding even when
-  delivered work is disposable. DevCanon does not mandate `archive_worktree`
-  universally. When Codex requires that tool, use its exact attached worktree
-  identity; initialized submodules and embedded Git repositories are unsupported
-  by that archive tool. Do not remove the checkout with a Git helper as a bypass.
-- Use a non-snapshot mechanism only when the host supports it for that checkout,
-  retained authorization covers it, and supported attachment/ownership
-  reconciliation is established before deletion. These Git helpers manage Git
-  and filesystem state only; they cannot reconcile Codex attachments. If no such
-  path exists, report the unsupported removal and remaining metadata obligation.
-  Do not edit app databases/global state, invoke private APIs, automate the UI as
-  a workaround, or delete first and leave stale attachments.
+  Selected PR cleanup remains with `pr-merge`; completed-owner local-only cleanup
+  uses explicit-target mode. Review sessions use their completed-session adapter
+  or an explicit detached target after completion and retention checks.
+- For completed host-managed checkouts, supported archival may be selected when
+  recoverability is required. Otherwise, scoped Git removal is eligible under
+  retained disposal authority after the owner releases active consumers and
+  guards establish the exact path, expected HEAD, registration and local branch.
+  Unsupported archive capabilities (including initialized submodules), stale
+  attachments, or a host's task-primary label alone do not prohibit Git removal.
+  Git's actual primary checkout, locks, active work and explicit retention remain
+  protected. A mandatory higher-priority host instruction still applies; do not
+  infer such a mandate merely from attachment existence or archive-tool limits.
+- Reconcile an issued pending or unknown archive/removal operation before another
+  removal mechanism acts on that checkout. A known unsupported precondition with
+  no invocation, or a confirmed terminal refusal, is not an unresolved effect.
+  Classify the refusal: an active consumer or explicit protection still retains
+  the resource; an unsupported archive capability permits fresh Git guards.
+- After Git removal, report filesystem absence and Git registration absence
+  separately from local/remote branch disposition, chat archival and host
+  metadata. Record unreconciled attachments with their exact identity and a
+  supported follow-up owner/action; do not claim they were removed. This residual
+  obligation does not veto completed Git cleanup. Do not edit app databases,
+  invoke private APIs, or fabricate host reconciliation. Retry only on a relevant
+  state/capability change, not repeated unchanged observations.
 
-After removal verify filesystem absence, Git registration absence, and the
-supported host attachment/ownership disposition separately. Record local and
-remote branch disposition independently. A snapshot or archived chat proves
-neither deletion nor branch cleanup.
+A snapshot or archived chat proves neither checkout nor branch deletion. Execute
+from a surviving checkout outside the selected target, never an active consumer's
+working directory. No app-side snapshot is implied by direct Git disposal.
 
 ### Nested repository classifications
 
@@ -225,11 +238,13 @@ A supported refusal with its reason establishes unsupported or retained status;
 clear obsolete queue claims and replace the blocker. When terminal feedback is
 unavailable, keep the execution outcome unknown, name the missing supported
 result, and stop bounded observation. A known archive precondition restriction
-can explain why a fresh attempt is unsupported without claiming a historical
-terminal refusal. Do not inspect undocumented app state or minified bundles in
+can explain why archival is unsupported without claiming a historical terminal
+refusal. After a terminal refusal, classify guarded Git removal independently;
+attachment restoration alone does not establish an active consumer. Do not inspect undocumented app state or minified bundles in
 production workflows. Never retry an unresolved effect. A confirmed terminal
 refusal may be retried after an authorized remedy and fresh guards. Separate
 verified effects from unresolved ones; only dependent actions wait.
 
-Codex's supported tools must expose terminal archive outcomes and rejection
-reasons to close that product gap. DevCanon cannot supply those app capabilities.
+Supported host tools own terminal archive outcomes and attachment reconciliation.
+DevCanon cannot supply those capabilities, but completed Git cleanup does not
+wait for attachment reconciliation when no competing removal effect remains.

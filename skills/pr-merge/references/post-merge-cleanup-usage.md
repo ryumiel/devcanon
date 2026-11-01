@@ -3,13 +3,19 @@
 ## Role
 
 Performs scoped ordinary Git cleanup after a verified merge. Host-managed
-checkouts first require the shared
+checkouts use the shared
 [mechanism selection](../../git-workspace-cleanup/references/git-workspace-cleanup-usage.md#mechanism-selection-and-verification)
 contract; this helper cannot reconcile app attachments or ownership.
 
 ## Invocation
 
-Run `bash "$PR_MERGE_DIR/scripts/post-merge-cleanup.sh"` with no arguments.
+Run `bash "$PR_MERGE_DIR/scripts/post-merge-cleanup.sh" [--disposable-dir <relative-directory>] [--disposable-file <relative-file>]`.
+
+Both options may repeat and use the workspace helper's safe relative-path and
+physical-directory/regular-file validation. They designate only authorized
+ignored outputs; they do not discard dirty source or nested repository work.
+Ignored content outside the selections reports `retained` with its concrete
+`ignored-content` reason before removal, not a Git execution failure.
 
 ## Inputs
 
@@ -22,6 +28,10 @@ Run from the repository context selected by the preflight result.
 ## Outputs
 
 Its primary result channel is structured `KEY=VALUE` stdout: `WORKTREE_CLEANUP`, `BASE_UPDATE`, `LOCAL_BRANCH_CLEANUP`, and `REMOTE_BRANCH_CLEANUP`, each with a corresponding `_REASON`, plus `MANUAL_ACTION`. A failed `git worktree remove` also emits its worktree target, Git exit code, and Git stderr on the diagnostic stderr channel without changing those stdout fields or the cleanup command's exit-zero outcome. Successful removal emits no failure diagnostic. Thrown input or runtime errors are emitted on stderr.
+
+CR/LF runs in output values are replaced with a space so filenames and
+diagnostics cannot inject additional `KEY=VALUE` records. These display values
+are not round-trip pathname identities; retain the selected inputs for retries.
 
 ## Refusal and failures
 

@@ -318,6 +318,8 @@ Quick navigation index for the DevCanon repository.
 - Where is issue worktree setup policy? -> [`skills/issue-worktree-setup/SKILL.md`](skills/issue-worktree-setup/SKILL.md)
 - Where is the native issue worktree setup launcher? -> [`skills/issue-worktree-setup/scripts/setup-worktree.mjs`](skills/issue-worktree-setup/scripts/setup-worktree.mjs)
 - Where is the POSIX issue worktree setup adapter? -> [`skills/issue-worktree-setup/scripts/setup-worktree.sh`](skills/issue-worktree-setup/scripts/setup-worktree.sh)
+- Why can Git cleanup finish before host attachment reconciliation? ->
+  [`ADR-0042`](docs/adr/adr-0042-independent-git-cleanup.md)
 - Where is Git workspace cleanup policy? -> [`skills/git-workspace-cleanup/SKILL.md`](skills/git-workspace-cleanup/SKILL.md)
 - Where is the Git workspace cleanup script? -> [`skills/git-workspace-cleanup/scripts/git-workspace-cleanup.sh`](skills/git-workspace-cleanup/scripts/git-workspace-cleanup.sh)
 - Where is the shared issue priming workflow? -> [`skills/issue-priming-workflow/SKILL.md`](skills/issue-priming-workflow/SKILL.md)
