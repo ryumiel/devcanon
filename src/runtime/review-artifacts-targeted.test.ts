@@ -29,8 +29,13 @@ const briefingExample = () => {
 };
 
 describe("targeted review evidence", () => {
-  it("accepts the briefing example and rejects independent closed-contract violations", () => {
-    const example = briefingExample();
+  it("rejects transient bodyless briefing input as published review evidence", () => {
+    expect(() => validateTargetedReviewEvidence(briefingExample())).toThrow();
+  });
+
+  it("rejects independent closed-contract violations in published evidence", () => {
+    const example = envelope();
+    example.findings.push(finding());
     expect(() => validateTargetedReviewEvidence(example)).not.toThrow();
 
     const withFinding = (
@@ -50,8 +55,8 @@ describe("targeted review evidence", () => {
     const unknownCategory = withFinding((claim) => {
       claim.category = "Invented";
       claim.body = (claim.body as string).replace(
-        "Nit | Logic",
-        "Nit | Invented",
+        "Blocking | Logic",
+        "Blocking | Invented",
       );
     });
     expect(() => validateTargetedReviewEvidence(unknownCategory)).toThrow();

@@ -358,6 +358,31 @@ publish_findings() {
     echo "findings input must contain exactly one complete JSON envelope" >&2
     exit 1
   }
+  if [ "$command_name" = "publish-canonical-findings" ]; then
+    utf8_roundtrip_file="$(mktemp '.ephemeral/.publish-findings.body.XXXXXX')" || exit 1
+    jq -e '
+      def derive_body:
+        if type != "object" or has("body") then
+          error("canonical finding must omit body")
+        else
+          .body = ("**" + .severity + " | " + .category + "** — "
+            + .why + "\n\n**Recommendation:** " + .recommendation)
+        end;
+      if type != "object"
+        or (.findings | type) != "array"
+        or (.carry_forward | type) != "array" then
+        error("canonical findings and carry_forward must be arrays")
+      else
+        .findings |= map(derive_body)
+        | .carry_forward |= map(derive_body)
+      end
+    ' "$staging_file" > "$utf8_roundtrip_file" || {
+      echo "canonical finding serialization failed" >&2
+      exit 1
+    }
+    mv "$utf8_roundtrip_file" "$staging_file"
+    utf8_roundtrip_file=
+  fi
   assert_readable_envelope "staged findings file" "$staging_file"
   require_current_envelope "$staging_file"
 
@@ -821,9 +846,9 @@ case "$command_name" in
     prepare_write_target "findings" "$FINDINGS_FILE"
     printf '%s\n' "$FINDINGS_FILE"
     ;;
-  publish-findings)
+  publish-findings | publish-canonical-findings)
     [ "$#" -eq 1 ] || {
-      echo "publish-findings accepts no arguments" >&2
+      echo "$command_name accepts no arguments" >&2
       exit 1
     }
     publish_findings
@@ -835,7 +860,7 @@ case "$command_name" in
     build_github_review_payload
     ;;
   *)
-    echo "usage: review-artifacts.sh validate-findings|validate-nits-file|project-nits|derive-nits-pending|prepare-judgment-nits|prepare-findings-write|publish-findings|render-review-preview|build-github-review-payload" >&2
+    echo "usage: review-artifacts.sh validate-findings|validate-nits-file|project-nits|derive-nits-pending|prepare-judgment-nits|prepare-findings-write|publish-findings|publish-canonical-findings|render-review-preview|build-github-review-payload" >&2
     exit 1
     ;;
 esac

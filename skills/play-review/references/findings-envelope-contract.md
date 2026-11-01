@@ -47,6 +47,23 @@ nonblank why/recommendation, and body derived exactly as
 Nit critic is null; selected blockers preserve VALID/INVALID/DOWNGRADE transport.
 The shell helper and runtime validators enforce targeted evidence before use.
 
+## Producer input
+
+Reviewers supply semantic finding fields once and omit `body`; `anchor` is
+exactly `natural`, `missing-file`, or `out-of-diff`, never a quotation. The
+controller uses `publish-canonical-findings` after guarded acceptance and final
+verification selection/disposition to derive bodies and validate the unchanged
+findings/v3 envelope. Existing complete envelopes still use `publish-findings`.
+Neither publication operation establishes semantic completion or source integrity.
+
+For a redundant-body mismatch in otherwise valid reviewer output, retain the
+original diagnostic, omit only `body`, and regenerate through the canonical
+operation. Do not infer an anchor, rewrite a rationale, change severity, drop a
+finding, or supply coverage. Invalid semantic fields go back to the reviewer
+under [routine recovery](terminal-result-boundaries.md#routine-recovery).
+Never transform an already published or digest-bound artifact in place to evade
+validation; the normal replacement boundary and fresh bindings still apply.
+
 ## Write Rules
 
 Write even the canonical empty envelope. A non-empty

@@ -76,7 +76,9 @@ the [findings envelope contract](findings-envelope-contract.md) and its
 [single-reviewer owner](single-reviewer-contract.md#artifact-compatibility-decision).
 The closed categories are `Logic`, `Safety`, `Architecture`, `Tests`,
 `Maintainability`, `Documentation`, and `Contracts`; severities are `Blocking`
-and `Nit`. Do not introduce another category, severity, or JSON member.
+and `Nit`. `anchor` is exactly `natural`, `missing-file`, or `out-of-diff`.
+Supply `why` and `recommendation` once; omit the derived `body` member. Do not
+introduce another category, severity, or JSON member.
 
 Supply source-grounded assessment evidence for each finding so the controller
 can construct the closed machine record. The six `assessment` members are
@@ -95,12 +97,15 @@ claim and explain the trigger evidence in `basis`. These are suggestions:
 after source-guard cleanup, the controller independently selects D10 claims
 and constructs and publishes the final envelope. Do not assert a completed
 D10 verdict or `critic` value for a pending selected claim. Invalid or
-incomplete output is rejected, not repaired by the controller. A report with
+incomplete semantic output is rejected, not repaired by the controller. The
+controller may request a bounded correction from you; return a complete replacement
+result preserving unaffected claims and completed coverage. A report with
 no findings still gives completed-check coverage, `COMPLETE_NO_FINDINGS`,
 and count zero.
 
 The following synthetic example illustrates a fresh unselected Nit in the
-existing `play-review/findings/v3` transport. It is not source evidence or a
+producer input for the existing `play-review/findings/v3` transport. It omits
+`body`, which the publication helper generates before envelope validation. It is not source evidence or a
 second schema; replace its head, path, line, claim, and rationale with checked
 facts for the frozen candidate. Source snippets belong in the human report.
 
@@ -121,7 +126,6 @@ facts for the frozen candidate. Source snippets belong in the human report.
       "anchor": "natural",
       "why": "A supported current issue",
       "recommendation": "Restore the expected behavior",
-      "body": "**Nit | Logic** — A supported current issue\n\n**Recommendation:** Restore the expected behavior",
       "assessment": {
         "state": "fresh",
         "assessed_head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

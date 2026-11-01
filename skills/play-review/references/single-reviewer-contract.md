@@ -15,7 +15,9 @@ Preserve wrapper scope preparation, immutable base/head and active/full ranges,
 D18 semantic context, shared-context budgets and targeted rereads, and the
 existing source-protection and lifecycle procedure. Dispatch one independent
 D7 reviewer for every nonempty active review. It must not be the implementer
-or reuse implementation history. A follow-up with an empty active diff but
+or reuse implementation history. Routine correction and unavailable-reviewer
+replacement follow [terminal-result boundaries](terminal-result-boundaries.md#routine-recovery);
+they do not authorize parallel review waves or judgment shopping. A follow-up with an empty active diff but
 prior findings still needs one D7 evidence assessment; an empty initial review
 with no prior inputs requires no review child.
 
@@ -89,7 +91,9 @@ unchanged claim text and evidence, exact candidate/ranges, applicable authority,
 and concrete disputes. It can inspect relevant source dependencies but cannot
 expand into another whole-diff review, rewrite findings, fix source, delegate,
 or verify unselected nits. Changed evidence requires a new candidate assessment,
-not a second identical wave against the same candidate.
+not a second identical wave against the same candidate. Routine correction may
+continue that verifier; only unavailability permits a replacement under the same
+bounded recovery contract, with the original selected claims and no scope expansion.
 
 For each selected claim, D10 returns `VALID`, `INVALID`, or `DOWNGRADE`, with
 the evidence supporting that disposition. It returns one terminal family:

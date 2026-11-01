@@ -278,10 +278,14 @@ Codex.spawn_agent({
 
 Accept only the guarded four-family result required by the shared-context
 contract: capture → spawn → verify → validate/retain → cleanup → apply.
-Every other result stops before context construction. Source mutation gets one
+Every other result stops before context construction. Ordinary preparation
+failure may use the bounded recovery in
+[`terminal-result-boundaries.md`](references/terminal-result-boundaries.md#routine-recovery)
+without new approval. Source mutation gets one
 verification and exact cleanup attempt, remains visible, and terminates; cleanup
-failure is independently terminal. Never recapture, reset, repair, or consume a
-rejected result. No additional composer, cache, overlay, role, or reuse mechanism.
+failure is independently terminal. Never reset source or consume rejected context.
+A fresh preparation attempt captures its own guard after successful cleanup;
+it does not repair or recapture evidence to conceal an integrity failure.
 
 ## Phase 2.5: Compose shared review context
 
@@ -343,8 +347,10 @@ Codex.spawn_agent({
 })
 ```
 
-Exactly one D7 is required for any nonempty active review or prior findings
-assessment. Native rejection uses the guarded incomplete-review path.
+One independent D7 is required for any nonempty active review or prior findings
+assessment. Routine correction continues that reviewer under the recovery contract;
+replacement is limited to an unavailable reviewer, never an unwanted judgment.
+Native rejection uses the guarded incomplete-review path.
 
 ### Terminal role results and controller capture
 
@@ -403,8 +409,9 @@ applied independently per guarded route with no `--handoff`, is:
 2. Spawn the selected child and capture only its raw result and status.
 3. **verify before semantic validation or consumption** against that baseline.
 4. **validate and retain in controller memory** after successful verification.
-   Malformed or rejected output is controller-observed failure, not a fabricated
-   child `FAILED` result.
+   Malformed or rejected semantic output is controller-observed failure, not a
+   fabricated child `FAILED` result. Derive redundant presentation as specified
+   by the findings contract; never repair semantic fields in the controller.
 5. **cleanup the exact retained baseline**.
 6. **apply only after cleanup**: accept completed findings or verifier verdicts;
    preserve diagnostic evidence and incompleteness otherwise.
@@ -436,7 +443,10 @@ Every post-capture terminal path attempts exact cleanup, including dispatch
 rejection, timeout, missing/malformed output, and verification failure. First
 rule out source mutation; only ordinary rejection with successful cleanup may
 settle as incomplete review and reach Phase 5. Rejected output contributes no
-findings or verdicts. Missing D7 coverage has no substitute.
+findings or verdicts. Missing D7 coverage has no substitute. Before finalizing
+ordinary incompleteness, apply [routine recovery](references/terminal-result-boundaries.md#routine-recovery).
+Only an accepted complete replacement can settle the route; retain failed-attempt
+diagnostics separately. An exhausted or unresolved route remains incomplete.
 
 Source mutation or cleanup failure terminates before aggregation, D10, or final
 output. Leave source visible; never reset, stage, repair, or hide it. Cleanup

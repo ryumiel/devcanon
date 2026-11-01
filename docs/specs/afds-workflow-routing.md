@@ -1266,6 +1266,14 @@ does not increment the retry count. D18 stops before shared-context construction
 and D7 completion without controller summarization or partial context. Only
 source mutation or cleanup failure is a guard-integrity terminal condition.
 
+For D18/D7/D10, the review owner's
+[routine recovery](../../skills/play-review/references/terminal-result-boundaries.md#routine-recovery)
+permits bounded correction under existing review authorization after successful
+verification and cleanup. Rejected context remains unusable; missing coverage and
+unresolved required verification still block approval. Presentation is derived
+from canonical semantic fields, not independently authored reviewer prose.
+Explicit user attempt limits and dispatch/lifecycle restrictions remain binding.
+
 ### EVID-001: Minimum Evidence Pointer
 
 An evidence pointer must identify:
