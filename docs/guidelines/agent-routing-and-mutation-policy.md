@@ -252,14 +252,18 @@ rediscover a source configuration, or read a sibling passive-runtime catalog
 to replace the rendered binding. A missing, blank, unresolved, or mismatched
 binding blocks before spawn; no alias, nearby or ambient model, effort change,
 or fallback is permitted. Compatible same-session reuse is permitted only for D12's
-original stable-task fix or within-scope continuation and D17's unchanged stable
-branch/task. Every other route in the active route set is fresh-only; D14, D15, and D16 are
+original stable-task fix or within-scope continuation, D17's unchanged stable
+branch/task, and D7/D10's bounded routine result correction under the
+[review recovery contract](../../skills/play-review/references/terminal-result-boundaries.md#routine-recovery).
+D7/D10 reuse requires the same frozen candidate, scope, complete tuple, and
+independent reviewer; it cannot reopen a completed substantive judgment.
+Every other route in the active route set is fresh-only; D14, D15, and D16 are
 explicitly one-shot fresh reviewers. After this route permission, the existing
 lifecycle owner performs task-name allocation, follow-up, capture,
 supersession, cleanup, slot recovery, and terminal model-capacity recovery;
 this policy does not create a naming schema or lifecycle registry.
 
-A follow-up for D12 or D17 is permitted only under the route permission above,
+A follow-up for D7, D10, D12, or D17 is permitted only under the route permission above,
 when the stable task identity and complete tuple are unchanged, and the existing
 session remains compatible. It supplies incremental context and the
 verified-auto attestation when applicable, without configuration overrides. A

@@ -1984,6 +1984,53 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     }
   });
 
+  it("publishes the documented canonical briefing example through the real serializer", async () => {
+    const {
+      cwd,
+      reviewHeadSha,
+      findingsFile: canonicalFile,
+    } = await makeReviewSourceWorkspace();
+    try {
+      const template = await readFile(
+        path.join(
+          process.cwd(),
+          "skills/play-review/references/agent-briefing-template.md",
+        ),
+        "utf8",
+      );
+      const match = template.match(/~~~json\n([\s\S]*?)\n~~~/);
+      expect(match).not.toBeNull();
+      const input = JSON.parse(
+        (match?.[1] ?? "").replaceAll("a".repeat(40), reviewHeadSha),
+      );
+      expect(input.findings[0]).not.toHaveProperty("body");
+      await runHelperWithStdin(
+        cwd,
+        "publish-canonical-findings",
+        JSON.stringify(input),
+        {
+          HEAD_SHA: reviewHeadSha,
+          FINDINGS_FILE: canonicalFile,
+        },
+      );
+      const published = JSON.parse(
+        await readFile(path.join(cwd, canonicalFile), "utf8"),
+      );
+      expect(published).toEqual({
+        ...input,
+        findings: [
+          {
+            ...input.findings[0],
+            body: "**Nit | Logic** — A supported current issue\n\n**Recommendation:** Restore the expected behavior",
+          },
+        ],
+      });
+      validateTargetedReviewEvidence(published);
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("derives canonical bodies without changing evidence or incomplete coverage", async () => {
     const {
       cwd,
@@ -2073,6 +2120,20 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
           value.review_head_sha = headSha;
         },
       ];
+      for (const key of ["findings", "carry_forward"]) {
+        for (const invalid of [
+          {},
+          { entry: (canonical.findings as Record<string, unknown>[])[0] },
+          null,
+          false,
+          "",
+          1,
+        ]) {
+          mutations.push((value: typeof canonical) => {
+            value[key] = invalid;
+          });
+        }
+      }
       for (const mutate of mutations) {
         const input = structuredClone(canonical);
         mutate(input);

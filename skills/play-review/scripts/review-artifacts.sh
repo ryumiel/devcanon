@@ -368,8 +368,14 @@ publish_findings() {
           .body = ("**" + .severity + " | " + .category + "** — "
             + .why + "\n\n**Recommendation:** " + .recommendation)
         end;
-      .findings |= map(derive_body)
-      | .carry_forward |= map(derive_body)
+      if type != "object"
+        or (.findings | type) != "array"
+        or (.carry_forward | type) != "array" then
+        error("canonical findings and carry_forward must be arrays")
+      else
+        .findings |= map(derive_body)
+        | .carry_forward |= map(derive_body)
+      end
     ' "$staging_file" > "$utf8_roundtrip_file" || {
       echo "canonical finding serialization failed" >&2
       exit 1
