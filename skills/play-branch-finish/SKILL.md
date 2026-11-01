@@ -123,6 +123,24 @@ Then: Cleanup worktree (Step 5) on the green path only.
 
 #### Option 2: Push and Create PR
 
+**PR publication state.** Create a ready-for-review (non-draft) PR by default
+once implementation, required local validation and independent prepublication
+review required by the calling workflow are complete. Ordinary pending
+post-push CI or Connector review alone does not justify a draft; those remain
+merge gates. Provider ready-for-review state does not assert independent-review
+approval or merge readiness.
+
+Use a draft only for a concrete, explicitly stated reason with a clearing
+condition in the existing handoff context, such as an authorized early design
+handoff or qualification that requires a published PR. Respect applicable
+explicit human instructions and repository requirements. Draft status does not
+waive publication prerequisites: an early-publication exception needs the
+applicable human decision and owning workflow. Otherwise incomplete required
+implementation, local validation or prepublication review stops publication.
+Do not weaken the explicit branch-review approval gate to create a draft.
+Expose the draft reason and clearing condition in sanitized reviewer-facing
+handoff context; keep title/body composition with `pr-authoring`.
+
 **Optional input — review nits.** Callers (e.g., `issue-priming-workflow` Phase 8, invoked via `github-issue-priming` or `linear-issue-priming`) may pass a `nits_file` argument: a repo-relative path to a file containing a `play-review/findings/v3` envelope. The detailed envelope, transport, and derived nits-file contract lives in `skills/play-review/references/findings-envelope-contract.md`; `skills/play-review/SKILL.md` owns the workflow and `Findings written to <path>.` notice. When `nits_file` is set, this skill consumes the validated presentation projection, partitions anchorable from unanchorable, and posts them as PR review comments after `{{tool:github-cli}} pr create` succeeds — they MUST NOT be embedded in the PR description body.
 
 The shared `project-nits` helper validates the checked PR head and projects
@@ -306,7 +324,8 @@ from the caller's `assignee` argument before running the PR creation snippet.
 
 Write the body returned by `pr-authoring` to a temporary file, then create the
 PR with `--body-file` so markdown, newlines, quotes, backticks, and `$` remain
-literal:
+literal. The normal command below creates a non-draft PR. Add `--draft` only
+for the concrete applicable exception established above:
 
 ```bash
 # Create PR with the title/body produced by pr-authoring compose mode
@@ -321,6 +340,13 @@ ASSIGNEE_FLAG=()
 
 gh pr create --title "<title>" --body-file "$PR_BODY_FILE" "${ASSIGNEE_FLAG[@]}"
 ```
+
+After creation, read the provider PR state and verify it matches the selected
+non-draft or justified draft state. A mismatch or unavailable state is unresolved,
+not verified publication readiness; preserve the created PR and reconcile through
+the existing owner without creating a duplicate. Report the PR URL, current head,
+observed draft state and any remaining draft reason/clearing condition. Creation
+and state verification do not authorize merge.
 
 **After `{{tool:github-cli}} pr create` succeeds, verify the approved head when the gate was enabled.** Skip this step entirely when the gate was disabled or the adapter did not report `APPROVED_HEAD_SHA`. When `APPROVED_HEAD_SHA` is present, compare it to the created PR's `headRefOid` and report the result as a match, mismatch, or unavailable:
 

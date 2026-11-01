@@ -226,6 +226,8 @@ entry points:
   [`docs/guidelines/project-management-model.md`](docs/guidelines/project-management-model.md)
 - Portable AFDS Toolkit roadmap:
   [`docs/roadmap/portable-afds-toolkit.md`](docs/roadmap/portable-afds-toolkit.md)
+- PR publication: [ready for review by default](docs/guidelines/pr-guideline.md#publication-state);
+  drafts require a concrete stated reason and clearing condition.
 - `issue-batch-coordination`: entrypoint for managing issue batches across existing owners, dependencies, readiness, recovery, and optional policy refresh.
 - `issue-batch-routing`: explicitly invoked routing workflow composed by coordination; owns top-level owner dispatch, route eligibility, approval bindings, progress receipts, checkout-adoption handoff, and archival.
 

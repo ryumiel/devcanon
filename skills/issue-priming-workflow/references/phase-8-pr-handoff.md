@@ -49,6 +49,13 @@ the user's review gate, and PR creation preserves the branch and worktree for
 review, CI, and follow-up fixes until `pr-merge` performs post-merge cleanup or
 the operator explicitly discards the work.
 
+Use `play-branch-finish`'s ready-for-review publication default. Carry any
+applicable concrete draft reason, clearing condition and supporting authority
+in the existing handoff context; do not invent a draft to wait for ordinary
+post-push CI or Connector review. This handoff does not waive Phase 7 or other
+required publication gates. `play-branch-finish` verifies the resulting provider
+state and reports any unresolved mismatch.
+
 Always pass `assignee=@me` to `play-branch-finish` Option 2. The parent
 workflow owns this handoff argument. `play-branch-finish` owns the GitHub side
 effect and translates that input into the assignee behavior needed for

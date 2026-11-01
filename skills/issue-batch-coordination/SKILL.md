@@ -180,7 +180,12 @@ published head.
 Execute a covered action through its existing effect owner after all conditions
 pass. Initial PR publication permits non-force push, PR creation and required
 sanitized summaries after implementation, validation and independent Phase 7
-branch review. For an authorized correction to an existing PR, follow
+branch review. Apply `play-branch-finish`'s ready-for-review default and pass
+any applicable concrete draft reason, clearing condition and authority in the
+existing owner handoff. Ordinary pending post-push CI or Connector review alone
+is not a draft reason. Reconcile existing drafts through the router's PR Gate
+Precedence; a cleared reason routes a covered transition to the existing owner,
+without waiving publication prerequisites or merge gates. For an authorized correction to an existing PR, follow
 [ROUTE-007-REVIEW](../../docs/specs/afds-workflow-routing.md#route-007-review-review-waits-and-merge-evidence):
 classify findings/dispositions, validate the local candidate, present the exact
 concrete pre-push summary under retained human scope, and bind the covered plain
