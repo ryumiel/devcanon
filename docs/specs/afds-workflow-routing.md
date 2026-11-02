@@ -1538,8 +1538,14 @@ malformed, stale, unreadable or contradictory inputs stop dependent execution.
 No new schema, helper, digest artifact or eligibility certificate is introduced.
 
 Auto execution stays inline with the same authorized issue owner in the isolated
-checkout; interactive execution returns the note for the existing implementation
-authority decision. Changed inputs require affected-claim revalidation; new
+checkout, retaining its current model and effort unless an explicit user override
+applies. Inline execution requires no model/effort reselection and must not
+switch the owner session, replace the owner or introduce an implementation
+subagent to satisfy delegated model policy. Actual implementation subagents
+retain their target-native model/effort selection and validation; a child
+override never changes its parent session. Interactive execution returns the
+note for the existing implementation authority decision. Changed inputs require
+affected-claim revalidation; new
 uncertainty stops dependent edits for needed preparation, and permission gaps
 take the genuine gate. A note supplies no Plan notice, reviewed digest, D5 PASS,
 reviewed tier, contract tag or auto-handoff. Plan-only consumers reject it,

@@ -40,6 +40,24 @@ The shared owner is PREP-000 unless an additional section is named below.
 | P9  | Same authorized owner edits/commits source after validating the note.                                                                                    | Account for authorized state changes; revalidate affected claims, preserve others' work; stop if uncertainty appears.            | Workflow **Execution Note: guarded local context**, **Preparation Provenance**; no automatic state-change attribution.                                                                                                                             |
 | P10 | Source fix occurs after candidate freeze, validation or independent review.                                                                              | Invalidate downstream evidence; re-enter closure/freeze, applicable acceptance, checks and Phase 7 on the new candidate.         | Workflow **Candidate Closure and Source Freeze**, **Phase 7**; tests of helper paths or projection shape do not prove orchestration re-entry.                                                                                                      |
 
+## Inline model allocation scenario
+
+Hypothetical input: a settled authorized Execution Note reaches implementation
+in an existing owner session whose model/effort differs from the implementer
+subagent pair. Expected continuation: the same owner implements inline with its
+current model and effort; no reselection, replacement owner or implementation
+child is required. An explicit user override remains effective. A separately
+selected actual implementation child still requires its complete delegated
+model/effort tuple, and its override never changes the parent. Missing scope,
+stale note identity, required independent review or publication authority still
+takes the existing gate.
+
+The inline-allocation regression in
+`src/render/existing-skills.integration.test.ts` checks both rendered targets
+and affected repair consumers. This is static contract/parity evidence only;
+agent adherence and absence of session changes require an observed response or
+operation trace under the rubric below.
+
 ## Rubric and result procedure
 
 1. Record exact source revision, candidate/dirty state, target, rendered file

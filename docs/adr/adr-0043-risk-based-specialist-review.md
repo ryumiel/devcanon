@@ -18,7 +18,11 @@ independence, correctness or lower total cost.
 Use Sol High for ordinary design and review, Terra Medium for implementation
 and feedback repairs, and Astra High for architect consultation and significant
 risk deep review. Preserve balanced as Sol and use an implementer-specific
-Terra override. Preserve existing review gates and lifecycle procedures.
+Terra override for actual implementation subagents. Inline implementation and
+feedback repairs retain the authorized owner's current model and effort unless
+the user explicitly overrides them. Delegated allocation does not configure a
+parent session or justify creating a child for an otherwise inline route.
+Preserve existing review gates and lifecycle procedures.
 
 Keep risk guidance concise: identify the affected guarantee, reachable consequence
 and question requiring specialist attention. Consult before implementing known

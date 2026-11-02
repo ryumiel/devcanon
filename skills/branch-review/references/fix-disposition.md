@@ -8,13 +8,14 @@ reclassify a withheld candidate, select a route, or continue after a stop.
 
 ## Codex repair allocation
 
-Before any repair on Codex, require an explicitly selected
-`gpt-6.1-terra`/`medium` session for inline mutation, or use the existing
-D4 `implementer` dispatch with its literal Terra override and medium effort.
-Validate that complete dispatch tuple through `play-agent-dispatch`; selecting
-a child does not change the controller's model. If neither supported selection
-is available, stop before source mutation and report the unsupported
-configuration. Claude retains its current repair behavior.
+Inline repairs retain the controller's current model and effort, subject to an
+explicit user override. Do not switch its session or introduce delegation solely
+to satisfy a delegated model policy. When the existing repair route delegates,
+use D4 `implementer` with its literal `gpt-6.1-terra`/`medium` override and validate
+the complete dispatch tuple through `play-agent-dispatch`. A child override
+does not change the parent session. An unsupported delegated configuration stops
+that dispatch before source mutation; it does not require an inline session
+switch. Claude retains its current repair behavior.
 
 Delegation receives only the already-qualified bounded repair and its exact
 mutation authority. It cannot widen scope, qualify withheld findings, or waive

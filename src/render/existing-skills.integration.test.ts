@@ -636,7 +636,7 @@ describe("shipped skill rendering", () => {
     }
   });
 
-  it("gates inline implementation and branch repairs on explicit Codex allocation", async () => {
+  it("packages inline consumers and delegated repair tokens for both targets", async () => {
     const config = await loadConfig("devcanon.config.yaml", true);
     config.capabilityProfiles.balanced.codex = "custom-balanced-model";
     const generatedDir = await mkdtemp(
@@ -648,49 +648,39 @@ describe("shipped skill rendering", () => {
         true,
         true,
       );
+      const repairSource = await readFile(
+        "skills/branch-review/references/fix-disposition.md",
+        "utf8",
+      );
       for (const target of TARGETS) {
-        const priming = normalizeContractText(
-          getSkillOutput(outputs, "issue-priming-workflow", target).content,
-        );
-        const gate = priming.indexOf("Before inline implementation on Codex");
-        expect(gate).toBeGreaterThan(-1);
-        expect(
-          priming.slice(gate, priming.indexOf("## Subagent Lifecycle")),
-        ).toContain("explicitly selected `gpt-6.1-terra`/`medium` session");
-        expect(
-          priming.slice(gate, priming.indexOf("## Subagent Lifecycle")),
-        ).toContain("stop before source mutation");
-        expect(
-          priming.slice(gate, priming.indexOf("## Subagent Lifecycle")),
-        ).toContain(
-          "Claude retains its current inline implementation behavior",
-        );
-        const repair = normalizeContractText(
-          await readFile(
-            path.join(
-              generatedDir,
-              target,
-              "skills/branch-review/references/fix-disposition.md",
-            ),
+        for (const name of ["issue-priming-workflow", "play-review-response"]) {
+          const output = getSkillOutput(outputs, name, target);
+          const packaged = await readFile(
+            path.join(generatedDir, target, "skills", name, "SKILL.md"),
             "utf8",
+          );
+          expect(packaged).toBe(output.content);
+          expect(parseFrontmatter(packaged).frontmatter.name).toBe(name);
+        }
+        const repair = await readFile(
+          path.join(
+            generatedDir,
+            target,
+            "skills/branch-review/references/fix-disposition.md",
           ),
+          "utf8",
         );
-        const allocation = repair.indexOf("## Codex repair allocation");
-        const execution = repair.indexOf("## Group and execute selected units");
-        expect(allocation).toBeGreaterThan(-1);
-        expect(allocation).toBeLessThan(execution);
-        const selection = repair.slice(allocation, execution);
-        expect(selection).toContain(
-          "explicitly selected `gpt-6.1-terra`/`medium` session",
-        );
-        expect(selection).toContain("D4 `implementer`");
-        expect(selection).toContain("stop before source mutation");
-        expect(selection).toContain(
-          "Claude retains its current repair behavior",
-        );
-        expect(repair).toContain(
-          "validate and independently review the changed candidate",
-        );
+        expect(repair).toBe(repairSource);
+        expect(repair).toContain("D4 `implementer`");
+        expect(repair).toContain("`gpt-6.1-terra`/`medium`");
+        expect(repair).not.toContain("custom-balanced-model");
+        const response = getSkillOutput(
+          outputs,
+          "play-review-response",
+          target,
+        ).content;
+        expect(response).toContain("D4 or D12");
+        expect(response).toContain("`gpt-6.1-terra`/`medium`");
       }
     } finally {
       await rm(generatedDir, { recursive: true, force: true });

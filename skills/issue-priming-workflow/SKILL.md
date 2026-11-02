@@ -369,15 +369,14 @@ preserve the note and worktree under their existing lifecycle owners.
 Without `--auto`, return the note path and bounded decision summary for the
 user's existing implementation authority decision; do not implement. With
 `--auto`, the same authorized issue owner executes inline within the isolated
-checkout and accepted scope, subject to the model-selection gate below.
+checkout and accepted scope.
 
-Before inline implementation on Codex, require an explicitly selected
-`gpt-6.1-terra`/`medium` session for that owner. A child-role override does not
-configure the parent session. If the owner cannot establish this selection,
-stop before source mutation and report the unsupported configuration; resume
-only with explicit supported selection and revalidated note, scope and authority.
-Do not silently use an ambient model or convert this inline route into a new
-delegation route. Claude retains its current inline implementation behavior.
+Inline implementation retains that owner's current model and effort, subject to
+an explicit user override. Do not switch the owner session, create a replacement
+owner, or add an implementation subagent to satisfy a delegated model policy.
+Model/effort selection and validation for actual implementation subagents remain
+with their dispatch owners; a child override does not change the parent session.
+This applies to both Claude and Codex and changes no non-model gate.
 
 Compare guarded exact note bytes and current
 issue/source/root/base/head/dirty-state identity immediately before execution
