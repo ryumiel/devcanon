@@ -636,7 +636,7 @@ describe("shipped skill rendering", () => {
     }
   });
 
-  it("preserves inline owner configuration and delegated implementer allocation", async () => {
+  it("packages inline consumers and delegated repair tokens for both targets", async () => {
     const config = await loadConfig("devcanon.config.yaml", true);
     config.capabilityProfiles.balanced.codex = "custom-balanced-model";
     const generatedDir = await mkdtemp(
@@ -648,73 +648,39 @@ describe("shipped skill rendering", () => {
         true,
         true,
       );
+      const repairSource = await readFile(
+        "skills/branch-review/references/fix-disposition.md",
+        "utf8",
+      );
       for (const target of TARGETS) {
-        const priming = normalizeContractText(
-          getSkillOutput(outputs, "issue-priming-workflow", target).content,
-        );
-        const start = priming.indexOf(
-          "### Execution Note: guarded local context",
-        );
-        const end = priming.indexOf("## Subagent Lifecycle", start);
-        expect(start).toBeGreaterThan(-1);
-        expect(end).toBeGreaterThan(start);
-        const inline = priming.slice(start, end);
-        const repair = normalizeContractText(
-          await readFile(
-            path.join(
-              generatedDir,
-              target,
-              "skills/branch-review/references/fix-disposition.md",
-            ),
+        for (const name of ["issue-priming-workflow", "play-review-response"]) {
+          const output = getSkillOutput(outputs, name, target);
+          const packaged = await readFile(
+            path.join(generatedDir, target, "skills", name, "SKILL.md"),
             "utf8",
-          ),
-        );
-        const allocation = repair.indexOf("## Codex repair allocation");
-        const execution = repair.indexOf("## Group and execute selected units");
-        expect(allocation).toBeGreaterThan(-1);
-        expect(execution).toBeGreaterThan(allocation);
-        const response = normalizeContractText(
-          getSkillOutput(outputs, "play-review-response", target).content,
-        );
-        const responseStart = response.indexOf(
-          "## Codex implementation allocation",
-        );
-        const responseEnd = response.indexOf(
-          "## Invocation Policy",
-          responseStart,
-        );
-        expect(responseStart).toBeGreaterThan(-1);
-        expect(responseEnd).toBeGreaterThan(responseStart);
-        for (const selection of [
-          inline,
-          repair.slice(allocation, execution),
-          response.slice(responseStart, responseEnd),
-        ]) {
-          expect(selection).toContain("current model and effort");
-          expect(selection).toContain("explicit user override");
-          expect(selection).toContain("does not change the parent session");
-          expect(selection).not.toMatch(
-            /explicitly selected.*(?:session|Terra)/u,
           );
-          expect(selection).not.toContain("custom-balanced-model");
+          expect(packaged).toBe(output.content);
+          expect(parseFrontmatter(packaged).frontmatter.name).toBe(name);
         }
-        expect(inline).toContain("Do not switch the owner session");
-        expect(inline).toContain("or add an implementation subagent");
-        expect(inline).toContain("independent Phase 7 review");
-        expect(inline).toContain("exact publication authority");
-        const selection = repair.slice(allocation, execution);
-        expect(selection).toContain("D4 `implementer`");
-        expect(selection).toContain("`gpt-6.1-terra`/`medium`");
-        expect(selection).toContain("unsupported delegated configuration");
-        expect(response.slice(responseStart, responseEnd)).toContain(
-          "D4 or D12",
+        const repair = await readFile(
+          path.join(
+            generatedDir,
+            target,
+            "skills/branch-review/references/fix-disposition.md",
+          ),
+          "utf8",
         );
-        expect(response.slice(responseStart, responseEnd)).toContain(
-          "`gpt-6.1-terra`/`medium`",
-        );
-        expect(repair).toContain(
-          "validate and independently review the changed candidate",
-        );
+        expect(repair).toBe(repairSource);
+        expect(repair).toContain("D4 `implementer`");
+        expect(repair).toContain("`gpt-6.1-terra`/`medium`");
+        expect(repair).not.toContain("custom-balanced-model");
+        const response = getSkillOutput(
+          outputs,
+          "play-review-response",
+          target,
+        ).content;
+        expect(response).toContain("D4 or D12");
+        expect(response).toContain("`gpt-6.1-terra`/`medium`");
       }
     } finally {
       await rm(generatedDir, { recursive: true, force: true });
