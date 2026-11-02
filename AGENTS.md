@@ -229,7 +229,7 @@ entry points:
 - PR publication: [ready for review by default](docs/guidelines/pr-guideline.md#publication-state);
   drafts require a concrete stated reason and clearing condition.
 - `issue-batch-coordination`: entrypoint for managing issue batches across existing owners, dependencies, readiness, recovery, and optional policy refresh.
-- `issue-batch-routing`: explicitly invoked routing workflow composed by coordination; owns top-level owner dispatch, route eligibility, approval bindings, progress receipts, checkout-adoption handoff, and archival.
+- `issue-batch-routing`: explicitly invoked routing workflow composed by coordination; owns top-level owner dispatch, route eligibility, approval bindings, progress receipts, checkout-adoption handoff, and archival. Its [covered same-owner delivery](skills/issue-batch-routing/SKILL.md#covered-same-owner-delivery) contract permits local publication/merge continuation within a validated controller handoff, preserving effect gates and controller-owned facts.
 
 ---
 

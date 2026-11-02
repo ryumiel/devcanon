@@ -71,12 +71,15 @@ merge, destructive cleanup, and scope expansion each
 retain their applicable separate decisions, including any still-current prior
 authorization. An accepted delivery decision may cover publication, conditional
 merge, and scoped cleanup through completion. Coordination interprets that
-human scope and produces a concrete current instruction for the existing effect
-owner; routing validates its exact binding. Changed head, checks, review,
+human scope and establishes the handoff for
+[Covered Same-Owner Delivery](../issue-batch-routing/SKILL.md#covered-same-owner-delivery),
+or produces a concrete current instruction for the existing effect owner when
+that exception is inapplicable; routing validates its exact binding. Changed head, checks, review,
 mergeability, source state, or gate evidence invalidates the dependent action
 binding and readiness, not that standing scope. Refresh the affected facts and
-required gates, then issue a new exact instruction within retained authority
-without generic reapproval. Escalate only revoked or missing scope, expansion,
+required gates, then refresh the local action under the eligible unchanged
+handoff or issue a new exact instruction through coordination when required,
+within retained authority without generic reapproval. Escalate only revoked or missing scope, expansion,
 a materially unresolved choice, an explicitly reserved human decision, or a
 required exception; reports, planning PASS, and tool availability supply none
 of that authority. Report an explicit host restriction or denial for the specific
@@ -225,6 +228,19 @@ status or wake limitation in existing monitor state; independently supported
 external observation and authorized owner reports continue. The watcher uses
 this reference for refreshable reads only, never ledger writes or another
 registry. Retain notification guards under the router's Operational retention.
+
+For eligible existing owners, the router's
+[Covered Same-Owner Delivery](../issue-batch-routing/SKILL.md#covered-same-owner-delivery)
+is the ordinary continuation path through publication and conditional merge.
+At initial handoff, validate original human scope and retain the unchanged
+controller-owned authority/route facts and local refresh limits in existing
+records. After satisfied checkpoints the owner refreshes exact per-effect
+bindings and invokes the existing effect owner without another coordinator
+release or acknowledgement. A controller-fact replacement, cross-owner decision
+or other stop condition follows that contract's existing routing path.
+Coordination retains ledger writes, dependency routing and batch closure;
+required material-change, dependency and completion reports remain mandatory.
+This changes no review, protection, repair, messaging or cleanup authority.
 
 ## Post-delivery closure
 
@@ -466,8 +482,9 @@ Assess these readiness questions separately:
   local validation and route publication reconciliation separately. If a
   rebase leaves no normal push path, route branch-continuity recovery to the
   existing owner; preserve work, forbid force-push, and require fresh evidence
-  and a newly bound current instruction under retained scope after the revision
-  changes; request only an actually missing decision.
+  and a refreshed exact action under the eligible unchanged covered-delivery
+  handoff, or a newly bound controller instruction when required, after the
+  revision changes; request only an actually missing decision.
 - **Delivery and completion:** distinguish implementation, combined acceptance,
   publication, merge or source disposition, owner task completion, cleanup,
   and separately authorized post-merge work. An archived task or “done” report

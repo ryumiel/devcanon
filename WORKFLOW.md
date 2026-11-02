@@ -75,8 +75,14 @@ This document is the procedural guide for contributing to the repository. For po
 3. Apply the [PR publication-state policy](docs/guidelines/pr-guideline.md#publication-state):
    ready for review by default, with a concrete reason and clearing condition
    for any draft exception. Pending remote checks still gate merge.
-4. Run the self-review checklist from the [code review guideline](docs/guidelines/code-review-guideline.md#7-self-review-checklist)
-5. Answer every item in the [CONTRIBUTING.md](CONTRIBUTING.md#pull-request-policy) PR policy checklist
+4. For batch delivery, follow
+   [covered same-owner continuation](skills/issue-batch-routing/SKILL.md#covered-same-owner-delivery)
+   only under a validated controller handoff covering publication and conditional
+   merge. Refresh per-effect evidence; preserve independent review and merge
+   gates, controller-owned facts and required reporting. Other gates return to
+   coordination.
+5. Run the self-review checklist from the [code review guideline](docs/guidelines/code-review-guideline.md#7-self-review-checklist)
+6. Answer every item in the [CONTRIBUTING.md](CONTRIBUTING.md#pull-request-policy) PR policy checklist
 
 ## Post-Merge
 

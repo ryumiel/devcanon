@@ -372,6 +372,75 @@ it. Missing or mismatched keys wait or require manual action.
 Unknown provider states are reported as waiting rather than coerced into GitHub
 or Linear terminology.
 
+## Covered Same-Owner Delivery
+
+Use same-owner continuation as the ordinary path when the controller-established
+handoff validates actual human authority for both publication and conditional
+merge of the same accepted issue/repository within its branch and scope
+constraints. The existing owner must retain its confirmed host binding,
+controller-held approved-route identity and issue-authority facts, selected
+preparation provenance, and supported reporting path. Verify the original
+human evidence and its continuing applicability; a copied assertion, `--auto`,
+planning PASS, idle status or missing field cannot establish eligibility.
+
+The handoff retains these facts through the existing authority, action and
+result records, without a new schema or permission registry. It explicitly
+bounds local refresh to the covered effects and names controller-owned facts
+that the owner cannot replace. Missing, inaccessible, stale or conflicting
+required evidence holds the affected action for its existing coordinator/router
+path; it does not silently select this exception.
+
+Within that unchanged handoff, the owner refreshes the exact per-effect action
+binding immediately before each effect: canonical issue/repository, PR when
+known, owner/host, branch/current head, gate, allowed effect, relevant complete
+action route key and current prerequisite evidence. Local refresh can bind a
+new head or live review/check state to an already covered action; it cannot
+create or replace controller-held approved-route identities, issue-authority
+or source-state digests, receipt sequences/acknowledgements, recipients or
+effect scope. A required replacement returns to coordination before the effect.
+The fresh action binding is evidence of compatibility, never self-approval.
+Existing controller ledger writes and route/receipt validation remain exclusive
+to their owners; an active owner does not manufacture recovery receipts.
+
+1. After implementation, required local checks and independent Phase 7
+   prepublication review, refresh the exact publication binding and invoke the
+   publication owner without another coordinator release or acknowledgement.
+   Initial publication retains `play-branch-finish`'s ready-for-review default;
+   corrections retain their concrete pre-push gate and validation sequence.
+2. Obtain required independent review and CI for the published current head.
+   Preserve review-thread disposition, protections, mergeability and every
+   other applicable merge prerequisite. Failed checks follow existing repair
+   and disposition rules; this contract grants no repair or bypass authority.
+3. Refresh the exact merge binding immediately before invoking `pr-merge` in
+   the same owner. `pr-merge` owns merge verification and separately authorized
+   scoped cleanup; priming itself never acquires merge effects. Report the
+   verified result and remaining obligations through the retained reporting path.
+
+A changed head invalidates dependent readiness, review and action evidence,
+not compatible standing scope. Refresh required evidence without a new release
+when the retained controller facts remain valid. Promptly deliver material
+published-head/readiness invalidation and dependency-readiness reports needed
+by the coordinator or siblings; do not wait for acknowledgement or suppress a
+distinct coordination action. The coordinator retains dependency routing,
+shared-resource decisions, ledger writes and batch closure. Its next-action-
+and-yield rule applies to coordinator routing passes, not to this covered local
+sequence. A successful completion report needs no routine acknowledgement.
+
+Hold only the affected action and report the specific need for PR-only,
+missing, revoked or conflicting authority; scope expansion; a reserved human
+decision; an uncovered effect or recipient; a cross-owner dependency or shared
+resource decision; an unresolved choice; a required-gate exception; or an
+actual host approval restriction. Independently authorized work may continue.
+No new paid-run, cleanup, messaging or provider-mutation powers are granted.
+
+Before retrying publication or merge, reconcile any uncertain prior effect
+against authoritative provider results at its exact identity. Retain unresolved
+bindings until reconciled; an attempt or a changed key proves neither failure
+nor success. Verified publication or merge suppresses the same effect on
+repeated delivery. Existing route deduplication, receipt replay, continuity
+and terminal guards remain intact. This exception does not authorize general
+progress polling or closure of the batch by an owner.
+
 ## Provider And Workflow Boundaries
 
 - `github-issue-priming` owns GitHub issue fetching, evidence persistence,
@@ -752,7 +821,9 @@ Never reuse a prior route when the head SHA or relevant state digest changed.
 The route key prevents duplicate routes after monitor resumes, context
 compaction, repeated polling, or owner-thread re-reporting. A changed key means
 the parent must re-evaluate from fresh state rather than treating prior routing
-as still current.
+as still current. For eligible covered same-owner effects, the owner refreshes
+the action key under [Covered Same-Owner Delivery](#covered-same-owner-delivery)
+without replacing the controller-approved route identity or its replay guards.
 
 Persist the complete route key after routing; partial fields such as only the
 unresolved-thread-set digest or only the check identifier are diagnostic hints,
@@ -1019,7 +1090,9 @@ already-authorized work continues. Successful completion delivery needs no
 routine acknowledgement, but the coordinator must validate completion evidence
 and all accepted obligations before declaring batch completion. Receivers wake
 on supported report delivery, validate referenced current evidence, route at most
-the next authorized action per affected item, and yield. If the host cannot
+the next authorized action per affected item, and yield. Eligible existing
+owners independently continue under [Covered Same-Owner Delivery](#covered-same-owner-delivery);
+they need no additional release at satisfied checkpoints. If the host cannot
 deliver/wake the recipient, expose that specific transport limitation before
 relying on unattended continuation; never replace delivery with polling.
 
@@ -1114,8 +1187,9 @@ ledger schema or authorization for provider mutation.
 ## Parent Approval Evidence
 
 Parent approval is not blanket permission. Consume the coordinator's accepted
-human delivery scope and concrete current instruction, or the direct user's
-bounded decision. Validate the same source issue or PR, gate kind, route key,
+human delivery scope and concrete current instruction, the validated handoff
+under [Covered Same-Owner Delivery](#covered-same-owner-delivery), or the direct
+user's bounded decision. Validate the same source issue or PR, gate kind, route key,
 allowed side effect, exact owner/host, and current branch/head when applicable.
 Coordination interprets standing scope; the router validates eligibility and
 deduplicates dispatch, without becoming a second human approval layer. A
@@ -1138,7 +1212,10 @@ current action bindings. They do not automatically revoke an accepted delivery
 decision. Reject the stale binding, refresh the affected authoritative facts
 and the review, CI, protection and owner gates required for the selected action
 under the distinct initial-publication/correction sequence, then consume a new exact
-instruction from coordination within retained scope. For direct routing,
+instruction from coordination within retained scope, unless the unchanged
+controller handoff qualifies for [Covered Same-Owner Delivery](#covered-same-owner-delivery).
+That contract permits local per-effect refresh, never replacement of
+controller-owned authority or route facts. For direct routing,
 derive that instruction only from the user's retained bounded decision and
 current facts. Never reuse stale review or approval evidence as current.
 

@@ -65,7 +65,20 @@ only missing host permissions/preferences before affected effects. Startup also
 establishes separately scoped delivery authority for publication, conditional
 merge and scoped cleanup. Compatible human scope survives changed heads, while
 readiness and exact action bindings are refreshed before the existing effect
-owner executes a satisfied covered action without generic reapproval. Initial
+owner executes a satisfied covered action without generic reapproval. When the
+controller-established handoff covers publication and conditional merge, the
+existing owner ordinarily continues through those satisfied checkpoints without
+additional coordinator releases. Local per-effect refresh cannot create or
+replace controller-held route/authority identities, issue-authority digests,
+receipt sequences, recipients or effect scope; a required replacement returns
+to coordination. This avoids a decision-free round trip while preserving
+independent prepublication/current-head review, exact action evidence and the
+separate publication and merge owners. Required material-change and dependency
+reports remain prompt; coordination retains ledger writes and batch closure.
+PR-only or revoked/missing authority, reserved choices, cross-owner decisions,
+host restrictions, failed gates and unknown effects keep their existing stop,
+repair and recovery routes. Existing records suffice; no new permission registry
+or orchestration engine is introduced. Initial
 PR publication retains implementation, validation and independent Phase 7
 branch review. Under ROUTE-007-REVIEW, covered existing-PR corrections instead
 require classified dispositions, local validation, the concrete pre-push summary

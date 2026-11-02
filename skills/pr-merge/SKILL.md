@@ -2,6 +2,7 @@
 name: pr-merge
 description: PR merge automation with CI polling and in-scope failure investigation. Use when a PR is ready to merge pending CI, or when asked to "merge this PR" or "check CI and merge".
 requires:
+  - issue-batch-routing
   - play-agent-dispatch
   - play-debug
   - play-verification
@@ -27,12 +28,19 @@ Use the adjacent [preflight-worktree-context usage](references/preflight-worktre
 Poll CI status on a pull request, merge when green, investigate and fix failures automatically.
 
 Consume a concrete current merge instruction from the human or existing batch
-controller under accepted delivery authority. Validate its PR, owner/host,
+controller under accepted delivery authority, or validate the controller-established
+handoff under [Covered Same-Owner Delivery](../issue-batch-routing/SKILL.md#covered-same-owner-delivery).
+For that eligible existing owner, locally refresh the exact merge action immediately
+before the effect without another coordinator release; validate original human
+scope, unchanged controller-owned facts and the fresh complete action key.
+Missing/revoked scope, controller-fact replacement or that contract's other stop
+conditions return to the existing coordinator/router path. Validate its PR, owner/host,
 branch/head, gate, route key when applicable, and allowed effects before acting.
 A standing decision may include conditional merge and scoped cleanup; changed
 head or readiness invalidates its dependent evidence and action binding, not
 that scope. Refresh current review, CI, protections, and preflight evidence and
-obtain a newly bound instruction within retained scope without generic
+obtain a newly bound instruction, or refresh locally under that unchanged
+eligible handoff, within retained scope without generic
 reapproval. Missing scope, revocation, expansion, an unresolved choice, a
 reserved human decision, or a required exception needs its owning decision.
 PR-only intent, priming `--auto`, planning PASS, reports, and tool availability

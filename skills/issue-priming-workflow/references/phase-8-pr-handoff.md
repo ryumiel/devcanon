@@ -4,7 +4,7 @@ The [write-assumptions-comment usage](write-assumptions-comment-usage.md) owns r
 
 Load this reference when `issue-priming-workflow` reaches Phase 8 and is ready
 to invoke `play-branch-finish` Option 2. `SKILL.md` remains the eager authority
-for Phase 7 completion criteria, the no-auto-merge hard stop, branch/worktree
+for Phase 7 completion criteria, the priming/merge effect boundary, branch/worktree
 preservation, and the handoff arguments.
 
 ## Boundary Decisions
@@ -40,9 +40,15 @@ bindings after changed commits without generic human reapproval. Execute covered
 non-force publication and required sanitized summaries once conditions pass.
 Missing/revoked authority, scope expansion, unresolved decisions, required-gate
 exceptions and actual host restrictions retain their specific decision paths.
-Do not merge within priming: report current PR/head evidence to the controller
-for exact routing through `pr-merge` under separately scoped conditional merge
-and cleanup authority. Genuine CI/review/protection/mergeability/thread-disposition
+Do not merge within priming. When the unchanged controller handoff qualifies
+under [Covered Same-Owner Delivery](../../issue-batch-routing/SKILL.md#covered-same-owner-delivery),
+locally refresh the exact publication action and continue after publication in
+the same owner through `pr-merge` under separately scoped conditional merge
+and cleanup authority, without another controller release. Validate original
+human scope and unchanged controller-held authority/route facts; their required
+replacement returns to coordination. Otherwise report current PR/head evidence
+to the controller for exact routing. Required dependency, material published-head
+and completion reporting remains prompt without acknowledgement waits. Genuine CI/review/protection/mergeability/thread-disposition
 gates remain required; cleanup preserves dependent resources, evidence and the
 controller ledger until outstanding accepted obligations resolve. The PR is
 the user's review gate, and PR creation preserves the branch and worktree for

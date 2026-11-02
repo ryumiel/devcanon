@@ -29,6 +29,7 @@ import { useSyncFixture } from "../__test-helpers__/sync-fixture.js";
 import { loadConfig } from "../config/load.js";
 import { UserError } from "../utils/errors.js";
 import { pathExists, readTextFile } from "../utils/fs.js";
+import { loadAndValidateSkills } from "../validate/skills.js";
 import {
   inspectManifest,
   recoverInvalidManifest,
@@ -551,6 +552,20 @@ describe("sync", () => {
       "pr-authoring",
       "subagent-lifecycle",
     ]);
+    const shippedSkills = await loadAndValidateSkills(
+      repositoryConfig.library.skillsDir,
+    );
+    const pending = [...selectedSkills];
+    while (pending.length > 0) {
+      const name = pending.pop();
+      const skill = shippedSkills.find((candidate) => candidate.name === name);
+      for (const required of skill?.source.requires ?? []) {
+        if (!selectedSkills.has(required)) {
+          selectedSkills.add(required);
+          pending.push(required);
+        }
+      }
+    }
     for (const skill of selectedSkills) {
       await cp(
         path.resolve("skills", skill),
