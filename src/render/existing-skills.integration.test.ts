@@ -194,7 +194,7 @@ describe("shipped skill rendering", () => {
     }
   });
 
-  it("materializes capability bindings and the explicit Codex reviewer override", async () => {
+  it("materializes capability bindings and explicit Codex role overrides", async () => {
     const config = shippedSkillsConfig;
     const { outputs } = shippedSkillsRender;
     const bindings = [
@@ -222,11 +222,18 @@ describe("shipped skill rendering", () => {
           getSkillOutput(outputs, skill, target).content,
         );
         const normalizedBody = normalizeContractText(body);
-        const configuredModel = ["D5_MODEL", "D7_MODEL", "D10_MODEL"].includes(
-          binding,
-        )
+        const configuredModel = [
+          "D5_MODEL",
+          "D7_MODEL",
+          "D10_MODEL",
+          "D14_MODEL",
+          "D15_MODEL",
+          "D16_MODEL",
+        ].includes(binding)
           ? reviewerModel
-          : config.capabilityProfiles[capability].codex;
+          : ["D12_MODEL", "D17_JUDGMENT_FIX_MODEL"].includes(binding)
+            ? "gpt-6.1-terra"
+            : config.capabilityProfiles[capability].codex;
 
         expect(normalizedBody).toContain(
           `\`${binding}\` = \`${configuredModel}\``,
@@ -394,7 +401,7 @@ describe("shipped skill rendering", () => {
     }
   });
 
-  it("renders ordinary reviewer routes at Sol/high and preserves deep-reviewer routing", async () => {
+  it("renders ordinary reviewer routes at Sol/high with explicit Claude compatibility", async () => {
     const { outputs } = shippedSkillsRender;
     const d10Spawn = [
       "Codex.spawn_agent({",
@@ -474,13 +481,18 @@ describe("shipped skill rendering", () => {
       const { body: execution } = parseFrontmatter(
         getSkillOutput(outputs, "play-subagent-execution", target).content,
       );
+      expect(execution).toContain("Claude instead");
+      expect(execution).toContain(
+        "retains `deep-reviewer`, frontier capability and its catalog Claude effort",
+      );
+      expect(execution).toContain("gpt-6.1-terra");
       for (const route of ["D14", "D15", "D16"] as const) {
         expect(execution).toContain(
           [
-            `# ${route}: ${route}_MODEL is the Codex-bound frontier model`,
+            `# ${route}: ${route}_MODEL is the literal Codex reviewer override`,
             "Codex.spawn_agent({",
             `  task_name: ${route.toLowerCase()}_<instance_ordinal>,`,
-            '  agent_type: "deep-reviewer",',
+            '  agent_type: "reviewer",',
             `  model: ${route}_MODEL,`,
             '  reasoning_effort: "high",',
             '  fork_turns: "none",',
@@ -490,6 +502,52 @@ describe("shipped skill rendering", () => {
         );
       }
     }
+  });
+
+  it("keeps Terra implementation overrides when the balanced model changes", async () => {
+    const config = await loadConfig("devcanon.config.yaml", true);
+    config.capabilityProfiles.balanced.codex = "custom-balanced-model";
+    const { outputs } = await renderAll(config, false, true);
+    for (const target of TARGETS) {
+      const execution = normalizeContractText(
+        getSkillOutput(outputs, "play-subagent-execution", target).content,
+      );
+      const merge = normalizeContractText(
+        getSkillOutput(outputs, "pr-merge", target).content,
+      );
+      const research = normalizeContractText(
+        getSkillOutput(outputs, "issue-priming-workflow", target).content,
+      );
+      const dispatch = normalizeContractText(
+        getSkillOutput(outputs, "play-agent-dispatch", target).content,
+      );
+      expect(execution).toContain("`D12_MODEL` = `gpt-6.1-terra`");
+      expect(merge).toContain("`D17_JUDGMENT_FIX_MODEL` = `gpt-6.1-terra`");
+      expect(research).toContain("`D2_MODEL` = `custom-balanced-model`");
+      expect(dispatch).toContain(
+        "For `implementer`, select `gpt-6.1-terra` instead of the balanced binding",
+      );
+      expect(dispatch).toContain(
+        "On Claude, reject `architect` selection before capture or spawn",
+      );
+      expect(dispatch).toContain(
+        "A missing, blank, unresolved, or mismatched binding blocks before spawn",
+      );
+      const repairs = getSkillOutput(
+        outputs,
+        "play-review-response",
+        target,
+      ).content;
+      expect(repairs).toContain("`gpt-6.1-terra`/`medium`");
+    }
+    const implementer = outputs.find(
+      (output) =>
+        output.type === "agent" &&
+        output.name === "implementer" &&
+        output.target === "codex",
+    );
+    expect(implementer?.content).toContain('model = "gpt-6.1-terra"');
+    expect(implementer?.content).not.toContain("custom-balanced-model");
   });
 
   it("renders the D18 route for both targets", async () => {

@@ -23,7 +23,7 @@ durable artifact, including:
 
 Do not use this after implementation exists to check whether code matches a
 spec. For implementation-vs-spec conformance, use
-[`play-subagent-execution`'s task-specific D14 spec-compliance review](../play-subagent-execution/SKILL.md) using `deep-reviewer`.
+[`play-subagent-execution`'s task-specific D14 spec-compliance review](../play-subagent-execution/SKILL.md) using the execution workflow's target-specific reviewer.
 Do not use this to draft issues, approve implementation, mutate GitHub or
 Linear state, or replace owner-authoring workflows such as
 `write-product-requirements` or `write-product-spec`.
@@ -110,7 +110,7 @@ verdicts for code that already exists.
 - Treating readiness as implementation approval. Readiness only says the owning
   artifact can support executable issue slicing.
 - Re-running
-  [`play-subagent-execution`'s task-specific D14 spec-compliance review](../play-subagent-execution/SKILL.md) using `deep-reviewer`. That review checks
+  [`play-subagent-execution`'s task-specific D14 spec-compliance review](../play-subagent-execution/SKILL.md) using the execution workflow's target-specific reviewer. That review checks
   code against a spec after implementation exists; this skill checks
   pre-slicing artifact readiness.
 - Copying live tracker or PR history into repository docs. Use evidence

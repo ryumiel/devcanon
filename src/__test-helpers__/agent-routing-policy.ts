@@ -90,7 +90,7 @@ export interface AgentRoutingEscalationAdoptionRow {
 }
 
 export interface AgentRoutingD4RouteContract {
-  readonly roleCardinality: 6;
+  readonly roleCardinality: 7;
   readonly selectionTiming: "before spawn";
   readonly configuration: "exact configured capability/effort";
   readonly sourceDefault: "matching source default";
@@ -228,9 +228,9 @@ export function parseAgentSemanticRoleOwner(
     envelopes.map((role) => role.name),
     "tool-envelope identity",
   );
-  if (roles.length !== 6) {
+  if (roles.length !== 7) {
     throw new Error(
-      `Agent spec semantic-role catalog must contain exactly six rows: ${roles.length}`,
+      `Agent spec semantic-role catalog must contain exactly seven rows: ${roles.length}`,
     );
   }
   assertExactIdentitySet(
@@ -637,11 +637,11 @@ function parseD4RouteContract(route: string): AgentRoutingD4RouteContract {
 
   closedValue(
     selection[1],
-    ["six"] as const,
+    ["seven"] as const,
     "direct-route D4 role cardinality",
   );
   return {
-    roleCardinality: 6,
+    roleCardinality: 7,
     selectionTiming: closedValue(
       selection[2],
       ["before spawn"] as const,

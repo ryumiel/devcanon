@@ -55,7 +55,7 @@ Quick navigation index for the DevCanon repository.
 - Where is the supported production Markdown parsing behavior? ->
   [`docs/specs/markdown-parsing.md`](docs/specs/markdown-parsing.md)
 - Where is the agent schema spec? -> [`docs/specs/agents.md`](docs/specs/agents.md)
-- Where is the exact six-role semantic catalog and role envelope defined? ->
+- Where is the exact seven-role semantic catalog and role envelope defined? ->
   [`docs/specs/agents.md`](docs/specs/agents.md#semantic-role-catalog)
 - Where are the mutation vocabulary, 33-skill inventory, and active
   direct-child routes defined? ->
@@ -70,6 +70,17 @@ Quick navigation index for the DevCanon repository.
 - Where is the testing requirements spec? -> [`docs/specs/testing.md`](docs/specs/testing.md)
 
 ---
+
+## Specialist allocation and practical trial
+
+- Where are the Codex role allocations and architect envelope? ->
+  [Agent spec](docs/specs/agents.md#codex-specialist-roles)
+- Where are risk triggers and bounded specialist routes? ->
+  [Routing policy](docs/guidelines/agent-routing-and-mutation-policy.md#codex-specialist-routing)
+- Where is the lightweight Kiki practical trial? ->
+  [Pilot spec](docs/specs/workflow-specialist-pilot.md)
+- Where is the decision rationale? ->
+  [ADR-0043](docs/adr/adr-0043-risk-based-specialist-review.md)
 
 ## Combined planning review
 

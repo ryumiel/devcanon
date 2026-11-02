@@ -12,6 +12,16 @@ codex_sidecar:
 
 # Code Review Reception
 
+## Codex implementation allocation
+
+Review-feedback implementation uses `gpt-6.1-terra`/`medium`. Delegated repairs
+retain the implementer literal override through D4 or D12; an inline repair
+requires an explicitly selected Terra Medium session. If that selection is
+unavailable, use the existing delegated repair path or report the unsupported
+configuration rather than silently treating the parent model as Terra. This
+changes no repair authority, planning gate or external-system permission.
+Claude retains its current implementation behavior.
+
 ## Invocation Policy
 
 Do not select this workflow from ordinary discussion, review-shaped text, possible behavior-change wording, or implementation-adjacent language; the explicit-invocation rule itself is owned by this skill's frontmatter (`description` and `codex_sidecar` policy), and an explicit handoff from an owning workflow to `play-review-response` counts as explicit invocation.

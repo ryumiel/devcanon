@@ -115,7 +115,7 @@ const FRESH_SPAWNS = [
   [
     "D14",
     "play-subagent-execution",
-    "deep-reviewer",
+    "reviewer",
     "frontier",
     "D14_MODEL",
     "high",
@@ -125,7 +125,7 @@ const FRESH_SPAWNS = [
   [
     "D15",
     "play-subagent-execution",
-    "deep-reviewer",
+    "reviewer",
     "frontier",
     "D15_MODEL",
     "high",
@@ -135,7 +135,7 @@ const FRESH_SPAWNS = [
   [
     "D16",
     "play-subagent-execution",
-    "deep-reviewer",
+    "reviewer",
     "frontier",
     "D16_MODEL",
     "high",
@@ -259,6 +259,9 @@ describe("agent routing and mutation policy owner", () => {
       ["D5", "high"],
       ["D7", "high"],
       ["D10", "high"],
+      ["D14", "high"],
+      ["D15", "high"],
+      ["D16", "high"],
     ]);
   });
 
@@ -350,7 +353,7 @@ describe("agent routing and mutation policy owner", () => {
       const source = ownerSkills.get(ownerSkill);
       expect(source, `${ownerSkill} source is readable`).toBeDefined();
       expect(source?.replace(/\s+/gu, " ")).toContain(
-        `\`${model}\` = \`${role === "reviewer" ? reviewerModel : `{{model-codex:${capability}}}`}\``,
+        `\`${model}\` = \`${role === "reviewer" ? reviewerModel : role === "implementer" ? "gpt-6.1-terra" : `{{model-codex:${capability}}}`}\``,
       );
       expect(config.capabilityProfiles[capability].codex).toMatch(/\S/);
       expect(source).toContain(
@@ -379,14 +382,14 @@ describe("agent routing and mutation policy owner", () => {
     expect(d4?.ownerSkill).toBe("play-agent-dispatch");
     expect(d4?.clauses).toEqual([]);
     expect(d4?.d4Contract).toMatchObject({
-      roleCardinality: 6,
+      roleCardinality: 7,
       selectionTiming: "before spawn",
       configuration: "exact configured capability/effort",
       sourceDefault: "matching source default",
       scopeAndTermination: "scope/termination",
       externalAuthority: "none",
     });
-    expect(roles).toHaveLength(6);
+    expect(roles).toHaveLength(7);
     for (const { capability } of roles) {
       expect(source.replace(/\s+/gu, " ")).toContain(
         `\`${capability}\` → \`{{model-codex:${capability}}}\``,

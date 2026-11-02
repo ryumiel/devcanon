@@ -299,11 +299,11 @@ do not spawn, and do not invent inline fallback detail. That reference owns the
 generic dispatch ritual; this skill owns its D17 route values, prompt inputs,
 and CI-repair disposition.
 
-| Route              | `agent_type`   | Capability  | Model marker                                          | `reasoning_effort` | `source_authority` | Prompt                                   |
-| ------------------ | -------------- | ----------- | ----------------------------------------------------- | ------------------ | ------------------ | ---------------------------------------- |
-| D17 `diagnosis`    | `investigator` | `balanced`  | `D17_DIAGNOSIS_MODEL` = `{{model-codex:balanced}}`    | `medium`           | `source-immutable` | `D17_DIAGNOSIS_SELF_CONTAINED_PROMPT`    |
-| D17 `exact-fix`    | `executor`     | `efficient` | `D17_EXACT_FIX_MODEL` = `{{model-codex:efficient}}`   | `medium`           | `source-mutable`   | `D17_EXACT_FIX_SELF_CONTAINED_PROMPT`    |
-| D17 `judgment-fix` | `implementer`  | `balanced`  | `D17_JUDGMENT_FIX_MODEL` = `{{model-codex:balanced}}` | `medium`           | `source-mutable`   | `D17_JUDGMENT_FIX_SELF_CONTAINED_PROMPT` |
+| Route              | `agent_type`   | Capability  | Model marker                                        | `reasoning_effort` | `source_authority` | Prompt                                   |
+| ------------------ | -------------- | ----------- | --------------------------------------------------- | ------------------ | ------------------ | ---------------------------------------- |
+| D17 `diagnosis`    | `investigator` | `balanced`  | `D17_DIAGNOSIS_MODEL` = `{{model-codex:balanced}}`  | `medium`           | `source-immutable` | `D17_DIAGNOSIS_SELF_CONTAINED_PROMPT`    |
+| D17 `exact-fix`    | `executor`     | `efficient` | `D17_EXACT_FIX_MODEL` = `{{model-codex:efficient}}` | `medium`           | `source-mutable`   | `D17_EXACT_FIX_SELF_CONTAINED_PROMPT`    |
+| D17 `judgment-fix` | `implementer`  | `balanced`  | `D17_JUDGMENT_FIX_MODEL` = `gpt-6.1-terra`          | `medium`           | `source-mutable`   | `D17_JUDGMENT_FIX_SELF_CONTAINED_PROMPT` |
 
 Every branch has `external_authority: none`. The fully substituted prompt names
 the anchored PR head, bounded repository and authorized paths, collected CI
@@ -338,7 +338,7 @@ Codex.spawn_agent({
 })
 # Judgment-bearing fix: source-mutable; output is scoped committed fix/report.
 # Termination returns the committed result to the root for verification/push.
-# D17_JUDGMENT_FIX_MODEL is the Codex-bound balanced model
+# D17_JUDGMENT_FIX_MODEL is the literal Codex implementer override
 Codex.spawn_agent({
   task_name: d17_<instance_ordinal>,
   agent_type: "implementer",

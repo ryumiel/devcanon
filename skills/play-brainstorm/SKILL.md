@@ -26,6 +26,15 @@ design or explicitly requested brainstorming, the requirements below apply;
 issue size or green checks never waive them. Reuse current accepted decisions
 and investigate unresolved ones rather than restating settled material.
 
+## Codex design allocation
+
+Before ordinary design, follow the explicit Sol High selection and material-risk
+consultation guidance in [focused specialist selection](../play-agent-dispatch/SKILL.md#risk-based-specialist-selection).
+Known material design risks receive architect consultation and independent
+risk-focused design review before implementation. This supplements, and does
+not bypass, this workflow's design approval and ownership gates. Claude keeps
+its current behavior.
+
 ## Inputs
 
 This skill accepts an issue body and, optionally, a research brief and comment
@@ -415,7 +424,7 @@ Before planning proceeds:
    scope, output, and termination. Every semantic child keeps external
    authority `none`; only a separately authorized owning root/controller may
    hold `external-mutable` authority; and
-3. reconcile exactly six semantic agent sources and both Claude and Codex
+3. reconcile exactly seven semantic agent sources and both Claude and Codex
    rendered outputs against the source-owned identity, capability, effort, and
    mutation constraints. Source agent definitions remain authoritative;
    rendered outputs are convergence evidence.

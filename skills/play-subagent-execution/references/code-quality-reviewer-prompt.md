@@ -1,5 +1,10 @@
 # Code Quality Reviewer Prompt Template
 
+**Target selection:** Codex uses reviewer/Sol High. Claude retains deep-reviewer
+with frontier capability and its catalog Claude effort. The enclosing execution
+skill owns this target-specific selection; scope, guards and result contracts
+are identical. Validate the selected target role, not the other target's role.
+
 Use this template when dispatching a code quality reviewer subagent.
 
 **Purpose:** Verify implementation is well-built (clean, tested, maintainable)
@@ -9,16 +14,16 @@ owns the D15/D16 questions, reviewer action, and report schema.
 `lifecycle-status-policy.md` owns D15/D16 dispatch timing, same-head
 disposition, invalidation, and terminal transitions.
 
-**Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/deep-reviewer.yaml`](../../../agents/deep-reviewer.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
+**Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/reviewer.yaml`](../../../agents/reviewer.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
 
-**Routes:** D15 and D16 are separate response-only `deep-reviewer`,
+**Routes:** D15 and D16 are separate response-only `reviewer`,
 frontier/high, source-immutable sessions with zero handoffs. The controller
 applies GUARD-001 independently around each session. Do not change source,
 tests, configuration, documentation, or external systems; return only the
 response. Findings are evidence; mutation disposition belongs to the controller.
 Never reuse a D15 session or result as D16.
 
-**Fresh configuration:** Before either capture, validate `deep-reviewer`,
+**Fresh configuration:** Before either capture, validate `reviewer`,
 `frontier`, the nonblank full model in the controller/owner-supplied
 already-rendered `D15_MODEL` or already-rendered `D16_MODEL` binding,
 independent `high`,

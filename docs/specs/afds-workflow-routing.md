@@ -224,7 +224,7 @@ owners.
 
 ### ROUTE-006: Semantic Direct-Child Routing
 
-Every current direct child surface must resolve to one of the six semantic
+Every current direct child surface must resolve to one of the seven semantic
 roles, a deterministic helper, or a guarded inline path before dispatch. The
 complete mandatory inventory is the active route set in the
 [Agent Routing and Mutation Policy](../guidelines/agent-routing-and-mutation-policy.md#direct-child-route-inventory).
@@ -1489,9 +1489,9 @@ Candidate surfaces for AFDS workflow capability governance include:
 - updates to existing shaping, planning, verification, issue-priming, and
   review skills.
 
-This spec does not independently approve an agent wrapper beyond the six-role
+This spec does not independently approve an agent wrapper beyond the seven-role
 semantic catalog. Task-specific spec-compliance method stays in the owning
-skill prompt and uses the `deep-reviewer` role only for the direct routes named
+skill prompt and uses the target-specific reviewer role for the direct routes named
 by this contract. AFDS workflow capability governance must evaluate whether any
 future wrapper meets the stable-role and target-constraint threshold.
 
@@ -2128,10 +2128,10 @@ D14–D16 and final changed-head independent review remain required.
 - Guard tests exercise the valid baseline/handoff lifecycle and reject tracked
   content change, nested/existing/symlinked/missing handoffs, and directory
   leaves.
-- Both-target agent render tests prove exactly six roles, top-level capability
+- Both-target agent render tests prove exactly seven roles, top-level capability
   parity, omitted Claude executor effort, unchanged Claude model/effort
   envelopes for the other five roles, explicit Codex model and effort for
-  assessor, investigator, implementer, reviewer, and deep-reviewer, and omitted
+  architect, assessor, investigator, implementer, reviewer, and deep-reviewer, and omitted
   Codex model and effort for executor. The agent spec owns the exact
   target-model semantics.
   The same checks retain command/handoff envelopes,
@@ -2161,3 +2161,13 @@ or source-owned contracts.
 - [Agent routing and mutation policy](../guidelines/agent-routing-and-mutation-policy.md)
 - [Semantic agent routing decision](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md)
 - [Authorized ordinary blocker repairs](../adr/adr-0040-authorized-ordinary-blocker-repairs.md)
+
+## Specialist trial
+
+The [role allocation](agents.md#codex-specialist-roles) and
+[risk guidance](../guidelines/agent-routing-and-mutation-policy.md#codex-specialist-routing)
+cover Terra implementation, Sol ordinary review and focused Astra specialist
+work. The [Kiki practical trial](workflow-specialist-pilot.md) supplies supporting
+validation, not a new rollout gate. Existing workflow owners retain disposition,
+freshness, source guards and publication boundaries. Source definitions and dispatch consumers implement the allocation; user-home
+installation remains a separate authorized sync operation.

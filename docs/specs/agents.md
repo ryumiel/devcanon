@@ -68,25 +68,27 @@ codex:
 
 ## Semantic role catalog
 
-This section is the sole exact catalog for the current six semantic roles.
+This section is the sole exact catalog for the current seven semantic roles.
 Source definitions under `agents/` are authoritative for implementation state.
-Existing render-contract evidence verifies that the six configured roles render
+Existing render-contract evidence verifies that the seven configured roles render
 and parse for both targets; generated outputs and fresh renders are convergence
 evidence, not co-authority. Agent names describe reusable work identity, not
 provider models, effort levels, or workflow phases.
 
-| Agent           | Capability | Claude effort | Route effort | Source default     | External default | Primary use                                           |
-| --------------- | ---------- | ------------- | ------------ | ------------------ | ---------------- | ----------------------------------------------------- |
-| `assessor`      | balanced   | medium        | low          | `source-immutable` | `none`           | Bounded classification or evaluation                  |
-| `investigator`  | balanced   | high          | medium       | `source-immutable` | `none`           | Repository, document, or external evidence collection |
-| `executor`      | efficient  | omitted       | medium       | `source-mutable`   | `none`           | Exact validated no-policy operations                  |
-| `implementer`   | balanced   | high          | medium       | `source-mutable`   | `none`           | Judgment-bearing scoped implementation                |
-| `reviewer`      | frontier   | high          | high         | `source-immutable` | `none`           | Ordinary synthesis and adversarial review             |
-| `deep-reviewer` | frontier   | xhigh         | high         | `source-immutable` | `none`           | Existing high-assurance review gates                  |
+| Agent           | Capability | Claude effort | Route effort | Source default     | External default | Primary use                                              |
+| --------------- | ---------- | ------------- | ------------ | ------------------ | ---------------- | -------------------------------------------------------- |
+| `architect`     | frontier   | xhigh         | high         | `source-immutable` | `none`           | Material-risk design consultation and independent review |
+| `assessor`      | balanced   | medium        | low          | `source-immutable` | `none`           | Bounded classification or evaluation                     |
+| `investigator`  | balanced   | high          | medium       | `source-immutable` | `none`           | Repository, document, or external evidence collection    |
+| `executor`      | efficient  | omitted       | medium       | `source-mutable`   | `none`           | Exact validated no-policy operations                     |
+| `implementer`   | balanced   | high          | medium       | `source-mutable`   | `none`           | Judgment-bearing scoped implementation                   |
+| `reviewer`      | frontier   | high          | high         | `source-immutable` | `none`           | Ordinary synthesis and adversarial review                |
+| `deep-reviewer` | frontier   | xhigh         | high         | `source-immutable` | `none`           | Existing high-assurance review gates                     |
 
-Capability and route effort are explicit for all six semantic roles and remain
+Capability and route effort are explicit for all seven semantic roles and remain
 independent. The ordinary reviewer source defaults to literal
 `gpt-6.1-sol`/`high`, and all its direct-child routes mirror that pair.
+Implementer overrides balanced with `gpt-6.1-terra`/`medium`.
 Assessor uses `low`; investigator and implementer use `medium` on Codex.
 Claude effort remains independently configured as shown above. Neither source
 defaults nor route effort imply tools, sandbox, network, mutation, or escalation
@@ -109,6 +111,7 @@ or add a static agent-schema field for escalation.
 
 | Agent           | Claude tools                                 | Codex sandbox   | Default network |
 | --------------- | -------------------------------------------- | --------------- | --------------- |
+| `architect`     | Read, Grep, Bash                             | workspace-write | None            |
 | `assessor`      | Read, Grep, Bash, Write                      | workspace-write | None            |
 | `investigator`  | Read, Grep, Bash, Write, WebFetch, WebSearch | workspace-write | Dispatch-owned  |
 | `executor`      | Read, Grep, Bash, Edit, Write                | workspace-write | None            |
@@ -163,15 +166,15 @@ through pressure scenarios rather than exact-sentence assertions.
 
 Under the current contract, each source role renders to both targets with the
 same semantic identity, capability, Claude effort, and target-native tool or
-sandbox envelope above. Acceptance requires exactly six source roles to produce
-exactly six Claude agent files and six Codex agent files. Generated previews
+sandbox envelope above. Acceptance requires exactly seven source roles to produce
+exactly seven Claude agent files and seven Codex agent files. Generated previews
 remain disposable and do not become authority; a fresh render is convergence
 evidence, not source authority.
 
 The canonical `assessor` example above must preserve the unchanged Claude
 envelope, retain its command and named-handoff envelope, prohibit durable and
 external mutation, and emit Codex `model: gpt-6.1-sol` and
-`model_reasoning_effort: low`. A rendered role count other than six, a Codex
+`model_reasoning_effort: low`. A rendered role count other than seven, a Codex
 model or effort that differs from the source role, or broader mutation instructions
 fails the contract.
 
@@ -294,9 +297,11 @@ Codex `model` selection has three source states:
 Explicit `codex.model: null` is known agent-source schema, not passthrough or a
 warning. Claude `model` accepts only a literal string or absence; Claude null is
 rejected. The agent spec owns this target distinction.
-The assessor, investigator, and implementer retain their capability and
-Claude envelope and pin literal `codex.model: gpt-6.1-sol`, with Codex effort
-`low`, `medium`, and `medium`, respectively. Ordinary reviewer retains its
+Assessor and investigator retain their capability and Claude envelope and
+pin `codex.model: gpt-6.1-sol` with `low` and `medium` effort, respectively.
+Implementer retains balanced capability and its Claude envelope, but pins
+`codex.model: gpt-6.1-terra` with `medium` effort. Architect uses the frontier
+binding, pins `gpt-6-astra` with `high` effort, and is selected only on Codex. Ordinary reviewer retains its
 frontier capability and Claude envelope and pins `codex.model: gpt-6.1-sol`
 with `codex.model_reasoning_effort: high`. Deep-reviewer pins `codex.model: gpt-6-astra`
 and `codex.model_reasoning_effort: high`; its direct routes use the frontier
@@ -311,7 +316,7 @@ agent placeholders with guidance to use top-level capability or a literal model.
 Effort is independent. An explicit `claude.effort` or
 `codex.model_reasoning_effort` is emitted as written; when absent it remains
 omitted and ambient target behavior applies. Capability never supplies or
-inherits effort. The ordinary reviewer Codex default is `high`; D5, D7, D10,
+inherits effort. The ordinary reviewer Codex default is `high`; D5, D7, D10, D14–D16 on Codex,
 and D4 reviewer selection use that same route effort. Assessor, investigator,
 and implementer direct routes use `low`, `medium`, and `medium`, respectively.
 Source defaults and direct-route tuples must agree; no ambient setting or
@@ -371,3 +376,43 @@ omit these target-specific warnings.
 - [Configuration](configuration.md) -- target-level settings
 - [Agent routing and mutation policy](../guidelines/agent-routing-and-mutation-policy.md)
 - [Semantic routing decision](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md)
+
+## Codex specialist roles
+
+Allocation decision: [ADR-0043](../adr/adr-0043-risk-based-specialist-review.md).
+The catalog above and source agent definitions govern the active role envelopes.
+
+### Model allocation
+
+| Responsibility                                           | Codex model     | Effort |
+| -------------------------------------------------------- | --------------- | ------ |
+| Ordinary design and planning                             | `gpt-6.1-sol`   | high   |
+| Implementer, including review-feedback fixes             | `gpt-6.1-terra` | medium |
+| Reviewer, including D14, D15, D16 and ordinary PR review | `gpt-6.1-sol`   | high   |
+| Architect consultation and significant-risk deep review  | `gpt-6-astra`   | high   |
+
+Balanced remains Sol. Implementer uses a literal Terra override, honored by
+all dispatch consumers including D4, D12, D17 judgment fixes and review-response
+paths. Updating YAML alone is insufficient where a consumer resolves capability
+directly. Assessor, investigator and executor defaults remain unchanged. There
+is no automatic Terra High escalation in this allocation.
+
+Ordinary design must use an explicitly selected Sol High session; a child role
+binding does not change its parent model. Unsupported selection is reported
+rather than silently substituted.
+
+### Architect responsibility
+
+Architect is a thin source-immutable role for consulting on material design
+risks and reviewing the resulting design. It uses the existing reviewer-style
+guards, workspace-write sandbox, response-only output, no external mutation,
+no network and no child delegation. The parent owns decisions and persistence.
+Consultation is not independent approval; any independent review uses a fresh
+session. Deep-reviewer retains its existing envelope and focuses on the named
+implementation risk rather than taking over implementation.
+
+The [routing policy](../guidelines/agent-routing-and-mutation-policy.md#codex-specialist-routing)
+owns when to request specialist work. This policy changes Codex allocation;
+existing Claude workflow behavior remains unchanged. Architect is rendered for both targets, but D4 rejects architect selection on
+Claude before capture or spawn. Existing Claude workflows retain their roles
+and efforts. Both-target rendering and consumer checks verify that boundary.
