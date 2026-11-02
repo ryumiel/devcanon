@@ -636,6 +636,67 @@ describe("shipped skill rendering", () => {
     }
   });
 
+  it("gates inline implementation and branch repairs on explicit Codex allocation", async () => {
+    const config = await loadConfig("devcanon.config.yaml", true);
+    config.capabilityProfiles.balanced.codex = "custom-balanced-model";
+    const generatedDir = await mkdtemp(
+      path.join(tmpdir(), "devcanon-inline-allocation-"),
+    );
+    try {
+      const { outputs } = await renderAll(
+        { ...config, library: { ...config.library, generatedDir } },
+        true,
+        true,
+      );
+      for (const target of TARGETS) {
+        const priming = normalizeContractText(
+          getSkillOutput(outputs, "issue-priming-workflow", target).content,
+        );
+        const gate = priming.indexOf("Before inline implementation on Codex");
+        expect(gate).toBeGreaterThan(-1);
+        expect(
+          priming.slice(gate, priming.indexOf("## Subagent Lifecycle")),
+        ).toContain("explicitly selected `gpt-6.1-terra`/`medium` session");
+        expect(
+          priming.slice(gate, priming.indexOf("## Subagent Lifecycle")),
+        ).toContain("stop before source mutation");
+        expect(
+          priming.slice(gate, priming.indexOf("## Subagent Lifecycle")),
+        ).toContain(
+          "Claude retains its current inline implementation behavior",
+        );
+        const repair = normalizeContractText(
+          await readFile(
+            path.join(
+              generatedDir,
+              target,
+              "skills/branch-review/references/fix-disposition.md",
+            ),
+            "utf8",
+          ),
+        );
+        const allocation = repair.indexOf("## Codex repair allocation");
+        const execution = repair.indexOf("## Group and execute selected units");
+        expect(allocation).toBeGreaterThan(-1);
+        expect(allocation).toBeLessThan(execution);
+        const selection = repair.slice(allocation, execution);
+        expect(selection).toContain(
+          "explicitly selected `gpt-6.1-terra`/`medium` session",
+        );
+        expect(selection).toContain("D4 `implementer`");
+        expect(selection).toContain("stop before source mutation");
+        expect(selection).toContain(
+          "Claude retains its current repair behavior",
+        );
+        expect(repair).toContain(
+          "validate and independently review the changed candidate",
+        );
+      }
+    } finally {
+      await rm(generatedDir, { recursive: true, force: true });
+    }
+  });
+
   it("keeps conditional branch-review fix disposition linked and packaged for both targets", async () => {
     const config = shippedSkillsConfig;
     const { outputs, skills } = shippedSkillsRender;

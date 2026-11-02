@@ -655,8 +655,8 @@ eligibility, or checking hard-risk triggers.
 D14 is a separate response-only `reviewer`, frontier/high and
 source-immutable, with zero handoffs. D15 is a separate response-only
 `reviewer`, frontier/high and source-immutable, with zero handoffs. Use
-the configured role and effort; do not substitute an ordinary reviewer,
-ambient role, model, or effort. The
+the exact configured target-specific role, model and effort; do not substitute
+an ambient role, model or effort. The
 [lifecycle/status policy](references/lifecycle-status-policy.md) is the
 normative owner of their independent guard lifecycles, same-head disposition,
 fix invalidation, cleanup, and incomplete or terminal outcomes. That policy
