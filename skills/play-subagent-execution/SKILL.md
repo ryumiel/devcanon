@@ -33,7 +33,7 @@ missing or invalid planned provenance retains the existing refusal behavior.
 Execute plan by dispatching fresh subagent per task. Multi-task plans use
 executor-owned risk-based per-task review routing; hard-risk or unclear tasks
 use `spec-and-quality`: dispatch separate D14 specification and D15 quality
-deep-review sessions concurrently when practical, against the same committed
+review sessions concurrently when practical, against the same committed
 task head, then join their results before final disposition.
 Single-task plans skip per-task review.
 
@@ -237,6 +237,18 @@ classification. Snapshot request/skip classification is owned by
 `play-subagent-execution`, and plan-authored snapshot hints are
 non-authoritative.
 
+## Target-specific implementation and review roles
+
+Codex implementer dispatch uses the literal `gpt-6.1-terra`/`medium` override.
+D14, D15 and D16 use `reviewer`, `gpt-6.1-sol`/`high` on Codex. Wherever this
+skill or its prompt templates name reviewer for those gates, Claude instead
+retains `deep-reviewer`, frontier capability and its catalog Claude effort.
+Their source guards, independent scopes, fix loops and completion rules remain
+unchanged. Codex snippets below do not select Claude roles or effort.
+For material risk or consequential unresolved review judgments, use
+[focused specialist selection](../play-agent-dispatch/SKILL.md#risk-based-specialist-selection)
+through D4. Extra evidence does not replace required gate coverage.
+
 ## Inputs
 
 This skill accepts a plan document in either of two shapes inside its
@@ -425,7 +437,7 @@ For the full selection and process diagrams, load
    diff after the implementer commits. Hard-risk, unclear, stale, malformed,
    conflicting, or untrusted classifications fail closed to `spec-and-quality`.
 8. Dispatch reviewers according to the effective route. D14 and D15 are
-   separate response-only `deep-reviewer` sessions with independent GUARD-001
+   separate response-only `reviewer` sessions with independent GUARD-001
    lifecycles. Load the
    [lifecycle/status policy](references/lifecycle-status-policy.md) for guard
    ordering and every returned review disposition.
@@ -472,7 +484,8 @@ emits literal model and effort defaults when its source specifies them;
 executor retains explicit-null model suppression and omitted effort. Direct
 dispatch still supplies its complete route tuple independently. D12
 uses `implementer`, balanced/medium; D13 uses `executor`, efficient/medium; and
-D14-D16 use `deep-reviewer`, frontier/high. These pairs do not grant external
+D14-D16 use `reviewer`, frontier/high on Codex. On Claude they retain
+`deep-reviewer` with frontier capability and catalog Claude effort. These pairs do not grant external
 mutation authority.
 
 For Claude D13 executor dispatch, omit named effort for the efficient
@@ -490,13 +503,13 @@ spawn, and do not invent inline fallback detail. That reference owns the
 generic dispatch ritual; this workflow owns its route values, prompt and output
 contracts, and termination below.
 
-| Route | `agent_type`    | Capability  | Model marker                              | `reasoning_effort` | `source_authority` | Prompt                      |
-| ----- | --------------- | ----------- | ----------------------------------------- | ------------------ | ------------------ | --------------------------- |
-| D12   | `implementer`   | `balanced`  | `D12_MODEL` = `{{model-codex:balanced}}`  | `medium`           | `source-mutable`   | `D12_SELF_CONTAINED_PROMPT` |
-| D13   | `executor`      | `efficient` | `D13_MODEL` = `{{model-codex:efficient}}` | `medium`           | `source-mutable`   | `D13_SELF_CONTAINED_PROMPT` |
-| D14   | `deep-reviewer` | `frontier`  | `D14_MODEL` = `{{model-codex:frontier}}`  | `high`             | `source-immutable` | `D14_SELF_CONTAINED_PROMPT` |
-| D15   | `deep-reviewer` | `frontier`  | `D15_MODEL` = `{{model-codex:frontier}}`  | `high`             | `source-immutable` | `D15_SELF_CONTAINED_PROMPT` |
-| D16   | `deep-reviewer` | `frontier`  | `D16_MODEL` = `{{model-codex:frontier}}`  | `high`             | `source-immutable` | `D16_SELF_CONTAINED_PROMPT` |
+| Route | `agent_type`  | Capability  | Model marker                              | `reasoning_effort` | `source_authority` | Prompt                      |
+| ----- | ------------- | ----------- | ----------------------------------------- | ------------------ | ------------------ | --------------------------- |
+| D12   | `implementer` | `balanced`  | `D12_MODEL` = `gpt-6.1-terra`             | `medium`           | `source-mutable`   | `D12_SELF_CONTAINED_PROMPT` |
+| D13   | `executor`    | `efficient` | `D13_MODEL` = `{{model-codex:efficient}}` | `medium`           | `source-mutable`   | `D13_SELF_CONTAINED_PROMPT` |
+| D14   | `reviewer`    | `frontier`  | `D14_MODEL` = `gpt-6.1-sol`               | `high`             | `source-immutable` | `D14_SELF_CONTAINED_PROMPT` |
+| D15   | `reviewer`    | `frontier`  | `D15_MODEL` = `gpt-6.1-sol`               | `high`             | `source-immutable` | `D15_SELF_CONTAINED_PROMPT` |
+| D16   | `reviewer`    | `frontier`  | `D16_MODEL` = `gpt-6.1-sol`               | `high`             | `source-immutable` | `D16_SELF_CONTAINED_PROMPT` |
 
 | Route | Self-contained prompt and output                                              | Termination                                                      |
 | ----- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------- |
@@ -514,7 +527,7 @@ After validation and the existing route-local capture, create exactly one fresh
 child with the actual Codex fields:
 
 ```text
-# D12: D12_MODEL is the Codex-bound balanced model
+# D12: D12_MODEL is the literal Codex implementer override
 Codex.spawn_agent({
   task_name: d12_<instance_ordinal>,
   agent_type: "implementer",
@@ -532,28 +545,28 @@ Codex.spawn_agent({
   fork_turns: "none",
   message: D13_SELF_CONTAINED_PROMPT,
 })
-# D14: D14_MODEL is the Codex-bound frontier model
+# D14: D14_MODEL is the literal Codex reviewer override
 Codex.spawn_agent({
   task_name: d14_<instance_ordinal>,
-  agent_type: "deep-reviewer",
+  agent_type: "reviewer",
   model: D14_MODEL,
   reasoning_effort: "high",
   fork_turns: "none",
   message: D14_SELF_CONTAINED_PROMPT,
 })
-# D15: D15_MODEL is the Codex-bound frontier model
+# D15: D15_MODEL is the literal Codex reviewer override
 Codex.spawn_agent({
   task_name: d15_<instance_ordinal>,
-  agent_type: "deep-reviewer",
+  agent_type: "reviewer",
   model: D15_MODEL,
   reasoning_effort: "high",
   fork_turns: "none",
   message: D15_SELF_CONTAINED_PROMPT,
 })
-# D16: D16_MODEL is the Codex-bound frontier model
+# D16: D16_MODEL is the literal Codex reviewer override
 Codex.spawn_agent({
   task_name: d16_<instance_ordinal>,
-  agent_type: "deep-reviewer",
+  agent_type: "reviewer",
   model: D16_MODEL,
   reasoning_effort: "high",
   fork_turns: "none",
@@ -639,11 +652,11 @@ eligibility, or checking hard-risk triggers.
 
 ### D14-D15 guarded per-task reviews
 
-D14 is a separate response-only `deep-reviewer`, frontier/high and
+D14 is a separate response-only `reviewer`, frontier/high and
 source-immutable, with zero handoffs. D15 is a separate response-only
-`deep-reviewer`, frontier/high and source-immutable, with zero handoffs. Use
-the configured role and effort; do not substitute an ordinary reviewer,
-ambient role, model, or effort. The
+`reviewer`, frontier/high and source-immutable, with zero handoffs. Use
+the exact configured target-specific role, model and effort; do not substitute
+an ambient role, model or effort. The
 [lifecycle/status policy](references/lifecycle-status-policy.md) is the
 normative owner of their independent guard lifecycles, same-head disposition,
 fix invalidation, cleanup, and incomplete or terminal outcomes. That policy
@@ -652,7 +665,7 @@ its command sequence.
 
 ### D16 guarded final whole-implementation review
 
-D16 is a fresh response-only `deep-reviewer`, frontier/high and
+D16 is a fresh response-only `reviewer`, frontier/high and
 source-immutable, with zero handoffs. Supply the whole implementation base/head
 range and the D16-specific question from
 `references/code-quality-reviewer-prompt.md`.
@@ -766,7 +779,7 @@ the parent-owned path: return to the caller instead of invoking
 
 ## Subagent Lifecycle
 
-Use `subagent-lifecycle` before dispatching task implementer, executor, or deep-reviewer sessions. This skill owns execution-specific captured
+Use `subagent-lifecycle` before dispatching task implementer, executor, reviewer, or deep-reviewer sessions. This skill owns execution-specific captured
 state and the rule that task implementers stay available while same-session
 review fix loops may still route work back to them.
 
@@ -853,10 +866,10 @@ subagent prompt; do not inline their full bodies into this skill source.
   `executor` agent, used only after all five guardrails pass and subject to the
   existing inline-choice and abstention rules.
 - `references/spec-reviewer-prompt.md` — per-task dispatch prompt for the
-  D14 `deep-reviewer` when the effective route includes spec review.
+  D14 `reviewer` when the effective route includes spec review.
 - `references/code-quality-reviewer-prompt.md` — dispatch-time prompt for the
-  D15 per-task `deep-reviewer` and the separate D16 final whole-implementation
-  `deep-reviewer`; the template carries distinct questions and scopes.
+  D15 per-task `reviewer` and the separate D16 final whole-implementation
+  `reviewer`; the template carries distinct questions and scopes.
 - `references/contract-example-discipline-consumer-rule.md` — shared
   consumer-side Contract Example Discipline rule used by the executor, prompt
   templates, final whole-implementation review surface, and skip-dispatch

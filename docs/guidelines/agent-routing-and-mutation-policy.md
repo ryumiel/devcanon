@@ -3,7 +3,7 @@
 This guideline is the current inventory owner for shared semantic agent routing
 and mutation authority. The stable decision and rationale live in
 [ADR-0027](../adr/adr-0027-semantic-agent-routing-and-mutation-authority.md).
-The [agent spec](../specs/agents.md) owns the exact six-role envelope,
+The [agent spec](../specs/agents.md) owns the exact seven-role envelope,
 source-level model omission, and observable target fields. This policy owns the
 complete fresh-Codex route tuple and route-level continuity permission. The AFDS
 workflow spec references that routing owner and owns observable dispatch and
@@ -18,7 +18,7 @@ declaration and retains the existing unavailable/rejected-pair behavior.
 ## Role Envelope Owner
 
 The [agent spec](../specs/agents.md#semantic-role-catalog) is the single
-owner of the six semantic identities and their exact capability, Claude effort,
+owner of the seven semantic identities and their exact capability, Claude effort,
 route effort, tools, sandbox, network, source default, and external default.
 This policy consumes that envelope and records the complete route tuple for each active route;
 it does not add a source-level Codex model or effort default.
@@ -28,7 +28,7 @@ it does not add a source-level Codex model or effort default.
 [ADR-0038](../adr/adr-0038-single-reviewer-targeted-verification.md) replaces
 topical fanout with one independent D7 and conditional targeted D10. Both use
 `reviewer`, frontier, source-immutable, external authority none, response-only,
-zero handoffs and fresh history. D7 uses ordinary `medium` effort; D10 is the
+zero handoffs and fresh history. D7 uses ordinary `high` effort; D10 is the
 sole explicit `high` targeted-verifier exception. The existing configured
 capability binding, tools, sandbox, exact-pair checks, dispatch ritual, and
 source-protection lifecycle are unchanged.
@@ -57,8 +57,9 @@ Direct-child rows use their exact recorded capability and effort pair. An
 unresolved route blocks rather than escalating by guesswork. Capability resolves
 only the full native model unless a target-specific role model override is
 explicitly recorded; route effort is explicit and independent. Codex reviewer
-routes use the literal role override `gpt-6.1-sol`; deep-reviewer continues to
-use the frontier binding.
+routes use `gpt-6.1-sol`, implementer routes use `gpt-6.1-terra`, and architect
+and deep-reviewer use the frontier binding. Literal role overrides take
+precedence over capability defaults.
 The executor retains `medium` for Codex. Claude executor dispatch omits named
 effort for Haiku, as specified by the agent role catalog; this omission does
 not change the recorded Codex route tuple.
@@ -144,16 +145,16 @@ existing response contract.
 | D1  | Issue gate — `issue-priming-workflow` Phase 2                                         | `assessor`, balanced/low, source-immutable                                                                                                                                                                     | Gate enum; terminal Phase 2 route                                                                                             |
 | D2  | Internal research — `issue-priming-workflow` Phase 3                                  | `investigator`, balanced/medium, source-immutable                                                                                                                                                              | Existing report headings; root synthesizes                                                                                    |
 | D3  | External research — `issue-priming-workflow` Phase 3                                  | `investigator`, balanced/medium, source-immutable, network-binding `dispatch-named`, evidence-qualifier `named-network`                                                                                        | Existing necessity/URL/headings; root synthesizes                                                                             |
-| D4  | Focused specialist — `play-agent-dispatch`                                            | Resolve exactly one of the six semantic roles before spawn; use its exact configured capability/effort and matching source default; declare scope/termination; external authority `none`                       | Source-immutable selection is response-only under B3; unresolved route blocks                                                 |
+| D4  | Focused specialist — `play-agent-dispatch`                                            | Resolve exactly one of the seven semantic roles before spawn; use its exact configured capability/effort and matching source default; declare scope/termination; external authority `none`                     | Source-immutable selection is response-only under B3; unresolved route blocks                                                 |
 | D5  | Combined planning review — `play-planning`                                            | `reviewer`, frontier/high, source-immutable                                                                                                                                                                    | One digest-bound result covers correctness and executability                                                                  |
 | D7  | Complete independent review — `play-review` Phase 3                                   | `reviewer`, frontier/high, source-immutable                                                                                                                                                                    | Workflow-owned terminal disposition; controller aggregates completed findings                                                 |
 | D10 | Targeted verifier — `play-review` Phase 5                                             | `reviewer`, frontier/high, source-immutable                                                                                                                                                                    | Workflow-owned terminal disposition; controller retains critic verdicts; no recursion                                         |
 | D11 | Skill pressure scenario — `play-skill-authoring`                                      | `assessor`, balanced/low, source-immutable                                                                                                                                                                     | Existing scenario evidence; invalid evidence retested                                                                         |
 | D12 | Default implementation — `play-subagent-execution`                                    | `implementer`, balanced/medium, source-mutable                                                                                                                                                                 | Existing status/snapshot; scoped commit                                                                                       |
 | D13 | Exact task — `play-subagent-execution`                                                | `executor`, efficient/medium, source-mutable, selection-mode `inline-or-delegated`                                                                                                                             | Five guardrails; stop/reclassify on judgment                                                                                  |
-| D14 | Per-task spec review — `play-subagent-execution` review routing                       | `deep-reviewer`, frontier/high, source-immutable                                                                                                                                                               | Existing distinct prompt/same-head fix loop                                                                                   |
-| D15 | Per-task quality review — `play-subagent-execution` review routing                    | `deep-reviewer`, frontier/high, source-immutable                                                                                                                                                               | Existing distinct prompt/provisional same-head loop                                                                           |
-| D16 | Final whole-implementation quality review — `play-subagent-execution` Process step 10 | `deep-reviewer`, frontier/high, source-immutable                                                                                                                                                               | Whole-range prompt; narrow ADR-0016 skip; final fix/fresh-review or terminal-owner route                                      |
+| D14 | Per-task spec review — `play-subagent-execution` review routing                       | `reviewer`, frontier/high, source-immutable                                                                                                                                                                    | Existing distinct prompt/same-head fix loop                                                                                   |
+| D15 | Per-task quality review — `play-subagent-execution` review routing                    | `reviewer`, frontier/high, source-immutable                                                                                                                                                                    | Existing distinct prompt/provisional same-head loop                                                                           |
+| D16 | Final whole-implementation quality review — `play-subagent-execution` Process step 10 | `reviewer`, frontier/high, source-immutable                                                                                                                                                                    | Whole-range prompt; narrow ADR-0016 skip; final fix/fresh-review or terminal-owner route                                      |
 | D17 | CI diagnosis/fix — `pr-merge` Step 4                                                  | branch `diagnosis`: `investigator`, balanced/medium, source-immutable; branch `exact-fix`: `executor`, efficient/medium, source-mutable; branch `judgment-fix`: `implementer`, balanced/medium, source-mutable | Guard diagnosis before fix classification; mutable child commits only; root alone separately owns external-mutable push/merge |
 | D18 | Semantic review context — `play-review` Phase 2.25                                    | `assessor`, balanced/low, source-immutable                                                                                                                                                                     | Response-only four-family summary; controller validates, cleans, maps, and continues                                          |
 
@@ -237,14 +238,16 @@ following from the selected policy route and its Codex-bound rendered binding:
 - a lifecycle-owned, route-local `task_name`;
 - the selected semantic `agent_type`;
 - the rendered full Codex model produced from the route capability, or the
-  explicitly recorded Codex reviewer override `gpt-6.1-sol`;
+  explicitly recorded Codex role override (`reviewer`: `gpt-6.1-sol`;
+  `implementer`: `gpt-6.1-terra`);
 - the exact independent route `reasoning_effort`;
 - `fork_turns: "none"`; and
 - a self-contained message that includes the task context and the route's
   authority plus source-skill-owned output and termination instructions.
 
 The source route capability selects its binding only during rendering.
-Reviewer routes instead declare the literal Codex override `gpt-6.1-sol`,
+Reviewer routes instead declare `gpt-6.1-sol` and implementer routes declare
+`gpt-6.1-terra`,
 matching the role source. At dispatch, either binding is already a literal
 full target model. The controller
 must not derive a fresh Codex model or effort from source-agent Codex fields,
@@ -286,7 +289,7 @@ allocation rule and does not become a second owner of either.
 ### D4 Declaration Obligation
 
 This policy is the sole D4 route owner: it owns the D4 route identity, exact
-six-role allowed set, controller declaration obligation, producer path
+seven-role allowed set, controller declaration obligation, producer path
 [`skills/play-agent-dispatch/SKILL.md`](../../skills/play-agent-dispatch/SKILL.md),
 and current D4 adoption record. The producer consumes this obligation; it does
 not define a peer route or role registry.
@@ -369,3 +372,55 @@ workflow may still return its ordinary recoverable failure or `BLOCKED` state.
 - [ADR-0016: Single-Task Auto Final-Review Carve-Out](../adr/adr-0016-single-task-auto-final-review-carve-out.md)
 - [ADR-0024: Shared Passive Runtime Support Bundle](../adr/adr-0024-shared-support-skill-runtime.md)
 - [ADR-0026: Replace Model Tiers with Capability Profiles](../adr/adr-0026-capability-profiles.md)
+
+## Codex specialist routing
+
+The portable dispatch procedure lives in
+[focused specialist selection](../../skills/play-agent-dispatch/SKILL.md#risk-based-specialist-selection).
+This policy owns role/route selection; the source skill owns its invocation.
+
+Allocation decision: [ADR-0043](../adr/adr-0043-risk-based-specialist-review.md).
+The route table records Codex defaults. On Claude, D14–D16 retain
+`deep-reviewer`, frontier capability and its catalog Claude effort; other
+existing routes retain their behavior. The
+[agent spec](../specs/agents.md#codex-specialist-roles) owns model allocation
+and role responsibilities.
+
+Use Sol High for ordinary design and review, including D14, D15 and D16. Keep
+those gates, their reduced-review paths, finding disposition, source guards and
+existing lifecycle rules. Use Terra Medium for implementation and repairs.
+
+Request Astra High specialist attention when actual scope or code changes pose
+material risk to:
+
+- architectural contracts, module ownership, persisted formats or core invariants;
+- shared state, cancellation, ordering, atomicity or task lifetime;
+- authentication, authorization, trust boundaries, secrets or command execution;
+- a consequential judgment still unresolved after reasonable evidence gathering.
+
+Record a short reason naming the affected guarantee, consequence and question.
+Keywords, file count or adding an async function alone do not justify escalation.
+Missing evidence, tools or authority must be addressed by their owner; a stronger
+model does not replace them.
+
+For known design risk, consult the architect before implementation and review
+the resulting design independently. For implementation risk found during review,
+request focused deep review with relevant code, design evidence and the unresolved
+question. Assess actual scope before work and the actual diff during review;
+do not depend solely on the ordinary reviewer's findings. Reuse applicable
+specialist evidence for the same unchanged candidate and question instead of
+repeating it at every gate; required fresh ordinary reviews still run.
+
+Use existing D4 focused-agent dispatch and lifecycle procedures, with explicit
+role/model selection. D4 includes architect on Codex and rejects it on Claude;
+do not introduce S1–S3 routes, a new retry budget framework or a rollout state
+machine. Cross-role specialist selection is a new focused task, not a same-role
+capability retry, and cannot bypass current same-role escalation restrictions.
+Workflow owners retain completion and fix-loop authority. A required specialist
+result that is unavailable or inconclusive leaves the affected decision unresolved;
+failed checks and unresolved blockers cannot be approved by model choice.
+
+The [Kiki practical trial](../specs/workflow-specialist-pilot.md) supplies supporting
+feedback on detection, repairs and unnecessary Astra usage. It is not a mandatory
+publication or installation gate. Normal review, verification and authorization
+requirements continue to apply.

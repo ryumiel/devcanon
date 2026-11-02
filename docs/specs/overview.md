@@ -64,6 +64,7 @@ These boundaries apply across DevCanon behavior specs:
 - [Skill specification](skills.md)
 - [Markdown parsing behavior](markdown-parsing.md)
 - [Agent source schema](agents.md)
+- [Kiki practical workflow trial](workflow-specialist-pilot.md)
 - [Target mapping](target-mapping.md)
 - [Passive runtime artifact and lifecycle contract](passive-runtime.md)
 - [Install and sync policy](install-and-sync.md)
@@ -74,8 +75,8 @@ These boundaries apply across DevCanon behavior specs:
 
 ## Source Layout Context
 
-The current source layout contains the six agent definitions shown below:
-`assessor.yaml`, `deep-reviewer.yaml`, `executor.yaml`, `implementer.yaml`,
+The current source layout contains the seven agent definitions shown below:
+`architect.yaml`, `assessor.yaml`, `deep-reviewer.yaml`, `executor.yaml`, `implementer.yaml`,
 `investigator.yaml`, and `reviewer.yaml`. Source definitions under `agents/`
 are authoritative for current implementation state. Existing render-contract
 evidence confirms convergence for both Claude Code and Codex; generated outputs
@@ -97,6 +98,7 @@ devcanon/
 │  └─ write-product-spec/
 │     └─ SKILL.md
 ├─ agents/
+│  ├─ architect.yaml
 │  ├─ assessor.yaml
 │  ├─ deep-reviewer.yaml
 │  ├─ executor.yaml
@@ -133,6 +135,7 @@ managed outputs do not prove source convergence and remain derived.
    └─ write-product-spec/
 
 ~/.claude/agents/
+├─ architect.md
 ├─ assessor.md
 ├─ deep-reviewer.md
 ├─ executor.md
@@ -150,6 +153,7 @@ managed outputs do not prove source convergence and remain derived.
    └─ write-product-spec/
 
 ~/.codex/agents/
+├─ architect.toml
 ├─ assessor.toml
 ├─ deep-reviewer.toml
 ├─ executor.toml

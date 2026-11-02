@@ -311,6 +311,18 @@ Tiny-diff mode may suppress inapplicable conditional checks only when its
 existing allowlist, limits, and exclusions all pass. Ambiguity includes the
 check. It never suppresses D7 or changes D10 eligibility.
 
+## Codex focused risk review
+
+Before D7, assess the frozen candidate's actual diff under
+[focused specialist selection](../play-agent-dispatch/SKILL.md#risk-based-specialist-selection).
+For material architectural, concurrency or security risk, request focused D4
+deep review even if no ordinary finding has been reported. Apply the same rule
+when a consequential judgment remains unresolved after evidence gathering.
+Consume specialist results only after their source guard lifecycle completes;
+keep D7's complete review coverage and D10's required targeted verification.
+Unavailable or inconclusive required specialist results leave review incomplete.
+Claude retains its existing review routing.
+
 ## Phase 3: Spawn one independent reviewer
 
 Use `subagent-lifecycle` before dispatch and retain review scope, active/full

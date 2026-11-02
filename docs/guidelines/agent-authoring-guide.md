@@ -37,9 +37,10 @@ those target-configuration benefits, prefer the skill alone.
 
 ### Use the semantic catalog before creating a role
 
-ADR-0027's post-migration catalog has exactly six semantic roles: `assessor`,
+The current catalog has seven semantic roles: `architect`, `assessor`,
 `investigator`, `executor`, `implementer`, `reviewer`, and `deep-reviewer`.
-Use this existing six-role catalog and the procedures present in the current
+Architect is selected only by Codex workflows; its Claude rendering does not
+authorize Claude dispatch. Use this existing seven-role catalog and the procedures present in the current
 source implementation. Do not infer that a role or runtime guard is available
 on a client merely from its documentation; follow the owning route's existing
 availability and rejection behavior. No separate runtime qualification gate is
@@ -166,7 +167,7 @@ Current semantic role defaults and target-native efforts are owned by
 [`agents/*.yaml`](../../agents/) and the
 [semantic role catalog](../specs/agents.md#semantic-role-catalog). Codex role
 sources use literal model overrides for assessor, investigator, implementer,
-reviewer, and deep-reviewer; executor retains explicit `codex.model: null`.
+reviewer, architect, and deep-reviewer; executor retains explicit `codex.model: null`.
 Do not copy provider model identifiers into independent authoring guidance or
 test expectations. The catalog defines Codex route effort separately from
 Claude effort. Keep source defaults and direct-route settings consistent when

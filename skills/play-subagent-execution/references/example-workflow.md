@@ -1,5 +1,9 @@
 # Example Workflow — `play-subagent-execution`
 
+This example uses Codex reviewer/Sol High for D14–D16 and Terra Medium for
+D12. Claude retains deep-reviewer and its catalog effort, as specified by the
+enclosing skill.
+
 An end-to-end illustration of the multi-task subagent-driven flow. The
 execution procedure itself lives in `SKILL.md` § The Process; the generic
 lifecycle ledger, target capability classes, cleanup gate, target-honest
@@ -22,7 +26,7 @@ fresh final approval-summary evidence after branch-review-owned fix commits. For
 **single-task plan** the per-task reviewer dispatches are skipped (see
 "Single-Task Plans" in `SKILL.md`). On a direct/manual single-task run, the
 flow shrinks to: dispatch D12 implementer -> implementer self-reviews and commits
--> mark task complete -> fresh guarded D16 deep-reviewer over the whole range ->
+-> mark task complete -> fresh guarded D16 reviewer over the whole range ->
 report implementation and final review status -> resolve branch-level review
 status -> hand off to `branch-review --fix` before `play-branch-finish` when
 the active workflow requires branch-level review before PR creation and
@@ -66,13 +70,13 @@ D12: task_name=d12_1, agent_type=implementer,
 D13: task_name=d13_1, agent_type=executor,
      model=D13_MODEL, reasoning_effort=medium,
      fork_turns=none, message=exact guarded task/context/snapshot/report prompt
-D14: task_name=d14_1, agent_type=deep-reviewer,
+D14: task_name=d14_1, agent_type=reviewer,
      model=D14_MODEL, reasoning_effort=high,
      fork_turns=none, message=independent D14 same-head response-only prompt
-D15: task_name=d15_1, agent_type=deep-reviewer,
+D15: task_name=d15_1, agent_type=reviewer,
      model=D15_MODEL, reasoning_effort=high,
      fork_turns=none, message=independent D15 same-head response-only prompt
-D16: task_name=d16_1, agent_type=deep-reviewer,
+D16: task_name=d16_1, agent_type=reviewer,
      model=D16_MODEL, reasoning_effort=high,
      fork_turns=none, message=fresh D16 whole-range response-only prompt
 
@@ -128,7 +132,7 @@ read-only reviewers against the same captured task head.
 [Ledger pre-dispatch: Task 1 code-quality reviewer, agent_id=pending]
 [D14 and D15 use separate no-handoff GUARD-001 baselines]
 [For each route: capture -> spawn -> verify -> validate/retain -> cleanup -> apply]
-[Dispatch fresh D14 and D15 deep-reviewers concurrently]
+[Dispatch fresh D14 and D15 reviewers concurrently]
 [Ledger post-dispatch: Task 1 spec reviewer, agent_id=spec-1]
 [Ledger post-dispatch: Task 1 code-quality reviewer, agent_id=quality-1]
 Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
@@ -179,7 +183,7 @@ captured task head before either result is final.
 [Ledger pre-dispatch: Task 2 code-quality reviewer, agent_id=pending]
 [D14 and D15 use separate no-handoff GUARD-001 baselines]
 [For each route: capture -> spawn -> verify -> validate/retain -> cleanup -> apply]
-[Dispatch fresh D14 and D15 deep-reviewers concurrently]
+[Dispatch fresh D14 and D15 reviewers concurrently]
 [Ledger post-dispatch: Task 2 spec reviewer, agent_id=spec-2]
 [Ledger post-dispatch: Task 2 code-quality reviewer, agent_id=quality-2]
 Spec reviewer: ❌ Issues:
@@ -312,21 +316,21 @@ committed HEAD reads if it needs file content.
 ...
 
 [After all tasks]
-[Cleanup gate before fresh D16 deep-reviewer spawn]
+[Cleanup gate before fresh D16 reviewer spawn]
 Controller verifies task implementers, reviewers, and re-reviewers are closed,
 then records the distinct D16 pre-dispatch row: agent_id=pending,
-role=deep-reviewer, review scope=whole implementation range, base/head SHA
+role=reviewer, review scope=whole implementation range, base/head SHA
 captured, closed=no. The D15 task-quality session is not reused.
 
 [D16 no-handoff GUARD-001]
 Capture a fresh baseline -> spawn D16 and retain raw response/status -> verify
 before semantic validation -> validate and retain the whole-range response in
 memory -> cleanup the exact baseline -> apply only after cleanup.
-[Ledger post-dispatch: D16 deep-reviewer, agent_id=final-quality]
+[Ledger post-dispatch: D16 reviewer, agent_id=final-quality]
 D16 reviewer: All requirements met, ready for terminal handoff
 
 [Lifecycle cleanup checkpoint]
-D16 deep-reviewer: agent_id=final-quality, review scope captured, base/head SHA
+D16 reviewer: agent_id=final-quality, review scope captured, base/head SHA
 captured, report captured, reviewer result=PASS, observed close result=success,
 closed=yes after final verdict recorded and guard cleanup succeeded.
 

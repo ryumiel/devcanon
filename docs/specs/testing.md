@@ -160,7 +160,7 @@ and canonical references—not a duplicate unit/runtime failure matrix.
 When a Markdown table owns a contract, one test-only adapter parses and
 validates that table once. Source-contract and render consumers reuse the
 adapter's parsed rows. They must not maintain separate skill, agent, route, or
-target registries. For agent routing, `docs/specs/agents.md` owns the six
+target registries. For agent routing, `docs/specs/agents.md` owns the
 semantic roles and observable target configuration, while
 `docs/guidelines/agent-routing-and-mutation-policy.md` owns the active route set
 direct-child route inventory. The tests consume those owners without copying

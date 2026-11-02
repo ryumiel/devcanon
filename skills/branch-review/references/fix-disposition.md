@@ -6,6 +6,22 @@ candidate qualification, proportionality, grouping limits, hard stops,
 reporting, the remaining-set envelope, and approval-summary order. Do not
 reclassify a withheld candidate, select a route, or continue after a stop.
 
+## Codex repair allocation
+
+Before any repair on Codex, require an explicitly selected
+`gpt-6.1-terra`/`medium` session for inline mutation, or use the existing
+D4 `implementer` dispatch with its literal Terra override and medium effort.
+Validate that complete dispatch tuple through `play-agent-dispatch`; selecting
+a child does not change the controller's model. If neither supported selection
+is available, stop before source mutation and report the unsupported
+configuration. Claude retains its current repair behavior.
+
+Delegation receives only the already-qualified bounded repair and its exact
+mutation authority. It cannot widen scope, qualify withheld findings, or waive
+the hard stops and proof requirements below. The controller retains grouping,
+validation, commit and changed-candidate independent review ownership; a child
+completion report cannot approve the changed candidate.
+
 ## Group and execute selected units
 
 Make one same-invariant grouping pass over eligible blockers. Use only the

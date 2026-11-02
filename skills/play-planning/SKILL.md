@@ -101,6 +101,14 @@ three values through any interactive execution choice. Inline or display plan
 content only for a specific interactive user review gate or when the user asks
 to inspect or change the plan.
 
+## Codex planning allocation
+
+Ordinary planning uses explicit Sol High selection under
+[focused specialist selection](../play-agent-dispatch/SKILL.md#risk-based-specialist-selection).
+If planning exposes an unresolved material design risk, return it to the design
+owner for architect consultation rather than choosing new behavior in the plan.
+D5 remains independent combined review. Claude keeps its current behavior.
+
 ## Inputs
 
 This skill accepts a design document in either of two shapes inside its

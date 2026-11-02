@@ -99,19 +99,23 @@ that same catalog; effort does not imply authority.
 `agents/*.yaml` are governed declarations and parity inputs,
 never semantic authorities; their target-local literal fields are governed
 values under the agent spec, and D4's fresh-Codex selection honors the explicit Codex reviewer override
-`gpt-6.1-sol`; other roles use their Codex-bound rendered capability binding.
+`gpt-6.1-sol` and implementer override `gpt-6.1-terra`; other roles use their
+Codex-bound rendered capability binding.
 
 For the selected D4 role, the complete Codex-bound model bindings are
 `efficient` → `{{model-codex:efficient}}`, `balanced` →
 `{{model-codex:balanced}}`, and `frontier` → `{{model-codex:frontier}}`. For `reviewer`, select the literal role override `gpt-6.1-sol` instead of
-the frontier binding. The
+the frontier binding. For `implementer`, select `gpt-6.1-terra` instead of
+the balanced binding. For `architect`, use the frontier binding and `high`
+Codex effort. On Claude, reject `architect` selection before capture or spawn;
+the other six roles retain their existing Claude selections and efforts. The
 bindings select only the exact full Codex model; the separately validated role effort remains
 independent. A missing, blank, unresolved, or mismatched binding blocks before
 spawn. Do not search a source checkout, use a sibling runtime when a rendered
 binding owns this field, or select an alias, nearby, or ambient model.
 
 Classify each independent problem domain separately. The controller selects one
-of the policy-owned six-role set before spawn; a generic or inherited workflow
+of the policy-owned seven-role set before spawn; a generic or inherited workflow
 does not supply a child route, and the route inventory is not a marker,
 annotation, or discovery grammar. Apart from the required Claude-executor
 effort omission above, no declaration field is optional, and a supplied effort
@@ -375,3 +379,45 @@ From debugging session (2025-10-03):
 - All investigations completed concurrently
 - All fixes integrated successfully
 - Zero conflicts between agent changes
+
+## Risk-based specialist selection
+
+This procedure supplies focused D4 consultation within an authorized design or
+review workflow; it does not authorize unrelated specialist dispatch. On Codex,
+ordinary design/planning uses explicit `gpt-6.1-sol`/`high` session selection.
+If the parent cannot establish that selection, use a supported fresh design
+session with that pair or report the unavailable configuration. Do not claim
+that selecting a child changes the parent model. Claude keeps its current flow.
+
+Before design, inspect actual requirements for material architectural contracts,
+module ownership, persisted formats, core invariants, shared state, cancellation,
+ordering/lifetime, authentication/authorization, trust boundaries, secrets or
+command-execution risk. Reassess the actual diff during review. A keyword,
+file count, ordinary refactor or incidental async use alone is insufficient.
+Record the affected guarantee, reachable consequence and question in ordinary
+controller context; no new record format or registry is required.
+
+For a known material design risk, use D4 `architect` consultation before
+implementation. Have a fresh architect session independently review the resulting
+design for that risk; consultation cannot approve itself. For material
+implementation risk or a consequential judgment unresolved after reasonable
+evidence gathering, use D4 `deep-reviewer` for the focused question. Both use
+the frontier Codex binding at `high`, fresh context, source-immutable authority,
+no network, no external mutation, and response-only output with zero handoffs.
+The parent selects and validates the complete D4 tuple before allocation.
+
+Use the existing dispatch ritual, source guards and lifecycle rules. This is
+selection of a new focused task, never a cross-role same-task capability retry.
+Missing evidence, tools, authority or unsupported configuration returns to its
+owner; do not substitute models or use specialist judgment as missing evidence.
+Unavailable or inconclusive required results leave the affected decision blocked.
+The parent retains findings, repairs and completion under the enclosing workflow;
+extra evidence does not replace its required D5, D7/D10 or D14–D16 coverage.
+Do not repeat the same specialist question solely because the workflow reaches
+another gate: retain applicable evidence while candidate, scope and assumptions
+remain unchanged. This does not replace any required fresh ordinary review.
+Changed source/design invalidates affected conclusions under existing freshness
+rules. No new attempt budget or specialist route identity is introduced.
+
+Claude does not adopt these new architect/deep-review selection triggers; its
+existing review routing and efforts remain unchanged.

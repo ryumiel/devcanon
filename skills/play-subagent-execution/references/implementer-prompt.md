@@ -15,8 +15,8 @@ outside the controller-authorized paths.
 
 **Fresh configuration:** The controller validates D12's complete fresh tuple
 before capture: `implementer`, `balanced`, the nonblank full model in the
-controller/owner-supplied already-rendered `D12_MODEL` binding, independent
-`high`, source-mutable/external-none authority, `d12_<instance_ordinal>`,
+controller/owner-supplied already-rendered `D12_MODEL` binding (literal `gpt-6.1-terra` on Codex), independent
+`medium`, source-mutable/external-none authority, `d12_<instance_ordinal>`,
 `fork_turns: "none"`, this fully substituted prompt, report output, and the
 existing snapshot/status/commit termination. A missing, blank, unresolved, or
 mismatched binding blocks before capture or spawn; do not locate a source

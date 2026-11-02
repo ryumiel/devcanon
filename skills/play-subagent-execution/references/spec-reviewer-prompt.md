@@ -1,18 +1,23 @@
 # Spec Compliance Reviewer Prompt Template
 
+**Target selection:** Codex uses reviewer/Sol High. Claude retains deep-reviewer
+with frontier capability and its catalog Claude effort. The enclosing execution
+skill owns this target-specific selection; scope, guards and result contracts
+are identical. Validate the selected target role, not the other target's role.
+
 Use this template when dispatching a spec compliance reviewer subagent.
 
 **Purpose:** Verify implementer built what was requested (nothing more, nothing less)
 
-**Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/deep-reviewer.yaml`](../../../agents/deep-reviewer.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
+**Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/reviewer.yaml`](../../../agents/reviewer.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
 
-**Route:** D14 is a response-only `deep-reviewer`, frontier/high and
+**Route:** D14 is a response-only `reviewer`, frontier/high and
 source-immutable, with zero handoffs. The controller supplies the captured task
 head and applies GUARD-001 outside this prompt. Do not change source, tests,
 configuration, documentation, or external systems; return only the response.
 Findings are evidence; mutation disposition belongs to the controller.
 
-**Fresh configuration:** Before D14 capture, validate `deep-reviewer`,
+**Fresh configuration:** Before D14 capture, validate `reviewer`,
 `frontier`, the nonblank full model in the controller/owner-supplied
 already-rendered `D14_MODEL` binding, independent `high`, source-immutable and
 external-none authority, `d14_<instance_ordinal>`, `fork_turns: "none"`, this

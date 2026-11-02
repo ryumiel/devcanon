@@ -50,6 +50,7 @@ async function renderAll(
 }
 
 const PINNED_CODEX_ROLES = new Set([
+  "architect",
   "assessor",
   "investigator",
   "implementer",
@@ -127,7 +128,9 @@ describe("shipped semantic agents", () => {
       expect(source.claude.tools).toEqual(role.claudeTools);
       if (PINNED_CODEX_ROLES.has(role.name)) {
         expect(source.codex.model).toEqual(expect.stringMatching(/\S/));
-        if (role.name !== "reviewer") {
+        if (role.name === "implementer") {
+          expect(source.codex.model).toBe("gpt-6.1-terra");
+        } else if (role.name !== "reviewer") {
           expect(source.codex.model).toBe(
             SHIPPED_CAPABILITY_PROFILES[role.capability].codex,
           );

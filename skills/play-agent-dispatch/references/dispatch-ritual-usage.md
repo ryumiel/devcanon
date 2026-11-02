@@ -34,7 +34,7 @@ consumes, and neither restates nor overrides, these owners:
 The dispatch site supplies one row per route before the ritual starts: route
 ID, `agent_type` (the semantic role), capability, the Codex-bound model marker
 (`<ROUTE>_MODEL`, already rendered to the literal full Codex model for that
-capability, or the explicit Codex reviewer override `gpt-6.1-sol`), independent `reasoning_effort`, `source_authority`, and the prompt
+capability, or the explicit Codex role override: reviewer `gpt-6.1-sol` or implementer `gpt-6.1-terra`), independent `reasoning_effort`, `source_authority`, and the prompt
 name. Every route has `external_authority: none` and zero handoffs unless the
 owning skill explicitly declares a handoff.
 
@@ -44,7 +44,8 @@ Keep this order exact for every fresh child.
 
 1. Resolve the model binding. The route's model marker is the literal full
    Codex model produced from the route capability during rendering, except
-   reviewer routes use their explicit literal role override `gpt-6.1-sol`; the
+   reviewer routes use `gpt-6.1-sol` and implementer routes use
+   `gpt-6.1-terra`; these literal role overrides take precedence over capability. The
    independent route effort is never derived from it. A missing, blank,
    unresolved, or mismatched marker blocks before capture or spawn. Do not
    search a source checkout, use a sibling runtime or passive runtime catalog,
