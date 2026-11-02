@@ -211,6 +211,13 @@ Interactive mode returns preparation for the existing implementation authority
 decision; `--auto` continues through implementation, verification, independent
 review and authorized PR creation. Do not duplicate workflow policy here.
 
+The adapter and shared priming workflow retain their publication-only effects.
+An eligible controller-established handoff may continue in the same owner through
+`pr-merge` under the router's
+[Covered Same-Owner Delivery](../issue-batch-routing/SKILL.md#covered-same-owner-delivery),
+which owns the exception and its local-refresh limits; `--auto` alone grants
+no merge authority.
+
 ## Issue Batch Routing Reports
 
 When invoked by `issue-batch-routing`, this entrypoint produces

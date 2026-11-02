@@ -947,9 +947,13 @@ mutation; reviewed publication decisions; and terminal outcomes. Preserve the
 existing route-specific stop, escalation, or publication behavior for these
 gates; `--auto` does not supply missing authority. A batch controller may retain
 accepted delivery scope across changed heads, but each publication or downstream
-action still requires refreshed gates and a current exact instruction. Missing
+action still requires refreshed gates and a current exact instruction, or the
+validated unchanged handoff under the router's
+[Covered Same-Owner Delivery](../issue-batch-routing/SKILL.md#covered-same-owner-delivery). Missing
 readiness requires refresh, while an absent or reserved human decision requires
-that decision. This does not widen priming's PR-only effect endpoint.
+that decision. Priming's own effect endpoint remains the reviewed PR; an eligible
+covered delivery continues in the same owner through `pr-merge`, which retains
+merge effects and all its gates.
 
 ## Phases 5-8: Autonomous Execution (`--auto` only)
 
@@ -1282,11 +1286,15 @@ with the handoff arguments that reference defines: `assignee=@me`,
 `approval_summary_file`, the same `BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN` when
 Phase 7 branch-review ran with one, and `assumptions_comment_file` or
 `nits_file` only when the corresponding artifact exists. Do NOT merge:
-priming's effect endpoint is the reviewed PR, with current head and mandatory
-gate results reported to its controller. The controller may use
-retained accepted delivery authority to issue the next current instruction;
-routing validates it and `pr-merge` owns merge and scoped cleanup after required
-review, CI, and protections pass. A PR-only request remains PR-only; `--auto`
+priming's effect endpoint is the reviewed PR. For an eligible unchanged
+controller handoff, apply the router's
+[Covered Same-Owner Delivery](../issue-batch-routing/SKILL.md#covered-same-owner-delivery):
+refresh publication evidence locally, then continue in the same owner through
+`pr-merge` once its current-head review, CI, protection and other gates pass,
+without another coordinator release. Otherwise report the exact gate for the
+controller's next current instruction. Required current-head/material-change,
+dependency and completion reports remain; the owner never changes
+controller-held authority/route facts, writes its ledger or closes the batch. A PR-only request remains PR-only; `--auto`
 and planning PASS are not merge authority. PR creation preserves the branch
 and worktree for review, CI, and follow-up fixes until `pr-merge` performs post-merge cleanup or
 the operator explicitly discards the work.

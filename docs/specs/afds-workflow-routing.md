@@ -369,7 +369,8 @@ validates exact route, issue/PR, owner/host, branch/head when applicable, gate,
 effect, and readiness before dispatch. Head, review, check, mergeability,
 source-state, or gate changes invalidate dependent evidence and action bindings,
 not standing scope. Refresh required evidence and issue a new exact instruction
-within retained scope without generic human reapproval. Historical keys,
+within retained scope without generic human reapproval, except for eligible
+covered same-owner delivery below. Historical keys,
 receipt sequences, deduplication, continuity, and terminal checks stay intact.
 Missing readiness waits for refresh. Missing or conflicting scope, revocation,
 expansion, an unresolved material choice, an explicitly reserved human decision,
@@ -391,6 +392,51 @@ review-thread disposition through `pr-merge`. Scoped cleanup follows verified
 merge and outstanding accepted work, preserving required evidence, unrelated
 work, the controller ledger and dependent resources. Terminal completion and
 verified timer shutdown include outstanding authorized cleanup obligations.
+
+#### ROUTE-007-CONTINUATION: Covered same-owner effects
+
+When the controller-established handoff proves actual human authority covering
+publication and conditional merge for the same issue/repository and branch/scope
+constraints, same-owner continuation is the ordinary path. Retain confirmed
+owner/host, preparation provenance, reporting authority and controller-held
+route/issue-authority facts in existing records. The handoff explicitly limits
+local refresh to covered effects and preserves controller ownership. Missing,
+unverifiable, stale or conflicting required evidence cannot select this path.
+
+The owner refreshes the exact publication binding after implementation, required
+checks and independent Phase 7 review, then invokes the publication workflow
+without another coordinator release. Obtain independent current-published-head
+review and CI, preserve thread disposition, protections and mergeability, then
+refresh the exact merge binding immediately before invoking `pr-merge` in the
+same owner. Priming remains a publication owner, not a merge implementation.
+A PR-only request remains PR-only. No satisfied checkpoint adds a release or
+acknowledgement wait when the retained handoff covers it.
+
+Local action refresh binds canonical issue/repository, PR when known, owner/host,
+branch/head, gate, effect, relevant complete action key and fresh prerequisites.
+It cannot mint or replace controller-held approved-route identities,
+issue-authority/source-state digests, receipt sequences/acknowledgements,
+recipients or effect scope. Any required controller-fact replacement returns to
+coordination; local compatibility evidence is never self-approval. Changed heads
+invalidate dependent validation, review, readiness and action bindings while
+compatible human scope survives. Refresh those gates and bindings before acting.
+
+Hold the affected action for missing/revoked/conflicting scope, PR-only authority,
+expansion, reserved human decisions, uncovered effects/recipients, cross-owner
+dependencies or shared-resource decisions, unresolved choices, gate exceptions
+or actual host approval restrictions. Failed checks follow existing repair and
+disposition rules, without new repair, paid-run, cleanup, messaging or provider
+mutation authority. Reconcile unknown publication/merge outcomes before retry;
+verified outcomes suppress duplicate effects under existing deduplication,
+receipt replay, continuity and terminal guards. Idle status or stale review
+cannot prove authority or success. No progress polling is introduced.
+
+Required material published-head/readiness-invalidation and dependency-readiness
+reports remain prompt, without acknowledgement waits. The coordinator retains
+ledger writes, dependency routing and batch closure. Its next-action-and-yield
+rule governs its routing passes, not the eligible owner's local sequence.
+The router's [Covered Same-Owner Delivery](../../skills/issue-batch-routing/SKILL.md#covered-same-owner-delivery)
+operationalizes this boundary; publication and merge consumers validate it.
 
 Post-delivery lifecycle reconciliation consumes the existing cleanup owners'
 [mechanism selection and verification](../../skills/git-workspace-cleanup/references/git-workspace-cleanup-usage.md#mechanism-selection-and-verification)
@@ -416,6 +462,16 @@ and user ordering permit; verify archival without claiming worktree deletion.
 Milestone closure and watchdog stop each require separate observed verification.
 The regression scenario matrix is maintained at the existing
 [reporting scenarios](../../skills/issue-batch-coordination/references/reporting-scenarios.md#post-delivery-cleanup-outcomes).
+
+Covered-delivery verification uses the source-owned
+[continuation scenarios](../../skills/issue-batch-coordination/references/reporting-scenarios.md#covered-delivery-continuation-scenarios).
+Exercise eligible effects, PR-only and revoked/missing scope, changed heads,
+controller-fact replacement, cross-owner dependencies, failed gates, reserved
+choices, host restrictions and unknown/duplicate outcomes with equivalent
+source/Claude/Codex inputs. Record selected actions before comparing held-out
+outcomes. No live effect is required by this bounded evaluation; the owning
+publication/merge workflows validate any practical delivery under its actual
+scope. Source-text presence alone is not behavioral proof.
 
 #### ROUTE-007-CLEANUP: Completed-owner cleanup
 

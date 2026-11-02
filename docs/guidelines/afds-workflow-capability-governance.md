@@ -401,7 +401,14 @@ permissions/preferences and verifies each selected component separately.
 It also establishes separately scoped publication, conditional merge and scoped
 cleanup authority. Compatible standing human scope survives changed commits;
 fresh readiness and exact action bindings precede covered effects through their
-existing owners, without repeated human approval for satisfied conditions. Initial
+existing owners, without repeated human approval for satisfied conditions.
+A controller-established handoff covering publication and conditional merge
+selects [covered same-owner delivery](../../skills/issue-batch-routing/SKILL.md#covered-same-owner-delivery)
+as the ordinary path. The owner refreshes exact action evidence without another
+coordinator release, preserving controller-owned authority/route facts and
+required dependency/material-change reports. Required replacements and stop
+conditions return to coordination; the owner cannot write its ledger or close
+the batch. Initial
 PR publication retains implementation, validation and independent Phase 7
 branch review. Under ROUTE-007-REVIEW, covered existing-PR corrections instead
 require classified dispositions, local validation, the concrete pre-push summary
