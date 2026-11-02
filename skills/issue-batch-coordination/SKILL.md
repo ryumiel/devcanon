@@ -337,6 +337,11 @@ facts hold the affected action and expose the required evidence/intervention.
    observation time agree. Replace the prior monitor summary and clear only
    positively obsolete or inapplicable fields; preserve unrelated items and
    router-required operational markers under its retention rules.
+   In particular, after validating a merge result, record the verified merge
+   and clear its obsolete receipt wait and queued merge action before yielding
+   or issuing the next instruction. Keep separately unfinished integration,
+   activation, and cleanup visible with their own actions and waits. A delayed
+   duplicate cannot restore the cleared wait or repeat the merge.
    Missing, unavailable, stale or conflicting required evidence holds the
    affected action with its references rather than concealing the gap or
    refreshing stale facts. For a terminal item, retain its disposition,

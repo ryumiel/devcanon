@@ -821,6 +821,13 @@ Only the following bounded operational markers survive value replacement:
 | Duplicate suppression and receipt recovery | Exact route identities still eligible for reconciliation or delayed delivery, highest accepted receipt sequence per such route, acknowledged next sequence, and required current handoff provenance                                    | Binding changes alone cannot evict a needed guard. Retire a route entry only when its effects and obligations are resolved and it cannot become eligible again under the retained authority; delayed delivery for a retired or unknown route fails closed and cannot initialize authority or restart sequence numbering. Keep guards for unresolved routes across resume/handoff. |
 | Notification and monitor control           | Current event/head/recipient or owner-result item/owner/host/dispatch/action and coordinator recipient/host/recipient-action binding, delivery/wake outcome, unresolved delivery, applicable explicit stop and verified shutdown state | Replace superseded observations only after reconciling delivery; successful delivery is not inferred from an attempt. Retire resolved markers only when delayed input cannot repeat notice or recreate a stopped monitor. Retain an explicit stop until later scheduling authority supersedes it.                                                                                 |
 
+A validated merge result replaces its receipt wait and queued merge action
+before the coordinator yields or sends the next instruction. Independent
+integration, activation, and cleanup obligations remain visible. A delayed
+duplicate cannot restore the resolved wait or repeat the merge; conflicting
+or incomparable evidence holds the affected action for authoritative
+reconciliation.
+
 A terminal item keeps only identity, verified disposition/evidence references,
 remaining cleanup or other accepted obligations, and operational markers still
 needed by these rules. A verified merge removes obsolete review waits and

@@ -26,6 +26,20 @@ provider mutation or notification is needed for this evaluation.
 
 ## Ledger reconciliation regression cases
 
+For a merge-receipt wait, evaluate a verified merge with cleanup still pending,
+then repeat the same result and a positively superseded report. Before each
+yield or subsequent instruction, the item and derived summary show the merge,
+clear its receipt wait and queued action, and retain cleanup. Neither repeat
+reopens the wait or invokes merge again; retained route and receipt guards stay
+intact. With conflicting or unknown merge evidence, retain the uncertainty and
+hold only the dependent action for bounded authoritative reconciliation.
+
+A compact handoff can say: `github:example/repo#1, owner A, head H: merge
+verified; release dependent work; evidence: <accessible reference>`. The
+recipient resolves that reference and validates current identity, authority,
+freshness and replay bindings before acting; an unreadable or stale reference
+holds that action. Full evidence remains with its owner.
+
 These hypothetical cases exercise the existing Record and yield procedure and
 router [operational retention](../../issue-batch-routing/SKILL.md#operational-retention).
 Use disposable ledgers; do not resume a completed batch, contact its owners,
