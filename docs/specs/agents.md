@@ -119,9 +119,11 @@ or add a static agent-schema field for escalation.
 | `reviewer`      | Read, Grep, Bash, Write                      | workspace-write | None            |
 | `deep-reviewer` | Read, Grep, Bash, Write                      | workspace-write | None            |
 
-Every role may run permitted routine commands and may write one
-dispatch-named direct-child `.ephemeral` handoff. The four source-immutable
-roles must carry self-contained instructions that prohibit durable file edits,
+Every role may run permitted routine commands. Architect is response-only and
+must not write handoffs; other roles may write one dispatch-named direct-child
+`.ephemeral` handoff. The four handoff-capable source-immutable roles
+(`assessor`, `investigator`, `reviewer`, and `deep-reviewer`) must carry
+self-contained instructions that prohibit durable file edits,
 permit mutating commands only when required to create, write, validate, or
 clean up the exact dispatch-named direct-child handoff, prohibit every other
 mutating command, and prohibit GitHub, Linear, Notion, or other external writes.

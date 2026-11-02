@@ -155,9 +155,7 @@ generated outputs and fresh renders are convergence evidence, not authority.
 ADR-0027 accepts this architecture with ordinary repository checks; its dated
 runtime trials are historical evidence, not a deployment prerequisite.
 
-The architecture exposes six thin semantic source roles:
-`assessor`, `investigator`, `executor`, `implementer`, `reviewer`, and
-`deep-reviewer`. Agent definitions own stable identity plus capability, Claude
+Agent definitions own stable identity plus capability, Claude
 effort, tools, and sandbox constraints. Skills own task-local prompts, phase
 logic, schemas, route-local failure, retries, and termination.
 
