@@ -636,7 +636,7 @@ describe("shipped skill rendering", () => {
     }
   });
 
-  it("gates inline implementation and branch repairs on explicit Codex allocation", async () => {
+  it("preserves inline owner configuration and delegated implementer allocation", async () => {
     const config = await loadConfig("devcanon.config.yaml", true);
     config.capabilityProfiles.balanced.codex = "custom-balanced-model";
     const generatedDir = await mkdtemp(
@@ -652,19 +652,13 @@ describe("shipped skill rendering", () => {
         const priming = normalizeContractText(
           getSkillOutput(outputs, "issue-priming-workflow", target).content,
         );
-        const gate = priming.indexOf("Before inline implementation on Codex");
-        expect(gate).toBeGreaterThan(-1);
-        expect(
-          priming.slice(gate, priming.indexOf("## Subagent Lifecycle")),
-        ).toContain("explicitly selected `gpt-6.1-terra`/`medium` session");
-        expect(
-          priming.slice(gate, priming.indexOf("## Subagent Lifecycle")),
-        ).toContain("stop before source mutation");
-        expect(
-          priming.slice(gate, priming.indexOf("## Subagent Lifecycle")),
-        ).toContain(
-          "Claude retains its current inline implementation behavior",
+        const start = priming.indexOf(
+          "### Execution Note: guarded local context",
         );
+        const end = priming.indexOf("## Subagent Lifecycle", start);
+        expect(start).toBeGreaterThan(-1);
+        expect(end).toBeGreaterThan(start);
+        const inline = priming.slice(start, end);
         const repair = normalizeContractText(
           await readFile(
             path.join(
@@ -678,15 +672,45 @@ describe("shipped skill rendering", () => {
         const allocation = repair.indexOf("## Codex repair allocation");
         const execution = repair.indexOf("## Group and execute selected units");
         expect(allocation).toBeGreaterThan(-1);
-        expect(allocation).toBeLessThan(execution);
-        const selection = repair.slice(allocation, execution);
-        expect(selection).toContain(
-          "explicitly selected `gpt-6.1-terra`/`medium` session",
+        expect(execution).toBeGreaterThan(allocation);
+        const response = normalizeContractText(
+          getSkillOutput(outputs, "play-review-response", target).content,
         );
+        const responseStart = response.indexOf(
+          "## Codex implementation allocation",
+        );
+        const responseEnd = response.indexOf(
+          "## Invocation Policy",
+          responseStart,
+        );
+        expect(responseStart).toBeGreaterThan(-1);
+        expect(responseEnd).toBeGreaterThan(responseStart);
+        for (const selection of [
+          inline,
+          repair.slice(allocation, execution),
+          response.slice(responseStart, responseEnd),
+        ]) {
+          expect(selection).toContain("current model and effort");
+          expect(selection).toContain("explicit user override");
+          expect(selection).toContain("does not change the parent session");
+          expect(selection).not.toMatch(
+            /explicitly selected.*(?:session|Terra)/u,
+          );
+          expect(selection).not.toContain("custom-balanced-model");
+        }
+        expect(inline).toContain("Do not switch the owner session");
+        expect(inline).toContain("or add an implementation subagent");
+        expect(inline).toContain("independent Phase 7 review");
+        expect(inline).toContain("exact publication authority");
+        const selection = repair.slice(allocation, execution);
         expect(selection).toContain("D4 `implementer`");
-        expect(selection).toContain("stop before source mutation");
-        expect(selection).toContain(
-          "Claude retains its current repair behavior",
+        expect(selection).toContain("`gpt-6.1-terra`/`medium`");
+        expect(selection).toContain("unsupported delegated configuration");
+        expect(response.slice(responseStart, responseEnd)).toContain(
+          "D4 or D12",
+        );
+        expect(response.slice(responseStart, responseEnd)).toContain(
+          "`gpt-6.1-terra`/`medium`",
         );
         expect(repair).toContain(
           "validate and independently review the changed candidate",

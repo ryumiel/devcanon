@@ -14,13 +14,14 @@ codex_sidecar:
 
 ## Codex implementation allocation
 
-Review-feedback implementation uses `gpt-6.1-terra`/`medium`. Delegated repairs
-retain the implementer literal override through D4 or D12; an inline repair
-requires an explicitly selected Terra Medium session. If that selection is
-unavailable, use the existing delegated repair path or report the unsupported
-configuration rather than silently treating the parent model as Terra. This
-changes no repair authority, planning gate or external-system permission.
-Claude retains its current implementation behavior.
+Inline review-feedback repairs retain the owner's current model and effort,
+subject to an explicit user override. Do not switch the owner session or add an
+implementation subagent solely to satisfy a delegated model policy. Actual
+delegated repairs retain the `gpt-6.1-terra`/`medium` implementer override and
+complete dispatch validation through D4 or D12; an unsupported delegated
+configuration stops that dispatch. A child override does not change the parent
+session. This changes no repair authority, planning gate or external-system
+permission. Claude retains its current implementation behavior.
 
 ## Invocation Policy
 

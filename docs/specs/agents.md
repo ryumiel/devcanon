@@ -394,8 +394,12 @@ The catalog above and source agent definitions govern the active role envelopes.
 | Architect consultation and significant-risk deep review  | `gpt-6-astra`   | high   |
 
 Balanced remains Sol. Implementer uses a literal Terra override, honored by
-all dispatch consumers including D4, D12, D17 judgment fixes and review-response
-paths. Updating YAML alone is insufficient where a consumer resolves capability
+all dispatch consumers including D4, D12, D17 judgment fixes and delegated
+review-response paths. This implementation allocation applies to actual
+subagents. Inline implementation and feedback repairs retain the authorized
+owner's current model and effort, subject to explicit user override; child
+overrides never configure the parent session. Updating YAML alone is
+insufficient where a consumer resolves capability
 directly. Assessor, investigator and executor defaults remain unchanged. There
 is no automatic Terra High escalation in this allocation.
 
