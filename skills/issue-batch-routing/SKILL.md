@@ -298,6 +298,11 @@ a current decision or one of these operational purposes:
 Remove resolved waiting keys and completed queued actions after accepting their
 verified replacement; never retain them as current work. Replace superseded
 model/install observations without treating unknown outcomes as successful.
+For a verified merge, clear the corresponding receipt wait and queued merge
+action before the next instruction or yield; retain independent unfinished
+integration and cleanup obligations. A duplicate cannot restore that wait or
+repeat the effect. Conflicting evidence holds the affected action for bounded
+authoritative reconciliation.
 Terminal items keep identity, disposition/evidence links, remaining accepted
 obligations and only still-needed operational markers. Review findings,
 diagnostics and recovery records remain at their existing owners; the ledger
