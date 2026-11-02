@@ -3,12 +3,14 @@ name: issue-priming-workflow
 description: Adaptively prepares a normalized issue payload. Use when `linear-issue-priming` or `github-issue-priming` hands off a normalized issue payload. Do not use when starting from a raw Linear identifier or GitHub issue number — invoke the entrypoint instead.
 requires:
   - branch-review
+  - issue-batch-routing
   - play-agent-dispatch
   - play-brainstorm
   - play-branch-finish
   - play-planning
   - play-review
   - play-subagent-execution
+  - pr-merge
   - subagent-lifecycle
 claude:
   model: "{{model:frontier}}"
