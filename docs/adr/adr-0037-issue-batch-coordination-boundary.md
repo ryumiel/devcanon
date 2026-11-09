@@ -50,10 +50,11 @@ the coordinator inspects actual outcomes through existing gates. No new
 registry, scheduler or consumption-acknowledgement protocol is introduced.
 
 Canonical policy refresh is part of coordination. Concrete execution defaults
-new eligible owners to autonomous execution and requests one separate host
-watchdog with an active timer, within actual host authorization. Explicit
-interactive-owner and no-monitor choices are independent; status-only intent
-remains read-only and compatible resumed settings and explicit stops survive.
+new eligible owners to autonomous execution and uses owner reports without a
+monitor unless monitoring is explicitly requested, within actual host
+authorization. Owner mode and monitoring selection are independent; status-only
+intent remains read-only. Compatible previously authorized monitoring and explicit
+stops survive resume; the fresh default does not stop or replace a monitor.
 Select requested effects before permission, preference or capability inquiries.
 No-monitor and retained stops exclude watcher creation, monitor-specific messaging
 authorization, capability/model/cadence inquiries and activation; independent

@@ -316,11 +316,13 @@ including still-current prior authority; routine orchestration grants none of
 them. Source-status effects and archival retain their existing owner gates.
 
 A concrete accepted execution request defaults eligible new provider-owner
-invocations to `--auto` and requests one separate watchdog with its active host
-timer, subject to actual host authorization. Status-only intent causes no task
-creation, messaging, scheduling or priming. Interactive-owner and no-monitor
-overrides are independent. Preserve compatible already-bound owner modes and
-monitor settings; a generic resume does not override an explicit stop.
+invocations to `--auto`. A fresh batch uses owner reports with no watchdog or
+timer unless monitoring is explicitly requested. Status-only intent causes no
+task creation, messaging, scheduling or priming. Owner mode and monitoring
+selection are independent. Preserve compatible already-bound owner modes and
+previously authorized monitor settings on resume; the fresh-batch default does
+not stop or replace existing monitoring, and a generic resume does not override
+an explicit stop.
 
 Intent, independent overrides, bound modes/settings and retained explicit stops
 select requested effects before authorization, preference or capability
@@ -917,17 +919,18 @@ belongs to the routing/coordination verification owners.
 
 #### ROUTE-007-MONITOR: Execution monitoring lifecycle
 
-Select monitoring from intent, independent overrides and retained state before
+Fresh accepted execution selects no monitor without an explicit monitoring
+request; owner reports remain the default continuation signal. Select monitoring
+from explicit intent, independent overrides and retained state before
 its authority, preference or capability inquiries. No-monitor or retained stops
 exclude new monitoring setup and its messaging/model/cadence/control inquiries;
 generic resume preserves the stop and independent owner mode. An explicit
 active-timer stop instead requires its bounded host control/permission check and
 observed shutdown without replacement setup.
 
-Enabled monitoring defaults to one separate watchdog and timer for concrete
-accepted execution unless explicitly overridden, and requires retained
-applicable
-scheduling and messaging authority, a verified controller, existing owner and
+An explicit monitoring request defaults to one separate watchdog and timer
+unless another existing mode is explicitly selected, and requires retained
+applicable scheduling and messaging authority, a verified controller, existing owner and
 repository bindings, readable canonical policy, and inspectable schedule and
 notification state. The host's supported controls own scheduling. User-selected
 model, effort, cadence, and authorized repository post-merge commands remain
@@ -935,8 +938,12 @@ configurable within host limits. Missing authority, ambiguous binding, unreadabl
 policy, or unsupported control holds the affected action with a concrete reason;
 independently authorized owner reports continue.
 
-Exactly one monitoring mode may be active for a batch. When execution selects
-monitoring or it is explicitly requested, and separate task, schedule,
+Compatible previously authorized monitoring keeps its settings on resume; the
+fresh-batch default cannot stop or replace it. A retained explicit stop prevents
+recreation until later explicit scheduling authority covers activation.
+
+Exactly one monitoring mode may be active for a batch. When monitoring is
+explicitly requested, and separate task, schedule,
 observation, messaging, and task-model
 controls are supported and authorized, default to a separate watcher restricted
 to external observation and notification plus the ROUTE-007-EVENT bounded
@@ -1231,8 +1238,10 @@ cleanup. Stop or pause monitoring through its owning host control and verify
 the observed result separately from chat archival; unavailable control remains
 an explicit unresolved obligation. Honor an explicit user stop.
 
-Startup acceptance covers fresh execution, read-only inspection, independent
-interactive/no-monitor overrides, preserved resumed settings/stops, complete and
+Startup acceptance covers fresh execution with no monitoring request and zero
+watchdog/timer creation or monitor-specific permission/model/cadence questions,
+explicit monitoring selection, read-only inspection, independent owner-mode and
+monitor choices, preserved resumed settings/stops, complete and
 partial authorization, zero monitor inquiries/effects for disabled startup with
 independent owners continuing, bounded explicit active-timer shutdown without
 replacement authority, verifiable existing human decisions, missing recipient
@@ -1248,7 +1257,8 @@ coordinators, missing reasons, unsupported status, stale bindings, cleared waits
 duplicate ticks, failed/unknown delivery, successive assignments and stopped
 monitoring.
 
-Acceptance requires an authorized reused schedule with one active mode,
+For selected monitoring, acceptance requires an authorized reused schedule with
+one active mode,
 duplicate suppression, an explicit event or authorized trigger after a no-code
 reply, acknowledged handoff with retained notification state, continued
 monitoring while accepted work remains despite no open PR, and verified shutdown

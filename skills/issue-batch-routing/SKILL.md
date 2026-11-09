@@ -61,9 +61,11 @@ never silently change an already-bound owner's mode. Status-only routing has no
 creation, messaging, scheduling or priming effects. Before authorization,
 preference or capability inquiries, consume the coordinator's selected effects
 or, for direct routing, select them from intent, independent owner/monitor
-overrides, bound modes/settings and retained explicit stops. Execution selects
-the separate-watchdog/timer default under the companion's watchdog procedure
-unless a no-monitor override or retained stop disables it. Disabled
+overrides, bound modes/settings and retained explicit stops. Fresh execution
+selects owner reports with no monitor unless monitoring is explicitly requested;
+that request follows the companion's watchdog procedure. Resume preserves
+compatible previously authorized monitoring and retained stops rather than
+stopping or replacing a monitor because the fresh default changed. Disabled
 monitoring excludes watcher creation, monitor-specific messaging authorization,
 capability/model/cadence inquiries and activation; independently covered owners
 continue in their selected mode and generic resume never supersedes a stop.
@@ -1368,8 +1370,8 @@ agent-local decision trails into shared PR or issue comments.
 
 ## Automation And Resume
 
-For default execution watchdog setup or an explicitly selected coordinator
-heartbeat, use
+For explicitly requested monitoring or existing-monitor resume, recovery or
+shutdown, use
 the coordinator's [watchdog operation](../issue-batch-coordination/references/watchdog.md)
 for supported schedule and notification mechanics. A watcher observation is
 non-authorizing evidence; this router retains its complete route, approval,
