@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  copyFile,
   cp,
   mkdir,
   mkdtemp,
@@ -3350,7 +3351,17 @@ describe("provider scope capture scratch subcommands", () => {
       ]);
       expect(allocated.exitCode, allocated.stderr).toBe(0);
       process.env.REVIEW_ANALYSIS_BINDING = allocated.stdout.trim();
-      const root = JSON.parse(allocated.stdout).resource as string;
+      const helper = path.join(
+        originalCwd,
+        "skills/pr-review/scripts/prior-thread-artifacts.sh",
+      );
+      const runHelper = (command: string, extraEnv: NodeJS.ProcessEnv = {}) =>
+        execFileAsync("bash", [helper, command], {
+          cwd,
+          env: { ...process.env, ...extraEnv },
+        });
+      const root = (await runHelper("analysis-write-root")).stdout.trim();
+      expect(root).toBe(JSON.parse(allocated.stdout).resource);
       const capture = `${root}/topic-${headSha}-provider-scope-capture.json`;
       const evidence = `${root}/topic-${headSha}-provider-scope-evidence.json`;
       const scope = `${root}/topic-${headSha}-scope-decision.json`;
@@ -3374,6 +3385,63 @@ describe("provider scope capture scratch subcommands", () => {
         scope,
         await providerScopeDecision(cwd, baseSha, headSha, evidence),
       );
+      const originalScope = await readFile(path.join(cwd, scope), "utf8");
+      for (const shouldFail of [false, true]) {
+        const diagnostic = (await runHelper("allocate-analysis")).stdout.trim();
+        const diagnosticEnv = { REVIEW_ANALYSIS_BINDING: diagnostic };
+        const diagnosticRoot = (
+          await runHelper("analysis-write-root", diagnosticEnv)
+        ).stdout.trim();
+        if (shouldFail) {
+          const candidate = JSON.parse(originalScope);
+          candidate.head_sha = "a".repeat(40);
+          await writeJson(cwd, scope, candidate);
+        }
+        let stderr = "";
+        let failed = false;
+        try {
+          const validation = await runHelper("validate-scope-decision", {
+            BASE_REF: baseSha,
+            SCOPE_DECISION_FILE: scope,
+            PROVIDER_SCOPE_EVIDENCE_FILE: evidence,
+            PRIOR_THREADS_FILE: "",
+          });
+          stderr = validation.stderr;
+        } catch (error) {
+          failed = true;
+          stderr = (error as { stderr: string }).stderr;
+        }
+        expect(failed).toBe(shouldFail);
+        await writeFile(
+          path.join(cwd, diagnosticRoot, "validator.stderr"),
+          stderr,
+        );
+        if (shouldFail)
+          await copyFile(
+            path.join(cwd, scope),
+            path.join(cwd, diagnosticRoot, "failed-scope.json"),
+          );
+        const sealedDiagnostic = (
+          await runHelper("seal-analysis", diagnosticEnv)
+        ).stdout.trim();
+        if (shouldFail) {
+          expect(stderr).not.toBe("");
+          expect(
+            await readFile(
+              path.join(cwd, diagnosticRoot, "failed-scope.json"),
+              "utf8",
+            ),
+          ).toBe(await readFile(path.join(cwd, scope), "utf8"));
+        }
+        const disposal = await runHelper("dispose-analysis", {
+          REVIEW_ANALYSIS_BINDING: sealedDiagnostic,
+        });
+        expect(JSON.parse(disposal.stdout).outcome).toBe("removed");
+        expect(process.env.REVIEW_ANALYSIS_BINDING).toBe(
+          allocated.stdout.trim(),
+        );
+        await writeFile(path.join(cwd, scope), originalScope);
+      }
       await writeJson(
         cwd,
         findings,
