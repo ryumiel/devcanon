@@ -1224,8 +1224,9 @@ remain binding throughout resumed continuation.
 
 ## Phase 7: Cleanup
 
-When the existing lifecycle permits a cleanup decision after posting, abort,
-or failure, load [post-approval procedure](references/post-approval-procedure.md)
+For authorized completed-session disposal, or ongoing cleanup permitted by the
+existing lifecycle after posting, abort or failure, load
+[post-approval procedure](references/post-approval-procedure.md)
 before the first dependent cleanup action. Explicitly read it on resumed
 cleanup as well. If it is missing, blank, unreadable, or unavailable, stop
 before inspection, custody changes, or removal and preserve the worktree and
