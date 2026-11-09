@@ -121,13 +121,16 @@ Store the ledger stably, never only in a removable owner worktree.
 ## Execution startup and authorization
 
 For a concrete accepted execution request, default eligible new provider-owner
-invocations to `--auto` and select one separate watchdog with an active host
-timer as the requested setup. Status-only intent permits no creation, messaging,
-scheduling or priming. An explicit interactive-owner choice and an explicit
-no-monitor choice are independent: either can override its own default without
-changing the other. Preserve already-bound owner modes, compatible monitor
-settings and retained explicit stops on resume; a generic resume does not
-supersede a stop. Read [Watchdog operation](references/watchdog.md) before startup.
+invocations to `--auto`. A fresh batch uses owner reports with no watchdog or
+timer unless monitoring is explicitly requested. Status-only intent permits no
+creation, messaging, scheduling or priming. Owner mode and monitoring selection
+are independent: interactive owners do not select monitoring, and an explicit
+monitoring request does not change owner mode. Preserve already-bound owner
+modes, compatible previously authorized monitor settings and retained explicit
+stops on resume; the fresh-batch default does not stop or replace an existing
+monitor, and a generic resume does not supersede a stop. Read
+[Watchdog operation](references/watchdog.md) when monitoring is explicitly
+requested, already exists, or needs recovery or shutdown.
 
 Select requested effects from intent, independent owner/monitor overrides,
 already-bound modes/settings and retained explicit stops before authorization,
@@ -257,23 +260,12 @@ independently authorized work where its prerequisites permit.
 
 ## Reporting path and bounded observation
 
-During initial setup, before releasing an owner into unattended work, establish
-an actual supported return-report path. Reuse the setup decision for execution
-and monitoring; do not add a recurring reporting-approval phase. Retain the
-verified coordinator recipient/host, sending owner/host, covered reporting
-scope, and a supported reference to the actual human authorization when the
-sender's host requires it. Deliver those facts in the owner handoff and verify
-that the recipient can access or otherwise validate the human evidence. Chat
-creation, skill invocation, a copied controller instruction, or approval in an
-inaccessible side conversation supplies no human messaging permission.
-
-Request only missing recipient-visible authorization through a supported
-surface. A transport or permission gap holds unattended release/reporting with
-that specific limitation; do not claim a reporting path or substitute polling.
-Retain and reuse valid authorization across reports, continuation, and
-compatible resume. A routine gate or head change alone needs no reapproval;
-request a new decision only for missing/unverifiable evidence, revocation,
-uncovered recipient/effect, or an actual host requirement.
+Before unattended owner release, establish the return-report path under the
+shared [priming Inputs](../issue-priming-workflow/SKILL.md#inputs), the owning
+reporting-authority procedure. Deliver its retained reporting fields and
+sender-accessible evidence in the handoff. Reuse compatible validation for
+execution, monitoring and resume; apply Inputs for missing authority, rejected
+sends and changed recipients/effects. Do not substitute progress polling.
 
 Owners deliver the required initial handoff, hard gates requiring coordinator
 routing/decision, dependency readiness, material readiness invalidation, and
@@ -525,12 +517,14 @@ supported host controls. Confirm only one dispatcher before successor dispatch.
 Timer retirement or retargeting does not prove owner reporting readiness;
 archiving the predecessor does not transfer or stop its timer.
 
-Read [Watchdog operation](references/watchdog.md) for execution startup or when a timer is requested,
+Read [Watchdog operation](references/watchdog.md) when monitoring is explicitly requested,
 already exists, when a separate watcher is authorized, or when either mode
 needs recovery or shutdown. Use its one-mode startup, observation, handoff,
-and verified-stop procedure; owner reports remain primary. For accepted execution, default to a supported, separately authorized watcher and
-its host timer unless overridden; a coordinator
-heartbeat requires explicit selection. Unsupported watcher controls never
+and verified-stop procedure; owner reports remain primary. A fresh execution
+batch selects no monitor without an explicit request. When monitoring is
+explicitly requested, default to a supported, separately authorized watcher and
+its host timer; a coordinator heartbeat requires explicit selection.
+Unsupported watcher controls never
 silently select a heartbeat. Preserve a compatible existing monitor's settings
 and cadence, and do not recreate an explicitly stopped monitor without later
 explicit scheduling authority.
@@ -555,6 +549,13 @@ accept the evidence and cleanup obligation outside the target, archive the
 terminal owner, reconcile issued removal effects, then remove only the eligible
 selected checkout and local branch. Honor explicit user ordering and retained
 authority. Use the cleanup owner's explicit-target mode for local-only work;
+reuse an adequate final owner release without another custody acknowledgement
+or redundant raw evidence copy. Historical lease defects alone do not hold
+completed disposable scratch; actual consumers and unresolved effects still do.
+Review disposal selects the completed detached adapter or exact branch-attached
+workspace path as appropriate, preserving borrowed and actual primary checkouts.
+Combine routine covered cleanup into one verified outcome report, including
+partial results; surface changed discard scope or concrete blockers separately.
 PR merge effects remain with `pr-merge`. An archived chat alone proves neither
 worktree removal nor release of active consumers. Unsupported archival or stale
 attachments alone do not block guarded Git cleanup. Track residual host metadata

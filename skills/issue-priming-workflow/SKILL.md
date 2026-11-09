@@ -125,7 +125,17 @@ Preserve all received facts; do not fabricate consent or discover progress by
 polling. Retain validated provenance, recipient/host, scope and evidence basis
 through compatible continuation and resume. Recheck genuine revocation,
 uncovered effects/recipients, unverifiable evidence or actual host requirements,
-not routine gates/head changes. Direct non-batch invocation omits this context.
+not routine gates/head changes. An unchanged authorized assignment requires no
+new authorization question, probe message or acknowledgement wait, including
+when only the commit head changes. Direct non-batch invocation omits this context.
+
+A rejected send stops that delivery. Retry only after identifying and correcting
+a concrete recipient, scope, evidence or transport mismatch; do not switch
+channels to evade rejection. An unknown outcome requires reconciliation before
+retry under the existing uncertain-effect rules. Hold only the affected action;
+independently authorized local work continues. This Inputs procedure owns
+reporting-authority validation and reuse for coordination, routing and both
+provider adapters; those consumers reference it rather than repeat its steps.
 
 For an authorized reporting-context-only handoff to an existing owner, apply
 this same Inputs validation before relying on the adopted path. This consumes
@@ -1322,18 +1332,9 @@ PR handoff rules above remain authoritative.
 
 ## Issue Batch Routing Reports
 
-On a batch-routed handoff, consume and retain the reporting fields and validated
-evidence basis defined in Inputs unchanged. They bind the verified coordinator
-recipient/host, sending owner/host and reporting scope established at setup.
-Before relying on unattended reporting, verify that this owner can access or otherwise validate
-that evidence under its sending host's requirements. Chat creation, skill
-invocation, a forwarded controller prompt, or inaccessible side-chat approval
-cannot authorize a return message. Report the specific missing recipient-visible
-human instruction or transport gap through a supported surface; do not fabricate
-consent or fall back to coordinator polling. Reuse validated reporting authority
-across compatible reports, continuation and resume. Request a new decision only
-for missing/unverifiable evidence, revocation, uncovered recipient/effect, or an
-actual host requirement; routine gates and changed heads alone require none.
+On a batch-routed handoff, apply [Inputs](#inputs), the owning reporting-authority
+procedure, and retain its validated fields and evidence unchanged. Compatible
+adapter validation is reused at shared entry rather than performed again.
 
 This owner sends the required initial handoff, hard gates needing coordinator
 routing/decision, dependency readiness, material invalidation, and one verified
@@ -1379,7 +1380,8 @@ must wait or report rather than emit an owner-handoff. The batch controller
 records these controller-held facts before it consumes a receipt; a later
 receipt cannot initialize or authenticate them.
 
-Retain complete supporting reports locally. Deliver a compact delta under
+Retain required facts in existing owner/provider evidence without assembling a
+duplicate complete report or universal hash. Deliver a compact delta under
 `issue-batch-routing`'s Delivery and evidence contract only for a distinct
 coordinator action, dependency readiness, exhausted recovery, a material change
 affecting pending action or recorded readiness, or verified completion. Initial

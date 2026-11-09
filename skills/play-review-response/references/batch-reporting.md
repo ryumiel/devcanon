@@ -26,7 +26,9 @@ the consumer resolves and validates every required fact before acting. Missing,
 stale or inaccessible evidence holds the dependent action, never implies PASS.
 Explicit status requests remain answerable from current evidence.
 
-Every complete supporting report should include the source provider, source issue identifier,
+Use existing evidence directly under that delivery contract; do not assemble a
+duplicate complete-report artifact or universal hash. Retain the gate digest
+required by the selected route. Applicable facts include source provider, source issue identifier,
 current feedback-source state, delegated owner-thread identity when known,
 branch, PR provider and identifier, head SHA, gate kind, relevant complete
 review-response route key, blocking evidence, intended or completed external

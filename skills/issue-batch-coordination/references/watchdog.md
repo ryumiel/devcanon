@@ -1,8 +1,11 @@
 # Watchdog operation
 
-Use this procedure for the default watchdog setup of an accepted execution batch
-and for explicitly selected monitoring. Inspection and explicit no-monitor
-choices create no monitor. Owner reports remain the primary continuation signal.
+Use this procedure for explicitly requested monitoring and existing-monitor
+resume, recovery or shutdown. Fresh accepted execution uses owner reports with
+no monitor by default; inspection and no-monitor choices create no monitor.
+Preserve compatible previously authorized monitoring on resume rather than
+stopping or replacing it because the fresh-batch default changed.
+Owner reports remain the primary continuation signal.
 A host schedule wakes external-event observation and the bounded ordinary
 owner-result reconciliation check below; it is not a second controller
 or a source of action authority. Do not create a custom scheduler or require a
@@ -39,7 +42,7 @@ override. Do not impose a universal interval or reset existing settings to new
 watcher defaults. Honor a recorded explicit user stop: it blocks automatic
 recreation unless later explicit scheduling authority supersedes it.
 
-For accepted execution with monitoring selected and no effective retained stop,
+For explicitly requested monitoring with no effective retained stop,
 default to one supported, separately authorized watcher and an active timer
 targeted to that watcher chat.
 Reuse compatible components and create only the missing authorized ones; pending

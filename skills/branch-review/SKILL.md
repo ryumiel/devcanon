@@ -657,7 +657,10 @@ showing the same blocking defect family (same invariant or failure mechanism
 and remediation boundary) pauses automatic repetition for bounded scope/design
 reassessment. Cite both candidates; duplicated reports, unchanged carry-forward,
 and interrupted runs count once or not at all. Unknown history does not prove
-the threshold unmet. This grants no new implementation authority.
+the threshold unmet. The implementation owner decides an in-scope reassessment
+under the [single-reviewer contract](../play-review/references/single-reviewer-contract.md#fixes-and-bounded-reassessment);
+escalate changed scope, reserved interface approvals and cross-owner decisions.
+This grants no new implementation authority.
 
 ## Quick Reference
 

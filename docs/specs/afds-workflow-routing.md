@@ -316,11 +316,13 @@ including still-current prior authority; routine orchestration grants none of
 them. Source-status effects and archival retain their existing owner gates.
 
 A concrete accepted execution request defaults eligible new provider-owner
-invocations to `--auto` and requests one separate watchdog with its active host
-timer, subject to actual host authorization. Status-only intent causes no task
-creation, messaging, scheduling or priming. Interactive-owner and no-monitor
-overrides are independent. Preserve compatible already-bound owner modes and
-monitor settings; a generic resume does not override an explicit stop.
+invocations to `--auto`. A fresh batch uses owner reports with no watchdog or
+timer unless monitoring is explicitly requested. Status-only intent causes no
+task creation, messaging, scheduling or priming. Owner mode and monitoring
+selection are independent. Preserve compatible already-bound owner modes and
+previously authorized monitor settings on resume; the fresh-batch default does
+not stop or replace existing monitoring, and a generic resume does not override
+an explicit stop.
 
 Intent, independent overrides, bound modes/settings and retained explicit stops
 select requested effects before authorization, preference or capability
@@ -487,6 +489,11 @@ ensures required evidence remains usable outside the removable checkout. No
 implementation, active gate, or follow-up may remain assigned to the owner.
 The coordinator continues cleanup from outside that checkout; it does not ask
 the archived owner to resume solely to remove its own worktree.
+An adequate final owner release satisfies the existing transfer facts without
+another custody acknowledgement or redundant raw evidence copy. Routine covered
+cleanup produces one verified outcome report, including partial cleanup and
+residual obligations; changed discard scope or a concrete blocker still surfaces
+the specific required action.
 
 Verify chat archival, then inspect supported host outcomes before another removal
 attempt: archival may already have removed the checkout. It is not proof that
@@ -706,36 +713,26 @@ remain required; terminal owner evidence comes from received terminal-report
 validation or concrete uncertain-cleanup recovery, never blanket resume reads
 or stale approval reuse.
 
-Before unattended owner release, initial coordinator setup establishes a
-supported reporting path with verified coordinator/owner identities and scoped
-hosts. Reuse the execution/monitoring setup decision rather than introducing a
-recurring reporting approval. Carry an accessible host-supported reference to
-actual human reporting authorization in reporting handoffs where the sending
-host requires it; verify the receiving owner can access or otherwise validate
-that evidence. Chat creation, invocation, a controller-authored prompt, copied
-policy, or inaccessible approval in an ephemeral side conversation is not
-human permission. Expose the specific transport or permission gap and obtain
-only missing recipient-visible human instruction through a supported surface
-before claiming unattended reporting. Retain and reuse valid authorization
-across compatible reports, continuation and resume; routine gates/head changes
-alone do not require reapproval. Missing/unverifiable evidence, revocation,
-uncovered recipient/effect, or an actual host requirement needs its own decision.
-
-The normalized shared priming Inputs contract owns the reporting field
-vocabulary. Router release carries `batch-reporting-recipient-id`,
-`batch-reporting-recipient-host-identity` when host-scoped,
-`batch-reporting-scope`, and `batch-reporting-authorization-reference` when the
-sending host requires human authorization, alongside unchanged canonical
-issue/route/repository and confirmed sender/host bindings. Both GitHub and
-Linear entrypoints preserve these facts unchanged into shared priming. The
-shared consumer validates original sender-accessible actual-human evidence when
-required and retains provenance, recipient and scope through compatible resume. If the
-sending host demonstrably needs no human authorization, retain its supported
-policy basis with scope; an absent reference cannot establish that exception.
-Missing required, inaccessible, unverifiable or mismatched context holds the
-affected unattended handoff/reporting boundary without dropping facts,
-fabricating permission or polling. Direct non-batch invocation omits this
-reporting context; existing route, receipt and authority gates remain intact.
+Before unattended owner release, a supported reporting path binds verified
+sender/recipient identities, scoped hosts, covered effects and accessible
+original actual-human authorization where the sending host requires it.
+Creation, invocation and copied controller claims supply no permission. A host
+exception requires a supported policy basis, never merely an absent reference.
+The shared [priming Inputs](../../skills/issue-priming-workflow/SKILL.md#inputs)
+owns the reporting-authority procedure and field vocabulary; coordination,
+routing and provider adapters reference it. GitHub and Linear handoffs retain
+its reporting fields, original evidence and unchanged issue/route/repository/
+owner bindings. Missing, inaccessible, unverifiable or mismatched context holds
+the affected action through its supported safe gap surface; no consent is
+fabricated and no progress polling replaces reporting. Direct non-batch
+invocation omits this context; existing route, receipt and authority gates remain.
+Compatible validated assignments reuse their context without another authority
+question, probe message or acknowledgement wait, including changed heads alone.
+A rejected send stops; retry requires a concrete corrected recipient, scope,
+evidence or transport mismatch. Do not evade rejection through another channel.
+An unknown send outcome requires existing uncertain-effect reconciliation before
+retry. Missing authority or host restrictions hold only affected actions;
+independently authorized local work continues.
 
 Both batch-routed provider adapters apply the shared Inputs reporting
 validation before their earliest report-producing stage, including fetch,
@@ -785,8 +782,12 @@ Quiet reporting never establishes readiness or preserves stale-head approval.
 
 Deliver a compact delta with provider-tagged issue/PR identity, owner, applicable
 current head, changed state, requested coordinator action and evidence reference.
-Complete route keys, validators, diagnostics and supporting reports stay locally
-accessible under existing owners. Consumers resolve and validate all required
+Existing owner, provider and preparation evidence may supply gate facts directly,
+without a duplicate complete-report artifact or universal report hash. Complete
+route keys, validators and diagnostics stay accessible under existing owners.
+The selected source-issue-reporting route still requires its owner-report or
+source-reporting gate digest, and approval routing its approval-gate digest;
+preserve their complete keys and duplicate-effect suppression. Consumers resolve and validate all required
 evidence before dependent action; absent, unreadable, stale, incomplete or
 conflicting evidence holds that action. References do not supply authority or
 replace current-head and replay validation. This changes delivery, not the
@@ -912,17 +913,18 @@ belongs to the routing/coordination verification owners.
 
 #### ROUTE-007-MONITOR: Execution monitoring lifecycle
 
-Select monitoring from intent, independent overrides and retained state before
+Fresh accepted execution selects no monitor without an explicit monitoring
+request; owner reports remain the default continuation signal. Select monitoring
+from explicit intent, independent overrides and retained state before
 its authority, preference or capability inquiries. No-monitor or retained stops
 exclude new monitoring setup and its messaging/model/cadence/control inquiries;
 generic resume preserves the stop and independent owner mode. An explicit
 active-timer stop instead requires its bounded host control/permission check and
 observed shutdown without replacement setup.
 
-Enabled monitoring defaults to one separate watchdog and timer for concrete
-accepted execution unless explicitly overridden, and requires retained
-applicable
-scheduling and messaging authority, a verified controller, existing owner and
+An explicit monitoring request defaults to one separate watchdog and timer
+unless another existing mode is explicitly selected, and requires retained
+applicable scheduling and messaging authority, a verified controller, existing owner and
 repository bindings, readable canonical policy, and inspectable schedule and
 notification state. The host's supported controls own scheduling. User-selected
 model, effort, cadence, and authorized repository post-merge commands remain
@@ -930,8 +932,12 @@ configurable within host limits. Missing authority, ambiguous binding, unreadabl
 policy, or unsupported control holds the affected action with a concrete reason;
 independently authorized owner reports continue.
 
-Exactly one monitoring mode may be active for a batch. When execution selects
-monitoring or it is explicitly requested, and separate task, schedule,
+Compatible previously authorized monitoring keeps its settings on resume; the
+fresh-batch default cannot stop or replace it. A retained explicit stop prevents
+recreation until later explicit scheduling authority covers activation.
+
+Exactly one monitoring mode may be active for a batch. When monitoring is
+explicitly requested, and separate task, schedule,
 observation, messaging, and task-model
 controls are supported and authorized, default to a separate watcher restricted
 to external observation and notification plus the ROUTE-007-EVENT bounded
@@ -1226,8 +1232,10 @@ cleanup. Stop or pause monitoring through its owning host control and verify
 the observed result separately from chat archival; unavailable control remains
 an explicit unresolved obligation. Honor an explicit user stop.
 
-Startup acceptance covers fresh execution, read-only inspection, independent
-interactive/no-monitor overrides, preserved resumed settings/stops, complete and
+Startup acceptance covers fresh execution with no monitoring request and zero
+watchdog/timer creation or monitor-specific permission/model/cadence questions,
+explicit monitoring selection, read-only inspection, independent owner-mode and
+monitor choices, preserved resumed settings/stops, complete and
 partial authorization, zero monitor inquiries/effects for disabled startup with
 independent owners continuing, bounded explicit active-timer shutdown without
 replacement authority, verifiable existing human decisions, missing recipient
@@ -1243,7 +1251,8 @@ coordinators, missing reasons, unsupported status, stale bindings, cleared waits
 duplicate ticks, failed/unknown delivery, successive assignments and stopped
 monitoring.
 
-Acceptance requires an authorized reused schedule with one active mode,
+For selected monitoring, acceptance requires an authorized reused schedule with
+one active mode,
 duplicate suppression, an explicit event or authorized trigger after a no-code
 reply, acknowledged handoff with retained notification state, continued
 monitoring while accepted work remains despite no open PR, and verified shutdown
@@ -1491,6 +1500,18 @@ The workspace helper provides the local completed-session disposal route,
 including detached worktrees and unused branches. Review owners use their
 completed-session adapter after establishing completion and no active retention;
 ongoing review recovery and posting still require their existing evidence.
+Select completed disposal before historical lease validation, extraction or
+attempt retirement. Eligible owned detached review checkouts use the adapter with
+`SESSION_COMPLETED=yes`, exact expected `HEAD_SHA` and its existing identity inputs;
+missing or invalid historical records require no reconstruction. Eligible owned
+branch-attached targets use exact selected workspace cleanup. Preserve borrowed
+and actual primary checkouts. Reuse an adequate final release; retain raw evidence
+only for the concrete purposes above, with no redundant custody acknowledgement
+or per-artifact discard approval. Exact-target preflight, source, unique-commit
+and nested-repository guards remain binding. Caller acceptance covers missing
+historical records with proven completion, unknown completion, active consumers,
+borrowed checkout preservation and resource-local partial cleanup, as specified
+in PR review's Phase 7 procedure.
 
 ### EVID-005: Proposal-Origin Evidence
 
@@ -2095,6 +2116,13 @@ hard-rule claim stops or hands off under its existing owner. The changed
 candidate requires validation, a frozen current head, and independent review
 before another repair qualification or approval. Findings and `--fix` never
 create implementation authority.
+
+When repeated same-family blockers trigger bounded scope/design reassessment,
+the implementation owner may decide an in-scope revised approach or deferral
+under current authority without a coordinator acknowledgement. Changed scope,
+reserved interface approvals and cross-owner decisions still require their
+owning decision. Reassessment supplies no expanded authority and never replaces
+fresh changed-candidate validation and independent review.
 
 Under the [Writing Skills review and mutation
 policy](../guidelines/writing-skills.md#review-and-mutation-routing), a

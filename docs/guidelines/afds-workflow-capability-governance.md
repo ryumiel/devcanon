@@ -386,10 +386,12 @@ User waits and internal sub-agents are excluded; status is never a verdict.
 [ADR-0037](../adr/adr-0037-issue-batch-coordination-boundary.md) records the
 durable ownership decision, consequences, and rejected alternatives.
 
-Concrete execution defaults new eligible owners to autonomous work and one
-separate host watchdog/timer; inspection remains read-only. Independent
-interactive/no-monitor overrides, compatible resumed settings and explicit stops
-remain effective. Select requested effects before permission, preference or
+Concrete execution defaults new eligible owners to autonomous work and owner
+reports with no monitor unless monitoring is explicitly requested; inspection
+remains read-only. Owner mode and monitoring selection are independent.
+Compatible previously authorized monitoring and explicit stops remain effective
+on resume; the fresh default does not stop or replace a monitor. Select requested
+effects before permission, preference or
 capability inquiries.
 No-monitor and retained stops exclude watcher creation, monitor-specific messaging
 authorization, capability/model/cadence inquiries and activation; independent

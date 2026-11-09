@@ -75,7 +75,7 @@ digraph pr_review {
   delegate [label="4. Run play-review\n(shared review pipeline)"];
   present [label="5. Present\n(USER GATE)", shape=doublecircle];
   post [label="6. Post\nAfter user approval only"];
-  cleanup [label="7. Cleanup\nlease-gated"];
+  cleanup [label="7. Cleanup\nresource-appropriate disposal"];
 
   gather -> worktree -> ranges -> delegate -> present;
   present -> post [label="user approves"];
@@ -1255,8 +1255,9 @@ remain binding throughout resumed continuation.
 
 ## Phase 7: Cleanup
 
-When the existing lifecycle permits a cleanup decision after posting, abort,
-or failure, load [post-approval procedure](references/post-approval-procedure.md)
+For authorized completed-session disposal, or ongoing cleanup permitted by the
+existing lifecycle after posting, abort or failure, load
+[post-approval procedure](references/post-approval-procedure.md)
 before the first dependent cleanup action. Explicitly read it on resumed
 cleanup as well. If it is missing, blank, unreadable, or unavailable, stop
 before inspection, custody changes, or removal and preserve the worktree and
@@ -1265,10 +1266,20 @@ supplies the subordinate Phase 7 procedure, while the existing lease lifecycle
 and helper contracts retain cleanup authority and mechanics. A cleanup-only
 continuation does not authorize Phase 6 or any GitHub mutation.
 
-Apply Phase 2 live-family validation/extraction and custody clearing before
-lease-gated removal. Never remove a review worktree directly: use the existing
-lease inspection and cleanup helpers, preserve their refusals, and report
-failures for manual recovery. Do not run a broad `.ephemeral` sweep.
+First distinguish completed-session disposal from ongoing review recovery.
+Establish actual completion, cleanup authority and ended consumers/effects;
+reuse an adequate final owner release without another custody acknowledgement.
+For an eligible owned detached checkout, use the completed-session adapter with
+`SESSION_COMPLETED=yes`, current identity inputs and exact expected `HEAD_SHA`.
+Historical lease validation, extraction and attempt retirement are not prerequisites
+for that route. For eligible owned branch-attached targets, use exact selected
+`git-workspace-cleanup`; completion never authorizes removing borrowed or primary
+checkouts. Ongoing review recovery retains Phase 2 validation/extraction, custody
+clearing and existing lease-gated helpers. Preserve each route's refusals and
+unknown-effect reconciliation. Report routine covered cleanup once by verified
+outcome, with held resources and remaining obligations. Changed discard scope or
+a real blocker still needs its specific decision. Do not run a broad `.ephemeral`
+sweep. See the procedure's completed-cleanup scenarios for caller acceptance.
 
 ## GitHub API Reference
 
@@ -1311,16 +1322,16 @@ gh api graphql -f query='{ repository(owner: "O", name: "R") {
 
 ## Error Handling
 
-| Scenario                                | Action                                                                           |
-| --------------------------------------- | -------------------------------------------------------------------------------- |
-| `{{tool:github-cli}}` not authenticated | Fail, suggest `{{tool:github-cli}} auth login`                                   |
-| PR not found                            | Fail, verify number/URL                                                          |
-| PR already merged/closed                | Warn user of state, ask whether to proceed                                       |
-| Fork PR (head ref not on origin)        | Fetch immutable fork head into primary object database; do not create a worktree |
-| Worktree exists                         | Inspect lease; resume valid leases or use lease-gated cleanup before recreating  |
-| `play-review` reports a missing input   | Stop; this means the wrapper has a bug                                           |
-| API returns non-2xx                     | Report failure, stop                                                             |
-| Worktree cleanup fails                  | Report lease path, worktree path, and helper message                             |
+| Scenario                                | Action                                                                                                       |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `{{tool:github-cli}}` not authenticated | Fail, suggest `{{tool:github-cli}} auth login`                                                               |
+| PR not found                            | Fail, verify number/URL                                                                                      |
+| PR already merged/closed                | Warn user of state, ask whether to proceed                                                                   |
+| Fork PR (head ref not on origin)        | Fetch immutable fork head into primary object database; do not create a worktree                             |
+| Worktree exists                         | Classify completed disposal versus ongoing recovery in Phase 7; preserve applicable guards before recreating |
+| `play-review` reports a missing input   | Stop; this means the wrapper has a bug                                                                       |
+| API returns non-2xx                     | Report failure, stop                                                                                         |
+| Worktree cleanup fails                  | Report lease path, worktree path, and helper message                                                         |
 
 ## Integration
 

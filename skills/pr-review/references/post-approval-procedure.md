@@ -193,13 +193,54 @@ retry or reconstruct a GitHub mutation from conversation text.
 
 ## Phase 7: Cleanup
 
+### Select the resource and purpose first
+
+Establish actual session completion, exact disposal authority and the end of
+active consumers, recovery needs and pending posting/removal effects. Reuse an
+adequate final owner release and durable publication evidence; do not request
+another custody acknowledgement, redundant raw copies or per-artifact discard
+approval. Missing historical records alone neither prove completion nor retain
+completed disposable scratch. Retain raw evidence only for explicit retention,
+a concrete active consumer or an unresolved effect, with its release condition.
+
+For completed disposal, select the existing path before lease recovery:
+
+- **Owned detached review checkout:** read the
+  [completed-session disposal contract](review-leases-usage.md#completed-session-disposal).
+  Run `inspect-worktree`, then eligible `cleanup-worktree`, with
+  `SESSION_COMPLETED=yes`, exact current `HEAD_SHA` and all existing identity
+  inputs (`REPOSITORY`, `PR_NUMBER`, `PRIMARY_REPOSITORY_ROOT`, `WORKTREE_PATH`,
+  `LEASE_FILE`). A lease path remains an identity input; missing or invalid
+  historical lease bytes require no reconstruction, validation, extraction or
+  attempt retirement. Use `RETAIN_SESSION_REASON` for a concrete hold.
+  Consume the completed adapter's workspace outcome keys, including
+  `WORKTREE_STATUS` and `WORKTREE_REASON`; exit zero alone is not removal proof.
+- **Owned branch-attached checkout or unused branch:** use
+  [selected workspace cleanup](../../git-workspace-cleanup/SKILL.md#selected-local-cleanup)
+  with exact path, branch and expected commit as applicable. The detached review
+  adapter does not accept a branch-attached target.
+- **Borrowed or actual Git primary checkout:** preserve the checkout and branch.
+  Completion is no authority to remove either or sweep its scratch. This procedure
+  adds no new artifact-root cleanup compatibility.
+
+Keep exact-target preflight, clean source, unique-commit, ignored-content,
+lock and nested-repository guards. Reconcile pending/unknown removal outcomes
+before another mechanism acts on that target. Unsupported archival alone does
+not block otherwise eligible Git disposal; report residual host metadata
+separately. Continue independently eligible resources and report one combined
+verified outcome for routine covered cleanup. Surface changed discard scope or
+a real blocker with its required action; successful preflights need no separate
+notices. Never remove a checkout manually or run a broad `.ephemeral` sweep.
+
+### Ongoing review recovery
+
 Before a lease-gated cleanup attempt that may remove the review worktree or its
 owned artifacts, apply Phase 2 validation/extraction, then clear the live family
 and association. Retain bounded detached navigation only after successful
 same-PR continuation. A failed or refused cleanup discards pending candidates
 and does not restore live custody.
 
-Never remove a review worktree directly. Use `review-leases.sh
+For this ongoing recovery route, use `review-leases.sh
 inspect-worktree` before every cleanup decision and `review-leases.sh
 cleanup-worktree` for every removal attempt. The helper owns safety mechanics
 and removes worktrees only after all checks pass. Dirty worktrees, unmanaged
@@ -207,12 +248,29 @@ and removes worktrees only after all checks pass. Dirty worktrees, unmanaged
 non-worktree paths, and missing paths remain removal refusals or skipped
 outcomes.
 
-Cleanup prints fixed keys: `OUTCOME` and `MESSAGE`. It also prints classifier
+Lease-gated cleanup prints fixed keys: `OUTCOME` and `MESSAGE`. It also prints classifier
 keys for inspection and cleanup decisions: `CAN_REMOVE`, `REFUSAL_REASON`,
 `DIRTY`, `LEASE_STATE`, `IDENTITY_MATCH`, `REQUIRES_CONFIRMATION`,
 `METADATA_OUTCOME`, and `FORCE_REMOVE_ALLOWED`. Treat `failed` or a nonzero
 exit as a cleanup failure and report the lease path, worktree path, classifier
 fields, and message for manual recovery. Do not run a broad `.ephemeral` sweep.
+
+### Completed-cleanup caller scenarios
+
+These policy cases exercise caller selection, not live deletion or new runtime
+behavior. Evaluate source and both rendered targets against these outcomes.
+
+| Given                                                                              | Required caller outcome                                                                                                           |
+| ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Completed, released owned detached checkout; historical lease missing or malformed | Use completed inspection/disposal with current identity and expected HEAD; no historical reconstruction or recovery prerequisite. |
+| Historical records missing; completion or authority unknown                        | Hold the affected resource for the missing fact; absence proves no completion.                                                    |
+| Adequate final release; durable outcome published; no remaining consumers          | Reuse release and existing disposal authority; no duplicate acknowledgement, raw copy or per-file question.                       |
+| Completed checkout still has a reader or uncertain posting effect                  | Retain that resource with reason and release condition; continue independent eligible cleanup.                                    |
+| Completed owned branch-attached checkout                                           | Use exact workspace selection with branch/path/head; do not use detached adapter.                                                 |
+| Completed review used borrowed or primary checkout                                 | Preserve checkout, branch and unrelated artifacts; no manual scratch sweep.                                                       |
+| Unsupported archival with no removal issued versus unknown issued removal          | The former permits guarded Git disposal with metadata outstanding; the latter holds competing removal until reconciled.           |
+| Checkout removed but selected branch deletion fails                                | Report verified removal and held branch once; retry only remaining eligible target with original bindings.                        |
+| Source edits, unique commits, nested repository or undesignated ignored data       | Preserve the affected resource under existing guards; no broad force or disposable-scope expansion.                               |
 
 ## GitHub API Reference
 
