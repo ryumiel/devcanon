@@ -487,6 +487,11 @@ ensures required evidence remains usable outside the removable checkout. No
 implementation, active gate, or follow-up may remain assigned to the owner.
 The coordinator continues cleanup from outside that checkout; it does not ask
 the archived owner to resume solely to remove its own worktree.
+An adequate final owner release satisfies the existing transfer facts without
+another custody acknowledgement or redundant raw evidence copy. Routine covered
+cleanup produces one verified outcome report, including partial cleanup and
+residual obligations; changed discard scope or a concrete blocker still surfaces
+the specific required action.
 
 Verify chat archival, then inspect supported host outcomes before another removal
 attempt: archival may already have removed the checkout. It is not proof that
@@ -1485,6 +1490,18 @@ The workspace helper provides the local completed-session disposal route,
 including detached worktrees and unused branches. Review owners use their
 completed-session adapter after establishing completion and no active retention;
 ongoing review recovery and posting still require their existing evidence.
+Select completed disposal before historical lease validation, extraction or
+attempt retirement. Eligible owned detached review checkouts use the adapter with
+`SESSION_COMPLETED=yes`, exact expected `HEAD_SHA` and its existing identity inputs;
+missing or invalid historical records require no reconstruction. Eligible owned
+branch-attached targets use exact selected workspace cleanup. Preserve borrowed
+and actual primary checkouts. Reuse an adequate final release; retain raw evidence
+only for the concrete purposes above, with no redundant custody acknowledgement
+or per-artifact discard approval. Exact-target preflight, source, unique-commit
+and nested-repository guards remain binding. Caller acceptance covers missing
+historical records with proven completion, unknown completion, active consumers,
+borrowed checkout preservation and resource-local partial cleanup, as specified
+in PR review's Phase 7 procedure.
 
 ### EVID-005: Proposal-Origin Evidence
 
