@@ -555,6 +555,13 @@ accept the evidence and cleanup obligation outside the target, archive the
 terminal owner, reconcile issued removal effects, then remove only the eligible
 selected checkout and local branch. Honor explicit user ordering and retained
 authority. Use the cleanup owner's explicit-target mode for local-only work;
+reuse an adequate final owner release without another custody acknowledgement
+or redundant raw evidence copy. Historical lease defects alone do not hold
+completed disposable scratch; actual consumers and unresolved effects still do.
+Review disposal selects the completed detached adapter or exact branch-attached
+workspace path as appropriate, preserving borrowed and actual primary checkouts.
+Combine routine covered cleanup into one verified outcome report, including
+partial results; surface changed discard scope or concrete blockers separately.
 PR merge effects remain with `pr-merge`. An archived chat alone proves neither
 worktree removal nor release of active consumers. Unsupported archival or stale
 attachments alone do not block guarded Git cleanup. Track residual host metadata

@@ -40,7 +40,9 @@ The exact expected HEAD, detached registration, merged commit, clean source,
 ignored-content designation, primary/lock and nested-repository guards apply.
 Arbitrary ignored files retain the checkout. Use the workspace helper with explicit
 `--disposable-dir` selections if other directories are known disposable. Host
-refusal is never bypassed through either adapter.
+protection and pending/unknown removal effects are never bypassed through either
+adapter. Unsupported archival alone does not block otherwise eligible Git removal;
+track residual host metadata separately under ADR-0042.
 
 ## Timestamp and presentation applicability
 
