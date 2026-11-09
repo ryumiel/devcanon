@@ -43,9 +43,18 @@ cleanup approval, not another per-artifact discard question. Designate additiona
 disposable directories or exact generated files explicitly; `.gitignore` alone is not a disposal policy.
 For detached worktrees or unused branches, use the helper's explicit detached or
 branch-only mode rather than inventing a branch/worktree pairing. For completed
-reviews, use the review adapter's completed-session route after these checks.
+reviews in owned detached checkouts, use the review adapter's completed-session
+route with current identity and expected HEAD after these checks. Eligible owned
+branch-attached targets use this helper's exact worktree/branch selection instead.
+Never remove a borrowed or actual primary checkout merely because review ended.
+Reuse an adequate final release; no historical lease reconstruction, redundant
+raw copy or repeated custody acknowledgement is required for completed disposal.
 
 Present the dry-run result and reuse compatible standing cleanup authority.
+For routine covered selected cleanup, combine preflight and verified execution
+into one outcome report, including held resources and residual host obligations.
+Surface a changed discard scope or concrete blocker when it needs a decision;
+successful preflight alone needs no separate notice or acknowledgement.
 No broad force flags are allowed. The runtime's clean-submodule force is guarded,
 not permission to discard nested work. Report worktree and branch statuses
 separately; use the same inputs for an eligible partial retry. Missing target

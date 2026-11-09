@@ -233,6 +233,16 @@ the target accepts the cleanup obligation, required evidence stays usable outsid
 it, and no work/follow-up remains assigned to the terminal owner. Do not wake the
 owner solely to remove its checkout or clear the transferred obligation.
 
+Reuse an adequate final owner release and accessible durable outcome evidence;
+do not require another custody acknowledgement or redundant raw copies after
+consumers have ended. Missing historical review records do not retain completed
+disposable scratch or establish completion. Completed owned detached reviews use
+their completed-session adapter with current identity; eligible branch-attached
+targets use exact workspace cleanup. Borrowed and actual primary checkouts remain
+protected. Routine covered cleanup produces one verified outcome report, including
+partial results and residual obligations; changed discard scope or a real blocker
+still surfaces its specific required action.
+
 Verify chat archival through supported host state and reconcile any worktree
 removal it triggered. Archival does not prove protection released. A remaining
 eligible checkout, including a completed host-managed checkout, may use the
