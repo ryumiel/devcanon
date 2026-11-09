@@ -348,10 +348,11 @@ routes. The [routing spec](../specs/afds-workflow-routing.md#route-007-batch-coo
 owns their boundary. This composition preserves the individual issue owners
 and their approval gates; users do not need to invoke the router by name.
 A concrete execution request defaults new eligible owners to autonomous work
-and one separate watchdog with a host timer. Choose interactive owners or
-no monitoring independently when desired; a status request remains read-only.
-Compatible resumed settings and explicit stops remain in effect. Select requested
-effects before permission, preference or capability inquiries.
+and uses owner reports with no watchdog or timer unless monitoring is explicitly
+requested. Choose owner mode and monitoring independently; a status request
+remains read-only. Compatible previously authorized monitoring and explicit stops
+remain in effect on resume; the fresh default does not stop or replace a monitor.
+Select requested effects before permission, preference or capability inquiries.
 No-monitor and retained stops exclude watcher creation, monitor-specific messaging
 authorization, capability/model/cadence inquiries and activation; independent
 authorized owner work continues in its selected mode. Generic resume preserves
