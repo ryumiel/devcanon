@@ -251,30 +251,35 @@ Two reports of one candidate count once; unchanged carried findings and failed
 or interrupted runs are not additional recurrences. Retain this bounded count
 in existing owner state across resumes; unknown history cannot assert that the
 threshold has not been reached. Report the two candidates and common mechanism
-for an owner decision. The owner may approve a revised bounded plan or defer;
-the reassessment grants no wider scope or new implementation authority.
+to the implementation owner, who decides an in-scope reassessment and revised
+bounded approach or deferral under current authority. A coordinator decision
+or acknowledgement is not required for that bounded choice. Changed scope,
+reserved interface approvals and cross-owner decisions still go to their owning
+authority. Reassessment grants no wider scope or new implementation authority,
+and fixes still require fresh independent review.
 
 ## Acceptance scenarios
 
-| Scenario                                                                   | Required outcome                                                                               |
-| -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Ordinary nonempty code change                                              | One D7; baseline checks explicit; D10 only if a blocking trigger applies.                      |
-| Architecture/spec risk, including narrow follow-up                         | One D7 with full-PR risk obligations; no D8/D9 child.                                          |
-| Cross-platform invocation change                                           | Documented-behavior and platform checks; substitution exclusions preserved.                    |
-| Complete review with no findings                                           | No D10; empty findings and `not-required`; other gates still apply.                            |
-| Nit-only result                                                            | No D10; nits retained, nonblocking, and not automatically fixed.                               |
-| Unchanged prior Nit                                                        | Same identity and original assessment head; new reuse-check head; no D10.                      |
-| Changed contract or relevant dependency                                    | No reuse; current reassessment or incomplete review.                                           |
-| Resolved prior claim                                                       | Current evidence and explicit disposition; no unresolved count or automatic thread resolution. |
-| Ordinary undisputed blocker with current bounded implementation authority  | May enter existing bounded remediation without D10; it remains blocking until fresh review.    |
-| Ordinary blocker missing authority, freshness, completeness, or scope      | Non-mutating handoff; findings and `--fix` never supply the missing authority.                 |
-| Consequential, disputed, or uncertain blocker                              | One targeted D10; no approval until all selected dispositions complete.                        |
-| Required verifier fails while findings are downgraded elsewhere            | Review remains incomplete; other classifications cannot hide failure.                          |
-| Missing D7 context, malformed output, source mutation, stale head/range    | No approval; source-integrity failures terminate visibly.                                      |
-| Post-fix review                                                            | New candidate validation and independent review; old results are context only.                 |
-| Second same-family blocking recurrence after fixes                         | Stop automatic repetition for scoped design reassessment.                                      |
-| Legacy input or old approval summary                                       | Reject; fresh review is required.                                                              |
-| Duplicate ID within an array, conflicting mirror, or duplicate selected ID | Reject before counts, approval, mutation, or posting.                                          |
+| Scenario                                                                   | Required outcome                                                                                      |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Ordinary nonempty code change                                              | One D7; baseline checks explicit; D10 only if a blocking trigger applies.                             |
+| Architecture/spec risk, including narrow follow-up                         | One D7 with full-PR risk obligations; no D8/D9 child.                                                 |
+| Cross-platform invocation change                                           | Documented-behavior and platform checks; substitution exclusions preserved.                           |
+| Complete review with no findings                                           | No D10; empty findings and `not-required`; other gates still apply.                                   |
+| Nit-only result                                                            | No D10; nits retained, nonblocking, and not automatically fixed.                                      |
+| Unchanged prior Nit                                                        | Same identity and original assessment head; new reuse-check head; no D10.                             |
+| Changed contract or relevant dependency                                    | No reuse; current reassessment or incomplete review.                                                  |
+| Resolved prior claim                                                       | Current evidence and explicit disposition; no unresolved count or automatic thread resolution.        |
+| Ordinary undisputed blocker with current bounded implementation authority  | May enter existing bounded remediation without D10; it remains blocking until fresh review.           |
+| Ordinary blocker missing authority, freshness, completeness, or scope      | Non-mutating handoff; findings and `--fix` never supply the missing authority.                        |
+| Consequential, disputed, or uncertain blocker                              | One targeted D10; no approval until all selected dispositions complete.                               |
+| Required verifier fails while findings are downgraded elsewhere            | Review remains incomplete; other classifications cannot hide failure.                                 |
+| Missing D7 context, malformed output, source mutation, stale head/range    | No approval; source-integrity failures terminate visibly.                                             |
+| Post-fix review                                                            | New candidate validation and independent review; old results are context only.                        |
+| Second same-family blocking recurrence after fixes                         | Stop automatic repetition; implementation owner decides bounded reassessment under current authority. |
+| Reassessment changes scope, reserved interface or cross-owner decision     | Hold affected change for its owning approval; bounded reassessment supplies no new authority.         |
+| Legacy input or old approval summary                                       | Reject; fresh review is required.                                                                     |
+| Duplicate ID within an array, conflicting mirror, or duplicate selected ID | Reject before counts, approval, mutation, or posting.                                                 |
 
 ## Bounded evaluation
 

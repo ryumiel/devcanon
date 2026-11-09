@@ -711,36 +711,26 @@ remain required; terminal owner evidence comes from received terminal-report
 validation or concrete uncertain-cleanup recovery, never blanket resume reads
 or stale approval reuse.
 
-Before unattended owner release, initial coordinator setup establishes a
-supported reporting path with verified coordinator/owner identities and scoped
-hosts. Reuse the execution/monitoring setup decision rather than introducing a
-recurring reporting approval. Carry an accessible host-supported reference to
-actual human reporting authorization in reporting handoffs where the sending
-host requires it; verify the receiving owner can access or otherwise validate
-that evidence. Chat creation, invocation, a controller-authored prompt, copied
-policy, or inaccessible approval in an ephemeral side conversation is not
-human permission. Expose the specific transport or permission gap and obtain
-only missing recipient-visible human instruction through a supported surface
-before claiming unattended reporting. Retain and reuse valid authorization
-across compatible reports, continuation and resume; routine gates/head changes
-alone do not require reapproval. Missing/unverifiable evidence, revocation,
-uncovered recipient/effect, or an actual host requirement needs its own decision.
-
-The normalized shared priming Inputs contract owns the reporting field
-vocabulary. Router release carries `batch-reporting-recipient-id`,
-`batch-reporting-recipient-host-identity` when host-scoped,
-`batch-reporting-scope`, and `batch-reporting-authorization-reference` when the
-sending host requires human authorization, alongside unchanged canonical
-issue/route/repository and confirmed sender/host bindings. Both GitHub and
-Linear entrypoints preserve these facts unchanged into shared priming. The
-shared consumer validates original sender-accessible actual-human evidence when
-required and retains provenance, recipient and scope through compatible resume. If the
-sending host demonstrably needs no human authorization, retain its supported
-policy basis with scope; an absent reference cannot establish that exception.
-Missing required, inaccessible, unverifiable or mismatched context holds the
-affected unattended handoff/reporting boundary without dropping facts,
-fabricating permission or polling. Direct non-batch invocation omits this
-reporting context; existing route, receipt and authority gates remain intact.
+Before unattended owner release, a supported reporting path binds verified
+sender/recipient identities, scoped hosts, covered effects and accessible
+original actual-human authorization where the sending host requires it.
+Creation, invocation and copied controller claims supply no permission. A host
+exception requires a supported policy basis, never merely an absent reference.
+The shared [priming Inputs](../../skills/issue-priming-workflow/SKILL.md#inputs)
+owns the reporting-authority procedure and field vocabulary; coordination,
+routing and provider adapters reference it. GitHub and Linear handoffs retain
+its reporting fields, original evidence and unchanged issue/route/repository/
+owner bindings. Missing, inaccessible, unverifiable or mismatched context holds
+the affected action through its supported safe gap surface; no consent is
+fabricated and no progress polling replaces reporting. Direct non-batch
+invocation omits this context; existing route, receipt and authority gates remain.
+Compatible validated assignments reuse their context without another authority
+question, probe message or acknowledgement wait, including changed heads alone.
+A rejected send stops; retry requires a concrete corrected recipient, scope,
+evidence or transport mismatch. Do not evade rejection through another channel.
+An unknown send outcome requires existing uncertain-effect reconciliation before
+retry. Missing authority or host restrictions hold only affected actions;
+independently authorized local work continues.
 
 Both batch-routed provider adapters apply the shared Inputs reporting
 validation before their earliest report-producing stage, including fetch,
@@ -790,8 +780,12 @@ Quiet reporting never establishes readiness or preserves stale-head approval.
 
 Deliver a compact delta with provider-tagged issue/PR identity, owner, applicable
 current head, changed state, requested coordinator action and evidence reference.
-Complete route keys, validators, diagnostics and supporting reports stay locally
-accessible under existing owners. Consumers resolve and validate all required
+Existing owner, provider and preparation evidence may supply gate facts directly,
+without a duplicate complete-report artifact or universal report hash. Complete
+route keys, validators and diagnostics stay accessible under existing owners.
+The selected source-issue-reporting route still requires its owner-report or
+source-reporting gate digest, and approval routing its approval-gate digest;
+preserve their complete keys and duplicate-effect suppression. Consumers resolve and validate all required
 evidence before dependent action; absent, unreadable, stale, incomplete or
 conflicting evidence holds that action. References do not supply authority or
 replace current-head and replay validation. This changes delivery, not the
@@ -2076,6 +2070,13 @@ hard-rule claim stops or hands off under its existing owner. The changed
 candidate requires validation, a frozen current head, and independent review
 before another repair qualification or approval. Findings and `--fix` never
 create implementation authority.
+
+When repeated same-family blockers trigger bounded scope/design reassessment,
+the implementation owner may decide an in-scope revised approach or deferral
+under current authority without a coordinator acknowledgement. Changed scope,
+reserved interface approvals and cross-owner decisions still require their
+owning decision. Reassessment supplies no expanded authority and never replaces
+fresh changed-candidate validation and independent review.
 
 Under the [Writing Skills review and mutation
 policy](../guidelines/writing-skills.md#review-and-mutation-routing), a
