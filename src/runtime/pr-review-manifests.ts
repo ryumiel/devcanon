@@ -16,7 +16,13 @@ import {
 import path from "node:path";
 import { promisify } from "node:util";
 import { writeTextAtomically } from "./artifacts.js";
-import { requireDirectEphemeralChild } from "./paths.js";
+import {
+  currentReviewAnalysis,
+  requireReviewArtifactPath,
+  requireWritableAnalysis,
+  reviewArtifactPath,
+  withReviewAnalysis,
+} from "./pr-review-analysis.js";
 import { runPrReviewLeasesCommand } from "./pr-review-leases.js";
 import {
   type PrReviewResultCommandAuthorityInput,
@@ -87,7 +93,30 @@ export async function runPrReviewManifestsCommand(
   args: readonly string[],
 ): Promise<RuntimeCommandOutcome> {
   try {
+    return await withReviewAnalysis(process.env.REVIEW_ANALYSIS_BINDING, () =>
+      runPrReviewManifestsCommandInContext(args),
+    );
+  } catch (error) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: `${error instanceof Error ? error.message : String(error)}\n`,
+    };
+  }
+}
+
+async function runPrReviewManifestsCommandInContext(
+  args: readonly string[],
+): Promise<RuntimeCommandOutcome> {
+  try {
     const [commandName] = args;
+    if (
+      commandName?.startsWith("prepare-") ||
+      commandName?.startsWith("write-") ||
+      commandName === "replace-findings" ||
+      commandName === "recover-review-body-publication"
+    )
+      requireWritableAnalysis();
     switch (commandName) {
       case "prepare-handoff-write":
         return ok(`${await prepareHandoffWrite()}\n`);
@@ -118,6 +147,9 @@ export async function runPrReviewManifestsCommand(
       case "read-result-for-preview":
         requireNoCommandArgs(commandName, args);
         return ok(`${await readResultForPreview()}\n`);
+      case "read-result-for-analysis":
+        requireNoCommandArgs(commandName, args);
+        return ok(`${await readResultForAnalysis()}\n`);
       case "write-review-body":
         requireNoCommandArgs(commandName, args);
         return ok(await writeReviewBody());
@@ -382,9 +414,12 @@ async function readResultForPreview(): Promise<string> {
     resultFile,
     validationContext,
   );
-  const artifacts = objectField(result, "artifacts");
+  return json(resultPreview(result, handoff));
+}
 
-  return json({
+function resultPreview(result: JsonObject, handoff: JsonObject): JsonObject {
+  const artifacts = objectField(result, "artifacts");
+  return {
     schema: "pr-review/result-preview/v1",
     review_head_sha: stringField(result, "review_head_sha"),
     handoff_file: stringField(artifacts, "handoff_file"),
@@ -397,6 +432,58 @@ async function readResultForPreview(): Promise<string> {
       artifacts,
       "rendered_preview_file",
     ),
+  };
+}
+
+async function readResultForAnalysis(): Promise<string> {
+  if (currentReviewAnalysis()?.production !== "sealed")
+    fail("current analysis read requires sealed original custody");
+  const input = readResultValidationInput(requiredEnv("RESULT_FILE"));
+  const { result, handoff } =
+    await validatePrReviewResultCommandAuthority(input);
+  if (
+    stringField(handoff, "active_diff_range") !==
+      requiredEnv("ACTIVE_DIFF_RANGE") ||
+    stringField(handoff, "review_scope_base_ref") !==
+      requiredEnv("REVIEW_SCOPE_BASE_REF")
+  )
+    fail("current analysis scope mismatch");
+  const evidence = await readJsonObject(
+    stringField(
+      objectField(result, "artifacts"),
+      "provider_scope_evidence_file",
+    ),
+    "provider scope evidence",
+  );
+  if (stringField(evidence, "baseRefOid") !== requiredEnv("PROVIDER_BASE_SHA"))
+    fail("current analysis provider base mismatch");
+  const findings = await readJsonObject(
+    stringField(result, "findings_file"),
+    "findings",
+  );
+  validateTargetedReviewEvidence(findings);
+  const verification = objectField(findings, "verification");
+  const complete =
+    arrayField(findings, "incomplete_review_routes").length === 0 &&
+    ["completed", "not-required"].includes(stringField(verification, "state"));
+  const blocking = [
+    ...arrayField(findings, "findings"),
+    ...arrayField(findings, "carry_forward"),
+  ].some((value) => {
+    const finding = value as JsonObject;
+    return (
+      finding.severity === "Blocking" &&
+      finding.critic !== "INVALID" &&
+      finding.critic !== "DOWNGRADE"
+    );
+  });
+  let verdict = "incomplete";
+  if (complete) verdict = blocking ? "blocking" : "passing";
+  return json({
+    ...resultPreview(result, handoff),
+    complete,
+    verdict,
+    verification,
   });
 }
 
@@ -1208,6 +1295,7 @@ function inheritedHelperEnv(): Record<string, string> {
     "ComSpec",
     "PLAY_VALIDATE_REVIEW_ARTIFACTS_SCRIPT",
     "DEVCANON_RUNTIME_DIR",
+    "REVIEW_ANALYSIS_BINDING",
   ]) {
     const value = process.env[key];
     if (value !== undefined) {
@@ -2084,7 +2172,7 @@ function validateDirectChildPath(label: string, file: string, suffix = "") {
     fail(`path traversal: ${file}`);
   }
   try {
-    requireDirectEphemeralChild(file);
+    requireReviewArtifactPath(file);
   } catch {
     if (file.startsWith(".ephemeral/") && file.slice(11).includes("/")) {
       fail(`nested ${label} path rejected: ${file}`);
@@ -2218,11 +2306,13 @@ function parseBooleanEnv(name: string): boolean {
 }
 
 function expectedHandoffPath(prNumber: number, headSha: string): string {
-  return `.ephemeral/pr-${prNumber}-${headSha}-handoff.json`;
+  return reviewArtifactPath(
+    `.ephemeral/pr-${prNumber}-${headSha}-handoff.json`,
+  );
 }
 
 function expectedResultPath(prNumber: number, headSha: string): string {
-  return `.ephemeral/pr-${prNumber}-${headSha}-result.json`;
+  return reviewArtifactPath(`.ephemeral/pr-${prNumber}-${headSha}-result.json`);
 }
 
 function validateCanonicalReviewBodyPath(
@@ -2232,20 +2322,25 @@ function validateCanonicalReviewBodyPath(
 ): void {
   if (
     reviewBodyFile !== null &&
-    reviewBodyFile !== `.ephemeral/pr-${prNumber}-${headSha}-review-body.md`
+    reviewBodyFile !==
+      reviewArtifactPath(`.ephemeral/pr-${prNumber}-${headSha}-review-body.md`)
   ) {
     fail(`review body path mismatch: ${reviewBodyFile}`);
   }
 }
 
 function canonicalReviewBodyPath(prNumber: number, headSha: string): string {
-  return `.ephemeral/pr-${prNumber}-${headSha}-review-body.md`;
+  return reviewArtifactPath(
+    `.ephemeral/pr-${prNumber}-${headSha}-review-body.md`,
+  );
 }
 
 async function expectedFindingsPath(headSha: string): Promise<string> {
   const rawBranch = await currentBranchName();
   const branchSlug = rawBranch === "HEAD" ? "detached" : slugBranch(rawBranch);
-  return `.ephemeral/${branchSlug}-${headSha}-findings.json`;
+  return reviewArtifactPath(
+    `.ephemeral/${branchSlug}-${headSha}-findings.json`,
+  );
 }
 
 async function currentBranchName(): Promise<string> {
@@ -2276,7 +2371,7 @@ function slugBranch(branchName: string): string {
 }
 
 function tmpPathFor(finalPath: string): string {
-  return `.ephemeral/.${finalPath.slice(".ephemeral/".length)}.tmp`;
+  return `${path.posix.dirname(finalPath)}/.${path.posix.basename(finalPath)}.tmp`;
 }
 
 function isObject(value: unknown): value is JsonObject {
@@ -2395,12 +2490,14 @@ function isAbsolutePath(value: string): boolean {
 }
 
 function isDirectEphemeralPath(value: string, suffix: string): boolean {
-  return (
-    /^\.ephemeral\/[^/]+$/u.test(value) &&
-    !value.includes("\\") &&
-    !value.includes("..") &&
-    value.endsWith(suffix)
-  );
+  try {
+    requireReviewArtifactPath(value);
+    return (
+      !value.includes("\\") && !value.includes("..") && value.endsWith(suffix)
+    );
+  } catch {
+    return false;
+  }
 }
 
 function isNullableDirectEphemeralPath(

@@ -1,5 +1,12 @@
 # Coordinator reporting scenarios
 
+An isolated independent analysis result is consumed through the
+[current-result read](../../pr-review/references/review-manifests-usage.md#independent-analysis-custody)
+with original custody and the current repository/PR/head/base/scope. Establish
+reviewer independence and applicable verification separately. A complete blocking
+verdict is valid completed review evidence, but does not release a passing-review
+gate. Neither a reviewed/gated lease nor GitHub posting supplies those checks.
+
 Use these hypothetical cases to evaluate ROUTE-007 reporting behavior against
 coordination, routing, priming, review-response and watchdog guidance in source
 and both rendered targets. Evaluate resulting actions and evidence consumption;

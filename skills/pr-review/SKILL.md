@@ -84,6 +84,37 @@ digraph pr_review {
 }
 ```
 
+## Independent analysis in an existing checkout
+
+When the request is analysis-only and an existing checkout already has the
+verified PR head, select this route before lease discovery. Run from that
+checkout's physical repository root; retain its branch and contents. Allocate
+an original analysis directory with `prior-thread-artifacts.sh allocate-analysis`
+and retain the complete returned `REVIEW_ANALYSIS_BINDING` outside the
+artifact directory. Carry that exact binding through provider capture, scope,
+`play-review`, shared context, handoff, and result validation. Use the helper
+returned paths; do not reconstruct or adopt a same-named directory. Continue
+through the ordinary provider, scope, and review checks with this binding, but
+skip lease discovery, creation, and all lease state writes.
+
+Seal the completed directory and retain the returned binding before current
+result consumption. Use `read-result-for-analysis` to validate the result against the caller-established
+repository, PR, head, base, scope, and sealed custody; incomplete required routes
+or failed or skipped required verification cannot pass. Establish reviewer independence separately. A complete blocking
+verdict is still a completed result. Report its exact result and custody identity.
+Once consumers have ended and effects are reconciled, dispose only the original
+sealed directory with the analysis cleanup helper. Retain and report a refused
+or uncertain cleanup for bounded retry. See
+[prior-thread-artifacts usage](references/prior-thread-artifacts-usage.md) for
+the concrete commands and inputs.
+
+This route grants no approval and performs no posting. A later posting request
+starts with `REVIEW_ANALYSIS_BINDING` unset and uses the ordinary session,
+current payload and event validation, explicit approval, and unresolved-effect
+reconciliation; perform fresh normal
+preparation and review if needed. Never reset an incompatible live lease or
+inherit an approval from analysis.
+
 ## Phase 1: Gather
 
 Run in parallel:
@@ -478,7 +509,12 @@ bind_scope_decision_artifact() {
   branch_slug="$(LC_ALL=C printf '%s' "$raw_branch" | LC_ALL=C tr '/' '-' | LC_ALL=C tr -cd '[:alnum:]._-')"
   [ "$raw_branch" != HEAD ] || branch_slug="detached"
   case "$branch_slug" in "" | . | .. | -* | .*) branch_slug="unnamed" ;; esac
-  PROVIDER_SCOPE_CAPTURE_FILE=".ephemeral/$branch_slug-$HEAD_SHA-provider-scope-capture.json"
+  artifact_root=".ephemeral"
+  if [ "${REVIEW_ANALYSIS_BINDING+x}" = x ]; then
+    artifact_root="$(REPOSITORY="$PR_REPOSITORY" PR_NUMBER="$PR_NUMBER" HEAD_SHA="$HEAD_SHA" \
+      bash "$PR_REVIEW_ARTIFACT_HELPER" analysis-write-root)" || return 1
+  fi
+  PROVIDER_SCOPE_CAPTURE_FILE="$artifact_root/$branch_slug-$HEAD_SHA-provider-scope-capture.json"
   [ ! -L .ephemeral ] || return 1
   mkdir -p .ephemeral || return 1
   # Reuse the exact preserved capture after a producer failure; never overwrite
@@ -557,8 +593,20 @@ bind_scope_decision_artifact() {
   # construction": supply verified facts to its single JavaScript example and
   # write the result to this exact returned path. The runtime owns its closed
   # shape. Phase 6 revalidates this same artifact before posting.
-  scope_original_record="$REVIEW_CALLER_DIR/.ephemeral/pr-$PR_NUMBER-scope-original-$HEAD_SHA-$(date +%s)-$$-$RANDOM.json"
-  scope_failure_scratch="$(REPOSITORY="$PR_REPOSITORY" PR_NUMBER="$PR_NUMBER" bash "$PR_REVIEW_ARTIFACT_HELPER" allocate-original --record-file "$scope_original_record")" || return 1
+  if [ "${REVIEW_ANALYSIS_BINDING+x}" = x ]; then
+    # Retain a distinct original binding; never replace the review's binding.
+    scope_diagnostic_binding="$(REPOSITORY="$PR_REPOSITORY" PR_NUMBER="$PR_NUMBER" HEAD_SHA="$HEAD_SHA" \
+      bash "$PR_REVIEW_ARTIFACT_HELPER" allocate-analysis)" || return 1
+    scope_failure_scratch="$(REVIEW_ANALYSIS_BINDING="$scope_diagnostic_binding" \
+      REPOSITORY="$PR_REPOSITORY" PR_NUMBER="$PR_NUMBER" HEAD_SHA="$HEAD_SHA" \
+      bash "$PR_REVIEW_ARTIFACT_HELPER" analysis-write-root)" || {
+      printf 'Retain original diagnostic binding for retry: %s\n' "$scope_diagnostic_binding" >&2
+      return 1
+    }
+  else
+    scope_original_record="$REVIEW_CALLER_DIR/.ephemeral/pr-$PR_NUMBER-scope-original-$HEAD_SHA-$(date +%s)-$$-$RANDOM.json"
+    scope_failure_scratch="$(REPOSITORY="$PR_REPOSITORY" PR_NUMBER="$PR_NUMBER" bash "$PR_REVIEW_ARTIFACT_HELPER" allocate-original --record-file "$scope_original_record")" || return 1
+  fi
   scope_validation_status=0
   HEAD_SHA="$HEAD_SHA" \
   BASE_REF="$REVIEW_SCOPE_BASE_REF" \
@@ -568,17 +616,45 @@ bind_scope_decision_artifact() {
     bash "$PR_REVIEW_ARTIFACT_HELPER" validate-scope-decision \
     2> "$scope_failure_scratch/validator.stderr" || scope_validation_status=$?
   if [ "$scope_validation_status" -ne 0 ]; then
-    cp "$SCOPE_DECISION_FILE" "$scope_failure_scratch/failed-scope.json" || return 1
+    cp "$SCOPE_DECISION_FILE" "$scope_failure_scratch/failed-scope.json" || {
+      if [ "${REVIEW_ANALYSIS_BINDING+x}" = x ]; then
+        printf 'Retain original diagnostic binding for retry: %s\n' "$scope_diagnostic_binding" >&2
+      fi
+      return 1
+    }
+  fi
+  if [ "${REVIEW_ANALYSIS_BINDING+x}" = x ]; then
+    sealed_scope_diagnostic="$(REVIEW_ANALYSIS_BINDING="$scope_diagnostic_binding" \
+      REPOSITORY="$PR_REPOSITORY" PR_NUMBER="$PR_NUMBER" HEAD_SHA="$HEAD_SHA" \
+      bash "$PR_REVIEW_ARTIFACT_HELPER" seal-analysis)" || {
+      printf 'Retain original diagnostic binding for retry: %s\n' "$scope_diagnostic_binding" >&2
+      return 1
+    }
+    scope_diagnostic_binding="$sealed_scope_diagnostic"
+  elif [ "$scope_validation_status" -ne 0 ]; then
     REPOSITORY="$PR_REPOSITORY" PR_NUMBER="$PR_NUMBER" \
       bash "$PR_REVIEW_ARTIFACT_HELPER" seal-original --record-file "$scope_original_record" || return 1
+  fi
+  if [ "$scope_validation_status" -ne 0 ]; then
+    if [ "${REVIEW_ANALYSIS_BINDING+x}" = x ]; then
+      printf 'Retain sealed diagnostic binding: %s\n' "$scope_diagnostic_binding" >&2
+    fi
     cat "$scope_failure_scratch/validator.stderr" >&2 || return 1
     printf 'Scope validation failed; exact candidate and stderr preserved in %s.\n' "$scope_failure_scratch" >&2
     return "$scope_validation_status"
   fi
-  bash "$PR_REVIEW_ARTIFACT_HELPER" remove-provider-scope-scratch "$scope_failure_scratch" || return 1
-  # No failed bytes were produced; the allocating owner can retire this unused
-  # allocation record after successful scope validation.
-  rm "$scope_original_record" || return 1
+  if [ "${REVIEW_ANALYSIS_BINDING+x}" = x ]; then
+    REVIEW_ANALYSIS_BINDING="$scope_diagnostic_binding" \
+      REPOSITORY="$PR_REPOSITORY" PR_NUMBER="$PR_NUMBER" HEAD_SHA="$HEAD_SHA" \
+      bash "$PR_REVIEW_ARTIFACT_HELPER" dispose-analysis >/dev/null || {
+      printf 'Retain sealed diagnostic binding for cleanup retry: %s\n' "$scope_diagnostic_binding" >&2
+      return 1
+    }
+  else
+    bash "$PR_REVIEW_ARTIFACT_HELPER" remove-provider-scope-scratch "$scope_failure_scratch" || return 1
+    # The allocating owner retires the unused legacy allocation record.
+    rm "$scope_original_record" || return 1
+  fi
   REVIEW_SCOPE_DECISION_FILE="$SCOPE_DECISION_FILE"
 }
 
@@ -596,7 +672,10 @@ replacement reviewer is needed for each routine correction.
 
 Before every replacement, preserve exact failed bytes and validator stderr as
 `failed-scope.json` and `validator.stderr`, regular nonsymlink files in one fresh
-controller-owned directory returned by `allocate-original`, sealed before replacement. The
+controller-owned original directory, sealed before replacement. For an
+existing-checkout analysis, retain the separate `scope_diagnostic_binding`
+returned by `seal-analysis` along with its directory; for leased preparation,
+retain the `allocate-original` record and its sealed directory. The
 [lifecycle retention owner](references/review-lease-lifecycle-contract.md#failed-validation-scratch-outside-enrolled-custody)
 defines finite preservation and supported original-proven retirement after purposes
 and durable useful-context publication resolve; retain failed bytes until that boundary. Do not replace the candidate if preservation fails. Recheck

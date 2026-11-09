@@ -57,19 +57,42 @@ validate_head_sha() {
   esac
 }
 
+runtime_from_dir() {
+  local script_dir
+  script_dir="$(cd "$(dirname "$1")" && pwd)" || return 1
+  printf '%s\n' "$(cd "$script_dir/../.." && pwd)/devcanon-runtime/scripts/devcanon-runtime.sh"
+}
+
+analysis_root() {
+  if [ "${REVIEW_ANALYSIS_BINDING+x}" != x ]; then
+    printf '.ephemeral\n'
+    return
+  fi
+  local runtime
+  if [ -n "${DEVCANON_RUNTIME_DIR:-}" ]; then
+    runtime="$DEVCANON_RUNTIME_DIR/scripts/devcanon-runtime.sh"
+  else
+    runtime="$(runtime_from_dir "${BASH_SOURCE[0]}")"
+    if [ ! -x "$runtime" ]; then
+      runtime="$(runtime_from_dir "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/$(basename "${BASH_SOURCE[0]}")")"
+    fi
+  fi
+  [ -f "$runtime" ] && [ -x "$runtime" ] || { echo "devcanon-runtime passive runtime bundle missing" >&2; return 1; }
+  "$runtime" runtime pr-review-provider-scope-evidence "${1:-analysis-root}"
+}
+
 validate_findings_path_shape() {
   local findings_file="$1"
   local expected_findings_file
-  case "$findings_file" in
-    .ephemeral/*/*)
-      echo "nested findings path rejected: $findings_file" >&2
-      exit 1
-      ;;
-    .ephemeral/*-findings.json) ;;
-    *)
-      echo "findings path validation failed: $findings_file" >&2
-      exit 1
-      ;;
+  local root
+  if [ "${REVIEW_ANALYSIS_BINDING+x}" != x ]; then
+    case "$findings_file" in .ephemeral/*/*) echo "nested findings path rejected: $findings_file" >&2; exit 1 ;; esac
+  fi
+  root="$(analysis_root)" || return 1
+  [ "${findings_file%/*}" = "$root" ] || { echo "findings path validation failed: $findings_file" >&2; exit 1; }
+  case "${findings_file##*/}" in
+    *-findings.json) ;;
+    *) echo "findings path validation failed: $findings_file" >&2; exit 1 ;;
   esac
   [ "${findings_file#*..}" = "$findings_file" ] || {
     echo "path traversal: $findings_file" >&2
@@ -84,16 +107,12 @@ validate_findings_path_shape() {
 
 validate_nits_path_shape() {
   local nits_file="$1"
-  case "$nits_file" in
-    .ephemeral/*/*)
-      echo "nested nits_file path rejected: $nits_file" >&2
-      exit 1
-      ;;
-    .ephemeral/*-findings.json | .ephemeral/*-nits-pending.json) ;;
-    *)
-      echo "nits_file path validation failed: $nits_file" >&2
-      exit 1
-      ;;
+  local root
+  root="$(analysis_root)" || return 1
+  [ "${nits_file%/*}" = "$root" ] || { echo "nits_file path validation failed: $nits_file" >&2; exit 1; }
+  case "${nits_file##*/}" in
+    *-findings.json | *-nits-pending.json) ;;
+    *) echo "nits_file path validation failed: $nits_file" >&2; exit 1 ;;
   esac
   [ "${nits_file#*..}" = "$nits_file" ] || {
     echo "path traversal: $nits_file" >&2
@@ -210,17 +229,9 @@ validate_review_event() {
 
 validate_review_body_file() {
   require_env REVIEW_BODY_FILE
-  case "$REVIEW_BODY_FILE" in
-    .ephemeral/*/*)
-      echo "review body path validation failed: $REVIEW_BODY_FILE" >&2
-      exit 1
-      ;;
-    .ephemeral/*) ;;
-    *)
-      echo "review body path validation failed: $REVIEW_BODY_FILE" >&2
-      exit 1
-      ;;
-  esac
+  local root
+  root="$(analysis_root)" || return 1
+  [ "${REVIEW_BODY_FILE%/*}" = "$root" ] || { echo "review body path validation failed: $REVIEW_BODY_FILE" >&2; exit 1; }
   [ "${REVIEW_BODY_FILE#*..}" = "$REVIEW_BODY_FILE" ] || {
     echo "path traversal: $REVIEW_BODY_FILE" >&2
     exit 1
@@ -242,12 +253,21 @@ validate_review_body_file() {
 prepare_write_target() {
   local label="$1"
   local file="$2"
+  if [ "${REVIEW_ANALYSIS_BINDING+x}" = x ]; then
+    analysis_root analysis-write-root >/dev/null
+  fi
   [ -L .ephemeral ] && {
     echo ".ephemeral must be a directory, not a symlink" >&2
     exit 1
   }
   mkdir -p .ephemeral
-  [ -L "$file" ] && rm "$file"
+  if [ -L "$file" ]; then
+    if [ "${REVIEW_ANALYSIS_BINDING+x}" = x ]; then
+      echo "$label path must not be a symlink: $file" >&2
+      exit 1
+    fi
+    rm "$file"
+  fi
   [ ! -d "$file" ] || {
     echo "$label path is a directory: $file" >&2
     exit 1
@@ -280,7 +300,9 @@ expected_findings_path() {
   else
     branch_slug="$(slug_branch "$raw_branch")"
   fi
-  printf '.ephemeral/%s-%s-findings.json\n' "$branch_slug" "$HEAD_SHA"
+  local root
+  root="$(analysis_root)" || return 1
+  printf '%s/%s-%s-findings.json\n' "$root" "$branch_slug" "$HEAD_SHA"
 }
 
 validate_current_head() {
@@ -297,6 +319,9 @@ validate_current_head() {
 
 prepare_publish_target() {
   local file="$1"
+  if [ "${REVIEW_ANALYSIS_BINDING+x}" = x ]; then
+    analysis_root analysis-write-root >/dev/null
+  fi
   [ -L .ephemeral ] && {
     echo ".ephemeral must be a directory, not a symlink" >&2
     exit 1
@@ -404,6 +429,9 @@ publish_findings() {
   }
   validate_current_head
   validate_findings_path_shape "$FINDINGS_FILE"
+  if [ "${REVIEW_ANALYSIS_BINDING+x}" = x ]; then
+    analysis_root analysis-write-root >/dev/null
+  fi
   mv "$staging_file" "$FINDINGS_FILE"
   trap - EXIT
   printf '%s\n' "$FINDINGS_FILE"
@@ -857,6 +885,7 @@ case "$command_name" in
     render_review_preview
     ;;
   build-github-review-payload)
+    [ "${REVIEW_ANALYSIS_BINDING+x}" != x ] || { echo "analysis cannot create an approved posting payload" >&2; exit 1; }
     build_github_review_payload
     ;;
   *)

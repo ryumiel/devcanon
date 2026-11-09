@@ -14,6 +14,12 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import {
+  currentReviewAnalysis,
+  requireReviewArtifactPath,
+  requireWritableAnalysis,
+  withReviewAnalysis,
+} from "./pr-review-analysis.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -207,7 +213,28 @@ export async function runPlayReviewSharedContextCommand(
   args: readonly string[],
 ): Promise<RuntimeCommandOutcome> {
   try {
+    return await withReviewAnalysis(process.env.REVIEW_ANALYSIS_BINDING, () =>
+      runPlayReviewSharedContextCommandInContext(args),
+    );
+  } catch (error) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: `${error instanceof Error ? error.message : String(error)}\n`,
+    };
+  }
+}
+
+async function runPlayReviewSharedContextCommandInContext(
+  args: readonly string[],
+): Promise<RuntimeCommandOutcome> {
+  try {
     const [commandName] = args;
+    if (
+      commandName === "write-review-context-input" ||
+      commandName === "build-review-context"
+    )
+      requireWritableAnalysis();
     switch (commandName) {
       case "write-review-context-input":
         return ok(`${await writeReviewContextInput()}\n`);
@@ -393,10 +420,13 @@ function validateDirectEphemeralPath(
   if (!file.startsWith(".ephemeral/") || !file.endsWith(suffix)) {
     throw new SharedContextError(`${label} path validation failed: ${file}`);
   }
-  const rest = file.slice(".ephemeral/".length);
+  const rest = file.slice(
+    (currentReviewAnalysis()?.resource ?? ".ephemeral").length + 1,
+  );
   if (rest.includes("/")) {
     throw new SharedContextError(`nested ${label} path rejected: ${file}`);
   }
+  requireReviewArtifactPath(file);
 }
 
 function validateFindingsPath(findingsFile: string, headSha: string): void {

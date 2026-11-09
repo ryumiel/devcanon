@@ -33,6 +33,8 @@ const reviewArtifactsHelper = path.join(
 );
 const managedEnvKeys = [
   "REPOSITORY",
+  "REVIEW_ANALYSIS_BINDING",
+  "PROVIDER_BASE_SHA",
   "PR_NUMBER",
   "HEAD_SHA",
   "HANDOFF_FILE",
@@ -113,6 +115,112 @@ afterEach(async () => {
 
 afterAll(async () => {
   await commandHarness.dispose();
+});
+
+describe("current independent analysis result", () => {
+  it.each([
+    { label: "passing", findings: [], verdict: "passing", incomplete: false },
+    {
+      label: "blocking",
+      findings: [auditFinding("F1", "Finding")],
+      verdict: "blocking",
+      incomplete: false,
+    },
+    {
+      label: "incomplete",
+      findings: [],
+      verdict: "incomplete",
+      incomplete: true,
+    },
+  ])(
+    "classifies a $label result from sealed custody",
+    async ({ findings, verdict, incomplete }) => {
+      const workspace = await makeManifestWorkspace(
+        "analysis-current-",
+        findings,
+      );
+      setSummaryEnv(workspace);
+      process.chdir(workspace.worktree);
+      await rm(path.join(workspace.primary, workspace.leaseFile));
+      const { runPrReviewProviderScopeEvidenceCommand } = await import(
+        "./review-artifacts.js"
+      );
+      const allocation = await runPrReviewProviderScopeEvidenceCommand([
+        "allocate-analysis",
+      ]);
+      expect(allocation.exitCode, allocation.stderr).toBe(0);
+      process.env.REVIEW_ANALYSIS_BINDING = allocation.stdout.trim();
+      const root = JSON.parse(allocation.stdout).resource as string;
+      const leaf = (file: string) => `${root}/${path.posix.basename(file)}`;
+      const scope = `.ephemeral/topic-${workspace.headSha}-scope-decision.json`;
+      const handoff = `.ephemeral/pr-432-${workspace.headSha}-handoff.json`;
+      const preview = `.ephemeral/topic-${workspace.headSha}-review-preview.md`;
+      for (const file of [
+        workspace.findingsFile,
+        workspace.reviewBodyFile,
+        preview,
+        workspace.providerScopeEvidenceFile,
+      ]) {
+        await writeFile(
+          path.join(workspace.worktree, leaf(file)),
+          await readFile(path.join(workspace.worktree, file)),
+        );
+      }
+      if (incomplete) {
+        const file = path.join(
+          workspace.worktree,
+          leaf(workspace.findingsFile),
+        );
+        const envelope = JSON.parse(await readFile(file, "utf8"));
+        envelope.incomplete_review_routes = [
+          { route: "D7", disposition: "NEEDS_CONTEXT" },
+        ];
+        await writeFile(file, JSON.stringify(envelope));
+      }
+      const relocate = async (file: string) =>
+        JSON.parse(
+          (
+            await readFile(path.join(workspace.worktree, file), "utf8")
+          ).replaceAll(".ephemeral/", `${root}/`),
+        );
+      const scopeData = await relocate(scope);
+      await writeJson(workspace.worktree, leaf(scope), scopeData);
+      const handoffData = await relocate(handoff);
+      await writeJson(workspace.worktree, leaf(handoff), handoffData);
+      const result = await relocate(workspace.resultFile);
+      result.digests.findings_sha256 = await sha256File(
+        path.join(workspace.worktree, leaf(workspace.findingsFile)),
+      );
+      result.digests.scope_decision_sha256 = await sha256File(
+        path.join(workspace.worktree, leaf(scope)),
+      );
+      result.digests.handoff_sha256 = await sha256File(
+        path.join(workspace.worktree, leaf(handoff)),
+      );
+      await writeJson(workspace.worktree, leaf(workspace.resultFile), result);
+      const sealed = await runPrReviewProviderScopeEvidenceCommand([
+        "seal-analysis",
+      ]);
+      expect(sealed.exitCode, sealed.stderr).toBe(0);
+      Object.assign(process.env, {
+        REVIEW_ANALYSIS_BINDING: sealed.stdout.trim(),
+        RESULT_FILE: leaf(workspace.resultFile),
+        PROVIDER_BASE_SHA: workspace.baseSha,
+        REVIEW_SCOPE_BASE_REF: workspace.baseSha,
+        ACTIVE_DIFF_RANGE: `${workspace.baseSha}..${workspace.headSha}`,
+      });
+      const current = await runManifestCommand(["read-result-for-analysis"]);
+      expect(current.exitCode, current.stderr).toBe(0);
+      expect(JSON.parse(current.stdout)).toMatchObject({
+        complete: !incomplete,
+        verdict,
+      });
+      process.env.PROVIDER_BASE_SHA = "a".repeat(40);
+      expect(
+        (await runManifestCommand(["read-result-for-analysis"])).exitCode,
+      ).toBe(1);
+    },
+  );
 });
 
 // Historical consumption owns coverage evidence; terminal completion remains wrapper policy.

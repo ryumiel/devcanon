@@ -204,6 +204,13 @@ For previews/payloads, read `references/wrapper-helper-contracts.md`: invoke
 `REVIEW_BODY_FILE` and `REVIEW_EVENT` (`APPROVE`, `REQUEST_CHANGES`, `COMMENT`)
 apply as documented there. Render review-head source, not the mutable checkout.
 
+For an independent PR analysis selected by `pr-review`, retain the caller's
+exact `REVIEW_ANALYSIS_BINDING` in helper invocations and use the returned
+artifact paths inside its original directory. The wrapper owns allocation,
+current result validation, and exact disposal. This pipeline does not acquire a
+lease or approval for that route. See
+[review artifacts usage](references/review-artifacts-usage.md).
+
 ## Phase 1: Discover Guidelines
 
 Search `working_directory` for review guidelines and freeze their paths for

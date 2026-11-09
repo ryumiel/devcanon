@@ -4,9 +4,28 @@
 
 Performs deterministic PR-review handoff, result, body, findings, and pre-findings extraction operations.
 
+## Independent analysis custody
+
+With `REVIEW_ANALYSIS_BINDING` supplied, these operations use canonical leaves
+inside the runtime-validated original analysis directory. Carry the allocated
+binding during production and the sealed binding during current result
+consumption. Validate repository, PR, head, base, scope, complete required
+routes and verification before treating a result as current. A complete
+blocking verdict remains a completed result. `read-result-for-baseline` is a
+historical read, not a current-result check. Analysis does not confer approval
+or authorize posting.
+
+Use `read-result-for-analysis` with the sealed `REVIEW_ANALYSIS_BINDING`,
+`REPOSITORY`, `PR_NUMBER`, `HEAD_SHA`, `RESULT_FILE`, `PROVIDER_BASE_SHA`
+(the current provider baseRefOid), `REVIEW_SCOPE_BASE_REF` (the current provider
+diff base), and `ACTIVE_DIFF_RANGE` (the expected selected range). It returns
+the existing result-preview view, `complete`, a `passing`, `blocking`, or
+`incomplete` verdict, and the original verification disposition. Establish
+reviewer independence separately before accepting the result.
+
 ## Invocation
 
-Run `bash "$PR_REVIEW_DIR/scripts/review-manifests.sh"` followed by exactly one of `prepare-handoff-write`, `write-handoff`, `validate-handoff`, `prepare-result-write`, `write-result`, `validate-result`, `read-result-for-preview`, `read-result-for-baseline`, `write-review-body`, `recover-review-body-publication`, `replace-findings`, `render-phase5-audit-summary`, or `extract-pre-findings-markdown`.
+Run `bash "$PR_REVIEW_DIR/scripts/review-manifests.sh"` followed by exactly one of `prepare-handoff-write`, `write-handoff`, `validate-handoff`, `prepare-result-write`, `write-result`, `validate-result`, `read-result-for-analysis`, `read-result-for-preview`, `read-result-for-baseline`, `write-review-body`, `recover-review-body-publication`, `replace-findings`, `render-phase5-audit-summary`, or `extract-pre-findings-markdown`.
 
 ## Inputs
 

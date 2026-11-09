@@ -9,6 +9,13 @@ operator flow.
 
 ## Target retention and supersession contract
 
+The [independent analysis contract](../../../docs/specs/afds-workflow-routing.md#review-analysis-001-independent-analysis-completion)
+separates semantic completion from lease ownership. Its runtime contract owns
+original analysis custody and exact scratch disposal in a borrowed checkout.
+Existing live leases retain the transitions below without forced migration or
+reset. An analysis verdict grants no posting approval; a later posting request
+uses the ordinary session and approval procedure.
+
 This section owns finite retirement and attempt replacement. The existing
 artifact adapter captures current provider-scope allocation and sealed directory
 custody. Existing scratch cleanup also has an expected-snapshot guarded mode. The lease adapter implements `retire-attempt`

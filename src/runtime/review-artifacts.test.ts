@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  copyFile,
   cp,
   mkdir,
   mkdtemp,
@@ -3318,6 +3319,391 @@ async function writeCaptureText(text: string): Promise<string> {
 }
 
 describe("provider scope capture scratch subcommands", () => {
+  it("produces and consumes a complete lease-free analysis with real scope validation", async () => {
+    const { cwd, baseSha, headSha } = await makeProviderScopeWorkspace();
+    const originalEnv = { ...process.env };
+    try {
+      const range = `${baseSha}..${headSha}`;
+      Object.assign(process.env, {
+        REPOSITORY: "owner/repo",
+        PR_NUMBER: "480",
+        HEAD_SHA: headSha,
+        DEVCANON_RUNTIME_DIR: path.join(originalCwd, "skills/devcanon-runtime"),
+        PR_REVIEW_DIR: path.join(originalCwd, "skills/pr-review"),
+        PLAY_REVIEW_HELPER: path.join(
+          originalCwd,
+          "skills/play-review/scripts/review-artifacts.sh",
+        ),
+        EXECUTION_WORKING_DIRECTORY: await realpath(cwd),
+        BASE_REF: baseSha,
+        HEAD_REF: "topic",
+        REVIEW_SCOPE_BASE_REF: baseSha,
+        ACTIVE_DIFF_RANGE: range,
+        FULL_PR_DIFF_RANGE: range,
+        LANGUAGE_HINTS_JSON: '["ts"]',
+        FOLLOW_UP_STATE: "initial",
+        IS_FOLLOWUP_NARROW: "false",
+        PRESENTATION_STATUS: "not-presented",
+        PROVIDER_BASE_SHA: baseSha,
+      });
+      const allocated = await runPrReviewProviderScopeEvidenceCommand([
+        "allocate-analysis",
+      ]);
+      expect(allocated.exitCode, allocated.stderr).toBe(0);
+      process.env.REVIEW_ANALYSIS_BINDING = allocated.stdout.trim();
+      const helper = path.join(
+        originalCwd,
+        "skills/pr-review/scripts/prior-thread-artifacts.sh",
+      );
+      const runHelper = (command: string, extraEnv: NodeJS.ProcessEnv = {}) =>
+        execFileAsync("bash", [helper, command], {
+          cwd,
+          env: { ...process.env, ...extraEnv },
+        });
+      const root = (await runHelper("analysis-write-root")).stdout.trim();
+      expect(root).toBe(JSON.parse(allocated.stdout).resource);
+      const fetchScratch = await runPrReviewProviderScopeEvidenceCommand([
+        "create-scratch",
+      ]);
+      expect(fetchScratch.exitCode, fetchScratch.stderr).toBe(0);
+      const scratch = fetchScratch.stdout.trim();
+      expect(scratch.startsWith(`${root}/`)).toBe(false);
+      for (const name of ["pr.json", "recheck.json"]) {
+        await writeJson(cwd, `${scratch}/${name}`, {
+          baseRefOid: baseSha,
+          headRefOid: headSha,
+        });
+      }
+      const reconciled = await runPrReviewProviderScopeEvidenceCommand([
+        "reconcile-fetch",
+        "--scratch-dir",
+        scratch,
+      ]);
+      expect(reconciled.exitCode, reconciled.stderr).toBe(0);
+      for (const invalid of [
+        root,
+        `${scratch}/nested`,
+        `${scratch}/../escape`,
+      ]) {
+        const rejected = await runPrReviewProviderScopeEvidenceCommand([
+          "remove-scratch",
+          "--scratch-dir",
+          invalid,
+        ]);
+        expect(rejected.exitCode).not.toBe(0);
+      }
+      const removed = await runPrReviewProviderScopeEvidenceCommand([
+        "remove-scratch",
+        "--scratch-dir",
+        scratch,
+      ]);
+      expect(removed.exitCode, removed.stderr).toBe(0);
+      await expect(
+        fsPromises.lstat(path.join(cwd, scratch)),
+      ).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      expect(process.env.REVIEW_ANALYSIS_BINDING).toBe(allocated.stdout.trim());
+      const capture = `${root}/topic-${headSha}-provider-scope-capture.json`;
+      const evidence = `${root}/topic-${headSha}-provider-scope-evidence.json`;
+      const scope = `${root}/topic-${headSha}-scope-decision.json`;
+      const findings = `${root}/topic-${headSha}-findings.json`;
+      await writeJson(
+        cwd,
+        capture,
+        await providerScopeCapture(cwd, baseSha, headSha),
+      );
+      const produced = await runPrReviewProviderScopeEvidenceCommand([
+        "write",
+        "--head-sha",
+        headSha,
+        "--capture-file",
+        capture,
+      ]);
+      expect(produced.exitCode, produced.stderr).toBe(0);
+      expect(produced.stdout.trim()).toBe(evidence);
+      await writeJson(
+        cwd,
+        scope,
+        await providerScopeDecision(cwd, baseSha, headSha, evidence),
+      );
+      const originalScope = await readFile(path.join(cwd, scope), "utf8");
+      for (const shouldFail of [false, true]) {
+        const diagnostic = (await runHelper("allocate-analysis")).stdout.trim();
+        const diagnosticEnv = { REVIEW_ANALYSIS_BINDING: diagnostic };
+        const diagnosticRoot = (
+          await runHelper("analysis-write-root", diagnosticEnv)
+        ).stdout.trim();
+        if (shouldFail) {
+          const candidate = JSON.parse(originalScope);
+          candidate.head_sha = "a".repeat(40);
+          await writeJson(cwd, scope, candidate);
+        }
+        let stderr = "";
+        let failed = false;
+        try {
+          const validation = await runHelper("validate-scope-decision", {
+            BASE_REF: baseSha,
+            SCOPE_DECISION_FILE: scope,
+            PROVIDER_SCOPE_EVIDENCE_FILE: evidence,
+            PRIOR_THREADS_FILE: "",
+          });
+          stderr = validation.stderr;
+        } catch (error) {
+          failed = true;
+          stderr = (error as { stderr: string }).stderr;
+        }
+        expect(failed).toBe(shouldFail);
+        await writeFile(
+          path.join(cwd, diagnosticRoot, "validator.stderr"),
+          stderr,
+        );
+        if (shouldFail)
+          await copyFile(
+            path.join(cwd, scope),
+            path.join(cwd, diagnosticRoot, "failed-scope.json"),
+          );
+        const sealedDiagnostic = (
+          await runHelper("seal-analysis", diagnosticEnv)
+        ).stdout.trim();
+        if (shouldFail) {
+          expect(stderr).not.toBe("");
+          expect(
+            await readFile(
+              path.join(cwd, diagnosticRoot, "failed-scope.json"),
+              "utf8",
+            ),
+          ).toBe(await readFile(path.join(cwd, scope), "utf8"));
+        }
+        const disposal = await runHelper("dispose-analysis", {
+          REVIEW_ANALYSIS_BINDING: sealedDiagnostic,
+        });
+        expect(JSON.parse(disposal.stdout).outcome).toBe("removed");
+        expect(process.env.REVIEW_ANALYSIS_BINDING).toBe(
+          allocated.stdout.trim(),
+        );
+        await writeFile(path.join(cwd, scope), originalScope);
+      }
+      await writeJson(
+        cwd,
+        findings,
+        createReviewEnvelope(
+          {
+            schema: "play-review/findings/v3",
+            findings: [],
+            carry_forward: [],
+            incomplete_review_routes: [],
+          },
+          headSha,
+        ),
+      );
+      Object.assign(process.env, {
+        SCOPE_DECISION_FILE: scope,
+        FINDINGS_FILE: findings,
+        REVIEW_CONTEXT_INPUT_JSON: JSON.stringify({
+          schema: "play-review/shared-context-input/v1",
+          header: {
+            working_directory: await realpath(cwd),
+            base_ref: baseSha,
+            head_sha: headSha,
+            active_diff_range: range,
+            full_pr_diff_range: range,
+            mode: "github-post",
+            language_hints: ["ts"],
+          },
+          changed_files: {
+            command: `git diff --name-status ${range}`,
+            total_count: 1,
+            truncated: false,
+            records: [{ status: "A", path: "src/app.ts" }],
+          },
+          doc_impact_summary: {
+            arch_files: [],
+            new_adrs: [],
+            modified_adrs: [],
+            architecture_routing_risks: {
+              mechanical_path_signals: [],
+              semantic_classification_notes: [],
+            },
+            spec_routing_risks: {
+              mechanical_path_signals: [],
+              semantic_classification_notes: [],
+            },
+          },
+          adr_references: [],
+          discovered_guidelines: { records: [] },
+          output_format: { markdown: "Use the review findings envelope." },
+        }),
+      });
+      const { runPlayReviewSharedContextCommand } = await import(
+        "./play-review-shared-context.js"
+      );
+      const input = await runPlayReviewSharedContextCommand([
+        "write-review-context-input",
+      ]);
+      expect(input.exitCode, input.stderr).toBe(0);
+      process.env.REVIEW_CONTEXT_INPUT_FILE = input.stdout.trim();
+      const context = await runPlayReviewSharedContextCommand([
+        "build-review-context",
+      ]);
+      expect(context.exitCode, context.stderr).toBe(0);
+      Object.assign(process.env, {
+        REVIEW_CONTEXT_OUTPUT_FILE: context.stdout.trim(),
+        CONTEXT_FILE: context.stdout.trim(),
+      });
+      const family = await runPlayReviewSharedContextCommand([
+        "create-family-binding",
+      ]);
+      expect(family.exitCode, family.stderr).toBe(0);
+      process.env.REVIEW_CONTEXT_FAMILY_JSON = family.stdout.trim();
+      const familyCheck = await runPlayReviewSharedContextCommand([
+        "validate-family-binding",
+      ]);
+      expect(familyCheck.exitCode, familyCheck.stderr).toBe(0);
+      const { runPrReviewManifestsCommand } = await import(
+        "./pr-review-manifests.js"
+      );
+      const handoff = await runPrReviewManifestsCommand(["write-handoff"]);
+      expect(handoff.exitCode, handoff.stderr).toBe(0);
+      const result = await runPrReviewManifestsCommand(["write-result"]);
+      expect(result.exitCode, result.stderr).toBe(0);
+      const sealed = await runPrReviewProviderScopeEvidenceCommand([
+        "seal-analysis",
+      ]);
+      expect(sealed.exitCode, sealed.stderr).toBe(0);
+      Object.assign(process.env, {
+        REVIEW_ANALYSIS_BINDING: sealed.stdout.trim(),
+        RESULT_FILE: result.stdout.trim(),
+      });
+      const current = await runPrReviewManifestsCommand([
+        "read-result-for-analysis",
+      ]);
+      expect(current.exitCode, current.stderr).toBe(0);
+      expect(JSON.parse(current.stdout)).toMatchObject({
+        complete: true,
+        verdict: "passing",
+      });
+      const disposed = await runPrReviewProviderScopeEvidenceCommand([
+        "dispose-analysis",
+      ]);
+      expect(disposed.exitCode, disposed.stderr).toBe(0);
+      expect(JSON.parse(disposed.stdout).outcome).toBe("removed");
+      expect(
+        (await readdir(path.join(cwd, ".ephemeral"))).some((name) =>
+          name.endsWith("-lease.json"),
+        ),
+      ).toBe(false);
+    } finally {
+      process.chdir(originalCwd);
+      process.env = originalEnv;
+      await cleanupTempDir(cwd);
+    }
+  }, 90_000);
+
+  it("disposes an empty original analysis allocation after an early failure", async () => {
+    const { cwd, headSha } = await makeProviderMultiFileWorkspace();
+    const originalEnv = { ...process.env };
+    try {
+      Object.assign(process.env, {
+        REPOSITORY: "owner/repo",
+        PR_NUMBER: "480",
+        HEAD_SHA: headSha,
+      });
+      const allocated = await runPrReviewProviderScopeEvidenceCommand([
+        "allocate-analysis",
+      ]);
+      expect(allocated.exitCode, allocated.stderr).toBe(0);
+      process.env.REVIEW_ANALYSIS_BINDING = allocated.stdout.trim();
+      const disposed = await runPrReviewProviderScopeEvidenceCommand([
+        "dispose-analysis",
+      ]);
+      expect(disposed.exitCode, disposed.stderr).toBe(0);
+      expect(JSON.parse(disposed.stdout).outcome).toBe("removed");
+    } finally {
+      process.chdir(originalCwd);
+      process.env = originalEnv;
+      await cleanupTempDir(cwd);
+    }
+  });
+
+  it("isolates same-head analysis allocations and disposes only unchanged sealed entries", async () => {
+    const { cwd, headSha } = await makeProviderMultiFileWorkspace();
+    const originalEnv = { ...process.env };
+    try {
+      Object.assign(process.env, {
+        REPOSITORY: "owner/repo",
+        PR_NUMBER: "480",
+        HEAD_SHA: headSha,
+      });
+      const first = await runPrReviewProviderScopeEvidenceCommand([
+        "allocate-analysis",
+      ]);
+      const second = await runPrReviewProviderScopeEvidenceCommand([
+        "allocate-analysis",
+      ]);
+      expect(first.exitCode, first.stderr).toBe(0);
+      expect(second.exitCode, second.stderr).toBe(0);
+      const a = JSON.parse(first.stdout);
+      const b = JSON.parse(second.stdout);
+      expect(a.resource).not.toBe(b.resource);
+      await writeFile(path.join(cwd, a.resource, "result.json"), "first");
+      await writeFile(path.join(cwd, b.resource, "result.json"), "second");
+      process.env.REVIEW_ANALYSIS_BINDING = first.stdout.trim();
+      const sealed = await runPrReviewProviderScopeEvidenceCommand([
+        "seal-analysis",
+      ]);
+      expect(sealed.exitCode, sealed.stderr).toBe(0);
+      const sealedBinding = JSON.parse(sealed.stdout);
+      process.env.REVIEW_ANALYSIS_BINDING = JSON.stringify({
+        ...sealedBinding,
+        resource: b.resource,
+        operation_id: b.operation_id,
+      });
+      expect(
+        (await runPrReviewProviderScopeEvidenceCommand(["analysis-root"]))
+          .exitCode,
+      ).toBe(1);
+      process.env.REVIEW_ANALYSIS_BINDING = sealed.stdout.trim();
+      process.env.REPOSITORY = "other/repo";
+      expect(
+        (await runPrReviewProviderScopeEvidenceCommand(["analysis-root"]))
+          .exitCode,
+      ).toBe(1);
+      process.env.REPOSITORY = "owner/repo";
+      await writeFile(path.join(cwd, a.resource, "result.json"), "changed");
+      expect(
+        (await runPrReviewProviderScopeEvidenceCommand(["dispose-analysis"]))
+          .exitCode,
+      ).toBe(1);
+      await writeFile(path.join(cwd, a.resource, "result.json"), "first");
+      await writeFile(path.join(cwd, a.resource, "extra.json"), "extra");
+      expect(
+        (await runPrReviewProviderScopeEvidenceCommand(["dispose-analysis"]))
+          .exitCode,
+      ).toBe(1);
+      expect(
+        await readFile(path.join(cwd, a.resource, "result.json"), "utf8"),
+      ).toBe("first");
+      await rm(path.join(cwd, a.resource, "extra.json"));
+      const disposed = await runPrReviewProviderScopeEvidenceCommand([
+        "dispose-analysis",
+      ]);
+      expect(disposed.exitCode, disposed.stderr).toBe(0);
+      expect(JSON.parse(disposed.stdout).outcome).toBe("removed");
+      expect(
+        await readFile(path.join(cwd, b.resource, "result.json"), "utf8"),
+      ).toBe("second");
+      const repeated = await runPrReviewProviderScopeEvidenceCommand([
+        "dispose-analysis",
+      ]);
+      expect(JSON.parse(repeated.stdout).outcome).toBe("already-absent");
+    } finally {
+      process.chdir(originalCwd);
+      process.env = originalEnv;
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("creates a fresh unique scratch directory under .ephemeral on each call", async () => {
     const { cwd } = await makeProviderMultiFileWorkspace();
     try {
