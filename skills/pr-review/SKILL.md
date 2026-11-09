@@ -84,6 +84,37 @@ digraph pr_review {
 }
 ```
 
+## Independent analysis in an existing checkout
+
+When the request is analysis-only and an existing checkout already has the
+verified PR head, select this route before lease discovery. Run from that
+checkout's physical repository root; retain its branch and contents. Allocate
+an original analysis directory with `prior-thread-artifacts.sh allocate-analysis`
+and retain the complete returned `REVIEW_ANALYSIS_BINDING` outside the
+artifact directory. Carry that exact binding through provider capture, scope,
+`play-review`, shared context, handoff, and result validation. Use the helper
+returned paths; do not reconstruct or adopt a same-named directory. Continue
+through the ordinary provider, scope, and review checks with this binding, but
+skip lease discovery, creation, and all lease state writes.
+
+Seal the completed directory and retain the returned binding before current
+result consumption. Use `read-result-for-analysis` to validate the result against the caller-established
+repository, PR, head, base, scope, and sealed custody; incomplete required routes
+or failed or skipped required verification cannot pass. Establish reviewer independence separately. A complete blocking
+verdict is still a completed result. Report its exact result and custody identity.
+Once consumers have ended and effects are reconciled, dispose only the original
+sealed directory with the analysis cleanup helper. Retain and report a refused
+or uncertain cleanup for bounded retry. See
+[prior-thread-artifacts usage](references/prior-thread-artifacts-usage.md) for
+the concrete commands and inputs.
+
+This route grants no approval and performs no posting. A later posting request
+starts with `REVIEW_ANALYSIS_BINDING` unset and uses the ordinary session,
+current payload and event validation, explicit approval, and unresolved-effect
+reconciliation; perform fresh normal
+preparation and review if needed. Never reset an incompatible live lease or
+inherit an approval from analysis.
+
 ## Phase 1: Gather
 
 Run in parallel:

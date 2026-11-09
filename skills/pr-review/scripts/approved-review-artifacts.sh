@@ -777,6 +777,11 @@ inspect_approved_review_ownership() {
     '{review_body_file: $review_body_file, review_payload_file: $review_payload_file}'
 }
 
+if [ "${REVIEW_ANALYSIS_BINDING+x}" = x ]; then
+  echo "analysis cannot produce or validate approved posting artifacts" >&2
+  exit 1
+fi
+
 case "$command_name" in
   materialize-review-payload)
     materialize_review_payload

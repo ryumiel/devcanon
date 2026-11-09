@@ -74,24 +74,36 @@ branch_slug() {
 }
 
 expected_prior_threads_path() {
-  printf '.ephemeral/%s-%s-prior-threads.json\n' "$(branch_slug)" "$HEAD_SHA"
+  local root
+  root="$(artifact_root)" || return 1
+  printf '%s/%s-%s-prior-threads.json\n' "$root" "$(branch_slug)" "$HEAD_SHA"
 }
 
 expected_scope_decision_path() {
-  printf '.ephemeral/%s-%s-scope-decision.json\n' "$(branch_slug)" "$HEAD_SHA"
+  local root
+  root="$(artifact_root)" || return 1
+  printf '%s/%s-%s-scope-decision.json\n' "$root" "$(branch_slug)" "$HEAD_SHA"
 }
 
 expected_provider_scope_evidence_path() {
-  printf '.ephemeral/%s-%s-provider-scope-evidence.json\n' "$(branch_slug)" "$HEAD_SHA"
+  local root
+  root="$(artifact_root)" || return 1
+  printf '%s/%s-%s-provider-scope-evidence.json\n' "$root" "$(branch_slug)" "$HEAD_SHA"
 }
 
 validate_direct_child_path() {
   local label="$1"
   local file="$2"
   local suffix="$3"
-  case "$file" in
-    .ephemeral/*/*) fail "nested $label path rejected: $file" ;;
-    .ephemeral/*"$suffix") ;;
+  local root
+  if [ "${REVIEW_ANALYSIS_BINDING+x}" != x ]; then
+    case "$file" in .ephemeral/*/*) fail "nested $label path rejected: $file" ;; esac
+  fi
+  root="$(artifact_root)" || return 1
+  [ "${file%/*}" = "$root" ] && [ "${file##*/}" != "$file" ] ||
+    fail "$label path validation failed: $file"
+  case "${file##*/}" in
+    *"$suffix") ;;
     *) fail "$label path validation failed: $file" ;;
   esac
   [ "${file#*..}" = "$file" ] || fail "path traversal: $file"
@@ -101,6 +113,9 @@ prepare_write_target() {
   local label="$1"
   local file="$2"
 
+  if [ "${REVIEW_ANALYSIS_BINDING+x}" = x ]; then
+    "$(resolve_provider_scope_runtime)" runtime pr-review-provider-scope-evidence analysis-write-root >/dev/null
+  fi
   [ -L .ephemeral ] && fail ".ephemeral must be a directory, not a symlink"
   mkdir -p .ephemeral
   [ ! -L "$file" ] || fail "$label path must not be a symlink: $file"
@@ -197,6 +212,16 @@ resolve_provider_scope_runtime() {
   [ "$contract" = "$expected_contract" ] ||
     fail "provider scope evidence runtime contract is incompatible"
   printf '%s\n' "$runtime"
+}
+
+artifact_root() {
+  if [ "${REVIEW_ANALYSIS_BINDING+x}" = x ]; then
+    local runtime
+    runtime="$(resolve_provider_scope_runtime)"
+    "$runtime" runtime pr-review-provider-scope-evidence analysis-root
+  else
+    printf '.ephemeral\n'
+  fi
 }
 
 write_provider_scope_evidence() {
@@ -387,7 +412,7 @@ validate_scope_decision() {
 }
 
 case "$command_name" in
-  allocate-original | seal-original)
+  allocate-original | seal-original | allocate-analysis | seal-analysis | dispose-analysis | analysis-root | analysis-write-root)
     require_repo_root
     runtime="$(resolve_provider_scope_runtime)"
     "$runtime" runtime pr-review-provider-scope-evidence "$command_name" "${@:2}"
@@ -439,6 +464,6 @@ case "$command_name" in
     validate_scope_decision
     ;;
   *)
-    fail "usage: prior-thread-artifacts.sh prepare-prior-threads-write|validate-prior-threads|prepare-scope-decision-write|prepare-provider-scope-evidence-write|materialize-provider-scope-capture|create-provider-scope-scratch|remove-provider-scope-scratch <scratch-dir>|reconcile-provider-scope-fetch <scratch-dir>|classify-provider-scope-capture|read-provider-scope-evidence-field --field <name>|render-scope-notice|write-provider-scope-evidence|validate-scope-decision|allocate-original|seal-original"
+    fail "usage: prior-thread-artifacts.sh prepare-prior-threads-write|validate-prior-threads|prepare-scope-decision-write|prepare-provider-scope-evidence-write|materialize-provider-scope-capture|create-provider-scope-scratch|remove-provider-scope-scratch <scratch-dir>|reconcile-provider-scope-fetch <scratch-dir>|classify-provider-scope-capture|read-provider-scope-evidence-field --field <name>|render-scope-notice|write-provider-scope-evidence|validate-scope-decision|allocate-original|seal-original|allocate-analysis|seal-analysis|dispose-analysis|analysis-root|analysis-write-root"
     ;;
 esac

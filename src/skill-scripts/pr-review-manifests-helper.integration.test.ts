@@ -145,6 +145,11 @@ describe("pr-review manifest helpers", () => {
         "runtime runtime pr-review-manifests render-phase5-audit-summary\n",
     });
     await expect(
+      runWrapper(root, script, "read-result-for-analysis"),
+    ).resolves.toMatchObject({
+      stdout: "runtime runtime pr-review-manifests read-result-for-analysis\n",
+    });
+    await expect(
       runWrapper(root, script, "read-result-for-preview"),
     ).resolves.toMatchObject({
       stdout: "runtime runtime pr-review-manifests read-result-for-preview\n",

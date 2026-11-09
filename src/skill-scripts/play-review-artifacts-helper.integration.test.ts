@@ -261,6 +261,76 @@ async function commandAvailable(command: string): Promise<boolean> {
 }
 
 describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
+  it("uses the runtime-bound analysis root and refuses a sealed or wrong root for writing", async () => {
+    const { cwd, reviewHeadSha } = await makeReviewSourceWorkspace();
+    const priorHelper = path.join(
+      process.cwd(),
+      "skills/pr-review/scripts/prior-thread-artifacts.sh",
+    );
+    const runtimeDir = path.join(process.cwd(), "skills/devcanon-runtime");
+    const env = {
+      HEAD_SHA: reviewHeadSha,
+      REPOSITORY: "owner/repo",
+      PR_NUMBER: "390",
+      DEVCANON_RUNTIME_DIR: runtimeDir,
+    };
+    try {
+      const allocation = await execFileAsync(
+        "bash",
+        [priorHelper, "allocate-analysis"],
+        { cwd, env: { ...process.env, ...env } },
+      );
+      const binding = allocation.stdout.trim();
+      const resource = JSON.parse(binding).resource as string;
+      const prepared = await runHelper(cwd, "prepare-findings-write", {
+        ...env,
+        REVIEW_ANALYSIS_BINDING: binding,
+      });
+      expect(prepared.stdout.trim()).toBe(
+        `${resource}/topic-${reviewHeadSha}-findings.json`,
+      );
+      await expect(
+        runHelper(cwd, "prepare-findings-write", {
+          ...env,
+          REVIEW_ANALYSIS_BINDING: "",
+          FINDINGS_FILE: prepared.stdout.trim(),
+        }),
+      ).rejects.toBeDefined();
+      await expect(
+        runHelper(cwd, "prepare-findings-write", {
+          ...env,
+          REVIEW_ANALYSIS_BINDING: binding,
+          FINDINGS_FILE: `.ephemeral/other/topic-${reviewHeadSha}-findings.json`,
+        }),
+      ).rejects.toBeDefined();
+      await writeFile(path.join(cwd, resource, "result.json"), "complete");
+      const sealed = await execFileAsync(
+        "bash",
+        [priorHelper, "seal-analysis"],
+        {
+          cwd,
+          env: { ...process.env, ...env, REVIEW_ANALYSIS_BINDING: binding },
+        },
+      );
+      await expect(
+        runHelper(cwd, "prepare-findings-write", {
+          ...env,
+          REVIEW_ANALYSIS_BINDING: sealed.stdout.trim(),
+        }),
+      ).rejects.toMatchObject({ stderr: expect.stringContaining("sealed") });
+      await expect(
+        runHelper(cwd, "build-github-review-payload", {
+          ...env,
+          REVIEW_ANALYSIS_BINDING: sealed.stdout.trim(),
+        }),
+      ).rejects.toMatchObject({
+        stderr: expect.stringContaining("analysis cannot"),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("rejects every malformed enum type in independent runtime and shell validators", async () => {
     const { cwd, reviewHeadSha, findingsFile } =
       await makeReviewSourceWorkspace();

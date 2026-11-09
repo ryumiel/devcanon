@@ -46,7 +46,13 @@ No other operation reads stdin.
 
 ## Working directory
 
-Every operation requires the target repository root. Artifact paths are direct children of a real nonsymlinked `.ephemeral` directory.
+Every operation requires the target repository root. Without an analysis
+binding, artifact paths are direct children of a real nonsymlinked `.ephemeral`
+directory. For independent PR analysis, export the caller-retained
+`REVIEW_ANALYSIS_BINDING`; the runtime validates it before the helper derives or
+accepts a direct child of its original analysis directory. A supplied empty or
+invalid binding fails. Carry the exact binding and helper-returned paths through
+production and validation. Analysis does not authorize a posting payload.
 
 ## Outputs
 
@@ -58,7 +64,7 @@ The helper rejects unknown commands, bad cwd, missing environment, invalid head 
 
 ## Side effects
 
-Preparation creates `.ephemeral` and validates targets; `derive-nits-pending`, `prepare-judgment-nits`, and `prepare-findings-write` may unlink an existing target symlink before later work. `prepare-judgment-nits` and both publication operations write their artifact, with publication replacing the canonical findings path only after staging and validation. Rendering and validation are read-only.
+Preparation creates `.ephemeral` and validates targets; `derive-nits-pending`, `prepare-judgment-nits`, and `prepare-findings-write` may unlink an existing target symlink before later work in legacy mode; analysis mode refuses a target symlink. `prepare-judgment-nits` and both publication operations write their artifact, with publication replacing the canonical findings path only after staging and validation. Rendering and validation are read-only.
 
 ## Workflow boundary
 
