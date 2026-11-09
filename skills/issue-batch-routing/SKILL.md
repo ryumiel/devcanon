@@ -516,23 +516,12 @@ it cannot infer success or override user confirmation. After routing, yield
 for owner reports. Only the separate watchdog has the narrow ordinary
 owner-result exception in ROUTE-007-EVENT; it cannot route or write this ledger.
 
-Before unattended owner release, require a supported return-report path with
-verified coordinator and sender identities/hosts and recipient-verifiable
-actual human reporting authority where required by the sending host. Reuse the
-coordinator's initial setup decision. Carry that recipient binding and accessible
-host evidence reference into each reporting handoff, alongside the unchanged
-route binding; do not invent a new route key or message schema. The receiving
-owner must validate the original human evidence once and retain it for compatible
-reports and resume. If its sending host demonstrably needs no human messaging
-permission, retain the supported policy basis with reporting scope; absence of
-an authorization reference alone cannot establish that exception. Creation or
-a forwarded controller prompt is not human authorization.
-An inaccessible side-chat approval holds release for only the missing supported
-recipient-visible human instruction. Unsupported delivery names the transport
-gap; unauthorized delivery names the permission gap. Neither permits polling.
-Valid authority persists across routine gates/head changes; recheck only actual
-missing/unverifiable evidence, revocation, uncovered recipients/effects, or host
-requirements.
+Before unattended owner release, apply the shared
+[priming Inputs](../issue-priming-workflow/SKILL.md#inputs), the owning
+reporting-authority procedure. Carry its retained reporting fields and accessible
+original evidence alongside the unchanged route binding. Reuse the coordinator's
+compatible setup validation; apply Inputs for denial, missing evidence or changed
+recipients/effects, without a new key, message schema or polling fallback.
 
 For compatible-owner reuse, after active start-work/reuse authority and the
 existing canonical issue, exact owner/host, repository and route checks pass,
@@ -1115,9 +1104,11 @@ without a per-step report or acknowledgement wait.
 
 The compact delta carries provider-tagged issue/PR identity, owner, current head
 when applicable, changed state, requested coordinator action (or none for
-verified completion), and an accessible evidence reference. Retain the complete
-supporting report, route key, validators and diagnostics locally under their
-existing owners. This is transport, not a new report schema or evidence store.
+verified completion), and accessible evidence references. Existing owner,
+provider and preparation evidence may supply the required facts directly;
+do not assemble a duplicate complete-report artifact or universal report hash.
+Retain required route keys, validators and diagnostics under their existing
+owners. This is transport, not a new report schema or evidence store.
 Before any dependent action, resolve the reference and validate all required
 facts against current authoritative state, including route, authority, owner,
 head and replay bindings. A reference or summary alone proves none of them.
@@ -1132,11 +1123,12 @@ owner. Copy the coordinator only for a distinct coordination action; messaging
 authority and review independence remain required. Combine related pushed-head,
 verification and disposition results into one useful handoff where possible.
 
-The complete supporting gate report must include the relevant complete route
-key when known or applicable. Missing required key evidence fails closed to
-waiting or manual action; a compact message must not hide that omission.
+Supporting gate evidence must establish the relevant complete route key when
+known or applicable. Missing required key evidence fails closed to waiting or
+manual action; a compact message must not hide that omission.
 
-Each supporting gate report must include:
+Resolve these applicable gate facts from the compact message and referenced
+existing evidence, without requiring a second report containing them all:
 
 - source provider
 - source issue identifier
@@ -1151,10 +1143,14 @@ Each supporting gate report must include:
 - source-specific side effects requested
 - next safe command or workflow to route
 
-Resolve and record a digest of the complete report before sending approvals or
-re-routing work. If required head, route-key or route-specific evidence is
-missing, ask the owner to refresh that evidence rather than approving. Do not
-require the owner to resend full evidence inline when its reference is valid.
+Produce and retain digests only where the selected existing route requires
+them: `source-issue-reporting` retains its owner-report or source-reporting gate
+digest and `approval-gate` retains its approval-gate digest. Preserve every
+complete route key and duplicate-effect guard; removing universal hashing
+does not remove these effect-specific identities. If required head, route-key
+or route-specific evidence is missing, request only that evidence before action.
+Do not require full evidence inline when its references are valid. Recovery
+receipts retain their complete validation, sequence and acknowledgement rules.
 
 ## Unfinished Non-Gate Progress Receipts
 

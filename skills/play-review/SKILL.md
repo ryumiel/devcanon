@@ -575,4 +575,4 @@ not authorize grouped fixes, and does not weaken line-grounded evidence.
 5. Never invoke `{{tool:github-cli}}`, auto-fix, or create/remove worktrees.
 6. Write the versioned findings envelope and exact notice under the findings contract, including incomplete review evidence.
 7. Build valid nonempty shared context before D7; no unbounded fallback.
-8. Every fix requires changed-candidate validation and independent review. A second completed post-fix review of the same blocking defect family requires bounded scope/design reassessment under the single-reviewer contract, without new authority.
+8. Every fix requires changed-candidate validation and independent review. A second completed post-fix review of the same blocking defect family requires implementation-owner reassessment under the single-reviewer contract; changed scope, reserved interface approvals and cross-owner decisions still escalate, without new authority.

@@ -257,23 +257,12 @@ independently authorized work where its prerequisites permit.
 
 ## Reporting path and bounded observation
 
-During initial setup, before releasing an owner into unattended work, establish
-an actual supported return-report path. Reuse the setup decision for execution
-and monitoring; do not add a recurring reporting-approval phase. Retain the
-verified coordinator recipient/host, sending owner/host, covered reporting
-scope, and a supported reference to the actual human authorization when the
-sender's host requires it. Deliver those facts in the owner handoff and verify
-that the recipient can access or otherwise validate the human evidence. Chat
-creation, skill invocation, a copied controller instruction, or approval in an
-inaccessible side conversation supplies no human messaging permission.
-
-Request only missing recipient-visible authorization through a supported
-surface. A transport or permission gap holds unattended release/reporting with
-that specific limitation; do not claim a reporting path or substitute polling.
-Retain and reuse valid authorization across reports, continuation, and
-compatible resume. A routine gate or head change alone needs no reapproval;
-request a new decision only for missing/unverifiable evidence, revocation,
-uncovered recipient/effect, or an actual host requirement.
+Before unattended owner release, establish the return-report path under the
+shared [priming Inputs](../issue-priming-workflow/SKILL.md#inputs), the owning
+reporting-authority procedure. Deliver its retained reporting fields and
+sender-accessible evidence in the handoff. Reuse compatible validation for
+execution, monitoring and resume; apply Inputs for missing authority, rejected
+sends and changed recipients/effects. Do not substitute progress polling.
 
 Owners deliver the required initial handoff, hard gates requiring coordinator
 routing/decision, dependency readiness, material readiness invalidation, and
