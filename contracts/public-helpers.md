@@ -40,6 +40,11 @@ contracts own reusable mechanics and owning skills own workflow judgment.
 
 ## Explicit exclusions
 
+The [independent analysis contract](../docs/specs/passive-runtime.md#independent-analysis-artifact-contract)
+uses existing review helper identities for isolated artifacts, complete result
+validation and exact scratch cleanup. Concrete invocation belongs to the adjacent
+usage contracts and source-owned types; this registry adds no helper family.
+
 - `skills/devcanon-runtime/scripts/**` is internal support-bundle operation.
 - `skills/issue-worktree-setup/scripts/setup-worktree.sh` is an internal POSIX
   adapter; `setup-worktree.mjs` is the public helper.

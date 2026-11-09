@@ -144,6 +144,13 @@ reactions. Missing, ambiguous, stale, partial, or task-only evidence cannot
 approve, and same-account GitHub APPROVE is not independent fallback evidence.
 Without accepted policy, configured gates remain unchanged.
 
+For an isolated analysis result, use the existing
+[current-result read](../pr-review/references/review-manifests-usage.md#independent-analysis-custody)
+with original caller-held custody and the actual current candidate. Require a
+complete passing verdict and applicable verification, and establish reviewer
+independence separately. No reviewed/gated lease or posted review is required
+for that evidence; historical baseline success is insufficient.
+
 For an authorized in-scope correction, require validation, the same Connector-first
 current published-head selection under the accepted condition, and a refreshed
 applicable action binding for the changed head. Applicable completed

@@ -33,7 +33,14 @@ import {
   runGitStatus,
   runGitStdoutSha256,
 } from "./git.js";
-import { requireDirectEphemeralChild } from "./paths.js";
+import {
+  currentReviewAnalysis,
+  requireReviewArtifactPath,
+  requireWritableAnalysis,
+  reviewArtifactPath,
+  runAnalysisOperation,
+  withReviewAnalysis,
+} from "./pr-review-analysis.js";
 
 type RuntimeCommandOutcome =
   | { exitCode: 0; stdout: string; stderr: string }
@@ -228,6 +235,22 @@ export async function runReviewArtifactsCommand(
   args: readonly string[],
 ): Promise<RuntimeCommandOutcome> {
   try {
+    return await withReviewAnalysis(process.env.REVIEW_ANALYSIS_BINDING, () =>
+      runReviewArtifactsCommandInContext(args),
+    );
+  } catch (error) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: `${error instanceof Error ? error.message : String(error)}\n`,
+    };
+  }
+}
+
+async function runReviewArtifactsCommandInContext(
+  args: readonly string[],
+): Promise<RuntimeCommandOutcome> {
+  try {
     const [commandName, ...rest] = args;
     const options = parseCommonArgs(rest);
     switch (commandName) {
@@ -263,6 +286,53 @@ export async function runPrReviewProviderScopeEvidenceCommand(
   operations: ProviderScopeEvidenceOperations = {},
 ): Promise<RuntimeCommandOutcome> {
   try {
+    if (args[0] === "contract") {
+      return await runPrReviewProviderScopeEvidenceCommandInContext(
+        args,
+        operations,
+      );
+    }
+    if (
+      [
+        "allocate-analysis",
+        "seal-analysis",
+        "dispose-analysis",
+        "analysis-root",
+        "analysis-write-root",
+      ].includes(args[0] ?? "")
+    ) {
+      if (args.length !== 1)
+        fail("analysis operations do not accept arguments");
+      return ok(`${await runAnalysisOperation(args[0] as string)}\n`);
+    }
+    return await withReviewAnalysis(process.env.REVIEW_ANALYSIS_BINDING, () =>
+      runPrReviewProviderScopeEvidenceCommandInContext(args, operations),
+    );
+  } catch (error) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: `${error instanceof Error ? error.message : String(error)}\n`,
+    };
+  }
+}
+
+async function runPrReviewProviderScopeEvidenceCommandInContext(
+  args: readonly string[],
+  operations: ProviderScopeEvidenceOperations = {},
+): Promise<RuntimeCommandOutcome> {
+  try {
+    if (
+      [
+        "materialize-capture",
+        "create-scratch",
+        "remove-scratch",
+        "write",
+        "allocate-original",
+        "seal-original",
+      ].includes(args[0] ?? "")
+    )
+      requireWritableAnalysis();
     if (args[0] === "contract") {
       if (args.length !== 1) {
         fail("contract does not accept arguments");
@@ -4429,6 +4499,7 @@ function validateDirectChildPath(label: string, file: string): void {
     fail(`path traversal: ${file}`);
   }
   if (
+    currentReviewAnalysis() === undefined &&
     file.startsWith(".ephemeral/") &&
     file.slice(".ephemeral/".length).includes("/")
   ) {
@@ -4438,13 +4509,14 @@ function validateDirectChildPath(label: string, file: string): void {
     fail(`${label} path validation failed: ${file}`);
   }
   try {
-    requireDirectEphemeralChild(file);
+    requireReviewArtifactPath(file);
   } catch {
     fail(`${label} path validation failed: ${file}`);
   }
 }
 
 function validateReviewBodyPath(file: string): void {
+  if (currentReviewAnalysis() !== undefined) requireReviewArtifactPath(file);
   if (file.length === 0) {
     fail("--review-body-file is required");
   }
@@ -4459,6 +4531,7 @@ function validateReviewBodyPath(file: string): void {
     fail(`review body path validation failed: ${file}`);
   }
   if (
+    currentReviewAnalysis() === undefined &&
     file.startsWith(".ephemeral/") &&
     file.slice(".ephemeral/".length).includes("/")
   ) {
@@ -4500,7 +4573,9 @@ async function expectedFindingsPath(headSha: string): Promise<string> {
   const rawBranch = (await git(["rev-parse", "--abbrev-ref", "HEAD"])).trim();
   const branchSlug =
     rawBranch === "HEAD" ? "detached" : slugBranchForFindings(rawBranch);
-  return `.ephemeral/${branchSlug}-${headSha}-findings.json`;
+  return reviewArtifactPath(
+    `.ephemeral/${branchSlug}-${headSha}-findings.json`,
+  );
 }
 
 async function expectedProviderScopeEvidencePath(
@@ -4509,7 +4584,9 @@ async function expectedProviderScopeEvidencePath(
   const rawBranch = (await git(["rev-parse", "--abbrev-ref", "HEAD"])).trim();
   const branchSlug =
     rawBranch === "HEAD" ? "detached" : slugBranchForFindings(rawBranch);
-  return `.ephemeral/${branchSlug}-${headSha}-provider-scope-evidence.json`;
+  return reviewArtifactPath(
+    `.ephemeral/${branchSlug}-${headSha}-provider-scope-evidence.json`,
+  );
 }
 
 async function expectedProviderScopeCapturePath(
@@ -4518,7 +4595,9 @@ async function expectedProviderScopeCapturePath(
   const rawBranch = (await git(["rev-parse", "--abbrev-ref", "HEAD"])).trim();
   const branchSlug =
     rawBranch === "HEAD" ? "detached" : slugBranchForFindings(rawBranch);
-  return `.ephemeral/${branchSlug}-${headSha}-provider-scope-capture.json`;
+  return reviewArtifactPath(
+    `.ephemeral/${branchSlug}-${headSha}-provider-scope-capture.json`,
+  );
 }
 
 function slugBranchForFindings(branchName: string): string {
@@ -5028,7 +5107,12 @@ function isSafeRiskSignalRepoPath(value: string): boolean {
 }
 
 function isDirectEphemeralPath(value: string): boolean {
-  return /^\.ephemeral\/[^/]+$/u.test(value) && !value.includes("..");
+  try {
+    requireReviewArtifactPath(value);
+    return !value.includes("..");
+  } catch {
+    return false;
+  }
 }
 
 function isGithubNodeId(value: unknown): boolean {

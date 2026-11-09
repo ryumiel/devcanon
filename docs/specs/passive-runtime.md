@@ -39,6 +39,91 @@ finalization retry against complete intact same-head evidence applicable to the
 failed operation; it preserves existing review, approval, provider, and cleanup
 authority.
 
+## Independent analysis artifact contract
+
+[REVIEW-ANALYSIS-001](afds-workflow-routing.md#review-analysis-001-independent-analysis-completion)
+owns observable analysis completion. This section owns artifact custody and
+validation; [ADR-0044](../adr/adr-0044-independent-analysis-artifact-custody.md)
+records the separation from posting custody. Concrete helper inputs remain owned
+by source types, [allocation usage](../../skills/pr-review/references/prior-thread-artifacts-usage.md)
+and [manifest usage](../../skills/pr-review/references/review-manifests-usage.md).
+
+### PR-ANALYSIS-01: Original allocation and source binding
+
+An analysis uses a suitable existing checkout at the reviewed head. The source
+working directory remains the repository root. Allocate a fresh flat directory
+beneath its real `.ephemeral` using the existing original-artifact custody family.
+Same-PR/head reviews receive separate allocations and never overwrite one another.
+Retain the producer-returned original-artifact binding as caller-held evidence;
+consumers receive that exact binding through the established owner/controller
+handoff rather than discovering or authenticating it from files beside the result.
+
+When an analysis binding is supplied, validate its repository, PR, reviewed head,
+source root, original physical directory identity and record integrity before
+artifact access. Permit only direct regular-file children of that exact root.
+Reuse existing containment, symlink/reparse, replacement and digest guards.
+Path escape, collision, cross-run or mismatched-source substitution refuses the
+affected operation. An invalid supplied binding cannot select legacy discovery.
+Absent analysis context retains existing canonical direct-child behavior.
+
+Seal the produced entries and bind the exact finalized result bytes for later
+consumption. A colocated or newly computed hash cannot replace the original
+expected integrity. Source changes invalidate dependent current-result evidence;
+never reset or clean borrowed source to obtain a match. This path adds neither
+immutable-source execution nor a security boundary against hostile local
+processes with equal filesystem authority.
+
+### PR-ANALYSIS-02: Complete current result
+
+Reuse the existing handoff/result/findings/scope families and full command-authority
+validation. Propagate analysis custody through the actual provider/scope, findings
+and shared-context adapters and validation cache identity. Current consumers
+compare original result integrity with independently established repository/PR,
+head/base and scope, reviewer independence, complete applicable routes and
+verification dispositions. Historical baseline reading remains historical only.
+
+No semantic completion requires lease discovery, creation, reset or reviewed/gated
+writes, a posting body or posting approval. A complete blocking result is deliverable
+but cannot satisfy a passing-review gate; missing/failed required verification
+cannot become passing evidence. A later post uses the existing session and exact
+approved-payload transaction, with fresh normal preparation when needed. Analysis
+does not import approval, replace a live lease or duplicate an uncertain effect.
+
+### PR-ANALYSIS-03: Exact analysis scratch disposal
+
+Under existing scoped disposal authority, release actual consumers and reconcile
+effects before removing the original allocated directory. Reuse exact snapshot
+checks for physical directory/leaf identity, digests and the closed entry set.
+Remove only verified owned leaves and then the empty original root; verify absence.
+Unknown, extra, changed or replaced entries retain the affected resource. A retry
+keeps original target facts and distinguishes absent, removed and retained outcomes.
+It cannot broaden scope or recreate ownership from current hashes.
+
+An analysis allocation proves no ownership of the borrowed checkout, its branch,
+parent `.ephemeral` or sibling artifacts. Owned detached and branch-attached
+checkouts retain their existing appropriate Git cleanup mechanisms; this exact
+directory operation needs no review lease or checkout removal.
+
+### Compatibility and verification
+
+Existing canonical artifacts and live leases retain their validation, posting and
+replay behavior without forced migration or reset. No new manifest family,
+registry, cleanup certificate or review-mode state machine is required.
+
+Verification must exercise two same-head independent results; real helper
+production and current consumption without a lease; complete passing/blocking
+versus incomplete verification; stale/wrong-source/root/run and unsafe/replaced
+path refusal; exact borrowed-directory disposal and changed/extra-entry retention;
+and unchanged legacy/posting gates. Use the existing manifest/result, artifact,
+lease and corresponding helper integration suites, plus both-target render checks.
+
+Evidence: [GitHub proposal #884](https://github.com/ryumiel/devcanon/issues/884)
+identifies the review/consumer outcome. The existing
+[`result validator`](../../src/runtime/pr-review-result-validation.ts) and
+[`artifact runtime`](../../src/runtime/review-artifacts.ts) own executable
+validation and custody evidence. Their focused tests must establish this path;
+contract review alone is not executable proof.
+
 ## Targeted local cleanup
 
 The existing

@@ -12,7 +12,12 @@ import {
 import path from "node:path";
 import { promisify } from "node:util";
 import { runGitStdoutSha256 } from "./git.js";
-import { requireDirectEphemeralChild } from "./paths.js";
+import {
+  currentReviewAnalysis,
+  requireReviewArtifactPath,
+  reviewArtifactPath,
+  withReviewAnalysis,
+} from "./pr-review-analysis.js";
 import { validateTargetedReviewEvidence } from "./review-artifacts.js";
 
 const execFileAsync = promisify(execFile);
@@ -26,6 +31,7 @@ export interface PrReviewResultValidationInput {
   repository: string;
   prNumber: number;
   reviewHeadSha: string;
+  analysisBinding?: string;
   leaseBaseRef?: string;
   leaseHeadRef?: string;
 }
@@ -189,7 +195,11 @@ export async function validatePrReviewResultEvidence(
   input: PrReviewResultValidationInput,
 ): Promise<PrReviewResultCommandAuthorityEvidence> {
   return withCwd(input.worktreeRoot, () =>
-    validatePrReviewResultEvidenceInCurrentWorktree(input),
+    withReviewAnalysis(
+      input.analysisBinding ?? process.env.REVIEW_ANALYSIS_BINDING,
+      () => validatePrReviewResultEvidenceInCurrentWorktree(input),
+      input,
+    ),
   );
 }
 
@@ -220,30 +230,38 @@ async function validatePrReviewResultCommandAuthorityWithOptions(
   input: PrReviewResultCommandAuthorityInput,
   options: PrReviewResultCommandAuthorityOptions = {},
 ): Promise<PrReviewResultCommandAuthorityEvidence> {
-  return withCwd(input.worktreeRoot, async () => {
-    const { result, handoff } =
-      await validatePrReviewResultEvidenceInCurrentWorktree(input, options);
-    const findingsFile = stringField(result, "findings_file");
-    await validateFindingsAuthority(findingsFile, input);
+  return withCwd(input.worktreeRoot, () =>
+    withReviewAnalysis(
+      input.analysisBinding ??
+        input.helperEnv?.REVIEW_ANALYSIS_BINDING ??
+        process.env.REVIEW_ANALYSIS_BINDING,
+      async () => {
+        const { result, handoff } =
+          await validatePrReviewResultEvidenceInCurrentWorktree(input, options);
+        const findingsFile = stringField(result, "findings_file");
+        await validateFindingsAuthority(findingsFile, input);
 
-    const handoffArtifacts = objectField(handoff, "artifacts");
-    await validateScopeAuthority(
-      stringField(handoffArtifacts, "scope_decision_file"),
-      stringField(handoff, "review_scope_base_ref"),
-      nullableStringField(handoffArtifacts, "prior_threads_file"),
-      input,
-    );
+        const handoffArtifacts = objectField(handoff, "artifacts");
+        await validateScopeAuthority(
+          stringField(handoffArtifacts, "scope_decision_file"),
+          stringField(handoff, "review_scope_base_ref"),
+          nullableStringField(handoffArtifacts, "prior_threads_file"),
+          input,
+        );
 
-    const artifacts = objectField(result, "artifacts");
-    const scopeDecisionFile = stringField(artifacts, "scope_decision_file");
-    await validateScopeAuthority(
-      scopeDecisionFile,
-      await guardedScopeBaseRef(scopeDecisionFile),
-      nullableStringField(artifacts, "prior_threads_file"),
+        const artifacts = objectField(result, "artifacts");
+        const scopeDecisionFile = stringField(artifacts, "scope_decision_file");
+        await validateScopeAuthority(
+          scopeDecisionFile,
+          await guardedScopeBaseRef(scopeDecisionFile),
+          nullableStringField(artifacts, "prior_threads_file"),
+          input,
+        );
+        return { result, handoff };
+      },
       input,
-    );
-    return { result, handoff };
-  });
+    ),
+  );
 }
 
 async function validatePrReviewResultEvidenceInCurrentWorktree(
@@ -1024,7 +1042,12 @@ async function validateScopeProviderAuthority(
   resolvedScopeHelper?: string,
 ): Promise<void> {
   const scopeHelper = resolvedScopeHelper ?? (await resolveScopeHelper(input));
-  const baseEnv = input.helperEnv ?? {};
+  const baseEnv = {
+    ...input.helperEnv,
+    ...(currentReviewAnalysis() === undefined
+      ? {}
+      : { REVIEW_ANALYSIS_BINDING: JSON.stringify(currentReviewAnalysis()) }),
+  };
   const env = {
     ...baseEnv,
     HEAD_SHA: input.reviewHeadSha,
@@ -1081,6 +1104,7 @@ async function scopeAuthorityFingerprint(input: {
     .update(
       JSON.stringify([
         physicalWorktree,
+        currentReviewAnalysis() ?? null,
         scopeDecisionIdentity,
         providerScopeEvidenceIdentity,
         input.reviewHeadSha,
@@ -1103,7 +1127,9 @@ async function canonicalPriorThreadsEvidence(
 ): Promise<{ path: string; sha256: string } | null> {
   const rawBranch = await currentBranchName();
   const branchSlug = rawBranch === "HEAD" ? "detached" : slugBranch(rawBranch);
-  const file = `.ephemeral/${branchSlug}-${reviewHeadSha}-prior-threads.json`;
+  const file = reviewArtifactPath(
+    `.ephemeral/${branchSlug}-${reviewHeadSha}-prior-threads.json`,
+  );
   const fileStat = await lstat(path.join(process.cwd(), file)).catch(
     () => null,
   );
@@ -1224,6 +1250,9 @@ async function validateFindingsAuthority(
   const playHelper = await resolvePlayReviewHelper(input);
   await runBashHelper(playHelper, "validate-findings", {
     ...(input.helperEnv ?? {}),
+    ...(currentReviewAnalysis() === undefined
+      ? {}
+      : { REVIEW_ANALYSIS_BINDING: JSON.stringify(currentReviewAnalysis()) }),
     HEAD_SHA: input.reviewHeadSha,
     FINDINGS_FILE: findingsFile,
   });
@@ -1495,7 +1524,7 @@ function validateDirectChildPath(label: string, file: string, suffix = "") {
     fail(`path traversal: ${file}`);
   }
   try {
-    requireDirectEphemeralChild(file);
+    requireReviewArtifactPath(file);
   } catch {
     if (file.startsWith(".ephemeral/") && file.slice(11).includes("/")) {
       fail(`nested ${label} path rejected: ${file}`);
@@ -1533,7 +1562,9 @@ async function gitTopLevel(cwd: string): Promise<string> {
 async function expectedFindingsPath(headSha: string): Promise<string> {
   const rawBranch = await currentBranchName();
   const branchSlug = rawBranch === "HEAD" ? "detached" : slugBranch(rawBranch);
-  return `.ephemeral/${branchSlug}-${headSha}-findings.json`;
+  return reviewArtifactPath(
+    `.ephemeral/${branchSlug}-${headSha}-findings.json`,
+  );
 }
 
 async function currentBranchName(): Promise<string> {
@@ -1550,11 +1581,13 @@ async function currentBranchName(): Promise<string> {
 }
 
 function expectedHandoffPath(prNumber: number, headSha: string): string {
-  return `.ephemeral/pr-${prNumber}-${headSha}-handoff.json`;
+  return reviewArtifactPath(
+    `.ephemeral/pr-${prNumber}-${headSha}-handoff.json`,
+  );
 }
 
 function expectedResultPath(prNumber: number, headSha: string): string {
-  return `.ephemeral/pr-${prNumber}-${headSha}-result.json`;
+  return reviewArtifactPath(`.ephemeral/pr-${prNumber}-${headSha}-result.json`);
 }
 
 function validateCanonicalReviewBodyPath(
@@ -1564,7 +1597,8 @@ function validateCanonicalReviewBodyPath(
 ): void {
   if (
     reviewBodyFile !== null &&
-    reviewBodyFile !== `.ephemeral/pr-${prNumber}-${headSha}-review-body.md`
+    reviewBodyFile !==
+      reviewArtifactPath(`.ephemeral/pr-${prNumber}-${headSha}-review-body.md`)
   ) {
     fail(`review body path mismatch: ${reviewBodyFile}`);
   }
@@ -1700,12 +1734,14 @@ function isAbsolutePath(value: string): boolean {
 }
 
 function isDirectEphemeralPath(value: string, suffix: string): boolean {
-  return (
-    /^\.ephemeral\/[^/]+$/u.test(value) &&
-    !value.includes("\\") &&
-    !value.includes("..") &&
-    value.endsWith(suffix)
-  );
+  try {
+    requireReviewArtifactPath(value);
+    return (
+      !value.includes("\\") && !value.includes("..") && value.endsWith(suffix)
+    );
+  } catch {
+    return false;
+  }
 }
 
 function isNullableDirectEphemeralPath(

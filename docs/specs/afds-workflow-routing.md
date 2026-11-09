@@ -1829,6 +1829,42 @@ discovery uses an available index or bounded tracked search without assuming a
 fixed index name or widening the selected review range. This does not add a
 public artifact, stage, schema or notice.
 
+### REVIEW-ANALYSIS-001: Independent analysis completion
+
+Independent analysis-only PR review may use a suitable existing checkout at the
+reviewed head and deliver a validated verdict without discovering, creating,
+resetting or finalizing a review lease. No reviewed/gated lease write or posting
+approval is needed. Preserve shared independent judgment, critic routing, source
+protection, complete applicable coverage and honest verification. A completed
+blocking review is deliverable but does not pass a passing-review condition.
+
+Every run receives separate original-producer-bound artifacts. The
+[runtime contract](passive-runtime.md#independent-analysis-artifact-contract)
+owns source/root identity, integrity, supported inputs and refusal. Two reviews
+of one revision must coexist without overwriting or inheriting verdict or approval.
+Coordination and merge consumers validate the complete current result against
+their actual repository/PR/head/base/scope, independence and verification needs;
+neither a historical baseline read nor matching head alone supplies that proof.
+Existing Connector-first review selection, CI, protections, thread disposition and
+merge authority remain separate gates.
+
+A later posting request follows the existing session/approved-payload owner,
+current event/payload integrity and explicit approval. Analysis grants no posting
+authority and cannot reset a live lease or duplicate uncertain prior effects.
+Posting failure does not invalidate an intact complete analysis result.
+
+Completion grants no disposal authority. Under existing cleanup scope, distinguish
+owned detached checkouts, owned branch-attached checkouts and exact owned review
+scratch inside borrowed source. Preserve borrowed source, branches, sibling
+artifacts, active consumers and unresolved effects. EVID-004-CLEANUP and
+REVIEW-LIFE-001 retain lifetime policy; the runtime owns exact-directory checks.
+
+Acceptance requires the runtime contract's focused positive/negative verification
+and unchanged live-lease behavior for both rendered targets. The
+[GitHub proposal](https://github.com/ryumiel/devcanon/issues/884) identifies the
+checked outcome; source-owned result and artifact helpers supply executable proof,
+not analysis summaries or posting approval.
+
 ### REVIEW-LIFE-001: Purpose-based retirement and review supersession
 
 The [review lifecycle target contract](../../skills/pr-review/references/review-lease-lifecycle-contract.md#target-retention-and-supersession-contract)
