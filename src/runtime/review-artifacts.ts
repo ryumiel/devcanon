@@ -1084,8 +1084,11 @@ export function extractPreFindingsMarkdown(playReviewOutput: string): string {
 }
 
 function validateProviderScopeScratchPath(scratch: string): void {
-  validateDirectChildPath("provider capture scratch", scratch);
-  if (!path.posix.basename(scratch).startsWith(PROVIDER_SCOPE_SCRATCH_LEAF)) {
+  // Fetch scratch is a sibling of analysis artifacts, with its own path contract.
+  if (
+    scratch.includes("..") ||
+    !/^\.ephemeral\/provider-scope-capture\.[^/\\\0]+$/u.test(scratch)
+  ) {
     fail(`provider capture scratch path validation failed: ${scratch}`);
   }
 }

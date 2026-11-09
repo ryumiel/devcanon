@@ -3362,6 +3362,48 @@ describe("provider scope capture scratch subcommands", () => {
         });
       const root = (await runHelper("analysis-write-root")).stdout.trim();
       expect(root).toBe(JSON.parse(allocated.stdout).resource);
+      const fetchScratch = await runPrReviewProviderScopeEvidenceCommand([
+        "create-scratch",
+      ]);
+      expect(fetchScratch.exitCode, fetchScratch.stderr).toBe(0);
+      const scratch = fetchScratch.stdout.trim();
+      expect(scratch.startsWith(`${root}/`)).toBe(false);
+      for (const name of ["pr.json", "recheck.json"]) {
+        await writeJson(cwd, `${scratch}/${name}`, {
+          baseRefOid: baseSha,
+          headRefOid: headSha,
+        });
+      }
+      const reconciled = await runPrReviewProviderScopeEvidenceCommand([
+        "reconcile-fetch",
+        "--scratch-dir",
+        scratch,
+      ]);
+      expect(reconciled.exitCode, reconciled.stderr).toBe(0);
+      for (const invalid of [
+        root,
+        `${scratch}/nested`,
+        `${scratch}/../escape`,
+      ]) {
+        const rejected = await runPrReviewProviderScopeEvidenceCommand([
+          "remove-scratch",
+          "--scratch-dir",
+          invalid,
+        ]);
+        expect(rejected.exitCode).not.toBe(0);
+      }
+      const removed = await runPrReviewProviderScopeEvidenceCommand([
+        "remove-scratch",
+        "--scratch-dir",
+        scratch,
+      ]);
+      expect(removed.exitCode, removed.stderr).toBe(0);
+      await expect(
+        fsPromises.lstat(path.join(cwd, scratch)),
+      ).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      expect(process.env.REVIEW_ANALYSIS_BINDING).toBe(allocated.stdout.trim());
       const capture = `${root}/topic-${headSha}-provider-scope-capture.json`;
       const evidence = `${root}/topic-${headSha}-provider-scope-evidence.json`;
       const scope = `${root}/topic-${headSha}-scope-decision.json`;
