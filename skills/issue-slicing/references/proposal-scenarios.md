@@ -150,3 +150,24 @@ constraint.
 Use the Ready Existing-Spec Control unchanged, but remove only its verification
 expectations. The owning path and heading, behavior, scope, boundaries,
 acceptance criteria, and evidence remain present.
+
+## Unknown Required Output Contract
+
+Use Concrete Proposal, but replace its settled CSV columns and UTF-8 quoting
+requirements with a dependency on a new export-format decision that has not been
+made. The owner is `docs/specs/records.md`; neither a column contract nor encoding
+and quoting rules have been confirmed. Existing row-selection and failure
+constraints remain fixed. Ask for an implementation issue draft without choosing
+the missing contract or supplying an implementation outline in its place.
+
+## Executable Contract Design
+
+Use Unknown Required Output Contract, but request design work only. The user
+confirms that this issue must decide the column, encoding, and quoting contract
+in `docs/specs/records.md`, preserving the existing row-selection and failure
+constraints. Current source and tests are available. The deliverable is a
+complete format contract with worked valid, empty, and failure examples, plus
+acceptance criteria and an automated verification plan for later implementation.
+Verify the design by checking those examples and the plan against the preserved
+constraints. No prerequisite input, access, or separate approval is missing.
+Ask for a draft for this design outcome; do not request implementation.

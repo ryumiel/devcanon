@@ -140,3 +140,30 @@ Use Explicit Independent Batch, but remove only the audit export's verification
 expectations. The audit owning path, scope, acceptance criteria, and current
 evidence remain supplied. Ask for the same two drafts in one response. The
 records-export input remains complete and independent.
+
+## Mixed Execution Readiness
+
+Request one batch containing these three independently bounded work items:
+
+- Executable Contract Design from
+  [proposal scenarios](proposal-scenarios.md#executable-contract-design).
+- The import integration from Reusable Prerequisite above. Its parser API and
+  acceptance contract are settled, but the parser module has not landed and
+  must be available before that integration can start.
+- Unknown Required Output Contract from
+  [proposal scenarios](proposal-scenarios.md#unknown-required-output-contract).
+  This is a separate records-export implementation request. Its format decision
+  is the output of the design item above; no format contract is supplied yet.
+
+Retain the complete referenced inputs for each item. The parser work is unrelated
+to the records-export format design. Ask for per-item draft bodies where the
+inputs suffice and concrete explanations where they do not. Do not select the
+unknown format contract, invent dependencies between unrelated items, or request
+tracker mutation.
+
+## Design With Missing Input
+
+Use Bounded Drill Specification, but the selected training card and its values
+are inaccessible and no approved substitute is supplied. All design questions,
+constraints, deliverables, completion criteria, and verification journeys remain
+as stated. Ask for the same design draft without inventing card values.
