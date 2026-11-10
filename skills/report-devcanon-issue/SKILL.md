@@ -71,7 +71,9 @@ The following are never required and must not appear in the issue body or title:
 - Never post an issue without showing the exact draft first and receiving explicit confirmation.
 - If the user declines posting, keep the exact draft available for manual reuse.
 - If posting fails, preserve the drafted title and body and explain what failed.
-- If GitHub access to `ryumiel/devcanon` is unavailable, return `MODE=draft` and stop without attempting to post.
+- If GitHub access to `ryumiel/devcanon` is unavailable, keep a reusable draft,
+  state which duplicate checks or posting actions could not be performed, and
+  stop without attempting to post.
 
 ## Minimum Payload
 
@@ -169,45 +171,57 @@ Install-mode note:
 
 ## Output Contract
 
-At the end of every invocation, surface exactly one of these `MODE=...` tokens to the user, indicating outcome:
+Use concise natural language to report the facts relevant to the invocation.
+Explain shared applicability, evidence and remaining gaps separately from the
+external actions actually performed. No fixed status token or replacement
+classification is required.
 
-- `MODE=local`
-  - the issue is project-local
-  - explain why and recommend keeping the change in the consumer repo
-- `MODE=needs-input`
-  - more information is required
-  - ask the next single question needed to continue
-- `MODE=reused`
-  - a likely-duplicate upstream issue already exists and the user chose to reuse it
-  - return the reused issue URL and number
-- `MODE=draft`
-  - show likely duplicates first when they exist
-  - produce the exact title, body, and labels
-  - report the result of the § Interaction Rules sweep, calling out any categories that required active redaction
-  - ask for confirmation before posting
-  - Never post the issue from a PR-comment follow-up without showing the draft
-    and receiving explicit user confirmation
-- `MODE=posted`
-  - the issue was created successfully
-  - return the created issue URL and number
-- `MODE=posted-needs-followup`
-  - the issue was created, but a follow-up action such as blocker-linking failed
-  - return the created issue URL and number plus the remaining action
+- Explain whether the problem belongs in shared DevCanon work and why.
+- Describe the evidence supporting the report and concrete missing information
+  or uncertainty, separately from publication status. Preserve useful incomplete
+  drafts; report sufficiency does not require a fully designed implementation.
+- Where relevant, state whether the described work is an investigation or a
+  concrete implementation task, with any known unresolved behavior, scope or
+  evidence. This reports the available context; it adds no execution-readiness
+  threshold or authority to start implementation.
+- If the user selected an existing issue, return its URL and number and say
+  that it was reused. Do not imply that a new issue was created.
+- For a draft, produce the exact title, body and labels. Show likely duplicates
+  first when available, and report the final sensitive-information sweep and
+  any categories that required active redaction. State that the issue has not
+  been posted, and obtain explicit confirmation before posting. If the user
+  declines, retain the exact draft for manual reuse.
+- Report successful creation only after it is confirmed, with the created issue
+  URL and number. If posting fails, preserve the exact draft and explain the
+  failure; do not claim creation.
+- If creation succeeds but a later action such as blocker-linking fails, retain
+  the created issue URL and number and identify the failed or outstanding
+  follow-up explicitly.
 
-If the user chooses not to post after seeing `MODE=draft`, keep the exact
-title/body draft in the conversation for manual reuse.
+Readiness or report sufficiency never authorizes posting. Preserve exact-draft
+presentation and explicit confirmation before publication, including for a
+PR-comment follow-up.
 
-## Classification Rules
+## Applicability and Evidence
 
-- Use `MODE=local` when the requested behavior depends on one repository's domain language, private data, or one-off workflow.
-- Continue toward `MODE=draft` when the user explicitly requested an upstream
-  DevCanon issue and the problem comes from shared instructions, shared render
-  or install behavior, or a reusable missing capability.
-- Continue toward `MODE=draft` when a sanitized PR-comment follow-up explicitly
-  requests an upstream DevCanon issue for a reusable shared-skill or
-  shared-agent problem.
-- Use `MODE=needs-input` when reusability is plausible but not yet clear.
+Keep behavior local when it depends on one repository's domain language,
+private data or one-off workflow; explain why and recommend the local change.
+Continue toward a shared draft when an explicit upstream request concerns
+shared instructions, shared render/install behavior or a reusable missing
+capability. The same applies to a sanitized PR-comment follow-up that explicitly
+requests an upstream shared-skill or shared-agent issue.
 
-If the report touches process, policy, schema, or spec behavior, note that
-implementation may require additional approval under the repository rules even
-when the report itself is reusable and worth filing.
+If reusability is plausible but unclear, name the gap and ask the next single
+question needed to resolve it. Preserve any useful incomplete draft with its
+unknowns clearly stated.
+
+If the report touches process, policy, schema or spec behavior, note that
+implementation may require additional approval under repository rules even when
+the report itself is reusable and worth filing.
+
+## Evaluation
+
+When changing this reporting behavior, exercise the hypothetical cases in
+[reporting-scenarios.md](references/reporting-scenarios.md) against the source
+and rendered/installed skill. These cases evaluate outcomes and preservation of
+posting and safety boundaries; they do not prescribe response labels.
