@@ -61,9 +61,7 @@ The following are never required and must not appear in the issue body or title:
 
 ## Interaction Rules
 
-- Ask one question at a time for evidence needed to understand the shared problem;
-  keep useful incomplete drafts available rather than requiring every payload
-  field or a designed implementation before drafting.
+- Ask one question at a time until the minimum payload is complete.
 - Apply the `Agent-Local Evidence Reuse Boundary` in
   `docs/specs/afds-workflow-routing.md` for shared issue drafts.
 - Use summarized reproductions; do not include verbatim prompt, transcript,
@@ -179,29 +177,26 @@ external actions actually performed. No fixed status token or replacement
 classification is required.
 
 - Explain whether the problem belongs in shared DevCanon work and why.
-- State whether the report has enough evidence to describe the shared problem,
-  and name concrete missing evidence or uncertainty. A useful incomplete bug
-  report may support investigation without a complete reproduction or proposed
-  fix. Report sufficiency does not require a fully designed implementation.
-- Where relevant, distinguish what can be investigated now from whether the
-  accepted behavior, scope and evidence support a concrete implementation task.
-  Identify the unresolved decision or evidence needed before implementation.
+- Describe the evidence supporting the report and concrete missing information
+  or uncertainty, separately from publication status. Preserve useful incomplete
+  drafts; report sufficiency does not require a fully designed implementation.
+- Where relevant, state whether the described work is an investigation or a
+  concrete implementation task, with any known unresolved behavior, scope or
+  evidence. This reports the available context; it adds no execution-readiness
+  threshold or authority to start implementation.
 - If the user selected an existing issue, return its URL and number and say
   that it was reused. Do not imply that a new issue was created.
 - For a draft, produce the exact title, body and labels. Show likely duplicates
   first when available, and report the final sensitive-information sweep and
   any categories that required active redaction. State that the issue has not
-  been posted; request explicit confirmation only when proposing publication.
-  A draft-only request needs no publication decision. If the user declines,
-  retain the exact draft for manual reuse.
+  been posted, and obtain explicit confirmation before posting. If the user
+  declines, retain the exact draft for manual reuse.
 - Report successful creation only after it is confirmed, with the created issue
   URL and number. If posting fails, preserve the exact draft and explain the
-  failure; do not claim creation. If the creation outcome is uncertain, say so
-  and reconcile it before retrying to avoid a duplicate.
+  failure; do not claim creation.
 - If creation succeeds but a later action such as blocker-linking fails, retain
   the created issue URL and number and identify the failed or outstanding
-  follow-up explicitly. Do not describe the issue creation itself as failed or
-  retry creation to repair the relationship.
+  follow-up explicitly.
 
 Readiness or report sufficiency never authorizes posting. Preserve exact-draft
 presentation and explicit confirmation before publication, including for a
@@ -218,8 +213,7 @@ requests an upstream shared-skill or shared-agent issue.
 
 If reusability is plausible but unclear, name the gap and ask the next single
 question needed to resolve it. Preserve any useful incomplete draft with its
-unknowns clearly stated. Do not turn uncertainty about implementation into a
-claim that a report cannot be filed.
+unknowns clearly stated.
 
 If the report touches process, policy, schema or spec behavior, note that
 implementation may require additional approval under repository rules even when
