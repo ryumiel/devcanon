@@ -213,12 +213,26 @@ Account for every original entry by mapping absorbed entries to a cohesive
 replacement draft or explaining exclusions under confirmed scope reduction.
 Consolidated or excluded entries require neither duplicate drafts nor false
 readiness blockers. Preserve required behavior and evidence in replacements.
-Use draft/blocked outcomes for retained or replacement issues; the final mode is
-draft only when that reassessed set is ready to draft and every original entry is
-accounted for, otherwise blocked with the remaining gap. An unlanded known
-prerequisite alone does not make the batch blocked. This is drafting completeness,
-not permission to start dependent work, implement, or publish. No mandatory
-batch manifest, separate planning artifact, or new approval ceremony is added.
+Each retained or replacement draft ends with a concise, evidence-based execution
+readiness assessment: scope and boundaries, essential decisions and information,
+verifiable completion criteria and verification, required predecessor outputs or
+environments, and whether work can start now or what enables it. Name concrete
+missing information rather than disguising an underspecified implementation
+outline as ready work. Assess design issues against their own questions,
+constraints, deliverables, completion criteria and verification; questions they
+exist to answer do not automatically make them unready. Design readiness does
+not establish readiness of later implementation. Keep detailed implementation
+design within implementation issues unless a concrete shared boundary requires
+separate prior decisions.
+
+When an item cannot responsibly be drafted, give its concrete gap, evidence or
+missing owner, and enabling clarification. Preserve per-item conclusions in a
+mixed batch without an aggregate blocked result. A sufficiently specified but
+unfinished prerequisite is an execution dependency, not a failure to draft.
+Do not require mode tokens, an aggregate final mode, a replacement opaque enum,
+or mandatory scoring. Assessments grant no implementation or publication
+authority. No mandatory batch manifest, separate planning artifact, or new
+approval ceremony is added.
 Provider-specific relationship fields and mutations remain with their existing
 owners.
 

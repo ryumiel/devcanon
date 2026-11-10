@@ -49,12 +49,13 @@ evidence. They do not override the owning durable artifact.
      concrete user-confirmed context, whether or not a current feature spec
      exists. Preserve relevant existing constraints and make each intended
      constraint change explicit.
-   - If the request cannot be classified, return `MODE=blocked` and name the
-     missing origin or owner.
+   - If the request cannot be classified, name the missing origin or owner
+     and explain what would enable a responsible draft.
 3. Validate the origin before drafting:
    - Existing-spec work requires a named owning artifact and execution-ready
      scope, boundaries, acceptance criteria, verification expectations, and
-     evidence. A readiness blocker remains `MODE=blocked`.
+     evidence appropriate to the selected work. Explain concrete readiness gaps
+     rather than filling them with an implementation outline.
    - Proposal work requires confirmed behavior, scope, boundaries, acceptance
      criteria, verification expectations, and affected documentation owners or
      destinations. Cite relevant current source, test, or documentation evidence
@@ -63,13 +64,13 @@ evidence. They do not override the owning durable artifact.
    - Validate a proposal's documentation owner or destination against the
      project's AFDS ownership boundaries, not a path alone. An appropriate
      future owning surface is allowed as pending scope work; a summary-only,
-     inappropriate, or ambiguous owner or destination returns `MODE=blocked`
-     with the ownership clarification needed.
+     inappropriate, or ambiguous owner or destination requires the concrete
+     ownership clarification before a responsible draft can be produced.
    - For a proposal, make current behavior, proposed behavior, and every
      unresolved decision distinguishable. Keep existing constraints visible;
      an intended constraint change must be explicit and user-confirmed.
-     Missing execution-critical requirements or unresolved conflicts return
-     `MODE=blocked` with the concrete clarification needed.
+     Missing execution-critical requirements or unresolved conflicts require
+     the concrete clarification needed; do not present them as settled criteria.
    - Prefer one execution-ready draft containing the requested implementation,
      required documentation creation or updates, and verification when confirmed
      behavior, boundaries, acceptance criteria, and documentation owners are
@@ -110,7 +111,10 @@ evidence. They do not override the owning durable artifact.
    draft records its pending shaping prerequisite. Neither claims execution-ready
    implementation work. Prefer Markdown that can be pasted into either GitHub
    Issues or Linear without provider-specific metadata.
-8. Stop after presenting the draft or requested batch. A draft does not approve implementation or
+8. End each draft with the [Execution Readiness](#execution-readiness) assessment.
+   For an item that cannot responsibly be drafted, give its concrete gaps and
+   enabling information instead.
+9. Stop after presenting the draft or requested batch. A draft does not approve implementation or
    publication. Do not create live issues, assign users, set
    status, mutate labels, link blockers in the tracker, or post comments unless
    a separate approved provider-specific workflow owns that behavior.
@@ -155,9 +159,11 @@ drafts. Distinguish readiness to describe work from readiness to start it: a
 known prerequisite that has not landed does not prevent a dependent issue draft
 when its contract, acceptance criteria, verification, and evidence are sufficient.
 Record that prerequisite in Blockers Or Follow-Up; implementation waits for it.
-Use `MODE=blocked` for missing readiness evidence or unresolved execution-critical
-decisions, including a predecessor whose required output contract is not yet
-known. Independent ready items may still be drafted.
+Explain missing readiness evidence or unresolved execution-critical decisions,
+including a predecessor whose required output contract is not yet known. Name
+the missing contract or information and who or what can resolve it; do not
+substitute a plausible implementation outline. Independent ready items may still
+be drafted.
 
 Account for every original batch entry in the rationale: map entries absorbed
 into a cohesive replacement to that draft, and explain entries excluded by the
@@ -200,7 +206,7 @@ pointer.
 
 ## Blockers
 
-Return `MODE=blocked` instead of drafting when:
+Explain the concrete gap instead of inventing an executable draft when:
 
 - existing-spec work has a missing or unclear owning durable artifact;
 - evidence is inaccessible or too vague to support executable work;
@@ -224,8 +230,8 @@ Name the blocker concretely, for example:
 
 ## Draft Shape
 
-When the origin is ready to draft, return `MODE=draft` and use this shape for
-each issue body. A single issue remains the default; an explicit batch request
+When the origin is sufficiently defined to draft, use this shape for each issue
+body. A single issue remains the default; an explicit batch request
 uses the same shape for each ready item:
 
 ```markdown
@@ -287,6 +293,10 @@ Include only the rows that apply to the classified origin.
 ## Non-Goals
 
 - <Only include when useful. Include provider-specific mutation exclusions when relevant.>
+
+## Execution Readiness
+
+<Concise evidence-based assessment of scope, essential decisions and information, verifiable completion criteria, prerequisites, and whether work can start now or what enables it.>
 ```
 
 Omit optional sections only when they add no signal. Keep acceptance criteria
@@ -294,40 +304,50 @@ concrete, verifiable, and appropriate to the selected implementation, shaping,
 or decomposition work. Do not add assignees, labels, status, milestones,
 priority fields, or provider-specific relationship metadata.
 
+## Execution Readiness
+
+End every draft with a concise assessment grounded in its evidence. Explain:
+
+- whether scope and boundaries are sufficiently defined for the selected work;
+- whether essential decisions and information are available, naming any concrete
+  missing requirement, conflict, contract, or evidence and how to resolve it;
+- whether completion criteria and verification make the outcome checkable;
+- which predecessor outputs, access, or environments are still required,
+  distinguishing a known unfinished prerequisite from an unknown contract;
+- whether the work can start now and, otherwise, the concrete action or output
+  that would enable it.
+
+Assess a design, shaping, or decomposition issue against its own questions,
+constraints, deliverables, completion criteria, and verification. Questions that
+it exists to answer do not by themselves make that work unready. Missing inputs
+needed to perform that design still matter. Do not imply that readiness of a
+design issue establishes readiness of its later implementation.
+
+Keep detailed implementation design within implementation issues unless a
+concrete shared boundary requires separate prior decisions. Readiness prose
+must not prescribe speculative designs to hide missing requirements.
+
+Use ordinary explanatory prose, not an opaque status enum, required mode token,
+mandatory score, or tracker metadata. Readiness assesses executability; it grants
+no implementation or publication authority.
+
 ## Output Format
 
-For a single issue, return one of these two outcomes.
-
-For a draft:
-
-```markdown
-MODE=draft
-
-<draft issue body>
-
-Final mode: MODE=draft
-```
-
-For a blocker:
-
-```markdown
-MODE=blocked
-
-<blocker explanation with evidence reference or missing owner>
-
-Final mode: MODE=blocked
-```
+For a single issue, return its draft ending with Execution Readiness. When the
+inputs cannot support a responsible draft, return the concrete gap explanation
+with evidence or missing owner, the information needed, and what would enable
+another drafting attempt. Do not invent a draft merely to fill the template.
 
 For an explicit batch request, present the brief boundary/dependency rationale,
-then separate each retained or replacement issue by its proposed title and give
-it the applicable `MODE=draft` body or `MODE=blocked` explanation. Map original
-entries to their replacements or scope exclusions in the rationale rather than
-assigning them duplicate draft/blocked outcomes. End with `Final mode: MODE=draft`
-when the reassessed set is ready to draft and every original entry is accounted
-for; otherwise use `Final mode: MODE=blocked` and name the remaining gap. An
-unlanded known prerequisite alone does not force blocked mode. The final mode
-reports drafting completeness; it does not authorize starting dependent work,
-implementation, or publication, or invalidate independently ready drafts.
+then separate each retained or replacement issue by its proposed title. Give
+that item's draft and readiness assessment, or its concrete gap explanation.
+Map original entries to replacements or confirmed scope exclusions in the
+rationale; do not create duplicate assessments for absorbed or excluded entries.
+Preserve each item's conclusion. A missing contract for one item must not erase
+independently useful drafts or collapse the set into an aggregate blocked
+result. A known unfinished prerequisite may delay a sufficiently specified
+issue's execution without preventing its draft. Do not append an aggregate
+final mode or other batch status marker.
 
 ## Common Mistakes
 
