@@ -60,9 +60,29 @@ The Scope rule — including the positive frame, the categories-vs-identity boun
    [`skills/report-devcanon-issue/SKILL.md` § Redaction Gate](../../skills/report-devcanon-issue/SKILL.md#redaction-gate).
    The redaction rules are canonical there.
 5. Search open `ryumiel/devcanon` issues for likely duplicates before opening a new one, using only sanitized shared-component terms rather than raw consumer identifiers or local paths.
-6. Confirm the final draft before posting.
+6. Present the exact title, body and labels after the final sensitive-information
+   sweep and receive explicit confirmation before posting. A draft-only request
+   can end with the reusable draft without requesting a publication decision.
+7. Explain shared applicability, evidence sufficiency and concrete unknowns in
+   natural language, separately from duplicate selection and actual draft or
+   publication outcomes. Where relevant, distinguish a report useful for
+   investigation from a concrete implementation task whose scope and behavior
+   are settled. Report sufficiency does not require a designed implementation;
+   readiness never authorizes posting.
 
-If the user declines posting, keep the exact draft available for manual reuse. If posting fails, preserve the drafted title and body and report the failure. If the reproduction is incomplete, draft the issue anyway but mark the missing detail explicitly. If GitHub access to `ryumiel/devcanon` is unavailable, stop at a reusable draft instead of attempting to post.
+If the user declines posting, keep the exact draft available for manual reuse.
+If posting fails, preserve the exact draft and explain the failure. Reconcile an
+uncertain creation outcome before retrying to avoid duplicates. If creation
+succeeds but blocker-linking or another follow-up fails, retain the created issue
+URL and number and identify the failed or outstanding follow-up; repair that
+action rather than creating the issue again. When reusing an existing issue,
+return its URL and number without implying new creation.
+
+If the reproduction is incomplete, draft a useful report with concrete missing
+evidence and unknowns. If GitHub access to `ryumiel/devcanon` is unavailable, stop
+at a reusable draft and state which duplicate checks or posting actions could
+not be performed. Do not claim that a duplicate search or creation succeeded
+without confirming it.
 
 ## 4. Issue Shape
 
