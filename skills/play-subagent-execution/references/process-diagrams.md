@@ -170,8 +170,11 @@ complete authorized-correction wave records its round before the decision:
 rounds 1 and 2 may take the bounded-fix edge, while round 3 must stop at
 `BLOCKED` with `review-loop-limit` before D12; a materially unchanged family
 may stop earlier through that same blocker and resumption path. A
-finding-bound single-use approval can permit one identified extra edge; only a
-materially revalidated contract can begin a new three-round episode. These are
+finding-bound single-use approval can permit one identified extra edge. After
+its failed review, the lifecycle owner's same-contract reassessment recovery
+permits at most one further explicitly approved dispatch without a count reset;
+failure ends local recovery. Only a materially revalidated contract relevant to
+the exhausted finding can begin a new three-round episode. These are
 summary labels, not additional reviewer fields or a policy source.
 
 Prompt boxes point to the child-action/report owners in `implementer-prompt.md`,
