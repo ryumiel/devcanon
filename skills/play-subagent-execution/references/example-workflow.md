@@ -231,11 +231,23 @@ After a third complete same-head wave that requires an authorized correction,
 the controller records the failed round and returns `BLOCKED` with
 `review-loop-limit` before D12. A current finding-bound approval can authorize
 one identified fix attempt without resetting the count; a failed fresh wave
-after it blocks again. Alternatively, only a material authoritative change to
-the task scope or acceptance, followed by refreshed context, structural
-validation, head/route revalidation, and reclassification, can reset the
-current-episode fixup count and start a fresh review budget. Cosmetic wording
-does not resume or dispatch.
+after it blocks again. The lifecycle owner's reassessment can then admit one
+explicitly approved same-contract recovery, without resetting the count.
+
+For example (hypothetical), the prior fix checked an operation's identity at
+enqueue, but a new execution trace shows the worker switches generations before
+applying cleanup. Moving that existing check to execution and exercising the
+same deterministic interleaving supplies a causal repair and distinguishing
+proof. With current exact authority and user approval, dispatch once and retain
+all failed history. If it returns `NEEDS_CONTEXT`, do not auto-redispatch under
+that grant. If its fresh review fails, end local recovery and hand off to the
+existing owner; a new task name or another timeout choice cannot renew it.
+
+A material authoritative change to the affected invariant can instead enter
+revised-contract resumption after its required validation. Adding an unrelated
+diagnostics criterion, even with genuine approval, cannot reset the cleanup
+defect's exhausted budget. These examples consume the lifecycle policy rather
+than adding exceptions to it.
 
 [Revalidate effective review route]
 Controller compares the original Task 2 base SHA to the refreshed task head.

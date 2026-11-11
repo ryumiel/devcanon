@@ -135,8 +135,13 @@ Per-task review-fix episodes are bounded. The lifecycle policy owns the exact
 round count, stop threshold, blocker family, and transition mechanics. Reaching
 that limit blocks before another implementation attempt. Explicit resumption
 approval is finding-bound and authorizes one identified extra attempt without
-erasing prior failure history; a material authoritative scope or acceptance
-change instead starts a new bounded episode while retaining the prior ledger.
+erasing prior failure history. After its failed review, the lifecycle owner
+permits one explicitly approved, causally justified same-contract recovery
+without resetting the count. Failure ends local recovery. A material
+authoritative scope or acceptance change relevant to the exhausted invariant
+instead starts a new bounded episode while retaining the prior ledger.
+Separating repair eligibility from contract revision avoids making a stronger
+or weaker product guarantee the price of correcting an existing defect.
 
 Every head-changing fix invalidates both same-head reviewer verdicts. The
 controller revalidates the effective route and reruns every reviewer required

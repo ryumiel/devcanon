@@ -162,13 +162,59 @@ changed head, route, contract, or material evidence invalidates it and requires
 a replacement current approval unless the revised-contract route applies. Once
 dispatched, the episode's finding-bound approval escape hatch is consumed;
 preserve that fact in the existing controller-local ledger. A failed fresh wave
-after the extra attempt blocks before any further D12, and only revised-contract
-resumption may authorize another attempt.
+after the extra attempt blocks before further D12. Reassess before selecting
+either same-contract recovery or a genuinely revised contract below.
+
+### Reassessment and same-contract recovery
+
+At reassessment, explain why the prior correction did not converge: an
+incomplete repair, a previously inspectable path missed, a regression introduced
+by the repair, an implementation choice promoted into a requirement, or scope
+too broad to resolve together. These are explanations, not new finding classes.
+Compare the whole retained finding-family history before asking for resumption.
+Name the failed invariant, new causal evidence, the changed repair approach,
+and the smallest verification that distinguishes it from the failed approach.
+A new trace of the same failure, a different implementation technique without
+that causal link, or an A/B/A retry sequence is insufficient. Keep real late
+blockers visible and classify their scope under the existing proportionality
+policy; reassessment neither suppresses them nor authorizes new requirements.
+
+After the original extra attempt has failed fresh review, the same exhausted
+episode may receive exactly one reassessment recovery under the unchanged
+contract. It requires the evidence above, separately established exact mutation
+authority, and explicit user approval acknowledging the exhausted history and
+covering one identified D12 dispatch plus required fresh review. Bind approval
+to the current finding, head, route, contract and evidence; pre-dispatch changes
+invalidate it and require explicit current replacement. General implementation
+authority, `--auto`, and prior resumption approval do not grant recovery.
+
+Record recovery consumption at D12 dispatch in the existing controller-local
+history without resetting the fixup count. `NEEDS_CONTEXT`, `BLOCKED`, or an
+absent valid review wave does not restore it. This grant permits no automatic
+D12 redispatch, including the ordinary verified-auto context-recovery route.
+After a completed correction, revalidate and run all independently guarded
+reviewers required by the current route on the current head. If the recovery
+does not complete with the required passing review, end local same-contract
+recovery and hand the remaining defect, cause and evidence to the existing
+owner; do not solicit another recovery approval for that episode. Renaming the
+task, session, finding or episode does not replenish either consumed grant.
+
+This recovery applies only to a valid guarded D14/D15 `review-loop-limit`
+episode. It cannot reopen D16 or a guard-integrity, cleanup, malformed or
+incomplete-review terminal. Existing classification, source guards and
+changed-head proof remain mandatory; recovery is not a new review tier.
+
+### Revised-contract resumption
 
 Revised-contract resumption instead requires material authoritative scope or
 acceptance change, refreshed extracted context, structural contract validation,
-head and route revalidation, and reclassification. After that material
-revalidation, reset only existing current-episode fixup count to `0` and retain
+head and route revalidation, and reclassification. The authorized change must
+materially affect the exhausted finding's violated invariant or required
+outcome; an independently useful but unrelated acceptance addition cannot
+reopen that repair. Keep its exhausted state and route the unrelated work
+separately. Contract changes require their own product/design justification,
+not a need to obtain more attempts. After that material revalidation, reset
+only existing current-episode fixup count to `0` and retain
 prior ledger and family history. When the revised contract authorizes
 correction, dispatch through the existing D12 compatibility logic and begin the
 new three-round budget with post-fix fresh review. When the unchanged
@@ -178,6 +224,8 @@ fresh one-shot wave against the current head and revised contract; no prior
 verdict survives the contract change. Cosmetic wording or still-unauthorized
 evidence cannot reset or dispatch. Prior family history supports early stop only
 when authority, outcome, and impact remain materially unchanged.
+
+## Guarded review lifecycle
 
 Resolve the installed `play-subagent-execution` bundle before the first guarded
 review and discover the local guard contract once for the enclosing D14-D16
@@ -212,7 +260,9 @@ available evidence. This reclassification changes the tuple and therefore uses
 the fresh-child lifecycle path above, not a D13 follow-up with an altered role,
 model, or effort.
 
-On the exact verified `issue-priming-workflow --auto` route, a task-local
+The dispatch-consumed original extra attempt and same-contract recovery above
+take precedence over the context-recovery rules below. On the exact verified
+`issue-priming-workflow --auto` route, a task-local
 recoverable D12 `NEEDS_CONTEXT` or `BLOCKED` result is non-gate continuation:
 provide the bounded missing context or recoverable unblock and redispatch the
 same D12 route. Outside that route, automatic recovery is limited to a
