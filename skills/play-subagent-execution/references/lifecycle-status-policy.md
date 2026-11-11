@@ -260,8 +260,9 @@ available evidence. This reclassification changes the tuple and therefore uses
 the fresh-child lifecycle path above, not a D13 follow-up with an altered role,
 model, or effort.
 
-Except for the dispatch-consumed same-contract recovery above, on the exact
-verified `issue-priming-workflow --auto` route, a task-local
+The dispatch-consumed original extra attempt and same-contract recovery above
+take precedence over the context-recovery rules below. On the exact verified
+`issue-priming-workflow --auto` route, a task-local
 recoverable D12 `NEEDS_CONTEXT` or `BLOCKED` result is non-gate continuation:
 provide the bounded missing context or recoverable unblock and redispatch the
 same D12 route. Outside that route, automatic recovery is limited to a
