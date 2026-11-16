@@ -483,8 +483,9 @@ required same-PR work under current scope and retains a compact reference to
 the requirement and its proof in existing completion evidence. At terminal
 reconciliation, the coordinator verifies applicability and outcome against
 the delivered revision, including when the handoff omitted the requirement.
-A missing requirement outcome or unavailable required evidence leaves
-repository closeout unresolved without changing verified provider disposition.
+Unresolved applicability, a missing requirement outcome, or unavailable required
+evidence leaves repository closeout unresolved without changing verified
+provider disposition.
 Record the bounded correction or evidence gap in existing obligations and
 route it under current authority. Keep independently eligible cleanup moving
 under its existing safeguards; archival still requires release of follow-up
@@ -492,6 +493,8 @@ assigned to the owner. Where no repository rule applies, add no deliverable,
 approval or report.
 The regression scenario matrix is maintained at the existing
 [reporting scenarios](../../skills/issue-batch-coordination/references/reporting-scenarios.md#post-delivery-cleanup-outcomes).
+Exercise applicability and delivered proof using the
+[repository closeout scenarios](../../skills/issue-batch-coordination/references/reporting-scenarios.md#repository-obligations-at-milestone-closeout).
 
 Covered-delivery verification uses the source-owned
 [continuation scenarios](../../skills/issue-batch-coordination/references/reporting-scenarios.md#covered-delivery-continuation-scenarios).

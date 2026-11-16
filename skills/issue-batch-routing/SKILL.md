@@ -257,10 +257,13 @@ already-absent versus newly removed resources and branch-only retries separately
 Milestone closure and timer stop each need their own authorized operation and
 observed result; neither follows from chat archival or cleanup acceptance.
 
-For a verified or candidate final issue in a milestone, determine whether a
-repository closeout rule applied at delivery. Resolve the repository's
-applicable instructions and any linked workflow guidance if the owner
-evidence does not establish applicability. For an applicable rule, confirm
+For milestone-linked delivery, use current or historical provider evidence
+or a usable delivery reference to establish whether the PR closed the last
+open issue. If a plausible final-issue trigger cannot be resolved, record the
+specific applicability evidence gap. For a verified final issue, resolve the
+repository instructions applicable at delivery and any linked workflow
+guidance if the owner evidence does not establish applicability. Unreadable
+required instructions also leave applicability unresolved. For an applicable rule, confirm
 the required result from the merged PR or delivered revision and any other
 evidence the rule requires. An omitted handoff or a closed milestone is
 insufficient proof. If a required result is missing or its evidence is
@@ -1339,6 +1342,10 @@ Do not archive an owner thread until all of these are true:
   abandoned, or verified closed/completed source issue state without a PR is
   terminal evidence;
 - the owner thread reports terminal owner-thread state;
+- the controller has reconciled applicable repository closeout requirements
+  under the post-delivery lifecycle check, with any evidence gap or remaining
+  obligation recorded and its responsibility resolved before releasing the
+  owner;
 - the owner thread has no active gate;
 - no pending user or agent work remains;
 - no unresolved follow-up remains assigned to that owner; any separately accepted controller cleanup obligation stays recorded;
