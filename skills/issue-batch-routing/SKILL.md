@@ -257,6 +257,24 @@ already-absent versus newly removed resources and branch-only retries separately
 Milestone closure and timer stop each need their own authorized operation and
 observed result; neither follows from chat archival or cleanup acceptance.
 
+For milestone-linked delivery, use current or historical provider evidence
+or a usable delivery reference to establish whether the PR closed the last
+open issue. If a plausible final-issue trigger cannot be resolved, record the
+specific applicability evidence gap. For a verified final issue, resolve the
+repository instructions applicable at delivery and any linked workflow
+guidance if the owner evidence does not establish applicability. Unreadable
+required instructions also leave applicability unresolved. For an applicable rule, confirm
+the required result from the merged PR or delivered revision and any other
+evidence the rule requires. An omitted handoff or a closed milestone is
+insufficient proof. If a required result is missing or its evidence is
+unavailable, record the specific obligation and evidence gap separately from
+verified merge and provider closure. Report repository closeout as unresolved,
+and route any bounded correction through the existing owner and scope gates.
+Do not replay verified effects or duplicate a pending correction or notice.
+Continue independently eligible cleanup under existing custody and archival
+guards. Where the applicable instructions impose no obligation, use ordinary
+closeout.
+
 ## Operational retention
 
 Each retained local artifact needs a named active consumer or explicit workflow
@@ -1324,6 +1342,10 @@ Do not archive an owner thread until all of these are true:
   abandoned, or verified closed/completed source issue state without a PR is
   terminal evidence;
 - the owner thread reports terminal owner-thread state;
+- the controller has reconciled applicable repository closeout requirements
+  under the post-delivery lifecycle check, with any evidence gap or remaining
+  obligation recorded and its responsibility resolved before releasing the
+  owner;
 - the owner thread has no active gate;
 - no pending user or agent work remains;
 - no unresolved follow-up remains assigned to that owner; any separately accepted controller cleanup obligation stays recorded;

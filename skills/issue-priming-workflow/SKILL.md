@@ -1259,6 +1259,16 @@ read files from disk for the rerun rather than using snapshot content.
 
 ### Phase 8: Create PR
 
+Before invoking publication for a milestone-linked issue that the PR would
+close, check whether the issue is the last open item and read applicable
+repository instructions and their linked workflow guidance. Complete any
+required same-PR closeout work through the existing implementation and review
+path before push. If the candidate changes, refresh affected validation and
+Phase 7 approval. Retain a compact reference to the applicable rule and its
+proof with existing delivery evidence. Missing authority or evidence for an
+applicable requirement holds the affected publication under the normal gates.
+When no rule applies, use the ordinary publication path.
+
 This is initial PR publication: implementation, validation and independent
 Phase 7 branch review precede creation. Publish ready for review by default;
 pass any concrete draft exception and clearing condition through the existing

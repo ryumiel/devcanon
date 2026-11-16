@@ -123,6 +123,15 @@ Then: Cleanup worktree (Step 5) on the green path only.
 
 #### Option 2: Push and Create PR
 
+For a scoped issue-closing PR, consume the caller's current repository
+closeout evidence. When it is missing and the issue is milestone-linked,
+check whether the PR would close the last open issue and resolve applicable
+repository workflow instructions before push. If an applicable same-PR
+requirement is unfulfilled or its proof is unavailable, return to the issuing
+owner for the candidate correction or evidence; rerun affected checks and
+review after a changed candidate. No extra deliverable or confirmation applies
+when the repository has no such requirement.
+
 **PR publication state.** Create a ready-for-review (non-draft) PR by default
 once implementation, required local validation and independent prepublication
 review required by the calling workflow are complete. Ordinary pending
