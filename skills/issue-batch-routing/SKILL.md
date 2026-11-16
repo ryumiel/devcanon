@@ -257,6 +257,21 @@ already-absent versus newly removed resources and branch-only retries separately
 Milestone closure and timer stop each need their own authorized operation and
 observed result; neither follows from chat archival or cleanup acceptance.
 
+For a verified or candidate final issue in a milestone, determine whether a
+repository closeout rule applied at delivery. Resolve the repository's
+applicable instructions and any linked workflow guidance if the owner
+evidence does not establish applicability. For an applicable rule, confirm
+the required result from the merged PR or delivered revision and any other
+evidence the rule requires. An omitted handoff or a closed milestone is
+insufficient proof. If a required result is missing or its evidence is
+unavailable, record the specific obligation and evidence gap separately from
+verified merge and provider closure. Report repository closeout as unresolved,
+and route any bounded correction through the existing owner and scope gates.
+Do not replay verified effects or duplicate a pending correction or notice.
+Continue independently eligible cleanup under existing custody and archival
+guards. Where the applicable instructions impose no obligation, use ordinary
+closeout.
+
 ## Operational retention
 
 Each retained local artifact needs a named active consumer or explicit workflow

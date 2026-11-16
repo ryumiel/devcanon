@@ -476,6 +476,20 @@ only dependent actions. An owner chat may archive separately after transferring
 its remaining cleanup obligation to the controller, when owner terminal gates
 and user ordering permit; verify archival without claiming worktree deletion.
 Milestone closure and watchdog stop each require separate observed verification.
+
+For milestone-ending delivery, resolve applicable repository closeout instructions
+before the affected PR is published. The existing delivery owner handles
+required same-PR work under current scope and retains a compact reference to
+the requirement and its proof in existing completion evidence. At terminal
+reconciliation, the coordinator verifies applicability and outcome against
+the delivered revision, including when the handoff omitted the requirement.
+A missing requirement outcome or unavailable required evidence leaves
+repository closeout unresolved without changing verified provider disposition.
+Record the bounded correction or evidence gap in existing obligations and
+route it under current authority. Keep independently eligible cleanup moving
+under its existing safeguards; archival still requires release of follow-up
+assigned to the owner. Where no repository rule applies, add no deliverable,
+approval or report.
 The regression scenario matrix is maintained at the existing
 [reporting scenarios](../../skills/issue-batch-coordination/references/reporting-scenarios.md#post-delivery-cleanup-outcomes).
 

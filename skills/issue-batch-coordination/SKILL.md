@@ -247,6 +247,15 @@ This changes no review, protection, repair, messaging or cleanup authority.
 
 ## Post-delivery closure
 
+Before releasing publication for a PR that would close the last open issue of
+a milestone, use current provider state and the repository's applicable
+workflow instructions to identify any required same-PR closeout work. Route
+that work to the existing delivery owner under the normal scope and review
+gates. When the owner can continue locally, the publication workflow performs
+the same check before push. At terminal reconciliation apply the router's
+repository closeout check even when the handoff lists no obligation. Retain
+compact evidence references in existing obligation or result fields.
+
 Use the router's
 [post-delivery lifecycle reconciliation](../issue-batch-routing/SKILL.md#post-delivery-lifecycle-reconciliation)
 and Operational retention contracts. Reconcile cleanup acceptance separately from

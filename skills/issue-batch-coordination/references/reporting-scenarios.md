@@ -408,6 +408,21 @@ these are workflow acceptance cases, not a simulated Codex queue implementation.
 | Generated leaf with private sibling | One ignored output is explicitly disposable; adjacent ignored user data is not.                                                                   | Designate only the generated leaf; retain the checkout for the private sibling. Never widen to its containing directory merely to pass cleanup.                                         |
 | Metadata outstanding                | Git removal and branch deletion verified; supported attachment reconciliation unavailable.                                                        | Report Git cleanup complete and host metadata outstanding separately. Retry metadata only after a relevant state/capability change; never edit private app state.                       |
 
+## Repository obligations at milestone closeout
+
+Use a synthetic repository that links its workflow from its agent instructions.
+The provider shows the PR is for the last open milestone issue. Keep the
+workflow rule out of the issue and owner handoff. Stop at the selected
+decisions; no real publication, cleanup or external writes are in scope.
+
+| Case                 | Variation                                                                                            | Expected result                                                                                                                                                                                                              |
+| -------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Before publication   | The repository requires the final PR to update a sequencing document; the candidate omits it.        | Find the rule before push, return work to the existing owner, and refresh affected checks and review after correction. Retain a compact rule and proof reference.                                                            |
+| No repository rule   | No repository instruction calls for a closeout update.                                               | Follow ordinary publication and terminal reconciliation without an added document, gate or report.                                                                                                                           |
+| After merge          | Provider confirms the merge and milestone closure, but the delivered diff omits the required update. | Keep provider facts verified, discover and record the unresolved repository obligation, and route the bounded correction under existing authority. Unassigned or independent cleanup remains eligible under existing guards. |
+| Evidence unavailable | A requirement applies but the delivered revision or required verification cannot be inspected.       | Record the specific missing evidence, preserve verified provider facts, and omit a full repository closeout claim.                                                                                                           |
+| Unchanged repeat     | Repeat with identical evidence and correction or cleanup already pending or verified.                | Preserve the existing wait or verified outcome without redispatch, repeated effects or duplicate notices.                                                                                                                    |
+
 ## PR publication-state scenarios
 
 Evaluate these cases against the publication owner, Phase 8 handoff and router
