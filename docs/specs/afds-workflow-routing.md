@@ -330,51 +330,22 @@ including still-current prior authority; routine orchestration grants none of
 them. Source-status effects and archival retain their existing owner gates.
 
 A concrete accepted execution request defaults eligible new provider-owner
-invocations to `--auto`. A fresh batch uses owner reports with no watchdog or
-timer unless monitoring is explicitly requested. Status-only intent causes no
-task creation, messaging, scheduling or priming. Owner mode and monitoring
-selection are independent. Preserve compatible already-bound owner modes and
-previously authorized monitor settings on resume; the fresh-batch default does
-not stop or replace existing monitoring, and a generic resume does not override
-an explicit stop.
-
-Intent, independent overrides, bound modes/settings and retained explicit stops
-select requested effects before authorization, preference or capability
-inquiries. No-monitor or a retained stop excludes watcher creation,
-monitor-specific messaging authorization, capability/model/cadence inquiries and
-activation from startup; disabled requirements are absent, not failed gates.
-Independently authorized owners continue in their selected mode. An explicitly
-requested stop of an existing active timer retains only its necessary host
-control/permission checks and observed shutdown, with no replacement authority.
-Conflicting authority or unresolved state holds the affected action while
-existing resources are preserved and the concrete evidence gap is escalated.
-
-Before selected creation, owner release, messaging or timer activation, one
-initial check inspects applicable human decisions visible in the controller or
-verifiable through supported evidence. It enumerates only selected effects:
-owner-chat creation, coordinator-to-owner instructions and owner-to-coordinator
-gates/completion/required readiness. Scheduled monitoring adds one watchdog chat,
-watchdog-to-owner updates, watchdog-to-coordinator exceptions and recurring
-scheduling with cadence. GitHub push adds a webhook registration and authorization
-for notices to the bound recipients. A selected stop includes only required
-shutdown controls.
-Alongside setup permissions, establish separately scoped publication, conditional
-merge and scoped cleanup authority, reusing actual human decisions and collecting
-only missing scope or authority before affected effects.
+invocations to `--auto`. Preserve bound owner modes on resume. A status request
+remains read-only. At startup and issue admission, use the coordinator's
+[fixed permission template](../../skills/issue-batch-coordination/SKILL.md#batch-permission-request)
+to request uncovered actions once in order. Omit the prompt when all selected
+actions are covered. By default, request authority to create and admit issues
+within the approved work. Apply standing grants to later in-scope issues,
+respect narrower grants, and obtain a scope decision for expansion. Reuse
+equivalent issues and reconcile uncertain creation before retrying.
 Retain accepted scope and authorization provenance in existing controller state,
 bind actual recipients as they become known and supply recipient-visible
 reporting evidence through the existing handoff contract. Where direct human
 authorization in the recipient conversation is required, arrange that specific
 step; a forwarded controller assertion cannot substitute for it.
 
-Reuse valid decisions across compatible continuation and ask only for uncovered
-effects or, for enabled monitoring, genuinely missing timer preferences,
-together where the host permits.
-The request identifies batch, roles, selected notification directions, applicable
-timer operation and cadence, and each actual host restriction. It explicitly
-distinguishes
-publication, conditional merge and scoped cleanup decisions from task, messaging
-and timer permissions without silently expanding scope or provider effects. Complete verifiable authorization
+Reuse compatible authority. Name the batch, roles, message directions and any
+actual host restriction. Complete verifiable authorization
 proceeds without another approval. Inaccessible evidence yields one specific
 missing-evidence action, not presumed refusal or generic workflow reapproval.
 A partial permission or setup failure holds only affected effects while
@@ -409,7 +380,7 @@ current-head CI, genuine independent reviews, protection, mergeability and
 review-thread disposition through `pr-merge`. Scoped cleanup follows verified
 merge and outstanding accepted work, preserving required evidence, unrelated
 work, the controller ledger and dependent resources. Terminal completion and
-verified timer shutdown include outstanding authorized cleanup obligations.
+verified relay retirement include outstanding authorized cleanup obligations.
 
 #### ROUTE-007-CONTINUATION: Covered same-owner effects
 
@@ -460,7 +431,7 @@ Post-delivery lifecycle reconciliation consumes the existing cleanup owners'
 [mechanism selection and verification](../../skills/git-workspace-cleanup/references/git-workspace-cleanup-usage.md#mechanism-selection-and-verification)
 contract. Delivery/source disposition, required retention, checkout removal,
 Git registration, local/remote branches, host attachment/ownership, chat archival,
-milestone closure and watchdog shutdown remain distinct observed outcomes in
+milestone closure and relay retirement remain distinct observed outcomes in
 existing obligation/result fields. Preserve user-selected order. An explicit mandatory host snapshot
 instruction remains binding, but attachment existence and archive-tool limits do
 not themselves require archival. Completed, released worktrees may use guarded
@@ -477,7 +448,7 @@ ledger and explicit review/recovery custody contracts. Unresolved effects hold
 only dependent actions. An owner chat may archive separately after transferring
 its remaining cleanup obligation to the controller, when owner terminal gates
 and user ordering permit; verify archival without claiming worktree deletion.
-Milestone closure and watchdog stop each require separate observed verification.
+Milestone closure and relay retirement each require separate observed verification.
 
 For milestone-ending delivery, resolve applicable repository closeout instructions
 before the affected PR is published. The existing delivery owner handles
@@ -553,8 +524,7 @@ At batch closeout, the coordinator verifies accepted delivery against durable
 evidence and reconciles outstanding deliveries and effects before monitor
 retirement. Under existing stop authority, disable the selected GitHub webhook
 and verify that it is inactive. Then stop the receiver and verify the stop
-before retiring its dedicated HTTPS route and verifying its removal. Verify
-watchdog shutdown through its owning control when applicable.
+before retiring its dedicated HTTPS route and verifying its removal.
 Honor explicit monitor retention and preserve its required state. Monitor
 retention or unresolved shutdown holds dependent state under EVID-004-CLEANUP
 while independently eligible owner cleanup proceeds.
@@ -572,7 +542,7 @@ force; the specification does not make an unsupported host operation available.
 
 Priming retains every mandatory phase and ends its effects at the reviewed
 current PR/head report. The controller consumes that result under retained
-scope, routing validates the next instruction, and `pr-merge` owns polling,
+scope, routing validates the next instruction, and `pr-merge` owns CI waits,
 preflight, verified merge, scoped cleanup, and reporting after current review,
 CI, and protection gates pass. `--auto` alone grants no merge authority and a
 PR-only decision remains PR-only. Existing cleanup guards preserve dirty,
@@ -705,7 +675,7 @@ owner; publication uses the router's current remote-state and approval gates.
 Neither green component tests nor an archived owner proves batch completion.
 Scope and repair decisions stay with existing proportionality and review owners.
 
-Entry, watchdog wake, resume, and handoff reload canonical applicable policy;
+Entry, event delivery, resume, and handoff reload canonical applicable policy;
 material routing rechecks it before dispatch. Existing local state retains its
 revision or fingerprint. Refresh cannot expand authority, and missing policy
 or unresolved authority/scope changes stop affected actions with a concrete
@@ -735,9 +705,7 @@ path, the coordinator validates current referenced evidence, routes an authorize
 next action, and yields. Repeated coordinator reads, snapshots, or wait loops to
 discover ordinary owner progress or whether a gate appeared are prohibited,
 regardless of tool names or interval. This includes repeated `read_thread`,
-`wait_threads`, and equivalents. The separate watchdog observes external events and only the bounded ordinary
-owner-result exception in ROUTE-007-EVENT. Unsupported delivery never permits
-a general polling fallback.
+`wait_threads`, and equivalents. Report gaps in delivery and yield.
 
 Bounded owner reads may confirm initial binding before release, validate a
 received report, answer an explicit user status request, or reconcile the
@@ -747,7 +715,7 @@ specific unresolved gap after supported recovery. Initial binding stops at the
 confirmed owner/waiting state; release awaits delivered handoff without a loop.
 A status read ends with the requested answer. Received-evidence reads hold stale
 or missing facts before routing; recovery cannot become ordinary-progress watch.
-Heartbeat or compacted resume with no delivered report, explicit user status
+A compacted resume with no delivered report, explicit user status
 request, initial binding need or named uncertain operation yields without owner
 progress/gate discovery. Refresh relevant provider facts for a concrete routing
 action; missing required freshness holds that action for its proper delivered
@@ -914,12 +882,12 @@ current items. Unknown facts and unresolved obligations remain explicit.
 
 Only the following bounded operational markers survive value replacement:
 
-| Operational purpose                        | Retain while needed                                                                                                                                                                                                                    | Replacement or removal condition                                                                                                                                                                                                                                                                                                                                                  |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Applicable authority                       | Accepted scope, authority evidence reference and exact current action binding                                                                                                                                                          | Refresh head-dependent bindings and readiness when their inputs change without revoking compatible standing scope. Replace superseded or revoked authority; retain only its identity/reference if an unresolved effect still requires it. Never keep an approval chronology.                                                                                                      |
-| Pending or uncertain effects               | Original complete route key, confirmed owner/host/repository binding, provisional creation identifier where applicable, and supported delivery/result reference                                                                        | Reconcile the original operation before retry. Replace uncertainty with its verified result; remove the pending marker only when resolved and any still-needed duplicate guard is retained. Missing evidence holds the action.                                                                                                                                                    |
-| Duplicate suppression and receipt recovery | Exact route identities still eligible for reconciliation or delayed delivery, highest accepted receipt sequence per such route, acknowledged next sequence, and required current handoff provenance                                    | Binding changes alone cannot evict a needed guard. Retire a route entry only when its effects and obligations are resolved and it cannot become eligible again under the retained authority; delayed delivery for a retired or unknown route fails closed and cannot initialize authority or restart sequence numbering. Keep guards for unresolved routes across resume/handoff. |
-| Notification and monitor control           | Current event/head/recipient or owner-result item/owner/host/dispatch/action and coordinator recipient/host/recipient-action binding, delivery/wake outcome, unresolved delivery, applicable explicit stop and verified shutdown state | Replace superseded observations only after reconciling delivery; successful delivery is not inferred from an attempt. Retire resolved markers only when delayed input cannot repeat notice or recreate a stopped monitor. Retain an explicit stop until later scheduling authority supersedes it.                                                                                 |
+| Operational purpose                        | Retain while needed                                                                                                                                                                                 | Replacement or removal condition                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Applicable authority                       | Accepted scope, authority evidence reference and exact current action binding                                                                                                                       | Refresh head-dependent bindings and readiness when their inputs change without revoking compatible standing scope. Replace superseded or revoked authority; retain only its identity/reference if an unresolved effect still requires it. Never keep an approval chronology.                                                                                                      |
+| Pending or uncertain effects               | Original complete route key, confirmed owner/host/repository binding, provisional creation identifier where applicable, and supported delivery/result reference                                     | Reconcile the original operation before retry. Replace uncertainty with its verified result; remove the pending marker only when resolved and any still-needed duplicate guard is retained. Missing evidence holds the action.                                                                                                                                                    |
+| Duplicate suppression and receipt recovery | Exact route identities still eligible for reconciliation or delayed delivery, highest accepted receipt sequence per such route, acknowledged next sequence, and required current handoff provenance | Binding changes alone cannot evict a needed guard. Retire a route entry only when its effects and obligations are resolved and it cannot become eligible again under the retained authority; delayed delivery for a retired or unknown route fails closed and cannot initialize authority or restart sequence numbering. Keep guards for unresolved routes across resume/handoff. |
+| Event delivery and retirement              | Event/head/recipient/action binding, delivery or wake outcome, unresolved attempts and verified shutdown.                                                                                           | Reconcile delivery before retry. Retain guards while delayed input could repeat an effect.                                                                                                                                                                                                                                                                                        |
 
 A validated merge result replaces its receipt wait and queued merge action
 before the coordinator yields or sends the next instruction. Independent
@@ -956,97 +924,20 @@ belongs to the routing/coordination verification owners.
 
 #### ROUTE-007-MONITOR: Execution monitoring lifecycle
 
-Fresh accepted execution selects no monitor without an explicit monitoring
-request; owner reports remain the default continuation signal. Select monitoring
-from explicit intent, independent overrides and retained state before
-its authority, preference or capability inquiries. No-monitor or retained stops
-exclude new monitoring setup and its messaging/model/cadence/control inquiries;
-generic resume preserves the stop and independent owner mode. An explicit
-active-timer stop instead requires its bounded host control/permission check and
-observed shutdown without replacement setup.
-
-A new GitHub batch on local macOS Codex Desktop may explicitly select
-[GitHub push delivery](#route-007-push-github-push-delivery). For other explicit
-monitoring requests, the existing watchdog and heartbeat selection applies.
-
-An explicit watchdog request defaults to one separate watchdog and timer
-unless another existing mode is explicitly selected, and requires retained
-applicable scheduling and messaging authority, a verified controller, existing owner and
-repository bindings, readable canonical policy, and inspectable schedule and
-notification state. The host's supported controls own scheduling. User-selected
-model, effort, cadence, and authorized repository post-merge commands remain
-configurable within host limits. Missing authority, ambiguous binding, unreadable
-policy, or unsupported control holds the affected action with a concrete reason;
-independently authorized owner reports continue.
-
-Compatible previously authorized monitoring keeps its settings on resume; the
-fresh-batch default cannot stop or replace it. A retained explicit stop prevents
-recreation until later explicit scheduling authority covers activation.
-
-Exactly one monitoring mode may be active for a batch. When monitoring is
-explicitly requested, and separate task, schedule,
-observation, messaging, and task-model
-controls are supported and authorized, default to a separate watcher restricted
-to external observation and notification plus the ROUTE-007-EVENT bounded
-ordinary owner-result reconciliation check. A coordinator heartbeat requires
-explicit selection; unsupported or rejected watcher controls never silently
-select a heartbeat. Independently authorized owner-driven coordination continues
-when monitoring is unavailable.
-
-A new watcher uses the already-rendered target-native `efficient` model binding
-from the coordinator skill in the host task's supported model setting, unless an
-applicable explicit user model override takes precedence. Effort remains an
-independent user setting or supported host default. Cadence preserves an
-applicable user/saved setting, otherwise a supported configured host default;
-when neither exists, request that bounded preference before activation. The
-model tier supplies no universal cadence or effort. Missing, unresolved, or
-rejected bindings or model
-controls hold watcher activation with the concrete limitation; do not substitute
-an ambient model or rediscover configuration.
-
-For owner-result readiness, the coordinator supplies the watcher a concrete
-read-only reference to its current ledger through permitted supported host
-access, alongside the existing batch/repository/controller/host and owner/action
-bindings. Before reading or claiming readiness on setup, reuse or resume, verify
-watcher readability, coordinator ownership, current batch association and
-refreshability; a copied snapshot is not current custody. Also verify exposed
-compact status for ordinary owner and coordinator chats and authorized supported
-transport that can start or resume the inactive named ordinary coordinator.
-Record readiness or its exact limitation in existing monitor state. Missing,
-stale or inaccessible ledger custody or unsupported status/wake holds this path;
-separately supported external observation and authorized owner reports continue.
-This reference supplies navigation and custody, not a second ledger or schema.
-
-Before claiming monitored operation, separately verify actual owner bindings,
-watchdog task identity and model, timer target and active status, and permitted
-notification recipients. The timer wakes the watchdog chat for external
-events and the bounded owner-result check below, using the existing cadence.
-The coordinator does not periodically observe owners. A selected heartbeat
-may handle bounded events/recovery but must not periodically discover owner
-progress. Reuse compatible components, create only missing authorized ones, and
-retain partial startup in existing state. Pending or unknown creation, activation
-or stop outcomes prevent duplicate activation. Missing/rejected task, model,
-timer or messaging controls expose their exact limitation; no custom scheduler,
-ambient-model substitution or implicit heartbeat fallback is permitted.
-
-Inspect an existing watcher and schedule against the batch, repository,
-controller, recipients, identity, target, status, authority, and notification
-state before reuse. Preserve compatible settings and cadence, including an
-existing three-minute cadence or explicit model override; the default applies
-to new watchers and does not impose a universal interval. An explicit user stop
-blocks automatic recreation unless later explicit scheduling authority supersedes
-it. Before changing modes or replacing a monitor, pause or retire the predecessor
-and verify its state; unknown stop status holds competing activation.
-A heartbeat invokes coordination with its existing ledger and routing authority.
-A separate watcher may retain only local notification state and notify existing
-recipients. It cannot approve,
-implement, merge, mutate a provider, create or replace an owner, or write the
-batch ledger. Neither mode introduces a custom scheduler or mandatory agent.
+Batches use owner reports and authorized provider events. Never schedule a
+watchdog, heartbeat or periodic status check. On resume, reconcile legacy
+schedules through the [retirement procedure](../../skills/issue-batch-coordination/references/watchdog.md).
 
 #### ROUTE-007-PUSH: GitHub push delivery
 
-Select this mode only at fresh batch setup with explicit authorization for the
-GitHub subscription and the existing coordinator and owner recipients. The
+At GitHub batch startup and issue admission on local macOS Codex Desktop, include
+relay setup, repository webhook registration and notices to the bound recipients
+in the permission check by default. Verify that the running receiver covers each admitted issue. For an added issue outside
+its loaded allowlist, extend the disjoint scope, restart the same receiver with
+its receipt state, and verify coverage before relying on notices. Honor an explicit exclusion and
+reuse existing authorization. Approval of the listed batch effects covers event
+delivery. Verify that authority before setup and verify delivery before relying
+on notices. The
 coordinator records the mode in its current ledger and supplies the relay
 read-only access to that ledger. Run one Node.js relay CLI instance per
 coordinator. Pass its ledger with `--ledger` and keep each instance's receipt
@@ -1070,13 +961,8 @@ After initial publication or a corrected head is pushed, an existing owner
 with a verified push binding verifies completion delivery coverage for each
 current-head pending gate. For CI, verify that the subscribed configured
 workflow supplies completion notices for the CI gate being awaited. Use an
-`external_event` wait for covered pending gates. When CI notices were
-intentionally omitted in a verified review-only setup, use the existing bounded
-ordinary CI poll for pending CI before checking current Connector review; yield
-if covered review remains pending; do not poll review. Do not yield early when uncovered CI and
-review are both pending. Configured delivery that fails, is unverifiable, or
-does not cover the pending CI gate uses
-the gap and bounded recovery path, not ordinary polling. Record the PR, exact head
+`external_event` wait for covered pending gates. Report any uncovered CI or
+review gate, including CI in review-only setups, and yield. Record the PR, exact head
 and outstanding gates through the existing owner state and authorized
 reporting path. Only the coordinator records the wait in the batch ledger.
 End the owner turn so queued notices can resume it. Use no repeated status
@@ -1092,9 +978,9 @@ may carry a different verdict. Route actionable failures
 through their existing procedures. When a covered gate remains pending, record the
 current wait and yield again; apply the same coverage selection to pending CI.
 A confirmed delivery failure or a
-missing notice surfaced by authorized monitoring permits one live
+missing notice identified by a delivered report permits one live
 reconciliation check for that recovery evidence. Yield again if any gate
-remains pending. Ordinary workflows outside verified push mode retain their
+remains pending. Standalone workflows outside batch coordination retain their
 existing behavior.
 
 Keep queued receipts distinct from evidence that a turn started. Retain an
@@ -1111,86 +997,12 @@ describes setup and verification.
 
 Owner reports wake the coordinator through the established reporting path.
 The coordinator validates required current evidence before routing, then yields;
-watchers cannot generally poll owner progress or act as a second coordinator.
-The following is the sole scheduled internal-status exception for a separate
-watchdog; a coordinator heartbeat does not acquire it.
-
-On an existing authorized tick, validate and refresh the read-only ledger
-custody and ordinary-chat status/wake readiness from ROUTE-007-MONITOR. Only
-when supported compact host status proves the bound coordinator inactive, select each item whose recorded reason is
-`owner_result` and whose registered ordinary owner/host and existing current
-dispatch/action binding are complete, unambiguous and fresh. Internal sub-agents
-are excluded. Use compact host status, batching eligible targets where
-supported. On a Codex desktop host exposing the ordinary-chat `wait_threads`
-MCP surface, `wait_threads(timeoutMs: 0)` supports up to eight targets. A generic
-Codex host name does not establish that capability; internal-agent
-`list_agents`/`wait_agent` cannot substitute for ordinary-chat status access;
-do not scrape transcripts or wait for progress. Running owners stay quiet. An
-idle or terminal owner is only a candidate with a pending result: request that
-the existing coordinator inspect the actual outcome. Terminal status proves
-neither a passing verdict nor completion, readiness, or authority to continue.
-
-`user_confirmation` suppresses internal continuation notifications for that
-item and never implies approval. `external_event` keeps the existing external
-path. Missing/unknown reasons, stale or ambiguous bindings, unregistered owners,
-and unsupported or unknown compact coordinator/owner status do not enable
-speculative checks or continuation; use existing bounded limitation/recovery
-handling. An idle-owner notice racing a user-input report requests status
-reconciliation only; the coordinator consumes the actual outcome, updates the
-reason and preserves the intentional user wait.
-
-Before notifying, refresh ledger custody, the applicable item wait and binding,
-coordinator recipient/host and recipient action, observation/messaging authority,
-ordinary-chat wake transport, coordinator status and owner status; suppress
-cleared/reconciled waits, running owners and
-active-coordinator cases. Races remain possible: receivers revalidate current
-bindings, actual outcome, authority and all freshness/review/routing gates.
-Send only an authorized compact request identifying the canonical item,
-ordinary owner/host, existing dispatch/action, coordinator recipient/host and
-recipient action, observed wait/status and evidence reference. Require a
-supported delivery/wake result establishing that the transport starts or resumes
-the inactive named coordinator. Queue-only sends and non-root-only transports
-incapable of targeting that coordinator do not establish recovery success.
-Unsupported wake holds notification; failed or unknown delivery/wake remains
-unresolved under existing bounded recovery, with the concrete gap exposed only
-through an existing authorized path.
-Reuse existing local notification state, cadence and delivery recovery. Suppress
-successfully delivered reconciliation requests by existing item dispatch/action
-binding plus recipient action, not owner thread alone; a later assignment to
-the same owner uses its own existing binding. Missing/ambiguous bindings cannot
-create a counter or new notification identity. Failed/unknown delivery is
-unresolved, never successful deduplication. Supported delivery/wake success
-proves no consumption, verdict, readiness or continuation; there is no new
-consumption acknowledgement or guaranteed host-failure recovery.
-Only the coordinator writes the ledger and routes subsequent work.
-
-A separate watcher keeps the observed provider event identity, PR head, known
-recipient binding and delivery outcome for external notices. For owner-result
-requests it retains the canonical item, ordinary owner/host and existing
-dispatch/action, coordinator recipient/host and recipient action, and supported
-delivery/wake outcome. These existing local notification tuples survive ticks,
-reuse and resume while unresolved delivery or delayed duplicates need guards.
-Apply ROUTE-007-STATE retirement only when old input cannot repeat a notice;
-retirement cannot resurrect a notice or suppress a later assignment B2. New
-comments and applicable current-head review signals reach the known owner;
-confirmed Connector review quota or unavailability, failed delivery, ambiguous
-ownership, and completion needing coordination reach the controller. Slow or
-lingering eyes alone do not establish quota or unavailability. A failed delivery
-remains unresolved and retryable rather than counting as a successful
-notification. Bounded authorized delivery recovery stays local; exhausted
-recovery reports the required intervention. Reconcile supported successful
-owner/watchdog delivery evidence for the same provider event, head and recipient
-action before notifying. Suppress duplicates across those sources, not merely
-within one watcher. An attempted send, failed delivery or unknown outcome
-cannot mark success or suppress retry; refresh ambiguous evidence and keep it
-unresolved when success cannot be established. Notify both owner and coordinator
-only for distinct actions. Preserve one verified completion report; observation
-alone does not prove completion. Reuse existing notification state without a new
-event store. Missing recipient or permission holds delivery; it
-does not authorize replacement creation. Notification proves neither action nor
-completion nor route, approval, or current-head authority. Receivers reconcile
-current evidence through their owning workflows; an old-head signal cannot
-authorize a new-head merge.
+there is no scheduled owner-result check. Retain per-item waits and bindings.
+Idle or terminal chat status supplies no verdict. Reconcile notices against
+current authoritative evidence and verified delivery to each recipient for
+its action. Reconcile an unknown send before retry. A notification grants
+neither scope nor permission. Stale heads and duplicate notices cannot trigger
+new effects. Missing delivery holds only the affected action.
 
 #### ROUTE-007-PUBLICATION: PR publication state
 
@@ -1329,50 +1141,13 @@ or unverifiable authority/delivery/validation holds transition and preserves
 the usable predecessor endpoint. Preserve owner/issue/repository/route/receipt
 facts and duplicate/recovery guards; neither a duplicate owner nor an omitted
 active owner satisfies readiness. Notifications and copied controller claims
-cannot reconstruct permission. Successor acknowledgement and timer controls
-remain separately required and cannot substitute for owner reporting readiness.
+cannot reconstruct permission. Verify successor acknowledgement and reporting
+readiness before dispatch. At closure, reconcile all accepted items, outstanding
+effects, authorized cleanup and relay retirement before releasing needed state.
 
-Recovery revalidates existing controller and owner bindings, schedule identity,
-target and status, and notification state. Successor acknowledgement and
-supported retargeting, or verified retirement followed by authorized
-replacement, precede successor dispatch. A notification cannot reconstruct
-missing authority or replay evidence. No open PR alone proves completion:
-terminal status requires every accepted item and authorized post-merge
-obligation to be complete. Preserve required evidence before removable-worktree
-cleanup. Stop or pause monitoring through its owning host control and verify
-the observed result separately from chat archival; unavailable control remains
-an explicit unresolved obligation. Honor an explicit user stop.
-
-Startup acceptance covers fresh execution with no monitoring request and zero
-watchdog/timer creation or monitor-specific permission/model/cadence questions,
-explicit monitoring selection, read-only inspection, independent owner-mode and
-monitor choices, preserved resumed settings/stops, complete and
-partial authorization, zero monitor inquiries/effects for disabled startup with
-independent owners continuing, bounded explicit active-timer shutdown without
-replacement authority, verifiable existing human decisions, missing recipient
-evidence, cadence/effort precedence, unavailable controls, and partial/unknown
-startup without duplicate activation. Verify efficient model resolution in fresh
-Claude/Codex projections without hard-coding a target model in portable source.
-Focused hypothetical scenarios and render inspection do not prove live scheduled
-delivery. Timer ticks inspect external events and the ROUTE-007-EVENT owner-result
-exception, leaving unchanged observations quiet; coordinator owner-progress
-polling is prohibited. Focused cases also cover eligible idle/terminal and
-running owners, mixed wait reasons, user-input report races, inactive/active
-coordinators, missing reasons, unsupported status, stale bindings, cleared waits,
-duplicate ticks, failed/unknown delivery, successive assignments and stopped
-monitoring.
-
-For selected monitoring, acceptance requires an authorized reused schedule with
-one active mode,
-duplicate suppression, an explicit event or authorized trigger after a no-code
-reply, acknowledged handoff with retained notification state, continued
-monitoring while accepted work remains despite no open PR, and verified shutdown
-after post-merge obligations and evidence preservation. Reject a competing
-monitor, unchanged resend, replacement task from unknown ownership, old-head
-merge inference, claimed automatic review rerun, authority reconstructed from a
-notification, no-open-PR completion inference, or archival claimed as timer
-shutdown. Verify these cases against the operational procedure and rendered
-target guidance without activating a live schedule.
+Verify that fresh and resumed batches yield on pending gates, suppress duplicate
+notices and report missing event coverage. Include review-only CI gaps, read-only
+status requests, legacy timer retirement and incomplete recipient authority.
 
 Conditional-review acceptance additionally requires this valid sequence: accepted
 policy at head H, confirmed quota, one registered independent ordinary review task, complete
@@ -1405,11 +1180,8 @@ exercise provider selection, supported registered task identity/reporting,
 independence, deduplication and lifecycle closeout. Compare source and fresh target
 projections; contract review does not claim actual host dispatch or retirement.
 
-Evidence pointer: [GitHub issue #783](https://github.com/ryumiel/devcanon/issues/783)
-records the accepted monitor boundary and acceptance cases for ROUTE-007-MONITOR
-through ROUTE-007-RECOVERY; result: accepted behavior evidence. The
-[`issue-batch-coordination` watchdog procedure](../../skills/issue-batch-coordination/references/watchdog.md)
-owns operational implementation and verification follow-up.
+The [GitHub push procedure](../../skills/issue-batch-coordination/references/github-push.md)
+owns event setup and delivery verification.
 
 ### AUTH-001: Separate Mutation Axes
 
@@ -2293,7 +2065,7 @@ per-task and whole-implementation reviews and final changed-head independent rev
 - Natural-language batch management selects coordination; explicit router calls
   remain available without circular invocation or bypassing approval gates.
 - Combined validation covers intended current revisions independently of
-  publication eligibility. Resume and watchdog decisions refresh policy and
+  publication eligibility. Resume and event-driven decisions refresh policy and
   reconcile controller ownership before affected dispatch under ROUTE-007.
 - Standing delivery cases in the router's existing semantic fixtures progress
   from reviewed publication through authorized merge and cleanup under retained

@@ -120,63 +120,48 @@ Store the ledger stably, never only in a removable owner worktree.
 
 ## Execution startup and authorization
 
-For a concrete accepted execution request, default eligible new provider-owner
-invocations to `--auto`. A fresh batch uses owner reports with no watchdog or
-timer unless monitoring is explicitly requested. Status-only intent permits no
-creation, messaging, scheduling or priming. Owner mode and monitoring selection
-are independent: interactive owners do not select monitoring, and an explicit
-monitoring request does not change owner mode. Preserve already-bound owner
-modes, compatible previously authorized monitor settings and retained explicit
-stops on resume; the fresh-batch default does not stop or replace an existing
-monitor, and a generic resume does not supersede a stop. For a new GitHub
-batch with explicit push opt-in, follow
-[GitHub push operation](references/github-push.md) and the
-[relay CLI usage](references/github-push-relay-usage.md). Read
-[Watchdog operation](references/watchdog.md) for scheduled monitoring setup,
-recovery, and shutdown.
+Default new owners to `--auto` and preserve their mode on resume. Status requests
+are read-only. Wait for owner reports and authorized provider events. If a gate
+lacks coverage, report the gap and yield without polling or scheduling a check.
 
-Select requested effects from intent, independent owner/monitor overrides,
-already-bound modes/settings and retained explicit stops before authorization,
-preference or supported-control inquiries. No-monitor or a retained stop excludes
-watchdog creation, monitor-specific messaging authorization, capability, model
-or cadence inquiries and activation from startup. These are absent requirements,
-not failed gates; independently authorized owners continue in their selected mode.
-An explicit request to stop an existing active timer selects only that bounded
-monitor lifecycle action: retain its necessary host control/permission checks and
-verify observed shutdown, without selecting replacement monitoring. Conflicting
-authority or unresolved existing state holds only the affected action; preserve
-existing resources and name the missing evidence.
+### Batch permission request
 
-Before selected task creation, owner release, messaging or timer activation,
-perform one initial authorization check against applicable human decisions
-already visible here or verifiable through supported host evidence. Enumerate
-only selected effects: accepted issues' owner-chat creation, coordinator-to-owner
-instructions and owner-to-coordinator gates/completion/required readiness reports;
-for scheduled monitoring, add one watchdog chat, watchdog-to-owner external
-updates, watchdog-to-coordinator exceptions and recurring activation with cadence.
-For GitHub push delivery, verify authorization for webhook registration and the
-ledger-bound owner and coordinator notices.
-A selected stop includes only its required shutdown controls.
-The default selects requested setup, never fabricates a host permission.
-Alongside these permissions, establish separately scoped publication, conditional
-merge and scoped cleanup authority for the accepted delivery, reusing existing
-actual human decisions and obtaining only missing scope before its affected effect.
+At startup and when adding issues, ask once for the selected actions that still
+need approval. Skip the prompt if all are covered. Include issue creation and
+admission by default. For GitHub batches on local macOS Codex Desktop, also
+include event delivery unless excluded. Verify coverage for each addition under the
+[push procedure](references/github-push.md) and [relay CLI usage](references/github-push-relay-usage.md).
 
-Reuse valid decisions and batch only uncovered permissions into one concise
-request where the host permits it. Identify the accepted batch, roles,
-selected notification directions and timer operation/cadence where applicable,
-and the actual host restriction requiring each permission. For scheduled
-monitoring, request a genuinely missing cadence preference under the watchdog
-procedure before activation. Distinguish publication, conditional merge and
-scoped cleanup decisions explicitly from creation, messaging and timer
-permissions; collect only missing delivery
-decisions without silently expanding scope or provider-mutation authority.
-GitHub push delivery has no cadence choice. If all effects and preferences are
-already covered by verifiable human decisions, proceed without another approval
-question.
+Use the wording and order below. Fill in the batch, repository, affected issue
+IDs in accepted order, and the user's objective and exclusions. Omit covered
+or unselected sentences and empty bullets. If a sentence applies only to some
+issues, recipients or resources, append their names in parentheses. For a
+batch limited to named issues, use “Scope: listed issues only.” and omit the
+issue creation and admission actions.
+
+```text
+Approve these actions for <batch> in <repository>?
+Issues: <issues>
+Work: <objective and exclusions>
+Scope: listed issues and later in-scope additions.
+
+- Create needed tracker issues. Add new or existing in-scope issues to the batch.
+- Create missing owner chats. Send owners work instructions. Have owners report blockers, dependency readiness, and completion to the coordinator.
+- Set up the GitHub relay and repository webhook. Send PR open, merge, and close notices to the coordinator. Send review and applicable CI notices to each PR owner.
+- Push issue branches and open PRs.
+- Merge PRs once required review, CI, branch protection, mergeability, and review-thread checks pass.
+- After verified merge, remove each local issue worktree and branch when remaining batch work no longer needs them.
+```
+
+Apply approval to later issues within its recorded scope. Before admitting an
+issue, verify its fit, tracker identity and membership. Reuse equivalent issues
+and existing membership. Reconcile uncertain creation before retrying, and
+resume interrupted admission with the verified issue. Respect older grants
+limited to delivery or named issues. Ask only about an unclear or expanded scope
+or a missing permission. Identify the affected recipient and any host restriction.
 
 Retain scope and human authorization provenance in the existing stable controller
-state, bind them to actual selected owner/watchdog recipients as host identities
+state, bind them to actual selected owner and coordinator recipients as host identities
 become known, and deliver the recipient-visible reporting evidence required by the
 router's handoff contract. A copied assertion by the controller is not direct
 human authority. Where the host requires a human decision in the recipient's own
@@ -216,28 +201,6 @@ Request a new human decision only for missing/revoked authority, scope expansion
 an unresolved choice, required-gate exception or actual host restriction; a
 satisfied authorized gate is not another permission request.
 
-For scheduled monitoring, verify owner bindings, watchdog identity and selected
-model, timer target and activation, and permitted notification recipients
-separately before claiming monitored operation. Reuse authorized compatible components and create only what
-is missing. Pending or unknown creation/activation/stop outcomes hold duplicate
-effects. Retain partial startup and unresolved limitations in existing monitor
-state; independent authorized owner work continues without an acknowledgement
-wait. Do not silently switch to a coordinator heartbeat when watchdog setup fails.
-
-For the separate watcher's owner-result path, supply a concrete read-only
-current-ledger reference through permitted supported host access, with the
-existing batch/repository/controller/host and owner/action bindings. On setup,
-reuse and resume, validate watcher readability, coordinator ownership, current
-association and refreshability before claiming owner-result readiness; a copied
-snapshot is not a current ledger. Validate exposed compact ordinary-chat status
-and authorized transport that starts or resumes the inactive named ordinary
-coordinator. Internal-agent status, queue-only sends and transports unable to
-wake that coordinator do not qualify. Record readiness or the exact custody,
-status or wake limitation in existing monitor state; independently supported
-external observation and authorized owner reports continue. The watcher uses
-this reference for refreshable reads only, never ledger writes or another
-registry. Retain notification guards under the router's Operational retention.
-
 For eligible existing owners, the router's
 [Covered Same-Owner Delivery](../issue-batch-routing/SKILL.md#covered-same-owner-delivery)
 is the ordinary continuation path through publication and conditional merge.
@@ -267,7 +230,7 @@ Use the router's
 and Operational retention contracts. Reconcile cleanup acceptance separately from
 terminal outcome through its existing effect owner. Preserve user-selected
 ordering, release only artifacts whose named consumers/requirements have ended,
-and verify cleanup, chat archival, milestone closure and watchdog stop separately.
+and verify cleanup, chat archival, milestone closure and relay retirement separately.
 A host archive restriction is a specific unsupported operation, not evidence of
 a stuck queue. Clear obsolete queue narratives after authoritative replacement;
 unknown effects retain their exact bindings without blind retry. Continue
@@ -301,10 +264,6 @@ Do not poll owner progress: repeated reads, snapshots, or wait loops to discover
 ordinary progress or whether a gate appeared are prohibited, including
 `read_thread`, `wait_threads`, and equivalent tools. Longer intervals do not
 change the boundary. End a routing pass by yielding for delivered reports.
-The separate watchdog may also perform only the narrow ordinary owner-result
-check owned by ROUTE-007-EVENT and described in
-[Watchdog operation](references/watchdog.md#ordinary-owner-result-reconciliation).
-The coordinator and its heartbeat retain the prohibition on progress polling.
 
 Bounded purpose-specific owner reads are allowed:
 
@@ -320,23 +279,14 @@ Bounded purpose-specific owner reads are allowed:
   stop at the established outcome or exhausted supported recovery/gap. Do not
   use recovery as a pretext to watch ordinary progress.
 
-A delivered watchdog reconciliation request permits a bounded actual-outcome
-read for its named current owner/action binding. Revalidate that binding and
-authority, inspect the actual result and preserve any intentional user wait;
-idle/terminal status alone grants no verdict or continuation. Stop at validated
-outcome or the concrete gap. These reads create no general discovery loop or
-polling fallback. Missing
-facts hold the affected action and expose the required evidence/intervention.
-
 ## Coordination cycle
 
-1. **Refresh.** On entry, watchdog wake, resume, or controller handoff, reread
+1. **Refresh.** On entry, event delivery, resume, or controller handoff, reread
    this skill's canonical file and the references required by the current
-   action. Use the active library bundle, not a remembered summary or policy
-   copied into a timer prompt. Record its revision or fingerprint in existing
+   action. Use the active library bundle, not a remembered summary. Record its revision or fingerprint in existing
    local state. Validate affected received owner reports and provider evidence through the
    router, within the bounded observation purposes above. Before a material routing action, recheck the applicable policy and
-   live bindings even if the timer has not elapsed.
+   live bindings.
 2. **Classify.** Keep running work, verified unfinished non-gate work, genuine
    gates, and terminal outcomes distinct. An idle owner is not automatically
    unfinished or complete. Let running owners work; use the router's receipt
@@ -387,7 +337,7 @@ facts hold the affected action and expose the required evidence/intervention.
    delivery milestone is reached, the batch reaches verified terminal
    completion without a delivery milestone, or the user requests status.
    Report that terminal outcome after authoritative reconciliation, even when
-   no further action is needed and monitoring will stop. Answer a status
+   no further action is needed. Answer a status
    request from current evidence even without a new milestone. Suppress
    no-action notices and duplicate commentary/final reports for the same
    event, including a terminal outcome already reported with delivery or
@@ -397,9 +347,7 @@ facts hold the affected action and expose the required evidence/intervention.
    needed. Creation or a sent binding is not readiness: consume the owner's
    delivered initial handoff or gate report and validate its supported evidence.
    Yield for reports after routing; do not repeatedly inspect or wait for owner
-   progress, and do not ask running owners to continue. The optional watchdog
-   checks external events and eligible owner-result waits under its separate
-   notification boundary. Record the affected wait reason before yielding;
+   progress, and do not ask running owners to continue. Record the affected wait reason before yielding;
    clear or update it after consuming actual outcomes, including a user wait.
 
 Use the [reporting scenarios](references/reporting-scenarios.md) to verify
@@ -498,7 +446,7 @@ Assess these readiness questions separately:
   proves none of the other states. Invoke the router's terminal checks before
   archival and retain outstanding acceptance or follow-up work in the batch.
 
-## Recovery and watchdog
+## Controller recovery
 
 On resume, validate controller and owner locations. Use existing host recovery
 for a stale or deleted checkout; never silently use another repository. Restore
@@ -526,35 +474,8 @@ reporting endpoint available. Do not omit an active owner or substitute a
 new/duplicate owner. Preserve issue/repository/owner/route/receipt facts,
 duplicate suppression and recovery rules. Transfer existing controller context
 and require successor acknowledgement; compatible resume retains its recipient,
-while successor change explicitly updates it. When a watchdog exists,
-reconcile its target/status and preserve notification/timer state through
-supported host controls. Confirm only one dispatcher before successor dispatch.
-Timer retirement or retargeting does not prove owner reporting readiness;
-archiving the predecessor does not transfer or stop its timer.
-
-Read [Watchdog operation](references/watchdog.md) when monitoring is explicitly requested,
-already exists, when a separate watcher is authorized, or when either mode
-needs recovery or shutdown. Use its one-mode startup, observation, handoff,
-and verified-stop procedure; owner reports remain primary. A fresh execution
-batch selects no monitor without an explicit request. When monitoring is
-explicitly requested, default to a supported, separately authorized watcher and
-its host timer; a coordinator heartbeat requires explicit selection.
-Unsupported watcher controls never
-silently select a heartbeat. Preserve a compatible existing monitor's settings
-and cadence, and do not recreate an explicitly stopped monitor without later
-explicit scheduling authority.
-
-The target-native new-watcher binding is `WATCHER_MODEL` = `{{model:efficient}}`.
-Pass this already-rendered value to the host task's supported model setting,
-unless an applicable explicit user model override takes precedence. Effort is
-independent of this binding. Missing, unresolved, or rejected bindings or controls
-hold activation with the concrete limitation; do not rediscover source or ambient
-configuration or substitute a model.
-
-Scheduling requires supported host functionality and actual authorization; this
-skill creates no timer by itself. Missing scheduling support does not prevent independently authorized
-owner-driven coordination. A refresh can reveal drift, but neither prose nor a
-timer guarantees policy compliance.
+while successor change explicitly updates it. Confirm only one dispatcher before successor dispatch.
+For an existing legacy timer, follow [verified retirement](references/watchdog.md).
 
 ## Completed-owner cleanup
 

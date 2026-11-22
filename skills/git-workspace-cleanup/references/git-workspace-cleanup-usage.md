@@ -153,7 +153,7 @@ Worktree removal and recoverable archival are distinct outcomes. Delivery does
 not by itself prove all local work disposable. Check retained authorization,
 exact worktree ownership/scope, dirty and local-only work, and required artifacts
 before selecting a mechanism. Preserve user-selected ordering between cleanup,
-chat archival, milestone closure and watchdog shutdown; do not impose an
+chat archival, milestone closure and relay retirement; do not impose an
 incident-specific sequence on other workflows. For completed batch owners,
 [post-delivery lifecycle reconciliation](../../issue-batch-routing/SKILL.md#post-delivery-lifecycle-reconciliation)
 defaults to evidence/responsibility transfer, chat archival, reconciliation of
