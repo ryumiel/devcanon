@@ -264,281 +264,83 @@ it("selects the exact issue-578 Windows PR-review lane", async () => {
       projectName,
     })),
   );
-  const expectedCollectedInventory: LaneTestInventory[] = [
-    {
-      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
-      name: "PR-review command harness process ownership > does not report an outer rejection already delivered before its deadline",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
-      name: "PR-review command harness process ownership > preserves child deadline comparison guards before child start",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
-      name: "PR-review command harness process ownership > preserves constructor deadline comparison guards",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
-      name: "PR-review command harness process ownership > preserves output overflow when delayed Windows cleanup crosses the deadline",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
-      name: "PR-review command harness process ownership > preserves output overflow when simulated Windows cleanup also fails",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
-      name: "PR-review command harness process ownership > reports a failed Windows fallback before a non-closing child is released",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
-      name: "PR-review command harness process ownership > reports bounded taskkill diagnostics after a simulated Windows direct-child fallback",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
-      name: "PR-review command harness process ownership > retains a late outer-operation rejection until drain",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
-      name: "PR-review command harness process ownership > terminates a child whose output exceeds the bounded buffer",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
-      name: "PR-review command harness process ownership > terminates an over-deadline child and drains it through close",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
-      name: "PR-review command harness process ownership > uses the 4500ms normal deadline for outer operations",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
-      name: "PR-review command harness seeded workspaces > copies immutable history into independent short registered worktrees",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
-      name: "PR-review command harness seeded workspaces > fails fast when a generated suffix exceeds the path budget",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
-      name: "PR-review command harness seeded workspaces > prunes a registered worktree whose .git marker is missing",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
-      name: "PR-review command harness seeded workspaces > prunes a registered worktree whose directory is missing",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
-      name: "PR-review command harness seeded workspaces > removes a healthy registered worktree before its case root",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
-      name: "PR-review command harness seeded workspaces > skips Git removal for an already-unregistered worktree",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
-      name: "PR-review command harness seeded workspaces > skips Git removal for an unregistered worktree with a stale regular .git marker",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
-      name: "PR-review command harness seeded workspaces > surfaces Git cleanup failures after removing the case root",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
-      name: "PR-review command harness seeded workspaces > tracks outer work and restores exact cwd and environment state",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-command-harness.test.ts",
-      name: "PR-review command harness source seeds > provides committed, unborn, and no-ephemeral independent copies",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
-      name: "pr-review process lifecycle > attempts root termination after the shared deadline phase",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
-      name: "pr-review process lifecycle > caps and redacts incremental output overflow evidence",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
-      name: "pr-review process lifecycle > enforces every finite request boundary with exact and plus-one cases",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
-      name: "pr-review process lifecycle > observes a normal root-process exit",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
-      name: "pr-review process lifecycle > preserves a changed, aliased, or unsafe generated root",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
-      name: "pr-review process lifecycle > records a real spawn failure without claiming the root process spawned",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
-      name: "pr-review process lifecycle > records cooperative cancellation acknowledgement",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
-      name: "pr-review process lifecycle > records protocol failure and a false root kill without overstating cleanup",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
-      name: "pr-review process lifecycle > redacts across chunks before the retained-byte boundary",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
-      name: "pr-review process lifecycle > rejects a forged generated-root object even when its path is helper-created",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
-      name: "pr-review process lifecycle > removes a safe helper-created generated root after root close",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
-      name: "pr-review process lifecycle > reports an incomplete root observation without claiming descendant absence",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
-      name: "pr-review process lifecycle > restores controller cwd before generated-root disposition",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
-      name: "pr-review process lifecycle > restores harness-owned global state",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-process-lifecycle.test.ts",
-      name: "pr-review process lifecycle > uses a synchronous request snapshot after launch begins",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-process-protocol.test.ts",
-      name: "pr-review process protocol > enforces the exact byte boundary before copying sender payload bytes",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-process-protocol.test.ts",
-      name: "pr-review process protocol > fails closed at EOF and checks terminal state before inspecting later input",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-process-protocol.test.ts",
-      name: "pr-review process protocol > is invariant to coalescing and commits an accepted prefix exactly once",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-process-protocol.test.ts",
-      name: "pr-review process protocol > keeps exact-limit and malformed-suffix outcomes invariant across frame partitions",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-process-protocol.test.ts",
-      name: "pr-review process protocol > rejects malformed JSON messages before framing them as lifecycle evidence",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-process-protocol.test.ts",
-      name: "pr-review process protocol > round trips each checked-in closed V1 message through raw-byte framing",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-process-protocol.test.ts",
-      name: "pr-review process protocol > uses intrinsic byte-view metadata and rejects non-ArrayBuffer and Proxy views",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-root-identity.test.ts",
-      name: "pr-review root identity > accepts only a component-contained generated-root working directory and detects replacement",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-root-identity.test.ts",
-      name: "pr-review root identity > enrolls distinct logical, normalized, physical, and stable directory identity",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-root-identity.test.ts",
-      name:
-        process.platform === "win32"
-          ? "pr-review root identity > enrolls a real Windows executable and rejects a wrong extension"
-          : "pr-review root identity > enrolls only a POSIX executable regular file and rejects a non-executable alias",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-root-identity.test.ts",
-      name: "pr-review root identity > fails closed for raw symlink-plus-dot-dot components before normalization",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-root-identity.test.ts",
-      name: "pr-review root identity > preserves exact three-way redaction variants for a physical parent alias",
-      projectName: "unit",
-    },
-    {
-      file: "src/__test-helpers__/pr-review-root-identity.test.ts",
-      name: "pr-review root identity > uses only Windows-equivalent volume comparison and preserves original spellings",
-      projectName: "unit",
-    },
-    {
-      file: "src/runtime/pr-review-leases.test.ts",
-      name: "pr-review lease read-status > rejects stale or mismatched gated result evidence: presentation-mismatch",
-      projectName: "unit",
-    },
-    {
-      file: "src/runtime/pr-review-leases.test.ts",
-      name: "pr-review lease read-status > rejects stale or mismatched gated result evidence: stale-timestamp",
-      projectName: "unit",
-    },
-    {
-      file: "src/runtime/pr-review-manifests.test.ts",
-      name: "pr-review Phase 5 audit summary renderer > requires explicit provider evidence input for adapter scope validation",
-      projectName: "unit",
-    },
-    {
-      file: "src/runtime/source-immutability.test.ts",
-      name: "source-immutability runtime > rejects noncanonical retained fingerprint path ../outside before verify or cleanup deletion",
-      projectName: "unit",
-    },
-    {
-      file: "src/runtime/source-immutability.test.ts",
-      name: "source-immutability runtime > rejects noncanonical retained fingerprint path /absolute before verify or cleanup deletion",
-      projectName: "unit",
-    },
-  ];
+  const expectedTitlesByFile = {
+    "src/__test-helpers__/pr-review-command-harness.test.ts": [
+      "PR-review command harness process ownership > does not report an outer rejection already delivered before its deadline",
+      "PR-review command harness process ownership > preserves child deadline comparison guards before child start",
+      "PR-review command harness process ownership > preserves constructor deadline comparison guards",
+      "PR-review command harness process ownership > preserves output overflow when delayed Windows cleanup crosses the deadline",
+      "PR-review command harness process ownership > preserves output overflow when simulated Windows cleanup also fails",
+      "PR-review command harness process ownership > reports a failed Windows fallback before a non-closing child is released",
+      "PR-review command harness process ownership > reports bounded taskkill diagnostics after a simulated Windows direct-child fallback",
+      "PR-review command harness process ownership > retains a late outer-operation rejection until drain",
+      "PR-review command harness process ownership > terminates a child whose output exceeds the bounded buffer",
+      "PR-review command harness process ownership > terminates an over-deadline child and drains it through close",
+      "PR-review command harness process ownership > uses the 4500ms normal deadline for outer operations",
+      "PR-review command harness seeded workspaces > copies immutable history into independent short registered worktrees",
+      "PR-review command harness seeded workspaces > fails fast when a generated suffix exceeds the path budget",
+      "PR-review command harness seeded workspaces > prunes a registered worktree whose .git marker is missing",
+      "PR-review command harness seeded workspaces > prunes a registered worktree whose directory is missing",
+      "PR-review command harness seeded workspaces > removes a healthy registered worktree before its case root",
+      "PR-review command harness seeded workspaces > skips Git removal for an already-unregistered worktree",
+      "PR-review command harness seeded workspaces > skips Git removal for an unregistered worktree with a stale regular .git marker",
+      "PR-review command harness seeded workspaces > surfaces Git cleanup failures after removing the case root",
+      "PR-review command harness seeded workspaces > tracks outer work and restores exact cwd and environment state",
+      "PR-review command harness source seeds > provides committed, unborn, and no-ephemeral independent copies",
+    ],
+    "src/__test-helpers__/pr-review-process-lifecycle.test.ts": [
+      "pr-review process lifecycle > attempts root termination after the shared deadline phase",
+      "pr-review process lifecycle > caps and redacts incremental output overflow evidence",
+      "pr-review process lifecycle > enforces every finite request boundary with exact and plus-one cases",
+      "pr-review process lifecycle > observes a normal root-process exit",
+      "pr-review process lifecycle > preserves a changed, aliased, or unsafe generated root",
+      "pr-review process lifecycle > records a real spawn failure without claiming the root process spawned",
+      "pr-review process lifecycle > records cooperative cancellation acknowledgement",
+      "pr-review process lifecycle > records protocol failure and a false root kill without overstating cleanup",
+      "pr-review process lifecycle > redacts across chunks before the retained-byte boundary",
+      "pr-review process lifecycle > rejects a forged generated-root object even when its path is helper-created",
+      "pr-review process lifecycle > removes a safe helper-created generated root after root close",
+      "pr-review process lifecycle > reports an incomplete root observation without claiming descendant absence",
+      "pr-review process lifecycle > restores controller cwd before generated-root disposition",
+      "pr-review process lifecycle > restores harness-owned global state",
+      "pr-review process lifecycle > uses a synchronous request snapshot after launch begins",
+    ],
+    "src/__test-helpers__/pr-review-process-protocol.test.ts": [
+      "pr-review process protocol > enforces the exact byte boundary before copying sender payload bytes",
+      "pr-review process protocol > fails closed at EOF and checks terminal state before inspecting later input",
+      "pr-review process protocol > is invariant to coalescing and commits an accepted prefix exactly once",
+      "pr-review process protocol > keeps exact-limit and malformed-suffix outcomes invariant across frame partitions",
+      "pr-review process protocol > rejects malformed JSON messages before framing them as lifecycle evidence",
+      "pr-review process protocol > round trips each checked-in closed V1 message through raw-byte framing",
+      "pr-review process protocol > uses intrinsic byte-view metadata and rejects non-ArrayBuffer and Proxy views",
+    ],
+    "src/__test-helpers__/pr-review-root-identity.test.ts": [
+      "pr-review root identity > accepts only a component-contained generated-root working directory and detects replacement",
+      "pr-review root identity > enrolls distinct logical, normalized, physical, and stable directory identity",
+      process.platform === "win32"
+        ? "pr-review root identity > enrolls a real Windows executable and rejects a wrong extension"
+        : "pr-review root identity > enrolls only a POSIX executable regular file and rejects a non-executable alias",
+      "pr-review root identity > fails closed for raw symlink-plus-dot-dot components before normalization",
+      "pr-review root identity > preserves exact three-way redaction variants for a physical parent alias",
+      "pr-review root identity > uses only Windows-equivalent volume comparison and preserves original spellings",
+    ],
+    "src/runtime/pr-review-leases.test.ts": [
+      "pr-review lease read-status > rejects stale or mismatched gated result evidence: presentation-mismatch",
+      "pr-review lease read-status > rejects stale or mismatched gated result evidence: stale-timestamp",
+    ],
+    "src/runtime/pr-review-manifests.test.ts": [
+      "pr-review Phase 5 audit summary renderer > requires explicit provider evidence input for adapter scope validation",
+    ],
+    "src/runtime/source-immutability.test.ts": [
+      "source-immutability runtime > rejects noncanonical retained fingerprint path ../outside before verify or cleanup deletion",
+      "source-immutability runtime > rejects noncanonical retained fingerprint path /absolute before verify or cleanup deletion",
+    ],
+  };
+  const expectedCollectedInventory = Object.entries(
+    expectedTitlesByFile,
+  ).flatMap(([file, titles]) =>
+    titles.map((name) => ({ file, name, projectName: "unit" })),
+  );
 
   expect(collectedInventory).toHaveLength(54);
   expect(collectedInventory).toEqual(sortInventory(expectedCollectedInventory));
