@@ -42,6 +42,7 @@ const windowsIntegrationIncludes = [
 export default defineConfig({
   test: {
     globals: false,
+    maxWorkers: process.env.CI ? undefined : 2,
     passWithNoTests: true,
     testTimeout: unitTestTimeout,
     hookTimeout: unitTestTimeout,
