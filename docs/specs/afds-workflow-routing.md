@@ -1057,8 +1057,16 @@ available. For a closure, require a verified issue link or a recorded PR
 association. The coordinator verifies the association before recording it.
 
 After initial publication or a corrected head is pushed, an existing owner
-with a verified push binding uses an `external_event` wait when current-head
-CI or the applicable Connector review is pending. Record the PR, exact head
+with a verified push binding verifies completion delivery coverage for each
+current-head pending gate. For CI, verify that the subscribed configured
+workflow supplies completion notices for the CI gate being awaited. Use an
+`external_event` wait for covered pending gates. When CI notices were
+intentionally omitted in a verified review-only setup, use the existing bounded
+ordinary CI poll for pending CI before checking current Connector review; yield
+if covered review remains pending; do not poll review. Do not yield early when uncovered CI and
+review are both pending. Configured delivery that fails, is unverifiable, or
+does not cover the pending CI gate uses
+the gap and bounded recovery path, not ordinary polling. Record the PR, exact head
 and outstanding gates through the existing owner state and authorized
 reporting path. Only the coordinator records the wait in the batch ledger.
 End the owner turn so queued notices can resume it. Use no repeated status
@@ -1068,8 +1076,9 @@ On resume, the same owner reconciles the notice with the current binding,
 live PR head and provider result under
 [`pr-merge`](../../skills/pr-merge/SKILL.md#step-2a-wait-for-github-push-notices).
 Discard stale or already reconciled evidence. Route actionable failures
-through their existing procedures. When a gate remains pending, record the
-current wait and yield again. A confirmed delivery failure or a
+through their existing procedures. When a covered gate remains pending, record the
+current wait and yield again; apply the same coverage selection to pending CI.
+A confirmed delivery failure or a
 missing notice surfaced by authorized monitoring permits one live
 reconciliation check for that recovery evidence. Yield again if any gate
 remains pending. Ordinary workflows outside verified push mode retain their

@@ -80,7 +80,9 @@ To enable CI notices, set the optional numeric `ci_workflow_id` in
 `success` and `failure` outcomes for that workflow's PR runs. It verifies
 the current open PR and exact head against the reported run. The owner gets one notice per run attempt. Cancelled, skipped,
 stale, and ambiguous outcomes leave no notice. Restart the receiver after changing its
-configuration.
+configuration. Verify that the subscribed workflow covers the CI gate the owner
+will await. Omitting `ci_workflow_id` intentionally disables CI notices and
+leaves a review-only setup.
 
 Confirm that a signed ping succeeds and an unsigned request is rejected. Record
 the accepted scope and the verified endpoint and delivery readiness in the
@@ -90,15 +92,21 @@ query.
 
 ## Reconcile delivery and stop
 
-When CI or Connector review is pending on the published head, the owner
-reports the PR, head and outstanding gates through the existing authorized
+When a covered CI or Connector review gate is pending on the published head,
+the owner reports the PR, head and outstanding gates through the existing authorized
 path and ends its turn. The coordinator records the `external_event` wait in
 its ledger. This applies after initial publication and after a corrected head
-is pushed. The owner uses no status polling or watch loop during the wait.
+is pushed. The owner uses no status polling or watch loop during the wait. In a verified
+review-only setup, pending CI instead uses the existing bounded ordinary CI
+poll; afterward the owner checks current review and yields if covered review
+is pending; do not poll review. If both are pending, CI is handled before
+yielding. A configured delivery path that fails, is unverifiable, or does not
+cover the pending CI gate uses gap reporting and bounded
+recovery, not polling.
 
 The relay queues a compact evidence notice, including while the owner is
 active. A matching notice resumes the same owner, which checks the live PR
-head and result, disregards stale or duplicate evidence, and yields again if
+head and result, disregards stale or duplicate evidence, and applies the same coverage selection if
 a gate remains pending. See
 [`pr-merge`](../../pr-merge/SKILL.md#step-2a-wait-for-github-push-notices)
 for the wait and merge gates. For lifecycle notices, the coordinator checks
