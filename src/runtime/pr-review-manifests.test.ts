@@ -50,6 +50,13 @@ const managedEnvKeys = [
   "IS_FOLLOWUP_NARROW",
   "SCOPE_DECISION_FILE",
   "RESULT_FILE",
+  "FINDINGS_FILE",
+  "CONTEXT_FILE",
+  "REVIEW_BODY_FILE",
+  "RENDERED_PREVIEW_FILE",
+  "PRIOR_THREADS_FILE",
+  "PRESENTATION_STATUS",
+  "PRESENTATION_NOTES",
   "PRIMARY_REPOSITORY_ROOT",
   "WORKTREE_PATH",
   "LEASE_FILE",
@@ -1069,24 +1076,44 @@ describe("pr-review Phase 5 audit summary renderer", () => {
     );
   });
 
-  it("keeps pr-review/result/v1 forbidden lease and approval fields rejected", async () => {
-    const workspace = await makeManifestWorkspace("pr-review-forbidden-field-");
+  it.each([
+    {
+      name: "a forbidden approval field",
+      change: () => ({ approval_state: "approved" }),
+    },
+    {
+      name: "an unexpected field",
+      change: () => ({ extra: true }),
+    },
+    {
+      name: "a path escaping the artifact directory",
+      change: () => ({ context_file: ".ephemeral/../escaped-context.md" }),
+    },
+    {
+      name: "a digest for a null artifact path",
+      change: (result: { digests: Record<string, unknown> }) => ({
+        digests: { ...result.digests, context_sha256: "a".repeat(64) },
+      }),
+    },
+  ])("rejects $name in a pr-review/result/v1", async ({ change }) => {
+    const workspace = await makeManifestWorkspace("pr-review-result-shape-");
     setSummaryEnv(workspace);
     const resultPath = path.join(workspace.worktree, workspace.resultFile);
-    const result = JSON.parse(await readFile(resultPath, "utf8")) as Record<
-      string,
-      unknown
-    >;
+    const result = JSON.parse(await readFile(resultPath, "utf8")) as {
+      digests: Record<string, unknown>;
+    };
     await writeJson(workspace.worktree, workspace.resultFile, {
       ...result,
-      approval_state: "approved",
+      ...change(result),
     });
 
-    const outcome = await runManifestCommand(["render-phase5-audit-summary"]);
-
-    expect(outcome.exitCode).toBe(1);
-    expect(outcome.stdout).toBe("");
-    expect(outcome.stderr).toContain("result schema mismatch");
+    await expect(
+      runManifestCommand(["render-phase5-audit-summary"]),
+    ).resolves.toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: `result schema mismatch: ${workspace.resultFile}\n`,
+    });
   });
 
   it("rejects provider evidence digest drift during Phase 5 result validation", async () => {
@@ -1292,6 +1319,52 @@ describe("pr-review Phase 5 audit summary renderer", () => {
       stderr: expect.stringContaining(
         "PROVIDER_SCOPE_EVIDENCE_FILE is required",
       ),
+    });
+  });
+});
+
+describe("pr-review manifest result writer", () => {
+  it("validates result shape before replacing the existing v1 manifest", async () => {
+    const workspace = await makeManifestWorkspace("pr-review-result-write-");
+    setSummaryEnv(workspace);
+    process.chdir(workspace.worktree);
+    const resultPath = path.join(workspace.worktree, workspace.resultFile);
+    const previous = await readFile(resultPath, "utf8");
+    const existing = JSON.parse(previous) as {
+      artifacts: {
+        scope_decision_file: string;
+        rendered_preview_file: string;
+      };
+    };
+    process.env.FINDINGS_FILE = workspace.findingsFile;
+    process.env.SCOPE_DECISION_FILE = existing.artifacts.scope_decision_file;
+    process.env.REVIEW_BODY_FILE = workspace.reviewBodyFile;
+    process.env.RENDERED_PREVIEW_FILE =
+      existing.artifacts.rendered_preview_file;
+    process.env.PRESENTATION_STATUS = "invalid";
+    Reflect.deleteProperty(process.env, "CONTEXT_FILE");
+    Reflect.deleteProperty(process.env, "PRIOR_THREADS_FILE");
+    Reflect.deleteProperty(process.env, "PRESENTATION_NOTES");
+
+    await expect(runManifestCommand(["write-result"])).resolves.toEqual({
+      exitCode: 1,
+      stdout: "",
+      stderr: `result schema mismatch: ${workspace.resultFile}\n`,
+    });
+    await expect(readFile(resultPath, "utf8")).resolves.toBe(previous);
+
+    process.env.PRESENTATION_STATUS = "preview-current";
+
+    await expect(runManifestCommand(["write-result"])).resolves.toEqual({
+      exitCode: 0,
+      stdout: `${workspace.resultFile}\n`,
+      stderr: "",
+    });
+    await expect(readFile(resultPath, "utf8")).resolves.toBe(previous);
+    await expect(runManifestCommand(["validate-result"])).resolves.toEqual({
+      exitCode: 0,
+      stdout: "",
+      stderr: "",
     });
   });
 });
