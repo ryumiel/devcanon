@@ -67,7 +67,7 @@ describe("runtime build checker", () => {
       "pnpm run build:runtime",
     );
     expect(packageJson.scripts?.test).toBe(
-      "pnpm run test:prepare-runtime && vitest run",
+      "pnpm run test:prepare-runtime && node scripts/run-vitest.mjs run",
     );
     for (const [scriptName, project] of Object.entries({
       "test:unit": "unit",
@@ -76,17 +76,17 @@ describe("runtime build checker", () => {
       "test:integration:windows": "integration-windows-helper",
     })) {
       expect(packageJson.scripts?.[scriptName]).toBe(
-        `pnpm run test:prepare-runtime && vitest run --project ${project}`,
+        `pnpm run test:prepare-runtime && node scripts/run-vitest.mjs run --project ${project}`,
       );
     }
     expect(packageJson.scripts?.["test:watch"]).toBe(
-      "pnpm run test:prepare-runtime && vitest",
+      "pnpm run test:prepare-runtime && node scripts/run-vitest.mjs",
     );
     expect(packageJson.scripts?.["test:coverage"]).toBe(
-      "pnpm run test:prepare-runtime && vitest run --coverage",
+      "pnpm run test:prepare-runtime && node scripts/run-vitest.mjs run --coverage",
     );
     expect(packageJson.scripts?.["test:unit:windows"]).toBe(
-      "pnpm run test:prepare-runtime && vitest run --project unit --no-file-parallelism",
+      "pnpm run test:prepare-runtime && node scripts/run-vitest.mjs run --project unit --no-file-parallelism",
     );
   });
 

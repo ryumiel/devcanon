@@ -61,11 +61,16 @@ keeps the exact version in `.nvmrc`.
 Standalone `test`, `test:unit`, `test:integration:*`, `test:unit:windows`,
 watch, and coverage commands prepare
 fresh TypeScript and runtime outputs before Vitest. Composite `check` prepares
-and verifies that output through `check:runtime`, then runs Vitest directly;
+and verifies that output through `check:runtime`, then launches Vitest;
 `test:ci:windows` prepares once before its serial unit and integration phases.
 Neither composite rebuilds unchanged output between phases. CI project lanes
 remain independently prepared; sharing artifacts across hosted jobs is not
 required.
+
+The package scripts launch Vitest through a supervisor. On POSIX it forwards
+cancellation to Vitest's process group and terminates residual group members
+when the runner exits. On Windows it requests cancellation of the runner's
+process tree.
 
 Public CLI tests invoke the prepared compiled CLI directly, except for the
 explicit TSX source-launcher smoke test.

@@ -137,7 +137,7 @@ it("selects the exact issue-578 Windows PR-review lane", async () => {
 
   expect(packageJson.scripts?.["test:ci:windows:pr-review"]).toBe(
     [
-      "vitest run --project unit --testTimeout 12000 --no-file-parallelism",
+      "node scripts/run-vitest.mjs run --project unit --testTimeout 12000 --no-file-parallelism",
       ...laneFiles,
       `--testNamePattern "${selector}"`,
     ].join(" "),
