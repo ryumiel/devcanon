@@ -173,24 +173,44 @@ function expectSidecarParity(
 
 describe("shipped skill rendering", () => {
   it("renders Node-first issue-priming helper calls for both targets", async () => {
+    const generatedDir = await mkdtemp(
+      path.join(tmpdir(), "devcanon-issue-priming-helpers-"),
+    );
     const config = shippedSkillsConfig;
-    const { outputs } = shippedSkillsRender;
     const helpers = [
-      "phase-artifacts",
-      "source-immutability",
-      "write-research-brief",
-      "write-auto-handoff",
-      "write-assumptions-comment",
-    ];
+      ["phase-artifacts", "SKILL.md"],
+      ["source-immutability", "SKILL.md"],
+      ["write-research-brief", "references/phase-3-research-controller.md"],
+      ["write-auto-handoff", "references/reviewed-plan.md"],
+      ["write-assumptions-comment", "SKILL.md"],
+    ] as const;
 
-    for (const target of TARGETS) {
-      const { body } = parseFrontmatter(
-        getSkillOutput(outputs, "issue-priming-workflow", target).content,
+    try {
+      await renderAll(
+        { ...config, library: { ...config.library, generatedDir } },
+        true,
+        true,
       );
-      for (const helper of helpers) {
-        expect(body).toContain(`${helper}.mjs`);
-        expect(body).not.toMatch(new RegExp(`bash [^\\n]*${helper}\\.sh`, "u"));
+      for (const target of TARGETS) {
+        for (const [helper, owner] of helpers) {
+          const body = await readFile(
+            path.join(
+              generatedDir,
+              target,
+              "skills",
+              "issue-priming-workflow",
+              owner,
+            ),
+            "utf8",
+          );
+          expect(body).toContain(`${helper}.mjs`);
+          expect(body).not.toMatch(
+            new RegExp(`bash [^\n]*${helper}\\.sh`, "u"),
+          );
+        }
       }
+    } finally {
+      await rm(generatedDir, { recursive: true, force: true });
     }
   });
 
@@ -645,27 +665,73 @@ describe("shipped skill rendering", () => {
     }
   });
 
-  it("keeps conditional Phase 3 controller support linked and packaged for both write-disabled targets", async () => {
-    const config = shippedSkillsConfig;
-    const { outputs, skills } = shippedSkillsRender;
-    const workflow = skills.find(
-      (skill) => skill.name === "issue-priming-workflow",
+  it("links the conditional priming procedures and packages them for both targets", async () => {
+    const generatedDir = await mkdtemp(
+      path.join(tmpdir(), "devcanon-issue-priming-procedures-"),
     );
-    const reference = "references/phase-3-research-controller.md";
+    const config = shippedSkillsConfig;
+    const procedures = [
+      ["phase-2-complexity-gate.md", "# Phase 2 Complexity Gate Procedure", ""],
+      [
+        "phase-3-research-controller.md",
+        "# Phase 3 Research Controller Procedure",
+        "",
+      ],
+      [
+        "reviewed-plan.md",
+        "## Phase 4: Invoke Brainstorming",
+        "#phase-4-invoke-brainstorming",
+      ],
+      [
+        "reviewed-plan.md",
+        "## Phase 5: Write Plan (reviewed-plan route)",
+        "#phase-5-write-plan-reviewed-plan-route",
+      ],
+      [
+        "reviewed-plan.md",
+        "## Phase 6: Implement (reviewed-plan route)",
+        "#phase-6-implement-reviewed-plan-route",
+      ],
+      ["requested-run-assessments.md", "# Requested Run Assessments", ""],
+      ["batch-owner-recovery.md", "# Interrupted Batch Owner Recovery", ""],
+    ] as const;
 
-    expect(workflow).toBeDefined();
-    expect(workflow?.subdirs).toContain("references");
-    expect(
-      await pathExists(path.join(workflow?.dirPath ?? "", reference)),
-    ).toBe(true);
-
-    for (const target of TARGETS) {
-      const { body } = parseFrontmatter(
-        getSkillOutput(outputs, "issue-priming-workflow", target).content,
+    try {
+      const { outputs } = await renderAll(
+        { ...config, library: { ...config.library, generatedDir } },
+        true,
+        true,
       );
-      expect(body).toContain(
-        "[`references/phase-3-research-controller.md`](references/phase-3-research-controller.md)",
-      );
+      const skill = "issue-priming-workflow";
+      for (const target of TARGETS) {
+        const entry = getSkillOutput(outputs, skill, target).content;
+        const firstSpecialistPhase = entry.indexOf(
+          "## Phase 2: Complexity Gate",
+        );
+        expect(firstSpecialistPhase).toBeGreaterThan(
+          entry.indexOf("### Phase 8: Create PR"),
+        );
+        const commonPath = entry.slice(0, firstSpecialistPhase);
+        for (const [file, heading, anchor] of procedures) {
+          const reference = `references/${file}`;
+          expect(entry).toContain(`](${reference}${anchor})`);
+          expect(commonPath).not.toContain(`](${reference}${anchor})`);
+          const [source, installed] = await Promise.all([
+            readFile(
+              path.join(config.library.skillsDir, skill, reference),
+              "utf8",
+            ),
+            readFile(
+              path.join(generatedDir, target, "skills", skill, reference),
+              "utf8",
+            ),
+          ]);
+          expect(source).toContain(heading);
+          expect(installed).toBe(source);
+        }
+      }
+    } finally {
+      await rm(generatedDir, { recursive: true, force: true });
     }
   });
 
