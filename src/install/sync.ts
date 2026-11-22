@@ -31,6 +31,7 @@ import {
   type ManagedPathIdentity,
   ManifestIdentityError,
   assertNoManagedPathConflicts,
+  managedPathTupleMatches,
   normalizeManifestIdentity,
 } from "./manifest-identity.js";
 import {
@@ -315,7 +316,7 @@ export async function sync(
     for (const action of plan) {
       try {
         const record = manifest.records.find((candidate) =>
-          recordMatchesAction(candidate, action),
+          managedPathTupleMatches(candidate, action),
         );
         if (
           action.kind === "update" ||
@@ -524,29 +525,17 @@ function updateManifestByIdentity(
 ): Manifest {
   const withoutRemoved = manifest.records.filter(
     (record) =>
-      !removedActions.some((action) => recordMatchesAction(record, action)),
+      !removedActions.some((action) => managedPathTupleMatches(record, action)),
   );
   const records = [...withoutRemoved];
   for (const newRecord of newRecords) {
     const index = records.findIndex((record) =>
-      sameIdentity(record, newRecord),
+      managedPathTupleMatches(record, newRecord),
     );
     if (index >= 0) records[index] = newRecord;
     else records.push(newRecord);
   }
   return { ...manifest, lastSync: new Date().toISOString(), records };
-}
-
-function sameIdentity(
-  first: Pick<ManagedRecord, "target" | "type" | "name" | "installedPath">,
-  second: Pick<ManagedRecord, "target" | "type" | "name" | "installedPath">,
-): boolean {
-  return (
-    first.target === second.target &&
-    first.type === second.type &&
-    first.name === second.name &&
-    first.installedPath === second.installedPath
-  );
 }
 
 function reconciliationIdentity(record: ManagedRecord): ReconciliationIdentity {
@@ -556,18 +545,6 @@ function reconciliationIdentity(record: ManagedRecord): ReconciliationIdentity {
     name: recordName(record),
     installedPath: record.installedPath,
   };
-}
-
-function recordMatchesAction(
-  record: ManagedRecord,
-  action: PlanAction,
-): boolean {
-  return (
-    record.target === action.target &&
-    record.type === action.type &&
-    record.name === action.name &&
-    record.installedPath === action.installedPath
-  );
 }
 
 function recordName(record: ManagedRecord): string {

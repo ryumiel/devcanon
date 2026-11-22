@@ -9,6 +9,7 @@ import {
   type ManagedPathIdentity,
   ManifestIdentityError,
   assertNoManagedPathConflicts,
+  managedPathTupleMatches,
   normalizeManifestIdentity,
 } from "./manifest-identity.js";
 import { loadInspectedManifest } from "./manifest-recovery.js";
@@ -143,7 +144,7 @@ export async function uninstall(
     for (const action of plan) {
       try {
         const record = records.find((item) =>
-          recordMatchesAction(item, action),
+          managedPathTupleMatches(item, action),
         );
         if (!record) {
           throw new Error("manifest record missing for uninstall action");
@@ -213,21 +214,9 @@ function removeManifestRecords(
     lastSync: new Date().toISOString(),
     records: manifest.records.filter(
       (record) =>
-        !actions.some((action) => recordMatchesAction(record, action)),
+        !actions.some((action) => managedPathTupleMatches(record, action)),
     ),
   };
-}
-
-function recordMatchesAction(
-  record: Manifest["records"][number],
-  action: PlanAction,
-): boolean {
-  return (
-    record.target === action.target &&
-    record.type === action.type &&
-    record.name === action.name &&
-    record.installedPath === action.installedPath
-  );
 }
 
 function recordName(record: { name?: string }): string {
