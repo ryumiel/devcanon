@@ -10,46 +10,47 @@ Use this template when dispatching a code quality reviewer subagent.
 **Purpose:** Verify implementation is well-built (clean, tested, maintainable)
 
 **Surface selection:** The controller supplies `REVIEW_SURFACE`. This template
-owns the D15/D16 questions, reviewer action, and report schema.
-`lifecycle-status-policy.md` owns D15/D16 dispatch timing, same-head
+owns the task quality review and whole-implementation quality review questions, reviewer action, and report schema.
+`lifecycle-status-policy.md` owns task quality review and whole-implementation quality review dispatch timing, same-head
 disposition, invalidation, and terminal transitions.
 
 **Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/reviewer.yaml`](../../../agents/reviewer.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
 
-**Routes:** D15 and D16 are separate response-only `reviewer`,
+**Routes:** task quality review and whole-implementation quality review are separate response-only `reviewer`,
 frontier/high, source-immutable sessions with zero handoffs. The controller
 applies GUARD-001 independently around each session. Do not change source,
 tests, configuration, documentation, or external systems; return only the
 response. Findings are evidence; mutation disposition belongs to the controller.
-Never reuse a D15 session or result as D16.
+Start a fresh whole-implementation quality review after task quality review.
+Use a separate session and result.
 
 **Fresh configuration:** Before either capture, validate `reviewer`,
 `frontier`, the nonblank full model in the controller/owner-supplied
-already-rendered `D15_MODEL` or already-rendered `D16_MODEL` binding,
+already-rendered `TASK_QUALITY_REVIEW_MODEL` or already-rendered `WHOLE_IMPLEMENTATION_QUALITY_REVIEW_MODEL` binding,
 independent `high`,
 source-immutable and external-none authority, a route-local
-`d15_<instance_ordinal>` or `d16_<instance_ordinal>`, `fork_turns: "none"`,
+`task_quality_review_<instance_ordinal>` or `whole_implementation_quality_review_<instance_ordinal>`, `fork_turns: "none"`,
 the fully substituted route-specific prompt, response-only output, and its
-distinct termination. D15 terminates through its independent/provisional
-same-head loop; D16 uses its fresh whole-range review and exact ADR-0016 skip
+distinct termination. Task quality review terminates through its independent/provisional
+same-head loop; whole-implementation quality review uses its fresh whole-range review and exact ADR-0016 skip
 or final fix/fresh-review/terminal route. A missing, blank, unresolved, or
 mismatched binding blocks before capture or spawn; do not locate a source
 checkout or use an alias, nearby, or ambient model. Apply
-`subagent-lifecycle` for allocation and cleanup. D15 and D16 are always fresh
+`subagent-lifecycle` for allocation and cleanup. Task quality review and whole-implementation quality review are always fresh
 one-shot reviewers and are never reused across routes or review rounds.
 
-**D15 question:** Is Task N at the supplied task head well-built, clean,
+**task quality review question:** Is Task N at the supplied task head well-built, clean,
 tested, and maintainable within its task-local scope?
 
-**D16 question:** Is the complete implementation over the supplied whole-range
+**whole-implementation quality review question:** Is the complete implementation over the supplied whole-range
 base/head well-built, clean, tested, maintainable, and ready for its owning
 terminal handoff?
 
-## D15 dispatch fields
+## Task quality review dispatch fields
 
 ```
 Task tool (general-purpose):
-  REVIEW_SURFACE: D15 per-task
+  REVIEW_SURFACE: task-quality-review
   WORKING_DIRECTORY: [repository root]
   WHAT_WAS_IMPLEMENTED: [from implementer's report]
   TASK_REQUIREMENTS: |
@@ -61,11 +62,11 @@ Task tool (general-purpose):
   DESCRIPTION: [task summary]
 ```
 
-## D16 dispatch fields
+## Whole-implementation quality review dispatch fields
 
 ```
 Task tool (general-purpose):
-  REVIEW_SURFACE: D16 final whole-implementation
+  REVIEW_SURFACE: whole-implementation-quality-review
   WORKING_DIRECTORY: [repository root]
   WHOLE_IMPLEMENTATION_SUMMARY: [whole-range implementation summary]
   PLAN_OR_REQUIREMENTS: [whole-plan or authoritative requirements]
@@ -75,22 +76,22 @@ Task tool (general-purpose):
   WHOLE_IMPLEMENTATION_SCOPE: [complete changed-file and requirement scope]
 ```
 
-D16 does not require or assume a task-local implementer report and therefore
-supports guarded inline D13. The working directory and base/head fields are
+Whole-implementation quality review does not require or assume a task-local implementer report and therefore
+supports guarded inline exact task execution. The working directory and base/head fields are
 controller-trusted structured inputs, distinct from untrusted implementer
 reports. Its controller-curated whole-range fields are the review input even
 when one task has no child implementer or executor report.
 
 **Trust boundary (load-bearing):** Read the implementation from disk. Do not consume any content snapshot the controller may hold — snapshots are for the controller's bookkeeping only; reviewers read from disk to stay independent of the implementer's framing.
 
-When `REVIEW_SURFACE` is D15, inspect only the captured task base/head from
-`WORKING_DIRECTORY` and answer the D15 question using the inline
+When `REVIEW_SURFACE` is `task-quality-review`, inspect only the captured task base/head from
+`WORKING_DIRECTORY` and answer the task quality review question using the inline
 `TASK_REQUIREMENTS`; `TASK_SOURCE_LOCATOR` is provenance, not required child
 context.
 
-When `REVIEW_SURFACE` is D16, inspect the complete whole-implementation range
-from `WORKING_DIRECTORY` and answer the D16 question. D16 is distinct from D15
-and must not reuse D15 scope, context, session, or verdict.
+When `REVIEW_SURFACE` is `whole-implementation-quality-review`, inspect the complete whole-implementation range
+from `WORKING_DIRECTORY` and answer the whole-implementation quality review question. Whole-implementation quality review is distinct from task quality review
+and must not reuse task quality review scope, context, session, or verdict.
 The extracted whole-implementation context covers the whole implementation
 scope.
 If the extracted plan/task execution context contains present Contract Example

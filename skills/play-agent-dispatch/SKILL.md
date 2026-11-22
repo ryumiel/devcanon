@@ -12,7 +12,7 @@ codex_sidecar:
 
 Source-immutability invocation and failure mechanics are owned by the adjacent [source-immutability usage](references/source-immutability-usage.md); this skill owns guard lifecycle decisions.
 
-The generic fresh-Codex dispatch ritual is owned by the adjacent [dispatch-ritual usage](references/dispatch-ritual-usage.md); this skill owns the D4 declaration, its route values, and focused-specialist integration.
+The generic fresh-Codex dispatch ritual is owned by the adjacent [dispatch-ritual usage](references/dispatch-ritual-usage.md); this skill owns the focused specialist dispatch declaration, its route values, and focused-specialist integration.
 
 ## Invocation Policy
 
@@ -73,10 +73,10 @@ Each domain is independent - fixing tool approval doesn't affect abort tests.
 
 ### Semantic Route Contract
 
-Before each focused specialist spawn, the controller must issue the complete D4
+Before each focused specialist spawn, the controller must issue the complete focused specialist dispatch
 pre-spawn declaration required by the
-[Agent Routing and Mutation Policy](../../docs/guidelines/agent-routing-and-mutation-policy.md#d4-declaration-obligation).
-`route_id`: `D4`; `target_id`; planner-selected `selected_role_id`; `scope`;
+[Agent Routing and Mutation Policy](../../docs/guidelines/agent-routing-and-mutation-policy.md#focused-specialist-dispatch-declaration-obligation).
+`route_id`: `focused-specialist-dispatch`; `target_id`; planner-selected `selected_role_id`; `scope`;
 `termination`; `context_ref`; and `approval_ref` are controller-bound;
 `termination` includes the declared output behavior. Cognitive demand and
 stance remain planner classification inputs only; they are not declaration
@@ -98,11 +98,11 @@ thinking budget for omission. Validate `source_authority` separately against
 that same catalog; effort does not imply authority.
 `agents/*.yaml` are governed declarations and parity inputs,
 never semantic authorities; their target-local literal fields are governed
-values under the agent spec, and D4's fresh-Codex selection honors the explicit Codex reviewer override
+values under the agent spec, and focused specialist dispatch's fresh-Codex selection honors the explicit Codex reviewer override
 `gpt-6.1-sol` and implementer override `gpt-6.1-terra`; other roles use their
 Codex-bound rendered capability binding.
 
-For the selected D4 role, the complete Codex-bound model bindings are
+For the selected focused specialist dispatch role, the complete Codex-bound model bindings are
 `efficient` → `{{model-codex:efficient}}`, `balanced` →
 `{{model-codex:balanced}}`, and `frontier` → `{{model-codex:frontier}}`. For `reviewer`, select the literal role override `gpt-6.1-sol` instead of
 the frontier binding. For `implementer`, select `gpt-6.1-terra` instead of
@@ -123,7 +123,7 @@ for the Claude executor also blocks before spawn. Do not infer tools, sandbox,
 network, authority, or any other declaration field from the child, parent,
 workflow, runtime, or controller authority.
 
-For Codex, before each D4 capture, load the adjacent
+For Codex, before each focused specialist dispatch capture, load the adjacent
 [dispatch-ritual usage](references/dispatch-ritual-usage.md) and run its ritual
 with the validated declaration above as the route values. A missing, blank,
 unreadable, or unavailable ritual reference is a terminal pre-dispatch blocker:
@@ -132,12 +132,12 @@ fallback detail. That reference owns the generic dispatch ritual: binding
 resolution, tuple validation, `task_name` allocation through
 `subagent-lifecycle`, the self-contained prompt, the ordered
 capture/verify/cleanup/integrate sequence, and the `fork_turns: "none"`
-mandate. This skill owns the D4 declaration, its route values, and the
+mandate. This skill owns the focused specialist dispatch declaration, its route values, and the
 failed-domain disposition. Create exactly one fresh child only with:
 
 ```text
 Codex.spawn_agent({
-  task_name: d4_<instance_ordinal>,
+  task_name: focused_specialist_dispatch_<instance_ordinal>,
   agent_type: SELECTED_ROLE_ID,
   model: RESOLVED_CODEX_MODEL,
   reasoning_effort: SELECTED_CODEX_EFFORT,
@@ -272,7 +272,7 @@ failure.
 
 ## Agent Prompt Structure
 
-The following is a task-body fragment only. Compose it with the complete D4
+The following is a task-body fragment only. Compose it with the complete focused specialist dispatch
 route, authority, repository-root, guarded-path/context, termination, and
 task-name contract above before any fresh creation.
 
@@ -382,7 +382,7 @@ From debugging session (2025-10-03):
 
 ## Risk-based specialist selection
 
-This procedure supplies focused D4 consultation within an authorized design or
+This procedure supplies focused specialist dispatch consultation within an authorized design or
 review workflow; it does not authorize unrelated specialist dispatch. On Codex,
 ordinary design/planning uses explicit `gpt-6.1-sol`/`high` session selection.
 If the parent cannot establish that selection, use a supported fresh design
@@ -397,14 +397,14 @@ file count, ordinary refactor or incidental async use alone is insufficient.
 Record the affected guarantee, reachable consequence and question in ordinary
 controller context; no new record format or registry is required.
 
-For a known material design risk, use D4 `architect` consultation before
+For a known material design risk, use focused specialist dispatch `architect` consultation before
 implementation. Have a fresh architect session independently review the resulting
 design for that risk; consultation cannot approve itself. For material
 implementation risk or a consequential judgment unresolved after reasonable
-evidence gathering, use D4 `deep-reviewer` for the focused question. Both use
+evidence gathering, use focused specialist dispatch `deep-reviewer` for the focused question. Both use
 the frontier Codex binding at `high`, fresh context, source-immutable authority,
 no network, no external mutation, and response-only output with zero handoffs.
-The parent selects and validates the complete D4 tuple before allocation.
+The parent selects and validates the complete focused specialist dispatch tuple before allocation.
 
 Use the existing dispatch ritual, source guards and lifecycle rules. This is
 selection of a new focused task, never a cross-role same-task capability retry.
@@ -412,7 +412,7 @@ Missing evidence, tools, authority or unsupported configuration returns to its
 owner; do not substitute models or use specialist judgment as missing evidence.
 Unavailable or inconclusive required results leave the affected decision blocked.
 The parent retains findings, repairs and completion under the enclosing workflow;
-extra evidence does not replace its required D5, D7/D10 or D14–D16 coverage.
+extra evidence does not replace its required combined planning review, independent review and targeted verification or per-task and whole-implementation reviews coverage.
 Do not repeat the same specialist question solely because the workflow reaches
 another gate: retain applicable evidence while candidate, scope and assumptions
 remain unchanged. This does not replace any required fresh ordinary review.

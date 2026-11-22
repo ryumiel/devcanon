@@ -23,16 +23,16 @@ freshness, per-finding fix eligibility, and bounded post-fix reassessment.
 
 ## Public helper mechanics
 
-Use the adjacent [review-artifacts usage](references/review-artifacts-usage.md), [shared-review-context usage](references/shared-review-context-usage.md), and [source-immutability usage](references/source-immutability-usage.md) for reusable invocation, I/O, and refusal mechanics. This workflow owns review ordering, the D18 semantic-context route, and D7/D10 continuation.
+Use the adjacent [review-artifacts usage](references/review-artifacts-usage.md), [shared-review-context usage](references/shared-review-context-usage.md), and [source-immutability usage](references/source-immutability-usage.md) for reusable invocation, I/O, and refusal mechanics. This workflow owns review ordering, the semantic review context route, and independent review and targeted verification continuation.
 
-Before D18, run controller preflight over only the frozen source inputs and
+Before semantic review context, run controller preflight over only the frozen source inputs and
 supplied prior artifacts that already exist: the review identity and scope
 records, changed-file records, discovered guideline and supplied candidate-ADR
 references, and any supplied prior-review references. Validate required record
 fields; require readable regular-file identities for selected current-source
 and artifact references. Resolve each selected current-source path's spelling
 from frozen Git evidence on its applicable source side and retain that exact
-tracked spelling through D18 preparation; a case-mismatched supplied path is
+tracked spelling through semantic review context preparation; a case-mismatched supplied path is
 not a substitute. Changed-file paths are diff records: validate their status
 and path against the frozen Git range, and validate deleted-side evidence
 against the frozen base and diff without requiring the deleted path to exist at
@@ -53,7 +53,7 @@ their digests, including that the context renders from the exact retained
 input. Separately retain the original frozen repository/root/base/head and
 active/full range association in the invoking wrapper's review continuation
 state. Compare the input header/content with that independent prior association
-and wrapper-proven current repository before D18. Invoke the installed helper's
+and wrapper-proven current repository before semantic review context. Invoke the installed helper's
 `validate-family-binding` with the exact supplied serialized family and both
 original paths; its structural success does not replace the independent
 association comparison. Detached historical navigation is a separate mode:
@@ -75,27 +75,27 @@ tracked discovery, or drop it. Missing optional navigation alone does not fail.
 A separately selected required source that is missing still refuses. Changed
 base/ranges, policy or authority, dirty source, or uncertain semantic impact
 refreshes affected or broader preparation; scope uncertainty returns to the
-wrapper. Freeze the accepted candidates before the current invocation's D18;
-never reuse the previous D18 semantic result.
+wrapper. Freeze the accepted candidates before the current invocation's semantic review context;
+never reuse the previous semantic review context result.
 
 The current invocation's `*-review-context-input.json` manifest and
-`*-review-context.md` are future Phase 2.5 outputs, not pre-D18 inputs. The
+`*-review-context.md` are future Phase 2.5 outputs, not pre-context inputs. The
 required order is:
-preflight existing supplied inputs; verify, validate, and clean D18; use the
+preflight existing supplied inputs; verify, validate, and clean semantic review context; use the
 shared-context helper to write the manifest and build the context; create the
 five-field family through that same helper using both exact returned paths;
-then dispatch D7.
+then dispatch independent review.
 
 Freeze resolved base/head identities and both active and full diff ranges with
-D18's inputs, not merely mutable ref names. After D18 cleanup, compare the
+Semantic review context's inputs, not merely mutable ref names. After semantic review context cleanup, compare the
 current wrapper-supplied scope and source identities with that frozen tuple
 before constructing the manifest. Once the context is built and immediately
-before D7 dispatch, confirm those identities and both generated artifacts still
+before independent review dispatch, confirm those identities and both generated artifacts still
 match the same tuple. Refresh preparation when
 source, head, base, either range, policy, authority, or dirty-worktree state
 changes. Scope drift returns to the wrapper for authoritative scope selection;
-do not reselect ranges here. Invalidate affected D18/context evidence and rerun
-preflight and preparation against the newly frozen inputs before D7. Uncertain
+do not reselect ranges here. Invalidate affected semantic review context evidence and rerun
+preflight and preparation against the newly frozen inputs before independent review. Uncertain
 semantic impact requires broader preparation. The helper remains structural
 only and does not decide semantic relevance.
 
@@ -113,11 +113,11 @@ Read supporting detail at its action point:
 - [Findings contract](references/findings-envelope-contract.md): envelope,
   publication, carry-forward, and derived nits.
 - [Wrapper helpers](references/wrapper-helper-contracts.md): previews and payloads.
-- [Shared context](references/shared-review-context.md): D18 and bounded context.
+- [Shared context](references/shared-review-context.md): semantic review context and bounded context.
 - [Routing policy](references/reviewer-routing-policy.md): conditional checks,
   tiny-diff eligibility, full-PR overrides, and ADR coverage.
 - [Sub-checks](references/reviewer-sub-checks.md) and
-  [briefing template](references/agent-briefing-template.md): D7 prompt composition.
+  [briefing template](references/agent-briefing-template.md): independent review prompt composition.
 - [Follow-up scope](references/follow-up-scope-policy.md): wrapper range selection.
 - [Critic rationale](references/critic-rationale.md): literal-reference verification.
 - [Terminal boundaries](references/terminal-result-boundaries.md): result ownership.
@@ -214,11 +214,11 @@ lease or approval for that route. See
 ## Phase 1: Discover Guidelines
 
 Search `working_directory` for review guidelines and freeze their paths for
-D18: `**/code-review*.md`, `**/review-*.md`, `**/error-handling*.md`,
+Semantic review context: `**/code-review*.md`, `**/review-*.md`, `**/error-handling*.md`,
 `**/documentation-standard*.md`, `**/documentation-checklists*.md`,
 `**/pr-guideline.md`, `.github/pull_request_template.md`,
 `{{file:workflow-guide}}`, `AGENTS.md`, and `CONTRIBUTING.md`. The controller
-validates record mechanics; D18 reads and summarizes the needed sources.
+validates record mechanics; semantic review context reads and summarizes the needed sources.
 
 No guidelines found? Proceed with agents' built-in knowledge and note it in the
 report.
@@ -242,8 +242,8 @@ conditional-check overrides remain full-PR questions.
 
 Use `references/shared-review-context.md` for field derivation. The controller
 owns mechanical signals, changed-file records, guideline and candidate ADR
-identities, provider evidence, and scope; D18 supplies only its four semantic
-families. Freeze these inputs and optional prior-review references before D18.
+identities, provider evidence, and scope; semantic review context supplies only its four semantic
+families. Freeze these inputs and optional prior-review references before semantic review context.
 Do not load the ADR corpus by default. Ambiguous classification includes the
 relevant check.
 
@@ -252,34 +252,34 @@ validation logs, and agent-local plans out of durable repository docs.
 
 ## Phase 2.25: Delegate bounded semantic context
 
-Read `references/shared-review-context.md` for D18's four-task prompt,
+Read `references/shared-review-context.md` for semantic review context's four-task prompt,
 output mapping, and acceptance rules. The controller retains all mechanical,
 scope, routing, lifecycle, approval, and mutation decisions.
 
 Before capture, load the installed
 [`dispatch-ritual-usage.md`](../play-agent-dispatch/references/dispatch-ritual-usage.md)
-and validate the route below. Reuse that ritual for D7/D10. Missing or unreadable
+and validate the route below. Reuse that ritual for independent review and targeted verification. Missing or unreadable
 ritual blocks before ledger allocation, capture, or spawn; no inline fallback.
-D18 is one fresh response-only assessor with `external_authority: none`, zero
+Semantic review context is one fresh response-only assessor with `external_authority: none`, zero
 handoffs, no network, and no inherited turns.
 
-| Route | `agent_type` | Capability | Model marker                             | `reasoning_effort` | `source_authority` | Prompt                        |
-| ----- | ------------ | ---------- | ---------------------------------------- | ------------------ | ------------------ | ----------------------------- |
-| D18   | `assessor`   | `balanced` | `D18_MODEL` = `{{model-codex:balanced}}` | `low`              | `source-immutable` | `D18_SEMANTIC_CONTEXT_PROMPT` |
+| Route                     | `agent_type` | Capability | Model marker                                                 | `reasoning_effort` | `source_authority` | Prompt                           |
+| ------------------------- | ------------ | ---------- | ------------------------------------------------------------ | ------------------ | ------------------ | -------------------------------- |
+| `semantic-review-context` | `assessor`   | `balanced` | `SEMANTIC_REVIEW_CONTEXT_MODEL` = `{{model-codex:balanced}}` | `low`              | `source-immutable` | `SEMANTIC_REVIEW_CONTEXT_PROMPT` |
 
 A missing, blank, unresolved, or mismatched marker blocks before capture or
 spawn. Do not search a source checkout, use an alias, or fall back to a nearby
 or ambient model. After the ritual's validation and capture, spawn:
 
 ```text
-# D18_MODEL is the Codex-bound balanced model
+# SEMANTIC_REVIEW_CONTEXT_MODEL is the Codex-bound balanced model
 Codex.spawn_agent({
-  task_name: d18_<instance_ordinal>,
+  task_name: semantic_review_context_<instance_ordinal>,
   agent_type: "assessor",
-  model: D18_MODEL,
+  model: SEMANTIC_REVIEW_CONTEXT_MODEL,
   reasoning_effort: "low",
   fork_turns: "none",
-  message: D18_SEMANTIC_CONTEXT_PROMPT,
+  message: SEMANTIC_REVIEW_CONTEXT_PROMPT,
 })
 ```
 
@@ -303,7 +303,7 @@ findings, `write-review-context-input`, `build-review-context`, then
 `play-review/shared-context-input/v1` manifest is the sole context source.
 
 Require a readable, nonempty canonical `.ephemeral/*-review-context.md` result
-before D7. Helper failure, malformed output, or budget failure stops dispatch;
+before independent review. Helper failure, malformed output, or budget failure stops dispatch;
 there is no unbounded or partial-context fallback. This internal artifact has
 no public notice; preserve the findings notice as the external hook.
 
@@ -316,17 +316,17 @@ and require source checks before carrying claims forward.
 Classify conditional checks using `references/reviewer-routing-policy.md`.
 Tiny-diff mode may suppress inapplicable conditional checks only when its
 existing allowlist, limits, and exclusions all pass. Ambiguity includes the
-check. It never suppresses D7 or changes D10 eligibility.
+check. It never suppresses independent review or changes targeted verification eligibility.
 
 ## Codex focused risk review
 
-Before D7, assess the frozen candidate's actual diff under
+Before independent review, assess the frozen candidate's actual diff under
 [focused specialist selection](../play-agent-dispatch/SKILL.md#risk-based-specialist-selection).
-For material architectural, concurrency or security risk, request focused D4
+For material architectural, concurrency or security risk, request focused specialist dispatch
 deep review even if no ordinary finding has been reported. Apply the same rule
 when a consequential judgment remains unresolved after evidence gathering.
 Consume specialist results only after their source guard lifecycle completes;
-keep D7's complete review coverage and D10's required targeted verification.
+keep independent review's complete review coverage and required targeted verification.
 Unavailable or inconclusive required specialist results leave review incomplete.
 Claude retains its existing review routing.
 
@@ -334,18 +334,18 @@ Claude retains its existing review routing.
 
 Use `subagent-lifecycle` before dispatch and retain review scope, active/full
 ranges, base/head, completed checks, report, findings, and terminal state before
-cleanup. D7 must be independent of the implementer with fresh history. It owns
+cleanup. Independent review must be independent of the implementer with fresh history. It owns
 all baseline quality/data-safety checks plus every triggered architecture,
 specification, documentation, examples, platform, and external-invocation check.
 D8 and D9 are retired, not optional dispatches or aliases.
 
 Apply the dispatch ritual loaded in Phase 2.25 before capture; unavailable
-ritual or unresolved bindings block before capture. D7 has zero handoffs,
+ritual or unresolved bindings block before capture. Independent review has zero handoffs,
 `external_authority: none`, and no recursion. Do not substitute roles or effort.
 
-| Route | `agent_type` | Capability | Model marker               | `reasoning_effort` | `source_authority` | Prompt      |
-| ----- | ------------ | ---------- | -------------------------- | ------------------ | ------------------ | ----------- |
-| D7    | `reviewer`   | `frontier` | `D7_MODEL` = `gpt-6.1-sol` | `high`             | `source-immutable` | `D7_PROMPT` |
+| Route                | `agent_type` | Capability | Model marker                               | `reasoning_effort` | `source_authority` | Prompt                      |
+| -------------------- | ------------ | ---------- | ------------------------------------------ | ------------------ | ------------------ | --------------------------- |
+| `independent-review` | `reviewer`   | `frontier` | `INDEPENDENT_REVIEW_MODEL` = `gpt-6.1-sol` | `high`             | `source-immutable` | `INDEPENDENT_REVIEW_PROMPT` |
 
 Build one self-contained prompt using `references/agent-briefing-template.md`.
 Include exact active/full ranges and frozen head, working directory,
@@ -357,16 +357,16 @@ source-checkout lookup or fallback model is permitted. After capture:
 
 ```text
 Codex.spawn_agent({
-  task_name: d7_<instance_ordinal>,
+  task_name: independent_review_<instance_ordinal>,
   agent_type: "reviewer",
-  model: D7_MODEL,
+  model: INDEPENDENT_REVIEW_MODEL,
   reasoning_effort: "high",
   fork_turns: "none",
-  message: D7_PROMPT,
+  message: INDEPENDENT_REVIEW_PROMPT,
 })
 ```
 
-One independent D7 is required for any nonempty active review or prior findings
+One independent review is required for any nonempty active review or prior findings
 assessment. Routine correction continues that reviewer under the recovery contract;
 replacement is limited to an unavailable reviewer, never an unwanted judgment.
 Native rejection uses the guarded incomplete-review path.
@@ -381,7 +381,7 @@ checks; these are not lifecycle operational states:
 3. `NEEDS_CONTEXT`: exact missing input and completed partial checks.
 4. `FAILED`: failure class and safe partial results.
 
-D10's nonempty input requires the completed-with-findings disposition, even
+Targeted verification's nonempty input requires the completed-with-findings disposition, even
 when every claim is invalid. Silence, waiting, timeout, interruption, and nudging
 never mean completion. Capture a returned result or controller-observed
 orchestration failure before cleanup or supersession; do not fabricate a child
@@ -399,8 +399,9 @@ scope-validation scratch, manifest and approval paths, lease fields, and public
 notices. Those artifacts keep their exact owner/helper-returned paths. A
 diagnostic cannot substitute for failed semantic evidence or a failed GUARD
 step, and it changes no acceptance or terminal gate.
-Record each incomplete D7/D10 in `incomplete_review_routes[]`; it blocks approval
-but is neither a finding nor verifier input. See
+Record failures in `incomplete_review_routes[]` with the applicable route ID,
+`independent-review` or `targeted-verification`, and its disposition. An incomplete
+route blocks approval and supplies neither findings nor verifier input. See
 `references/terminal-result-boundaries.md` for ownership boundaries.
 
 Use `references/agent-briefing-template.md` for the required prompt structure,
@@ -424,7 +425,7 @@ the first guarded topical review. The GUARD-001 order, stated once here and
 applied independently per guarded route with no `--handoff`, is:
 
 1. **capture before spawn**: retain the route's baseline (`TOPICAL_BASELINE`
-   for D7, `CRITIC_BASELINE` for D10); capture failure prevents dispatch.
+   for independent review, `CRITIC_BASELINE` for targeted verification); capture failure prevents dispatch.
 2. Spawn the selected child and capture only its raw result and status.
 3. **verify before semantic validation or consumption** against that baseline.
 4. **validate and retain in controller memory** after successful verification.
@@ -435,20 +436,20 @@ applied independently per guarded route with no `--handoff`, is:
 6. **apply only after cleanup**: accept completed findings or verifier verdicts;
    preserve diagnostic evidence and incompleteness otherwise.
 
-After a successfully verified and cleaned D7 terminal result, inspect only
-repository-documentation references D7 reports as successfully read. For each
+After a successfully verified and cleaned independent review terminal result, inspect only
+repository-documentation references independent review reports as successfully read. For each
 relevant candidate, independently check its exact repository-relative tracked
 spelling, applicable source side and revision, selected scope, and read evidence
 against the frozen review. Capture only mechanically verified navigation under
 `prior_review_context.records` as specified in the shared-context reference;
-do not infer semantic claims from D7 prose or replace any accepted D18 field.
+do not infer semantic claims from independent review prose or replace any accepted semantic review context field.
 Check the frozen source/scope identity again, then use the existing ordered
 shared-context operations with the original helper-returned paths to refresh
 the input and rendered context. Preserve their exact returned paths and invoke
 `create-family-binding` after the refreshed build. A failed write/build/binding
 operation cannot advertise retained preparation: keep settled findings
 separately and report the preparation failure. This capture adds no agent or
-review stage and does not run on rejected or incomplete D7 output.
+review stage and does not run on rejected or incomplete independent review output.
 
 The no-handoff helper calls, with a distinct retained baseline per route, are:
 
@@ -462,18 +463,18 @@ Every post-capture terminal path attempts exact cleanup, including dispatch
 rejection, timeout, missing/malformed output, and verification failure. First
 rule out source mutation; only ordinary rejection with successful cleanup may
 settle as incomplete review and reach Phase 5. Rejected output contributes no
-findings or verdicts. Missing D7 coverage has no substitute. Before finalizing
+findings or verdicts. Missing independent review coverage has no substitute. Before finalizing
 ordinary incompleteness, apply [routine recovery](references/terminal-result-boundaries.md#routine-recovery).
 Only an accepted complete replacement can settle the route; retain failed-attempt
 diagnostics separately. An exhausted or unresolved route remains incomplete.
 
-Source mutation or cleanup failure terminates before aggregation, D10, or final
+Source mutation or cleanup failure terminates before aggregation, targeted verification, or final
 output. Leave source visible; never reset, stage, repair, or hide it. Cleanup
 removes guard bookkeeping, not source changes.
 
 ## Phase 4: Sub-checks
 
-Load `references/reviewer-sub-checks.md` when composing checks. D7 covers
+Load `references/reviewer-sub-checks.md` when composing checks. Independent review covers
 baseline data-safety, language and tests, plus triggered substitution,
 documented-behavior, architecture/ADR, identifier-drift, and documentation
 checks from the single-reviewer coverage table and routing policy.
@@ -494,38 +495,38 @@ eligibility and existing judgment exclusions.
 
 ## Phase 5: Targeted verification
 
-After D7's terminal result and safe cleanup, classify blockers using the
+After independent review's terminal result and safe cleanup, classify blockers using the
 single-reviewer contract. Record selection and rationale. Ordinary blockers
 still block; no findings, nit-only results, unchanged nits, and resolved claims
-do not alone select D10. Never select verification just to authorize a fix.
+do not alone select targeted verification. Never select verification just to authorize a fix.
 
 For consequential, disputed, or uncertain blocking candidates, dispatch at
-most one fresh, independent response-only D10 using `subagent-lifecycle` and
-the Phase 2.25 dispatch ritual. D10 is separate from D7 and the implementer;
+most one fresh, independent response-only targeted verifier using `subagent-lifecycle` and
+the Phase 2.25 dispatch ritual. Targeted verification is separate from independent review and the implementer;
 zero handoffs, `external_authority: none`, source-immutable, no recursion.
 Missing or mismatched bindings block before capture; no substitute pair.
 
-| Route | `agent_type` | Capability | Model marker                | `reasoning_effort` | `source_authority` | Prompt              |
-| ----- | ------------ | ---------- | --------------------------- | ------------------ | ------------------ | ------------------- |
-| D10   | `reviewer`   | `frontier` | `D10_MODEL` = `gpt-6.1-sol` | `high`             | `source-immutable` | `D10_CRITIC_PROMPT` |
+| Route                   | `agent_type` | Capability | Model marker                                  | `reasoning_effort` | `source_authority` | Prompt                                |
+| ----------------------- | ------------ | ---------- | --------------------------------------------- | ------------------ | ------------------ | ------------------------------------- |
+| `targeted-verification` | `reviewer`   | `frontier` | `TARGETED_VERIFICATION_MODEL` = `gpt-6.1-sol` | `high`             | `source-immutable` | `TARGETED_VERIFICATION_CRITIC_PROMPT` |
 
 The self-contained brief contains only selected unchanged Blocking claims,
 stable identities/ordinals, exact candidate/ranges, working directory, literal
 reference checks, relevant authority sources, and concrete disputes. The
 controller must not strengthen, repair, add premises, or hint at dispositions.
-D10 may inspect dependencies but cannot expand to whole-diff review, verify
+Targeted verification may inspect dependencies but cannot expand to whole-diff review, verify
 unselected nits, fix, or delegate. It is falsification-first: seek
 counterevidence, open literal references, assess actual reachable consequences
 or applicable obligations, and independently apply the repository merge gate.
 
 ```text
 Codex.spawn_agent({
-  task_name: d10_<instance_ordinal>,
+  task_name: targeted_verification_<instance_ordinal>,
   agent_type: "reviewer",
-  model: D10_MODEL,
+  model: TARGETED_VERIFICATION_MODEL,
   reasoning_effort: "high",
   fork_turns: "none",
-  message: D10_CRITIC_PROMPT,
+  message: TARGETED_VERIFICATION_CRITIC_PROMPT,
 })
 ```
 
@@ -539,19 +540,19 @@ bash "$SOURCE_IMMUTABILITY_HELPER" cleanup --baseline "$CRITIC_BASELINE"
 ```
 
 Retain scope, selected input, report, and verdicts before closing or superseding
-D10. Apply Phase 3's cleanup and integrity-failure rules without exceptions.
+Targeted verification. Apply Phase 3's cleanup and integrity-failure rules without exceptions.
 The prompt requires an immediate terminal result with one `VALID`, `INVALID`,
 or `DOWNGRADE` outcome per selected claim; zero-input dispatch and
-`COMPLETE_NO_FINDINGS` are invalid. Incomplete or rejected D10 output contributes
+`COMPLETE_NO_FINDINGS` are invalid. Incomplete or rejected targeted verification output contributes
 no verdicts: preserve unverified claims and record both
-`verification.state: incomplete` and D10 in `incomplete_review_routes`, even
-with no surviving blockers. Legitimate skipping is `not-required`.
+`verification.state: incomplete` and route `targeted-verification` in
+`incomplete_review_routes`, even with no surviving blockers. Legitimate skipping is `not-required`.
 
-D7 independently admits and calibrates each finding before deduplication.
+The independent reviewer admits and calibrates each finding before deduplication.
 Retain each judgment; collapse only identical supported consequence/obligation,
 remediation, effective anchor and compatible severity/outcome groups, keeping
 the lowest stable ordinal. Never mix nits with blockers or differing verdicts;
-a valid blocker representative must survive. D10 applies the same rule only
+a valid blocker representative must survive. Targeted verification applies the same rule only
 to its selected claims after every individual verdict. Carry-forward candidates
 are not grouped. Controller synthesis cannot recalibrate or regroup findings.
 
@@ -567,7 +568,7 @@ finding set for shared structural, architectural, or ownership causes. Emit
 support the same cause. Eligible findings are current assessed Blocking claims,
 including carry-forward, with either `critic: "VALID"` or selection `none`
 and verification `not-required`. Exclude incomplete verification, INVALID,
-DOWNGRADE, and nits. Skipping D10 does not disqualify an ordinary blocker.
+DOWNGRADE, and nits. Skipping targeted verification does not disqualify an ordinary blocker.
 
 This phase is human-facing presentation only. It does not add fields to the
 `play-review/findings/v3` envelope, does not replace individual findings, does
@@ -575,11 +576,11 @@ not authorize grouped fixes, and does not weaken line-grounded evidence.
 
 ## Hard Rules
 
-1. Exactly one independent D7 reviews every nonempty candidate and all applicable checks.
-2. Separate D10 verifies only consequential, disputed, or uncertain Blocking candidates.
+1. One independent reviewer covers every nonempty candidate and all applicable checks.
+2. A separate targeted verifier checks only consequential, disputed, or uncertain Blocking candidates.
 3. Missing coverage, required verifier failure, stale evidence, or guard failure cannot approve.
 4. Include bounded evidence code (3–7 lines) and specific lines for every finding.
 5. Never invoke `{{tool:github-cli}}`, auto-fix, or create/remove worktrees.
 6. Write the versioned findings envelope and exact notice under the findings contract, including incomplete review evidence.
-7. Build valid nonempty shared context before D7; no unbounded fallback.
+7. Build valid nonempty shared context before independent review; no unbounded fallback.
 8. Every fix requires changed-candidate validation and independent review. A second completed post-fix review of the same blocking defect family requires implementation-owner reassessment under the single-reviewer contract; changed scope, reserved interface approvals and cross-owner decisions still escalate, without new authority.

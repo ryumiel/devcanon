@@ -369,10 +369,10 @@ For receipt validation, the router holds controller approval, validated initial
 owner-handoff, and resumed-route facts: provider, issue, owner ID, approved
 route identity, selected preparation kind/path/digest and its provenance,
 refreshed source-state digest, and current head when a branch or PR exists.
-`reviewed-plan` retains the actual reviewed digest, real D5 producer and
+`reviewed-plan` retains the actual reviewed digest, real combined planning review producer and
 non-authorizing auto-handoff identity. `execution-note` retains the guarded note
 path/digest, current issue-authority validation and existing owner identity,
-without D5 or auto-handoff claims. Missing, mixed, stale or fabricated provenance
+without combined planning review or auto-handoff claims. Missing, mixed, stale or fabricated provenance
 fails closed; neither variant grants publication or provider-mutation authority.
 Before any receipt, record an initial
 handoff only from the recorded owner, matching current provider/issue, with the

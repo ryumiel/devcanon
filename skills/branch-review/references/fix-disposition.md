@@ -11,7 +11,7 @@ reclassify a withheld candidate, select a route, or continue after a stop.
 Inline repairs retain the controller's current model and effort, subject to an
 explicit user override. Do not switch its session or introduce delegation solely
 to satisfy a delegated model policy. When the existing repair route delegates,
-use D4 `implementer` with its literal `gpt-6.1-terra`/`medium` override and validate
+use focused specialist dispatch `implementer` with its literal `gpt-6.1-terra`/`medium` override and validate
 the complete dispatch tuple through `play-agent-dispatch`. A child override
 does not change the parent session. An unsupported delegated configuration stops
 that dispatch before source mutation; it does not require an inline session

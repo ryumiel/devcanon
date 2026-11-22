@@ -228,10 +228,10 @@ both live custody and detached candidates.
 After successful advancement/recreation, forward detached candidates only for
 the same provider repository and PR, with independently selected current scope.
 The new physical worktree may differ from the historical root. `play-review`
-refreshes or drops stale optional paths before fresh D18 and D7 current-source
+refreshes or drops stale optional paths before fresh semantic review context and independent review current-source
 reads; it never receives the retired family. Switching repository/PR, explicit
 continuation release, or controller loss discards detached candidates. An
-unexpectedly invalid family still supplied remains a pre-D18 refusal.
+unexpectedly invalid family still supplied remains a pre-context refusal.
 
 Bind the lease helper before selecting a worktree path:
 
@@ -1261,7 +1261,7 @@ the latest exact preview before Phase 6.
 ## Targeted review evidence gate
 
 For each new `play-review` invocation require `play-review/findings/v3`, exact
-current head/scope bindings, and complete D7 plus any required D10. Do not
+current head/scope bindings, and complete independent review plus any required targeted verification. Do not
 accept legacy artifacts as new-run approval. A legitimately `not-required`
 verifier differs from `incomplete`; any required verifier failure blocks
 APPROVE even without surviving blockers. Preserve assessment freshness and

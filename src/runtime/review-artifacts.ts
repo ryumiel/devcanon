@@ -3975,28 +3975,33 @@ export function validateTargetedReviewEvidence(envelope: JsonObject): void {
     routes.some(
       (route) =>
         !hasExactKeys(route, ["route", "disposition"]) ||
-        !["D7", "D10"].includes(stringField(route, "route")) ||
+        !["independent-review", "targeted-verification"].includes(
+          stringField(route, "route"),
+        ) ||
         !["NEEDS_CONTEXT", "FAILED", "CONTROLLER_OBSERVED_FAILURE"].includes(
           stringField(route, "disposition"),
         ),
     )
   )
     reject();
-  const d10Failed = routes.some((route) => route.route === "D10");
+  const verificationIncomplete = routes.some(
+    (route) => route.route === "targeted-verification",
+  );
   if (
-    routes.some((route) => route.route === "D7") &&
+    routes.some((route) => route.route === "independent-review") &&
     (byId.size > 0 ||
       arrayField(envelope, "prior_dispositions").length > 0 ||
       verification.state !== "not-required" ||
       selected.length > 0 ||
-      d10Failed)
+      verificationIncomplete)
   )
     reject();
   if (selected.length === 0) {
-    if (verification.state !== "not-required" || d10Failed) reject();
+    if (verification.state !== "not-required" || verificationIncomplete)
+      reject();
   } else if (verification.state === "completed") {
     if (
-      d10Failed ||
+      verificationIncomplete ||
       selected.some(
         (id) =>
           objectField(byId.get(id) as JsonObject, "assessment").verification !==
@@ -4006,7 +4011,7 @@ export function validateTargetedReviewEvidence(envelope: JsonObject): void {
       reject();
   } else if (verification.state === "incomplete") {
     if (
-      !d10Failed ||
+      !verificationIncomplete ||
       selected.some(
         (id) =>
           objectField(byId.get(id) as JsonObject, "assessment").verification !==

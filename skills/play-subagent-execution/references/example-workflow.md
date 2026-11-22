@@ -1,7 +1,7 @@
 # Example Workflow — `play-subagent-execution`
 
-This example uses Codex reviewer/Sol High for D14–D16 and Terra Medium for
-D12. Claude retains deep-reviewer and its catalog effort, as specified by the
+This example uses Codex reviewer/Sol High for per-task and whole-implementation reviews and Terra Medium for
+Default implementation. Claude retains deep-reviewer and its catalog effort, as specified by the
 enclosing skill.
 
 An end-to-end illustration of the multi-task subagent-driven flow. The
@@ -25,8 +25,8 @@ final run reports zero blocking findings auto-fixed, no unresolved remaining
 fresh final approval-summary evidence after branch-review-owned fix commits. For a
 **single-task plan** the per-task reviewer dispatches are skipped (see
 "Single-Task Plans" in `SKILL.md`). On a direct/manual single-task run, the
-flow shrinks to: dispatch D12 implementer -> implementer self-reviews and commits
--> mark task complete -> fresh guarded D16 reviewer over the whole range ->
+flow shrinks to: dispatch the default implementer -> implementer self-reviews and commits
+-> mark task complete -> fresh guarded whole-implementation quality reviewer over the whole range ->
 report implementation and final review status -> resolve branch-level review
 status -> hand off to `branch-review --fix` before `play-branch-finish` when
 the active workflow requires branch-level review before PR creation and
@@ -49,36 +49,36 @@ You: I'm using Subagent-Driven Development to execute this plan.
 Target capability for this run: automatic-close-supported
 
 [Route classification reminder]
-D12 uses the source-mutable `implementer`, balanced/medium, for judgment-bearing
-scoped work. D13 uses guarded inline execution or the source-mutable `executor`,
-efficient/medium, only when all five exact guardrails pass. A D13 executor
+Default implementation uses the source-mutable `implementer`, balanced/medium, for judgment-bearing
+scoped work. Exact task execution uses guarded inline execution or the source-mutable `executor`,
+efficient/medium, only when all five exact guardrails pass. An exact task execution executor
 performs the exact validated operation and stops for controller reclassification
 if judgment or a missing guardrail appears. Source-mutable task execution stays
 serial.
 
 [Fresh configuration examples]
-Before each fresh D12-D16 capture, consume the controller/owner-supplied
-already-rendered `D12_MODEL`, already-rendered `D13_MODEL`, already-rendered
-`D14_MODEL`, already-rendered `D15_MODEL`, or already-rendered `D16_MODEL`
+Before each fresh capture for an implementation or review route, consume the controller/owner-supplied
+already-rendered `DEFAULT_IMPLEMENTATION_MODEL`, already-rendered `EXACT_TASK_EXECUTION_MODEL`, already-rendered
+`TASK_SPEC_REVIEW_MODEL`, already-rendered `TASK_QUALITY_REVIEW_MODEL`, or already-rendered `WHOLE_IMPLEMENTATION_QUALITY_REVIEW_MODEL`
 binding and validate the route's complete tuple, authority, self-contained
 prompt/context, output, and termination. Apply the shared `subagent-lifecycle`
 rule before creation. For this run the controller uses:
 
-D12: task_name=d12_1, agent_type=implementer,
-     model=D12_MODEL, reasoning_effort=medium,
+Default implementation: task_name=default_implementation_1, agent_type=implementer,
+     model=DEFAULT_IMPLEMENTATION_MODEL, reasoning_effort=medium,
      fork_turns=none, message=full task/context/snapshot/report prompt
-D13: task_name=d13_1, agent_type=executor,
-     model=D13_MODEL, reasoning_effort=medium,
+Exact task execution: task_name=exact_task_execution_1, agent_type=executor,
+     model=EXACT_TASK_EXECUTION_MODEL, reasoning_effort=medium,
      fork_turns=none, message=exact guarded task/context/snapshot/report prompt
-D14: task_name=d14_1, agent_type=reviewer,
-     model=D14_MODEL, reasoning_effort=high,
-     fork_turns=none, message=independent D14 same-head response-only prompt
-D15: task_name=d15_1, agent_type=reviewer,
-     model=D15_MODEL, reasoning_effort=high,
-     fork_turns=none, message=independent D15 same-head response-only prompt
-D16: task_name=d16_1, agent_type=reviewer,
-     model=D16_MODEL, reasoning_effort=high,
-     fork_turns=none, message=fresh D16 whole-range response-only prompt
+Task specification review: task_name=task_spec_review_1, agent_type=reviewer,
+     model=TASK_SPEC_REVIEW_MODEL, reasoning_effort=high,
+     fork_turns=none, message=independent task specification review same-head response-only prompt
+Task quality review: task_name=task_quality_review_1, agent_type=reviewer,
+     model=TASK_QUALITY_REVIEW_MODEL, reasoning_effort=high,
+     fork_turns=none, message=independent task quality review same-head response-only prompt
+Whole-implementation quality review: task_name=whole_implementation_quality_review_1, agent_type=reviewer,
+     model=WHOLE_IMPLEMENTATION_QUALITY_REVIEW_MODEL, reasoning_effort=high,
+     fork_turns=none, message=fresh whole-implementation quality review whole-range response-only prompt
 
 Each `model` value above is the full nonblank owner-rendered resolution, not a
 literal capability name. A missing, blank, unresolved, or mismatched binding
@@ -130,9 +130,9 @@ read-only reviewers against the same captured task head.
 
 [Ledger pre-dispatch: Task 1 spec reviewer, agent_id=pending]
 [Ledger pre-dispatch: Task 1 code-quality reviewer, agent_id=pending]
-[D14 and D15 use separate no-handoff GUARD-001 baselines]
+[task specification review and task quality review use separate no-handoff GUARD-001 baselines]
 [For each route: capture -> spawn -> verify -> validate/retain -> cleanup -> apply]
-[Dispatch fresh D14 and D15 reviewers concurrently]
+[Dispatch fresh task specification review and task quality review reviewers concurrently]
 [Ledger post-dispatch: Task 1 spec reviewer, agent_id=spec-1]
 [Ledger post-dispatch: Task 1 code-quality reviewer, agent_id=quality-1]
 Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
@@ -181,9 +181,9 @@ captured task head before either result is final.
 
 [Ledger pre-dispatch: Task 2 spec reviewer, agent_id=pending]
 [Ledger pre-dispatch: Task 2 code-quality reviewer, agent_id=pending]
-[D14 and D15 use separate no-handoff GUARD-001 baselines]
+[task specification review and task quality review use separate no-handoff GUARD-001 baselines]
 [For each route: capture -> spawn -> verify -> validate/retain -> cleanup -> apply]
-[Dispatch fresh D14 and D15 reviewers concurrently]
+[Dispatch fresh task specification review and task quality review reviewers concurrently]
 [Ledger post-dispatch: Task 2 spec reviewer, agent_id=spec-2]
 [Ledger post-dispatch: Task 2 code-quality reviewer, agent_id=quality-2]
 Spec reviewer: ❌ Issues:
@@ -199,8 +199,8 @@ in-scope product blocker because the extracted Task 2 acceptance requires
 progress reporting every 100 items, the reachable long-running batch path
 otherwise leaves operators without its required liveness signal, and the
 minimal behavioral regression is that single omitted emission; the magic-number
-suggestion is an adjacent independently releasable defect. Because D14
-authorizes a fix, the controller retains that D15 disposition provisionally but
+suggestion is an adjacent independently releasable defect. Because task specification review
+authorizes a fix, the controller retains that task quality review disposition provisionally but
 does not emit a caller handoff. This complete same-head wave counts as failed
 round 1, so only the progress-reporting correction can route to Task 2
 implementer.
@@ -211,7 +211,7 @@ Task 2 code-quality reviewer: provisional adjacent disposition, caller handoff d
 Task 2 implementer: closed=no because routed same-head findings need same-session fixup.
 
 [Implementer fixes issues]
-The D12 tuple is unchanged, so the controller keeps `impl-2` and sends only the
+The default implementation tuple is unchanged, so the controller keeps `impl-2` and sends only the
 incremental reviewer findings/task context with `followup_task`. When this is a
 verified-auto route, the message also carries the freshly revalidated
 controller-provided auto-route attestation as structured context; direct/manual
@@ -224,12 +224,12 @@ Task 2 implementer: fixup count=1, blocker state=none, report refreshed,
 changed files and head SHA refreshed, test state refreshed, snapshot
 state=emitted, closed=no because spec re-review and any required code-quality
 re-review or disposition are pending.
-Task 2 D14 and D15 results: dispositions=stale; the fix invalidates both results, and the provisional D15 disposition becomes stale before any caller handoff.
+Task 2 task specification review and task quality review results: dispositions=stale; the fix invalidates both results, and the provisional task quality review disposition becomes stale before any caller handoff.
 
 [If the review-loop limit is reached]
 After a third complete same-head wave that requires an authorized correction,
 the controller records the failed round and returns `BLOCKED` with
-`review-loop-limit` before D12. A current finding-bound approval can authorize
+`review-loop-limit` before default implementation. A current finding-bound approval can authorize
 one identified fix attempt without resetting the count; a failed fresh wave
 after it blocks again. The lifecycle owner's reassessment can then admit one
 explicitly approved same-contract recovery, without resetting the count.
@@ -252,7 +252,7 @@ than adding exceptions to it.
 [Revalidate effective review route]
 Controller compares the original Task 2 base SHA to the refreshed task head.
 The route may only preserve or escalate; the refreshed diff still requires
-`spec-and-quality`, so continue to fresh D14 spec review and fresh D15 quality
+`spec-and-quality`, so continue to fresh task specification review and fresh task quality review
 review against the same refreshed task head. A fix has no irrelevance exception.
 
 [Cleanup gate before Task 2 spec re-review spawn]
@@ -273,7 +273,7 @@ Task 2 implementer: closed=no because code-quality fixups may still need same-se
 [Ledger post-dispatch: Task 2 code-quality re-reviewer, agent_id=quality-2-rereview]
 Code-quality reviewer: ✅ Approved
 The earlier magic-number candidate is absent, so no caller handoff is emitted;
-only a fresh post-fix D15 candidate could support one.
+only a fresh post-fix task quality review candidate could support one.
 
 [Lifecycle ledger update]
 Task 2 code-quality re-reviewer: review scope captured, base/head SHA captured, reviewed head SHA=task-2-fixup-head, report captured, reviewer result disposition=final-pass after same-head spec pass and current task-head validation, observed close result=success, closed=yes after PASS verdict recorded.
@@ -328,46 +328,46 @@ committed HEAD reads if it needs file content.
 ...
 
 [After all tasks]
-[Cleanup gate before fresh D16 reviewer spawn]
+[Cleanup gate before fresh whole-implementation quality reviewer spawn]
 Controller verifies task implementers, reviewers, and re-reviewers are closed,
-then records the distinct D16 pre-dispatch row: agent_id=pending,
+then records the distinct whole-implementation quality review pre-dispatch row: agent_id=pending,
 role=reviewer, review scope=whole implementation range, base/head SHA
-captured, closed=no. The D15 task-quality session is not reused.
+captured, closed=no. The task quality review session is not reused.
 
-[D16 no-handoff GUARD-001]
-Capture a fresh baseline -> spawn D16 and retain raw response/status -> verify
+[whole-implementation quality review no-handoff GUARD-001]
+Capture a fresh baseline -> spawn whole-implementation quality review and retain raw response/status -> verify
 before semantic validation -> validate and retain the whole-range response in
 memory -> cleanup the exact baseline -> apply only after cleanup.
-[Ledger post-dispatch: D16 reviewer, agent_id=final-quality]
-D16 reviewer: All requirements met, ready for terminal handoff
+[Ledger post-dispatch: whole-implementation quality reviewer, agent_id=final-quality]
+Whole-implementation quality reviewer: All requirements met, ready for terminal handoff
 
 [Lifecycle cleanup checkpoint]
-D16 reviewer: agent_id=final-quality, review scope captured, base/head SHA
+Whole-implementation quality reviewer: agent_id=final-quality, review scope captured, base/head SHA
 captured, report captured, reviewer result=PASS, observed close result=success,
 closed=yes after final verdict recorded and guard cleanup succeeded.
 
-[D16 alternate finding loop]
-D16 blocking findings route to a final fix, and any fix commit requires a fresh
-D16 capture, spawn, verify, validate, cleanup, and apply cycle. The fresh D16
-reviews the refreshed whole implementation range; it never reuses D15 or the
-pre-fix D16 response.
+[whole-implementation quality review alternate finding loop]
+Whole-implementation quality review blocking findings route to a final fix, and any fix commit requires a fresh
+Whole-implementation quality review capture, spawn, verify, validate, cleanup, and apply cycle. The fresh whole-implementation quality review
+reviews the refreshed whole implementation range; it never reuses task quality review or the
+pre-fix whole-implementation quality review response.
 
 [Changed-tuple continuation example]
-A D14 finding routes to the compatible original D12 `impl-2` session, so the
+A task specification review finding routes to the compatible original default implementation `impl-2` session, so the
 controller sends only incremental findings/task context with `followup_task`.
-The D12 tuple and stable task identity remain unchanged. The head-changing fix
-makes the D14/D15 verdicts stale, then fresh one-shot D14 and D15 reviewers
-inspect the refreshed head. By contrast, a D13 boundary reclassification or D16
+The default implementation tuple and stable task identity remain unchanged. The head-changing fix
+makes the per-task review verdicts stale, then fresh one-shot task specification review and task quality review reviewers
+inspect the refreshed head. By contrast, an exact task execution boundary reclassification or whole-implementation quality review
 final whole-implementation fix captures its role-specific result, records the
 supersession decision, applies the lifecycle cleanup gate, and creates a
-complete fresh `d12_<instance_ordinal>` child. If no compatible original D12
+complete fresh `default_implementation_<instance_ordinal>` child. If no compatible original default implementation
 session exists, that fresh-child path also applies.
 
-[D16 alternate ordinary failure]
+[whole-implementation quality review alternate ordinary failure]
 After safe cleanup, an unavailable, failed, malformed, or
-verification-rejected D16 keeps final review incomplete and returns `BLOCKED`
+verification-rejected whole-implementation quality review keeps final review incomplete and returns `BLOCKED`
 to the owning caller or direct/manual terminal-status path; it never enters
-branch finish. D16 detected source mutation or cleanup failure is
+branch finish. Whole-implementation quality review detected source mutation or cleanup failure is
 guard-integrity terminal and leaves source visible.
 
 [Return to owning caller]

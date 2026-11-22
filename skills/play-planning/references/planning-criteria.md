@@ -2,7 +2,7 @@
 
 This reference is the detailed criteria source for plan authoring and
 self-review. The active [combined review contract](combined-review-contract.md)
-is the sole detailed D5 result, coverage, correction, and lifecycle authority.
+is the sole detailed combined planning review result, coverage, correction, and lifecycle authority.
 The owning workflow stays in `../SKILL.md`; do not copy either source into a
 reviewer prompt.
 
@@ -19,7 +19,7 @@ reviewer prompt.
 - [Task contract criteria](#task-contract-criteria)
 - [Minimum-sufficient proof](#minimum-sufficient-proof)
 - [Finding classifications](#finding-classifications)
-- [Combined D5 remit](#combined-d5-remit)
+- [Combined planning review remit](#combined-planning-review-remit)
 
 ## Governing invariant
 
@@ -112,7 +112,7 @@ current task coverage, acceptance criteria, ownership, and proof obligations.
 Planning may decompose or sequence a decision, but it must not silently omit or
 replace it.
 
-The combined review contract owns D5 result and gap lifecycle. These criteria
+The combined review contract owns combined planning review result and gap lifecycle. These criteria
 must not use review gaps to replace missing project authority.
 
 ## Proportional contract planning
@@ -466,13 +466,13 @@ split the entry. Reviewers may block a grouping that hides a semantic
 difference or omits a required fact, but a preference for another table shape,
 row order, or otherwise equivalent normalization is non-blocking.
 
-D5 owns semantic completeness: it validates whether projection membership is
+Combined planning review owns semantic completeness: it validates whether projection membership is
 truthful and complete against approved design and task contracts. An omitted,
 extra, or conflicting task membership; stale or unresolvable Entry ID; missing
 authoritative owner; omitted execution-relevant participant; or absent
 independently necessary execution relationship is a `CURRENT` planning gap.
-D5 must not block solely because an equivalent inverse relationship or duplicate
-proof allocation is absent. D5 evaluates a concrete task-local startability
+Combined planning review must not block solely because an equivalent inverse relationship or duplicate
+proof allocation is absent. Combined planning review evaluates a concrete task-local startability
 defect under its executability remit.
 
 The execution consumer performs structural resolution only. A missing or
@@ -531,7 +531,7 @@ ID, and tasks select that supplement with the same Entry ID; the existing Entry
 ID form therefore applies. A prose mention or reference from the other record
 kind does not substitute for the uniquely identified record. These identity
 rules do not define a Markdown or record-body grammar; the controller
-interprets the reviewed plan structure and D5 owns semantic completeness.
+interprets the reviewed plan structure and combined planning review owns semantic completeness.
 
 For producer, validator, adapter, or consumer boundaries, select traceability
 detail from the contract tier. `FULL` or a separately named material authority
@@ -604,7 +604,7 @@ Boundary-carrier review examples:
   replace projection proof allocation, so the omission remains blocking.
 - **Valid representation-only mutation:** reorder the two canonical reference
   fields, change unrelated prose, or vary JSON whitespace without changing the
-  decoded IDs or assembled semantic carriers. D5 does not block the equivalent
+  decoded IDs or assembled semantic carriers. Combined planning review does not block the equivalent
   representation, while the exact saved-plan digest still changes and requires
   fresh combined review.
 
@@ -821,9 +821,9 @@ Plan Review fails any unauthorized task addition, any CURRENT task without an
 authoritative requirement and necessity, or any attempt to use proof scope as a
 reason to create unapproved infrastructure.
 
-## Combined D5 remit
+## Combined planning review remit
 
-The one independent D5 reviewer applies these authoring and self-review
+The one independent combined planning reviewer applies these authoring and self-review
 criteria to both correctness and implementer executability. It reports all
 concrete in-remit gaps with the active combined contract's coverage and result
 shape, preserves `CURRENT`/`BLOCKER` precedence, and never turns normal

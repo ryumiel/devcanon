@@ -30,8 +30,8 @@ classifications to `spec-and-quality`.
 ## Effective Routes
 
 - `spec-and-quality`: after route computation and implementer commit, the
-  controller selects both D14 and D15 for the task.
-- `spec-only`: select D14 only.
+  controller selects both task specification review and task quality review for the task.
+- `spec-only`: select task specification review only.
 - `none-final-only`: select no per-task reviewer for that task; rely on the
   required final whole-diff gate owned by the verified caller path.
 

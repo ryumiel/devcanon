@@ -18,7 +18,7 @@ Inline review-feedback repairs retain the owner's current model and effort,
 subject to an explicit user override. Do not switch the owner session or add an
 implementation subagent solely to satisfy a delegated model policy. Actual
 delegated repairs retain the `gpt-6.1-terra`/`medium` implementer override and
-complete dispatch validation through D4 or D12; an unsupported delegated
+complete dispatch validation through focused specialist dispatch or default implementation; an unsupported delegated
 configuration stops that dispatch. A child override does not change the parent
 session. This changes no repair authority, planning gate or external-system
 permission. Claude retains its current implementation behavior.
@@ -237,7 +237,7 @@ After selecting planned execution, read
 [`references/planned-execution.md`](references/planned-execution.md) before
 writing the planning input, invoking `play-planning`, or handing the plan to
 `play-subagent-execution`. It supplies the verified design, planning-input
-self-review, combined D5 provenance and exact digest checks, plan approval,
+self-review, combined planning review provenance and exact digest checks, plan approval,
 and executor handoff. For a cluster requiring structural diagnosis, read the
 structural-diagnosis reference first. Planned implementation cannot begin
 until its complete planning, approval, and handoff gates pass. This entry

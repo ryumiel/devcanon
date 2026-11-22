@@ -64,8 +64,8 @@ result. A running session's required configuration is fixed: role, full model, e
 fork setting, and task identity do not change in place. A changed required tuple
 or task identity therefore needs a new session. The lifecycle owner performs
 route-permitted reuse, follow-up, supersession, cleanup, and recovery
-mechanics; route skills own only task-local continuation and terminal behavior. D14, D15, and
-D16 remain one-shot fresh reviewers under the routing policy.
+mechanics; route skills own only task-local continuation and terminal behavior. Task specification review, task quality review, and
+Whole-implementation quality review remain one-shot fresh reviewers under the routing policy.
 
 ### Closed mutation vocabulary
 

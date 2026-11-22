@@ -94,9 +94,9 @@ disposition and evidence. With no prior inputs, assess only current claims.
 
 Suggest `none`, `consequential`, `disputed`, or `uncertain` for each Blocking
 claim and explain the trigger evidence in `basis`. These are suggestions:
-after source-guard cleanup, the controller independently selects D10 claims
+after source-guard cleanup, the controller independently selects targeted verification claims
 and constructs and publishes the final envelope. Do not assert a completed
-D10 verdict or `critic` value for a pending selected claim. Invalid or
+Targeted verification verdict or `critic` value for a pending selected claim. Invalid or
 incomplete semantic output is rejected, not repaired by the controller. The
 controller may request a bounded correction from you; return a complete replacement
 result preserving unaffected claims and completed coverage. A report with
@@ -130,7 +130,7 @@ facts for the frozen candidate. Source snippets belong in the human report.
         "state": "fresh",
         "assessed_head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "reuse_checked_head_sha": null,
-        "basis": "Checked src/a.ts:1, relevant dependencies, applicable contract, and anchor; no D10 trigger applies to this Nit",
+        "basis": "Checked src/a.ts:1, relevant dependencies, applicable contract, and anchor; no targeted verification trigger applies to this Nit",
         "selection": "none",
         "verification": "not-required"
       }
@@ -188,7 +188,7 @@ count — even when it says to return only findings.
 ## Notes
 
 - The shared-context file is written by Phase 2.5 of `skills/play-review/SKILL.md` before Phase 3 dispatch.
-- Phase 3 uses exactly one D7 reviewer. Risk adds checks inside this prompt.
+- Phase 3 uses exactly one independent reviewer. Risk adds checks inside this prompt.
 - Require evidence for each completed check and an explicit reason for each
   inapplicable conditional check. Missing context is NEEDS_CONTEXT, not omission.
 - Assess current/prior/resolved claims explicitly; unchanged nits retain old

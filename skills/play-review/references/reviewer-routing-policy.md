@@ -5,16 +5,16 @@ keeps the hard rules and fail-closed defaults eager.
 
 ## One independent review route
 
-D7 is the only review child: `reviewer`, frontier/high, source-immutable,
+Independent review is the only review child: `reviewer`, frontier/high, source-immutable,
 response-only, zero handoffs, fresh `fork_turns: "none"`. D8 and D9 are
-retired identifiers and must not dispatch. Their full checks below are D7
+retired identifiers and must not dispatch. Their full checks below are independent review
 coverage obligations. Risk selects checks, never more topical agents.
-D7 uses already-rendered `D7_MODEL`; D10 uses already-rendered `D10_MODEL`.
+Independent review uses already-rendered `INDEPENDENT_REVIEW_MODEL`; targeted verification uses already-rendered `TARGETED_VERIFICATION_MODEL`.
 Both follow the
 source-guard/dispatch lifecycle in `SKILL.md`; missing or mismatched bindings
-block before capture without substitution. D18 remains unchanged.
+block before capture without substitution. Semantic review context remains unchanged.
 
-D10 is a separate targeted `reviewer`, frontier/high, only for consequential,
+Targeted verification is a separate response-only `reviewer`, frontier/high, only for consequential,
 disputed, or uncertain Blocking claims under `single-reviewer-contract.md`.
 Required failure is incomplete review, not successful skipped verification.
 
@@ -66,7 +66,7 @@ risk-triggered path.
 
 ## Architecture Check Trigger
 
-Include these D7 checks when the active diff or full-PR routing summary includes
+Include these independent review checks when the active diff or full-PR routing summary includes
 architecture-routing risks: dependency manifests, config, major entry points,
 `docs/adr/**`, `docs/arch/**`, `MAP.md`, `AGENTS.md`, `agents/**`, `skills/**`
 workflow policy, generated/source ownership changes, module-boundary changes,
@@ -84,7 +84,7 @@ to the full PR, not just the incremental diff.
 
 ## Spec Check Trigger
 
-Include these D7 checks when the active diff or full-PR routing summary includes spec-routing
+Include these independent review checks when the active diff or full-PR routing summary includes spec-routing
 risks: docs/spec/API/user-facing behavior, CLI/operator guidance, examples,
 public config schemas, files referenced by existing docs, or prose that changes
 a documented pattern's canonical direction.

@@ -796,7 +796,7 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
           carry_forward: [],
           prior_dispositions: [],
           incomplete_review_routes: incomplete
-            ? [{ route: "D7", disposition: "NEEDS_CONTEXT" }]
+            ? [{ route: "independent-review", disposition: "NEEDS_CONTEXT" }]
             : [],
           verification: {
             state: "not-required",
@@ -940,8 +940,8 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
           findings: [],
           carry_forward: [],
           incomplete_review_routes: [
-            { route: "D7", disposition: "FAILED" },
-            { route: "D7", disposition: "NEEDS_CONTEXT" },
+            { route: "independent-review", disposition: "FAILED" },
+            { route: "independent-review", disposition: "NEEDS_CONTEXT" },
           ],
         },
       ]) {
@@ -967,9 +967,12 @@ describe.skipIf(!jqAvailable)("branch-review scope-decision adapter", () => {
       const findingsFile = findingsPath(headSha);
       await writeInitialApprovalScope(cwd, headSha);
       for (const incompleteRoute of [
-        { route: "D7", disposition: "FAILED" },
-        { route: "D7", disposition: "NEEDS_CONTEXT" },
-        { route: "D7", disposition: "CONTROLLER_OBSERVED_FAILURE" },
+        { route: "independent-review", disposition: "FAILED" },
+        { route: "independent-review", disposition: "NEEDS_CONTEXT" },
+        {
+          route: "independent-review",
+          disposition: "CONTROLLER_OBSERVED_FAILURE",
+        },
       ]) {
         await writeJson(cwd, findingsFile, {
           schema: "play-review/findings/v3",

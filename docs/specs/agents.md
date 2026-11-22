@@ -318,8 +318,8 @@ agent placeholders with guidance to use top-level capability or a literal model.
 Effort is independent. An explicit `claude.effort` or
 `codex.model_reasoning_effort` is emitted as written; when absent it remains
 omitted and ambient target behavior applies. Capability never supplies or
-inherits effort. The ordinary reviewer Codex default is `high`; D5, D7, D10, D14–D16 on Codex,
-and D4 reviewer selection use that same route effort. Assessor, investigator,
+inherits effort. The ordinary reviewer Codex default is `high`; combined planning review, independent review, targeted verification, per-task and whole-implementation reviews on Codex,
+and focused specialist dispatch reviewer selection use that same route effort. Assessor, investigator,
 and implementer direct routes use `low`, `medium`, and `medium`, respectively.
 Source defaults and direct-route tuples must agree; no ambient setting or
 runtime substitution may override an explicitly selected route.
@@ -386,15 +386,15 @@ The catalog above and source agent definitions govern the active role envelopes.
 
 ### Model allocation
 
-| Responsibility                                           | Codex model     | Effort |
-| -------------------------------------------------------- | --------------- | ------ |
-| Ordinary design and planning                             | `gpt-6.1-sol`   | high   |
-| Implementer, including review-feedback fixes             | `gpt-6.1-terra` | medium |
-| Reviewer, including D14, D15, D16 and ordinary PR review | `gpt-6.1-sol`   | high   |
-| Architect consultation and significant-risk deep review  | `gpt-6-astra`   | high   |
+| Responsibility                                                                                                                 | Codex model     | Effort |
+| ------------------------------------------------------------------------------------------------------------------------------ | --------------- | ------ |
+| Ordinary design and planning                                                                                                   | `gpt-6.1-sol`   | high   |
+| Implementer, including review-feedback fixes                                                                                   | `gpt-6.1-terra` | medium |
+| Reviewer, including task specification review, task quality review, whole-implementation quality review and ordinary PR review | `gpt-6.1-sol`   | high   |
+| Architect consultation and significant-risk deep review                                                                        | `gpt-6-astra`   | high   |
 
 Balanced remains Sol. Implementer uses a literal Terra override, honored by
-all dispatch consumers including D4, D12, D17 judgment fixes and delegated
+all dispatch consumers including focused specialist dispatch, default implementation, judgment fixes in CI diagnosis and fix and delegated
 review-response paths. This implementation allocation applies to actual
 subagents. Inline implementation and feedback repairs retain the authorized
 owner's current model and effort, subject to explicit user override; child
@@ -419,6 +419,6 @@ implementation risk rather than taking over implementation.
 
 The [routing policy](../guidelines/agent-routing-and-mutation-policy.md#codex-specialist-routing)
 owns when to request specialist work. This policy changes Codex allocation;
-existing Claude workflow behavior remains unchanged. Architect is rendered for both targets, but D4 rejects architect selection on
+existing Claude workflow behavior remains unchanged. Architect is rendered for both targets, but focused specialist dispatch rejects architect selection on
 Claude before capture or spawn. Existing Claude workflows retain their roles
 and efforts. Both-target rendering and consumer checks verify that boundary.

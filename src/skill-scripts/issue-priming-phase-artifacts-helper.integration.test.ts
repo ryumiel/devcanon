@@ -102,7 +102,7 @@ describe("issue-priming phase-artifacts helper", () => {
       });
       await writeFile(
         path.join(cwd, artifactPath),
-        "# Execution Note\nChanged; D5 PASS claimed.\n",
+        "# Execution Note\nChanged; combined planning review PASS claimed.\n",
       );
       await expect(
         runHelper(cwd, "design", artifactPath),

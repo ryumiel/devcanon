@@ -4,22 +4,22 @@ Use the controller-supplied snapshot helper's local `--help` output for reusable
 snapshot-helper mechanics; preserve this prompt's blocking and notice policy.
 Snapshot validation remains controller-owned.
 
-Use this template only for D13 after all five exact guardrails pass and the
+Use this template only for exact task execution after all five exact guardrails pass and the
 controller chooses dispatch instead of guarded inline execution. For
 judgment-bearing work, use [`implementer-prompt.md`](implementer-prompt.md).
 
 **Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/executor.yaml`](../../../agents/executor.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
 
-**Fresh configuration:** The controller validates D13's complete fresh tuple
+**Fresh configuration:** The controller validates exact task execution's complete fresh tuple
 before capture: `executor`, `efficient`, the nonblank full model in the
-controller/owner-supplied already-rendered `D13_MODEL` binding, independent
-`medium`, source-mutable/external-none authority, `d13_<instance_ordinal>`,
+controller/owner-supplied already-rendered `EXACT_TASK_EXECUTION_MODEL` binding, independent
+`medium`, source-mutable/external-none authority, `exact_task_execution_<instance_ordinal>`,
 `fork_turns: "none"`, this fully substituted prompt, report output, and the
 existing five-guardrail stop/reclassify termination. A missing, blank,
 unresolved, or mismatched binding blocks before capture or spawn; do not locate
 a source checkout or use an alias, nearby, or ambient model. Apply
-`subagent-lifecycle` for allocation and continuation. A D13 boundary
-reclassification uses the existing fresh D12 lifecycle path.
+`subagent-lifecycle` for allocation and continuation. An exact task execution boundary
+reclassification uses the existing fresh default implementation lifecycle path.
 
 ````
 Task tool (general-purpose):
@@ -36,7 +36,7 @@ Task tool (general-purpose):
     the controller owns reviewer dispatch.
 
     Executor mode is only for an exact validated authorized operation after
-    all five controller-owned D13 guardrails pass. The allowed operation is
+    all five controller-owned exact task execution guardrails pass. The allowed operation is
     approved verbatim artifact work or unambiguous identifier replacement.
     Concrete code-like examples, test
     snippets, plan-authored test bodies, shell snippets, shell recipes, command
@@ -46,7 +46,7 @@ Task tool (general-purpose):
     authority is missing for content you are asked to reproduce, report BLOCKED
     or NEEDS_CONTEXT instead of copying it.
 
-    Executor mode remains available only after all five controller-owned D13
+    Executor mode remains available only after all five controller-owned exact task execution
     guardrails pass. Contract-tier validation does not replace or weaken any
     other guardrail.
 
@@ -95,7 +95,7 @@ Task tool (general-purpose):
     context, missing task-local authority, or a source-confirmed contradiction
     that prevents the exact authorized mechanical operation fails closed. Report
     NEEDS_CONTEXT or BLOCKED with the concrete task-local gap; do not rejudge
-    plan-wide participant or relationship completeness, which D5 owns, and do
+    plan-wide participant or relationship completeness, which combined planning review owns, and do
     not guess or reclassify. A canonical valid example is the valid reviewed `LIGHTWEIGHT`
     context above: it does not add FULL-only matrices, spec or risk rows, or
     `N/A` placeholders. For invalid family 1, changing only that example's tier
@@ -119,7 +119,7 @@ Task tool (general-purpose):
     If any operation requires judgment, policy interpretation, a clarifying
     question, or work outside the exact validated authorization, stop and
     report NEEDS_CONTEXT or BLOCKED so the controller can reclassify the task
-    to D12. Do not guess, choose among alternatives, widen scope, or continue
+    to default implementation. Do not guess, choose among alternatives, widen scope, or continue
     without all five guardrails.
 
     ## Your Job
@@ -154,7 +154,7 @@ Task tool (general-purpose):
 
     Snapshot request: <SNAPSHOT_REQUEST_STATE: requested|skipped>
 
-    The snapshot envelope remains schema `implementer/snapshot/v1`; the D13
+    The snapshot envelope remains schema `implementer/snapshot/v1`; the exact task execution
     role rename does not create or change a snapshot schema.
 
     After committing and self-reviewing, follow the controller's snapshot

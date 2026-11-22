@@ -3,7 +3,7 @@
 ## Role
 
 Documents the generic fresh-Codex dispatch ritual that every route-owning
-skill follows for its fixed route from the active route set or planner-selected D4 route: resolve
+skill follows for its fixed route from the active route set or planner-selected focused specialist dispatch route: resolve
 the Codex-bound model binding, validate the complete tuple, allocate the
 route-local `task_name`, freeze one self-contained prompt, capture, create
 exactly one fresh child, verify, clean up, and only then integrate. Load it
@@ -16,7 +16,7 @@ This reference owns only the generic ritual order and its blocking rule. It
 consumes, and neither restates nor overrides, these owners:
 
 - The shared agent routing policy owns the active route set inventory, the
-  complete fresh-Codex tuple fields, and the D4 declaration obligation.
+  complete fresh-Codex tuple fields, and the focused specialist dispatch declaration obligation.
 - `subagent-lifecycle` owns the controller ledger, `<instance_ordinal>` and
   `task_name` allocation, configuration continuity, the cleanup gate,
   slot-limit recovery, terminal model-capacity recovery, and
@@ -60,7 +60,7 @@ Keep this order exact for every fresh child.
    unknown, nearby, ambient, or mismatched value blocks before capture or
    spawn. No field is optional, and the child never fills or discovers a tuple
    field.
-3. Allocate the route-local `task_name` as `d<N>_<instance_ordinal>` under the
+3. Allocate the route-local `task_name` from the semantic route ID under the
    `subagent-lifecycle` fresh-allocation rule and record the pending ledger
    row. A pending row is not spawn authority.
 4. Freeze one self-contained prompt. It names the repository root, exact
@@ -97,5 +97,5 @@ again and does not change this rejection rule.
 ## Workflow boundary
 
 The dispatch site owns route values, prompt inputs, disposition, and
-continuation. [Play agent dispatch workflow context](../SKILL.md) owns the D4
+continuation. [Play agent dispatch workflow context](../SKILL.md) owns the focused specialist dispatch
 declaration and focused-specialist integration.

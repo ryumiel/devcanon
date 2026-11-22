@@ -15,6 +15,10 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import {
+  parseAgentRoutingPolicyOwner,
+  readAgentRoutingPolicyOwner,
+} from "../__test-helpers__/agent-routing-policy.js";
+import {
   canCreateSymlinks,
   cleanupTempDir,
 } from "../__test-helpers__/fixtures.js";
@@ -368,7 +372,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
               : structuredClone(baseline);
           if (keys[0] === "incomplete_review_routes")
             value.incomplete_review_routes = [
-              { route: "D7", disposition: "FAILED" },
+              { route: "independent-review", disposition: "FAILED" },
             ];
           let target = value;
           for (const key of keys.slice(0, -1))
@@ -615,7 +619,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         reason: "Verifier failed",
       };
       value.incomplete_review_routes = [
-        { route: "D10", disposition: "FAILED" },
+        { route: "targeted-verification", disposition: "FAILED" },
       ];
       value.presentation_overrides = [{ id: "F1", action: "drop" }];
       await runHelperWithStdin(cwd, "publish-findings", JSON.stringify(value), {
@@ -858,12 +862,66 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
     }
   });
 
+  it("keeps independent review evidence valid when its inventory display name changes", async () => {
+    const policyPath = "docs/guidelines/agent-routing-and-mutation-policy.md";
+    const [policy, owner] = await Promise.all([
+      readFile(policyPath, "utf8"),
+      readAgentRoutingPolicyOwner(policyPath),
+    ]);
+    const sourceSkills = owner.inventory.map(({ skill }) => skill);
+    const cwd = await makeTopicGitWorkspace();
+    try {
+      const evidencePath = path.join(cwd, findingsFile);
+      const evidence = targetedEnvelope(headSha);
+      evidence.incomplete_review_routes = [
+        { route: "independent-review", disposition: "NEEDS_CONTEXT" },
+      ];
+      const bytes = JSON.stringify(evidence);
+      await writeFile(evidencePath, bytes);
+      const validateShell = () =>
+        runHelper(cwd, "validate-findings", { FINDINGS_FILE: findingsFile });
+      const validateTypescript = async () =>
+        validateTargetedReviewEvidence(
+          JSON.parse(await readFile(evidencePath, "utf8")),
+        );
+
+      await expect(validateTypescript()).resolves.toBeUndefined();
+      await expect(validateShell()).resolves.toMatchObject({ stderr: "" });
+      const renamed = parseAgentRoutingPolicyOwner(
+        policy.replace("Independent review —", "Complete independent review —"),
+        sourceSkills,
+      );
+      const route = renamed.directChildRoutes.find(
+        ({ id }) => id === "independent-review",
+      );
+      expect(route?.displayName).toBe("Complete independent review");
+      expect(await readFile(evidencePath, "utf8")).toBe(bytes);
+      await expect(validateTypescript()).resolves.toBeUndefined();
+      await expect(validateShell()).resolves.toMatchObject({ stderr: "" });
+
+      for (const route of [
+        "Independent review",
+        "Complete independent review",
+      ]) {
+        evidence.incomplete_review_routes[0].route = route;
+        await writeFile(evidencePath, JSON.stringify(evidence));
+        await expect(validateTypescript()).rejects.toThrow();
+        await expect(validateShell()).rejects.toMatchObject({
+          stderr: expect.stringContaining("envelope"),
+        });
+      }
+    } finally {
+      await cleanupTempDir(cwd);
+    }
+  });
+
   it("refuses public approval after required verifier failure", async () => {
     const { cwd, reviewHeadSha, findingsFile } =
       await makeReviewSourceWorkspace();
     try {
       const failed = targetedEvidenceCases(reviewHeadSha).find(
-        ({ name }) => name === "required verifier failure with D10",
+        ({ name }) =>
+          name === "required verifier failure with targeted verification",
       );
       expect(failed).toBeDefined();
       await writeFile(
@@ -2130,7 +2188,7 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
       validateTargetedReviewEvidence(actual);
       const incomplete = currentReviewEnvelope(reviewHeadSha, []);
       incomplete.incomplete_review_routes = [
-        { route: "D7", disposition: "NEEDS_CONTEXT" },
+        { route: "independent-review", disposition: "NEEDS_CONTEXT" },
       ];
       await runHelperWithStdin(
         cwd,
@@ -2728,8 +2786,8 @@ describe.skipIf(!jqAvailable)("play-review review artifact helper", () => {
         findings: [],
         carry_forward: [],
         incomplete_review_routes: [
-          { route: "D7", disposition: "FAILED" },
-          { route: "D7", disposition: "NEEDS_CONTEXT" },
+          { route: "independent-review", disposition: "FAILED" },
+          { route: "independent-review", disposition: "NEEDS_CONTEXT" },
         ],
       },
       {

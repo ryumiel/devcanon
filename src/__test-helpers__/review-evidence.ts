@@ -133,9 +133,11 @@ export function targetedEvidenceCases(head: string) {
     "CONTROLLER_OBSERVED_FAILURE",
   ]) {
     const failed = targetedEnvelope(head);
-    failed.incomplete_review_routes = [{ route: "D7", disposition }];
+    failed.incomplete_review_routes = [
+      { route: "independent-review", disposition },
+    ];
     cases.push({
-      name: `D7 ${disposition} without accepted evidence`,
+      name: `independent review ${disposition} without accepted evidence`,
       accepted: true,
       value: failed,
     });
@@ -156,7 +158,7 @@ export function targetedEvidenceCases(head: string) {
           targetedFinding(head),
         ];
       cases.push({
-        name: `D7 ${disposition} cannot admit ${field}`,
+        name: `independent review ${disposition} cannot admit ${field}`,
         accepted: false,
         value: contradictory,
       });
@@ -173,18 +175,57 @@ export function targetedEvidenceCases(head: string) {
     selected_ids: ["F1"],
     reason: "Verifier unavailable",
   };
-  record("required verifier failure missing D10", false);
-  value.incomplete_review_routes = [{ route: "D10", disposition: "FAILED" }];
-  record("required verifier failure with D10", true);
-  const prematureD10 = structuredClone(value);
-  prematureD10.incomplete_review_routes.push({
-    route: "D7",
+  record("required verifier failure missing targeted verification", false);
+  value.incomplete_review_routes = [
+    { route: "targeted-verification", disposition: "FAILED" },
+  ];
+  record("required verifier failure with targeted verification", true);
+  const incompleteIndependent = targetedEnvelope(head);
+  incompleteIndependent.incomplete_review_routes = [
+    {
+      route: "independent-review",
+      disposition: "FAILED",
+    },
+  ];
+  for (const [incomplete, otherId] of [
+    [incompleteIndependent, "targeted-verification"],
+    [value, "independent-review"],
+  ] as const) {
+    for (const route of [
+      otherId,
+      "Independent review",
+      "Complete independent review",
+      "Targeted verification",
+      "D7",
+      "D10",
+      "unknown-review",
+    ]) {
+      const substituted = structuredClone(incomplete);
+      substituted.incomplete_review_routes[0].route = route;
+      cases.push({
+        name: `${incomplete.incomplete_review_routes[0].route} failure rejects route ${route}`,
+        accepted: false,
+        value: substituted,
+      });
+    }
+    const withDisplayName = structuredClone(incomplete);
+    withDisplayName.incomplete_review_routes[0].display_name =
+      "Independent review";
+    cases.push({
+      name: `${incomplete.incomplete_review_routes[0].route} failure rejects an extra display_name field`,
+      accepted: false,
+      value: withDisplayName,
+    });
+  }
+  const conflictingIncompleteRoutes = structuredClone(value);
+  conflictingIncompleteRoutes.incomplete_review_routes.push({
+    route: "independent-review",
     disposition: "FAILED",
   });
   cases.push({
-    name: "D7 failure cannot dispatch D10",
+    name: "Independent review failure cannot dispatch targeted verification",
     accepted: false,
-    value: prematureD10,
+    value: conflictingIncompleteRoutes,
   });
 
   claim.severity = "Nit";

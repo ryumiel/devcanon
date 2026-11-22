@@ -104,7 +104,7 @@ describe("targeted review evidence", () => {
       }),
     ).not.toThrow();
     value.incomplete_review_routes.push({
-      route: "D10",
+      route: "targeted-verification",
       disposition: "FAILED",
     });
     expect(() =>

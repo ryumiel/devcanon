@@ -252,17 +252,17 @@ must not use ambient model or effort, infer a route from the owning skill's
 highest mutation authority, collapse distinct review sessions because they
 share a semantic agent, or dispatch when the route is unresolved.
 
-For D4 and every other fresh semantic direct child, resolve the complete
+For focused specialist dispatch and every other fresh semantic direct child, resolve the complete
 pre-spawn declaration through the
 [Fresh Codex Route Contract](../guidelines/agent-routing-and-mutation-policy.md#fresh-codex-route-contract)
-and the [D4 Declaration Obligation](../guidelines/agent-routing-and-mutation-policy.md#d4-declaration-obligation),
+and the [Focused Specialist Dispatch Declaration Obligation](../guidelines/agent-routing-and-mutation-policy.md#focused-specialist-dispatch-declaration-obligation),
 the sole complete declaration authorities. The fresh child receives the
 route-owned semantic role, configured full model, independent effort,
 `fork_turns: "none"`, and self-contained context including authority plus the
 source-skill-owned output and termination contract. Observable semantic
 direct-child dispatch selects exactly one
 resolved route, and any unresolved route or declaration state blocks before
-spawn. Under the B3 routing boundary, a source-immutable D4 selection is
+spawn. Under the B3 routing boundary, a source-immutable focused specialist dispatch selection is
 response-only.
 
 The routing policy owns route-level fresh configuration, reuse eligibility,
@@ -274,7 +274,7 @@ model-capacity recovery mechanics. This
 spec records observable dispatch and guard evidence rather than duplicating
 those lifecycle rules.
 
-D4 contract verification is bounded to the canonical repository-authored
+Focused specialist dispatch contract verification is bounded to the canonical repository-authored
 policy, producer, routing-spec, and rendered forms. It does not establish a
 general Markdown grammar, and test-local scanners are not required to recognize
 arbitrary CommonMark-equivalent representations. The repository-wide
@@ -1407,17 +1407,17 @@ or durable evidence protocol.
 
 After successful exact cleanup, an ordinary unavailable, failed, malformed, or
 verification-rejected child follows its skill-owned existing transition. The
-minimum dispositions for D4 and D14 through D18 are normative in the
+minimum dispositions for focused specialist dispatch and per-task reviews, whole-implementation quality review, CI diagnosis and fix, and semantic review context are normative in the
 [policy failure table](../guidelines/agent-routing-and-mutation-policy.md#ordinary-child-failure-disposition).
 
-In particular, D14 and D15 keep the task incomplete and return `BLOCKED`
-without a passing verdict; D16 keeps final review incomplete and never enters
-branch finish; and a failed D17 diagnosis performs no fix, push, or merge and
-does not increment the retry count. D18 stops before shared-context construction
-and D7 completion without controller summarization or partial context. Only
+In particular, task specification review and task quality review keep the task incomplete and return `BLOCKED`
+without a passing verdict; whole-implementation quality review keeps final review incomplete and never enters
+branch finish; and a failed CI diagnosis performs no fix, push, or merge and
+does not increment the retry count. Semantic review context stops before shared-context construction
+and independent review completion without controller summarization or partial context. Only
 source mutation or cleanup failure is a guard-integrity terminal condition.
 
-For D18/D7/D10, the review owner's
+For semantic review context, independent review, and targeted verification, the review owner's
 [routine recovery](../../skills/play-review/references/terminal-result-boundaries.md#routine-recovery)
 permits bounded correction under existing review authorization after successful
 verification and cleanup. Rejected context remains unusable; missing coverage and
@@ -1662,7 +1662,7 @@ override never changes its parent session. Interactive execution returns the
 note for the existing implementation authority decision. Changed inputs require
 affected-claim revalidation; new
 uncertainty stops dependent edits for needed preparation, and permission gaps
-take the genuine gate. A note supplies no Plan notice, reviewed digest, D5 PASS,
+take the genuine gate. A note supplies no Plan notice, reviewed digest, combined planning review PASS,
 reviewed tier, contract tag or auto-handoff. Plan-only consumers reject it,
 including direct FULL, mechanical and reduced routes.
 
@@ -1683,7 +1683,7 @@ Closure and Source Freeze. Notes remain local
 context with no publication or cleanup effects. Batch owner handoffs and
 receipts echo explicit `reviewed-plan` or `execution-note` provenance in the
 legacy-named `current_reviewed_plan_handoff_provenance` controller-local slot.
-Planned work keeps real D5/auto evidence; notes carry guarded path/digest,
+Planned work keeps real combined planning review/auto evidence; notes carry guarded path/digest,
 current issue validation and existing owner identity. The router compares kind,
 exact identity, original key, repository, owner/host, controller-refreshed source
 state, head and acknowledged sequence; changed kind or identity changes route
@@ -1732,7 +1732,7 @@ declaration may continue locally through the planning owner's
 [source-established declaration verification](../../skills/play-planning/references/combined-review-contract.md#source-established-declaration-verification),
 even with both semantic passes consumed. Current accepted sources must explicitly
 establish the mapping; original/current identities, full diff, all gaps and
-complete prior coverage/provenance are required. A fresh independent D5 checks
+complete prior coverage/provenance are required. A fresh independent combined planning review checks
 sources and full current/carried correctness/executability coverage and emits
 current PASS/digest/combined-v1 with `Review mode: verification-only`. Preserve
 both prior semantic results and consumed passes. Failed, uncertain, incomplete
@@ -1829,17 +1829,17 @@ preserves failed lease history and cannot supply semantic completion or erase
 preparation failure evidence through cleanup. No-progress, stale identity,
 broken custody or substantive ambiguity stops through the existing owner.
 
-D18 remains the semantic review-context owner on every invocation that currently
-requires it. Research does not replace D18 and this proposal does not authorize
-cross-invocation reuse of D18 results. `play-review` owns context preparation and
+Semantic review context remains the owner of semantic review context preparation on every invocation that currently
+requires it. Research does not replace semantic review context and this proposal does not authorize
+cross-invocation reuse of semantic review context results. `play-review` owns context preparation and
 refresh; `branch-review` and `pr-review` retain fix-scope decisions and broaden
-review whenever impact cannot be bounded. D7 remains comprehensive and D10
+review whenever impact cannot be bounded. Independent review remains comprehensive and targeted verification
 retains its existing triggers and failure rules.
 
 For review follow-up, `play-review` may retain relevant repository-documentation
-paths that D7 independently found and successfully read after initial context
+paths that the independent reviewer found and successfully read after initial context
 preparation. The controller verifies exact tracked spelling, source side,
-revision, scope and read evidence after guarded D7 completion, then refreshes
+revision, scope and read evidence after guarded independent review completion, then refreshes
 the existing bounded prior-context artifact using its original helper-returned
 paths. Records use exactly `source.kind: "verified-repository-doc-navigation"`,
 the tracked path as `source.reference`, and a bounded summary of source
@@ -1873,7 +1873,7 @@ discarded custody. Repository/PR switch, explicit release or controller loss
 drops detached candidates. Later absence invokes ordinary discovery. An unexpectedly missing,
 malformed or mismatched supplied family or independent association stops before
 semantic dispatch. Fresh
-D18 sanitizes retained records for the new review, and D7 rereads relevant
+Semantic review context sanitizes retained records for the new review, and independent review rereads relevant
 authoritative source. Historical optional paths that move, disappear, change
 source side or leave scope are refreshed through current navigation or dropped;
 missing selected required source still refuses. Repository documentation
@@ -1975,7 +1975,7 @@ truthful continuation. Fixture results do not establish a live legacy dispositio
 
 ### PLAN-004: Preserved boundaries
 
-Model/effort bindings, D14–D16, source protection, lifecycle cleanup,
+Model/effort bindings, per-task and whole-implementation reviews, source protection, lifecycle cleanup,
 exact-digest approval binding, execution authority, publication, CI and merge
 gates remain unchanged except for the limited parent approval-satisfaction
 decision in PLAN-003.
@@ -1986,34 +1986,34 @@ automatic budget-limit approval or user-home installation is introduced.
 
 | Scenario                                                                                 | Required behavior                                                                                                                                                                 |
 | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Settled instruction edit names source owner, accepted intent, consumers and verification | One guarded Execution Note, same-owner inline implementation, candidate closure/full checks/independent Phase 7; no D5 or auto-handoff claims.                                    |
+| Settled instruction edit names source owner, accepted intent, consumers and verification | One guarded Execution Note, same-owner inline implementation, candidate closure/full checks/independent Phase 7; no combined planning review or auto-handoff claims.              |
 | Provider/device findings expose unresolved input custody                                 | Needed investigation and coordinated design/planning resolve custody before dependent edits; reuse current settled decisions and retain focused correction/material reassessment. |
-| Note claims a D5 producer without an actual reviewed plan                                | Planned consumer refuses fabricated provenance; note identity is not approval.                                                                                                    |
+| Note claims a combined planning review producer without an actual reviewed plan          | Planned consumer refuses fabricated provenance; note identity is not approval.                                                                                                    |
 | Note bytes change while the retained hash stays old                                      | Inline consumer stops for stale note identity before dependent edits.                                                                                                             |
 | Otherwise settled work still has unresolved custody                                      | Selection requires the needed preparation even with green checks.                                                                                                                 |
 | Otherwise valid note requests unauthorized provider mutation                             | Genuine authority gate stops the mutation; neither note nor receipt grants permission.                                                                                            |
 
 ### Acceptance scenarios for the active contract
 
-| Scenario                                                                         | Required result                                                                                                                                                                                     |
-| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Complex plan spans multiple producers and consumers                              | One reviewer proves both remits for every applicable task/boundary; omitted coverage fails.                                                                                                         |
-| Initial PASS                                                                     | Current digest and complete coverage permit the appropriate handoff; separate external/user gates still apply.                                                                                      |
-| Final mapping-only FAIL after two semantic passes                                | Existing planning producer corrects only the explicit accepted-source declaration; fresh independent D5 verification binds current bytes, retaining both FAILs and consumed passes.                 |
-| New or uncertain mapping, changed judgment/source, wrong producer or no progress | Refuse verification-only continuation; retain failures and use existing semantic decision or exhausted recovery.                                                                                    |
-| Corrected blockers                                                               | The one remaining pass checks full diff and dependencies; new digest, rechecked rows and justified carried rows are explicit.                                                                       |
-| Nit-only feedback                                                                | Defer without mandatory review; editing bytes invalidates approval and uses remaining budget.                                                                                                       |
-| Initially missed inspectable defect found late                                   | Genuine blocker prevents PASS even on comprehensive re-review; no third automatic semantic pass.                                                                                                    |
-| Material redesign                                                                | Obtain owning decision and comprehensive review within remaining budget, otherwise reassess.                                                                                                        |
-| Repeated blocker or unavailable reviewer                                         | No handoff; report unresolved condition and owning reassessment route.                                                                                                                              |
-| Invalid ADR path                                                                 | Controller preflight rejects it before D18 or another semantic child is dispatched.                                                                                                                 |
-| Unchanged references                                                             | No duplicate discovery required; relevant authoritative claims are still independently verified.                                                                                                    |
-| Policy drift or changed uncommitted source                                       | Dependent coverage/evidence is invalidated despite unchanged plan digest or HEAD.                                                                                                                   |
-| Legacy handoff mismatch or lost provenance                                       | Migrated reviewed consumer refuses; no synthetic second PASS or downgrade to unreviewed execution.                                                                                                  |
-| Review-response approval followed by plan edit                                   | Previous approval cannot authorize new bytes; obtain current assurance under the semantic budget or qualifying declaration-verification exception, then reassess exact authority.                   |
-| Exact authority for compliance or necessary-completion plan                      | Current user authority covering every reviewed correction, affected responsibility, scope and proof obligation satisfies the parent gate without a repeated request; preserve direct/manual review. |
-| Partial authority or widened plan                                                | Stop for explicit reviewed-plan approval or the existing owning handoff; the finding and planning PASS confer no authority.                                                                         |
-| Mechanical task with invalid planning provenance                                 | Mechanical eligibility is not granted by the tag; retain all independent eligibility checks.                                                                                                        |
+| Scenario                                                                         | Required result                                                                                                                                                                                           |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Complex plan spans multiple producers and consumers                              | One reviewer proves both remits for every applicable task/boundary; omitted coverage fails.                                                                                                               |
+| Initial PASS                                                                     | Current digest and complete coverage permit the appropriate handoff; separate external/user gates still apply.                                                                                            |
+| Final mapping-only FAIL after two semantic passes                                | Existing planning producer corrects only the explicit accepted-source declaration; fresh independent combined planning review verification binds current bytes, retaining both FAILs and consumed passes. |
+| New or uncertain mapping, changed judgment/source, wrong producer or no progress | Refuse verification-only continuation; retain failures and use existing semantic decision or exhausted recovery.                                                                                          |
+| Corrected blockers                                                               | The one remaining pass checks full diff and dependencies; new digest, rechecked rows and justified carried rows are explicit.                                                                             |
+| Nit-only feedback                                                                | Defer without mandatory review; editing bytes invalidates approval and uses remaining budget.                                                                                                             |
+| Initially missed inspectable defect found late                                   | Genuine blocker prevents PASS even on comprehensive re-review; no third automatic semantic pass.                                                                                                          |
+| Material redesign                                                                | Obtain owning decision and comprehensive review within remaining budget, otherwise reassess.                                                                                                              |
+| Repeated blocker or unavailable reviewer                                         | No handoff; report unresolved condition and owning reassessment route.                                                                                                                                    |
+| Invalid ADR path                                                                 | Controller preflight rejects it before semantic review context or another semantic child is dispatched.                                                                                                   |
+| Unchanged references                                                             | No duplicate discovery required; relevant authoritative claims are still independently verified.                                                                                                          |
+| Policy drift or changed uncommitted source                                       | Dependent coverage/evidence is invalidated despite unchanged plan digest or HEAD.                                                                                                                         |
+| Legacy handoff mismatch or lost provenance                                       | Migrated reviewed consumer refuses; no synthetic second PASS or downgrade to unreviewed execution.                                                                                                        |
+| Review-response approval followed by plan edit                                   | Previous approval cannot authorize new bytes; obtain current assurance under the semantic budget or qualifying declaration-verification exception, then reassess exact authority.                         |
+| Exact authority for compliance or necessary-completion plan                      | Current user authority covering every reviewed correction, affected responsibility, scope and proof obligation satisfies the parent gate without a repeated request; preserve direct/manual review.       |
+| Partial authority or widened plan                                                | Stop for explicit reviewed-plan approval or the existing owning handoff; the finding and planning PASS confer no authority.                                                                               |
+| Mechanical task with invalid planning provenance                                 | Mechanical eligibility is not granted by the tag; retain all independent eligibility checks.                                                                                                              |
 
 ### Verification and evaluation expectations
 
@@ -2040,7 +2040,7 @@ telemetry platform, or generalized benchmark.
   [auto handoff](../../skills/issue-priming-workflow/references/phase-6-auto-handoff.md):
   coupled consumer obligations activate with the combined producer.
 - Source [single-reviewer contract](../../skills/play-review/references/single-reviewer-contract.md):
-  preserved D18/D7/D10 freshness and ownership verified. Performance and quality
+  preserved semantic review context, independent review, and targeted verification freshness and ownership verified. Performance and quality
   equivalence are unmeasured; evaluation belongs to the workflow owners.
 
 After explicit contract acceptance, route this owner set through
@@ -2109,19 +2109,19 @@ changes one guard dimension and is rejected before consumption.
 
 ### Scenario G: Final Whole-Implementation Review
 
-D16 consumes the exact route owned by the
+Whole-implementation quality review consumes the exact route owned by the
 [policy inventory](../guidelines/agent-routing-and-mutation-policy.md#direct-child-route-inventory).
 It reviews the whole implementation range and may take only the narrow
 ADR-0016 skip. Otherwise, findings enter a final fix and fresh-review loop; an
 unavailable or invalid pass returns the owning blocked terminal transition and
 does not enter branch finish.
 
-D16 must not collapse into the D15 task-quality session, substitute ambient
+Whole-implementation quality review must not collapse into the task quality review session, substitute ambient
 routing, or treat review unavailability as a passing verdict.
 
 ### Scenario H: CI Diagnosis Before Fix Classification
 
-D17 consumes the exact diagnosis and fix-classification routes owned by the
+CI diagnosis and fix consumes the exact diagnosis and fix-classification routes owned by the
 [policy inventory](../guidelines/agent-routing-and-mutation-policy.md#direct-child-route-inventory).
 The owner guards and consumes the diagnosis before classifying any fix. The
 selected fix child may commit only the scoped fix. The root alone separately
@@ -2197,7 +2197,7 @@ reviewed-plan approval or the existing owning handoff. Changed plan bytes
 require current assurance under the retained semantic budget or qualifying
 declaration-verification exception and a new authority assessment;
 current producer provenance, digest checks, the direct/manual structural gate,
-D14–D16 and final changed-head independent review remain required.
+per-task and whole-implementation reviews and final changed-head independent review remain required.
 
 ## Acceptance Criteria
 
@@ -2264,11 +2264,11 @@ D14–D16 and final changed-head independent review remain required.
 - Source-immutable results are verified before semantic validation or
   consumption, exact cleanup precedes application, detected source mutation is
   never repaired, and the minimum guard's limitations remain explicit.
-- D14-D18 use the named fail-closed dispositions without inventing a passing
-  verdict, retry increment, fix, push, merge, or branch-finish transition; D18
-  stops before shared-context construction and D7 review.
+- per-task reviews, whole-implementation quality review, CI diagnosis and fix, and semantic review context use the named fail-closed dispositions without inventing a passing
+  verdict, retry increment, fix, push, merge, or branch-finish transition; semantic review context
+  stops before shared-context construction and independent review.
 - A fresh ordinary blocker with current exact implementation authority may use
-  the existing bounded repair route without D10 only after its owner rechecks
+  the existing bounded repair route without targeted verification only after its owner rechecks
   the closed trigger set; all existing stops, proportionality, independent
   review, and final approval gates remain in force.
 - An eligible planned compliance or necessary-completion repair may use

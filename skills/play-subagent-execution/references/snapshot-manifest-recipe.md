@@ -4,7 +4,7 @@ The [write-snapshot-manifest usage](write-snapshot-manifest-usage.md) is the
 sole executable construction, input, and failure contract. This reference owns
 the `implementer/snapshot/v1` envelope semantics and report-notice policy.
 
-Snapshot-requesting D12 and D13 tasks report `BLOCKED` when the supplied helper
+Snapshot-requesting default implementation and exact task execution tasks report `BLOCKED` when the supplied helper
 cannot produce the manifest and never hand-roll a fallback. Snapshot-skipped
 tasks do not read the recipe or run the helper. A successful task appends exactly
 one final report line:

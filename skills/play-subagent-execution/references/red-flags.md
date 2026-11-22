@@ -21,7 +21,7 @@ lifecycle transitions.
 - Treat reviewer findings as automatic mutation authority; they are evidence
   only. The lifecycle owner must apply the portable proportionality policy,
   retain its bounded impact preview, separate dispositions, and enforce the
-  review-loop stop before D12.
+  review-loop stop before default implementation.
 - Reset the review-loop count with approval, reuse stale approval after a head,
   route, contract, or evidence change, or call a cosmetic contract edit a new
   review episode.
@@ -54,8 +54,8 @@ lifecycle transitions.
 - Apply a stale or incomplete reviewer result instead of using the
   [lifecycle/status policy](lifecycle-status-policy.md)
 
-Returned D12/D13 questions, blockers, reviewer findings, fixups, re-reviews,
+Returned default implementation and exact task execution questions, blockers, reviewer findings, fixups, re-reviews,
 and failures all route through the lifecycle/status policy. The
 [skip-dispatch policy](skip-dispatch-policy.md) remains the owner of
-pre-dispatch D13 selection and fallback; this warning index does not restate
+pre-dispatch exact task execution selection and fallback; this warning index does not restate
 either owner's rules.

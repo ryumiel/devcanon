@@ -1,6 +1,6 @@
 # Combined Planning Review Contract
 
-Status: active. This reference is the planning owner's complete D5 contract;
+Status: active. This reference is the planning owner's complete combined planning review contract;
 it replaces the retired paired D5/D6 gate. Rationale belongs to
 [ADR-0039](../../../docs/adr/adr-0039-combined-planning-review.md).
 
@@ -21,7 +21,7 @@ duplicate proof or speculative FULL contract is required merely for appearance.
 
 ## Combined remit
 
-One independent D5 reviewer must cover both dimensions for the complete plan,
+One independent combined planning reviewer must cover both dimensions for the complete plan,
 including complex multi-boundary work:
 
 | Dimension     | Required judgment                                                                                                                                                                                                                                                                                        |
@@ -137,9 +137,9 @@ original/current diff, all gaps, relevant input changes and current mapping
 sources. A consumer cannot make this correction on the producer's behalf.
 
 Run canonical path/projection/digest preflight, then dispatch one fresh independent
-D5 using the existing source-immutable, external-none, response-only tuple and
+Combined planning review using the existing source-immutable, external-none, response-only tuple and
 guard lifecycle. Set its purpose to verification-only; retain the consumed
-semantic history rather than assigning a third semantic review wave. D5 reads
+semantic history rather than assigning a third semantic review wave. Combined planning review reads
 the authoritative mapping sources independently, checks the full diff and all
 gaps, and validates applicability of every retained coverage row to current
 sources and bytes. Every PLAN/task dimension must have current rechecked or
@@ -191,7 +191,7 @@ continuation loop. Readiness is rechecked before drafting its revised plan.
 
 The planning controller may request at most one focused specialist per accepted
 scope only for a concrete consequential disputed claim or knowledge gap that
-combined review cannot resolve. Use the existing D4 owner to validate an
+combined review cannot resolve. Use the existing focused specialist dispatch owner to validate an
 accepted source-immutable, external-none, response-only route, full configured
 tuple, bounded question, inputs, output and termination before dispatch. No
 new route, model override, capability escalation or full second plan review is
@@ -199,9 +199,9 @@ created. Missing authority or unsupported route stops the request.
 
 A specialist supplies evidence, not PASS or scope authority. It neither resets
 nor adds a planning pass. Any resulting plan correction still needs the
-remaining D5 pass; with none remaining return to reassessment. An unavailable
+remaining combined planning review pass; with none remaining return to reassessment. An unavailable
 specialist leaves the affected decision unresolved. Do not borrow final-review
-D10 as a planning route.
+Targeted verification as a planning route.
 
 ## Handoff and compatibility
 
@@ -255,6 +255,6 @@ Any changed bytes require current assurance under this contract (semantic
 review within budget or the qualifying verification-only exception) and a new
 parent authority assessment; prior approval cannot cover new bytes, and the human approval loop
 has no automatic cycle-reset effect. Preserve mechanical
-execution's independent eligibility/guardrails and D14–D16. All producer and
+execution's independent eligibility/guardrails and per-task and whole-implementation reviews. All producer and
 consumer changes must activate together; no intermediate one-PASS/two-PASS mix
 is supported.

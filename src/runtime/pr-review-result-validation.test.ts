@@ -235,7 +235,7 @@ describe("PR-review result validation context", () => {
 
       await writeFile(
         path.join(workspace.root, workspace.findingsFile),
-        '{"schema":"play-review/findings/v3","findings":[],"carry_forward":[],"incomplete_review_routes":[{"route":"D7","disposition":"NEEDS_CONTEXT"}]}\n',
+        '{"schema":"play-review/findings/v3","findings":[],"carry_forward":[],"incomplete_review_routes":[{"route":"independent-review","disposition":"NEEDS_CONTEXT"}]}\n',
       );
       const publishedDigest = await sha256File(
         path.join(workspace.root, workspace.findingsFile),

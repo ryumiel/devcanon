@@ -173,7 +173,7 @@ describe("current independent analysis result", () => {
         );
         const envelope = JSON.parse(await readFile(file, "utf8"));
         envelope.incomplete_review_routes = [
-          { route: "D7", disposition: "NEEDS_CONTEXT" },
+          { route: "independent-review", disposition: "NEEDS_CONTEXT" },
         ];
         await writeFile(file, JSON.stringify(envelope));
       }
@@ -325,7 +325,7 @@ describe("pr-review historical baseline consumption", () => {
         );
         if (dimension === "incomplete")
           findings.incomplete_review_routes = [
-            { route: "D7", disposition: "FAILED" },
+            { route: "independent-review", disposition: "FAILED" },
           ];
         else findings.review_head_sha = "f".repeat(40);
         await writeJson(workspace.worktree, workspace.findingsFile, findings);

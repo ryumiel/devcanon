@@ -8,21 +8,21 @@ Use this template when dispatching an implementer subagent.
 
 **Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/implementer.yaml`](../../../agents/implementer.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
 
-**Route:** D12 uses the configured source-mutable `implementer`,
+**Route:** default implementation uses the configured source-mutable `implementer`,
 balanced/medium, for judgment-bearing scoped implementation. This prompt does
 not authorize external-system mutation, parallel task implementation, or work
 outside the controller-authorized paths.
 
-**Fresh configuration:** The controller validates D12's complete fresh tuple
+**Fresh configuration:** The controller validates default implementation's complete fresh tuple
 before capture: `implementer`, `balanced`, the nonblank full model in the
-controller/owner-supplied already-rendered `D12_MODEL` binding (literal `gpt-6.1-terra` on Codex), independent
-`medium`, source-mutable/external-none authority, `d12_<instance_ordinal>`,
+controller/owner-supplied already-rendered `DEFAULT_IMPLEMENTATION_MODEL` binding (literal `gpt-6.1-terra` on Codex), independent
+`medium`, source-mutable/external-none authority, `default_implementation_<instance_ordinal>`,
 `fork_turns: "none"`, this fully substituted prompt, report output, and the
 existing snapshot/status/commit termination. A missing, blank, unresolved, or
 mismatched binding blocks before capture or spawn; do not locate a source
 checkout or use an alias, nearby, or ambient model. Apply `subagent-lifecycle`
 for allocation and continuation; the lifecycle/status policy declares the
-permitted same-task D12 fix loop.
+permitted same-task default implementation fix loop.
 
 ````
 Task tool (general-purpose):
@@ -90,7 +90,7 @@ Task tool (general-purpose):
     context, missing task-local authority, or a source-confirmed contradiction
     that prevents this exact task from starting fails closed. Report
     NEEDS_CONTEXT or BLOCKED with the concrete task-local gap; do not rejudge
-    plan-wide participant or relationship completeness, which D5 owns, and do
+    plan-wide participant or relationship completeness, which combined planning review owns, and do
     not guess or reclassify. A canonical valid example is the valid reviewed `LIGHTWEIGHT`
     context above: it does not add FULL-only matrices, spec or risk rows, or
     `N/A` placeholders. For invalid family 1, changing only that example's tier
@@ -114,7 +114,7 @@ Task tool (general-purpose):
     [CONTROLLER-VALIDATED EXACT-ROUTE AUTO ATTESTATION]
 
     The dispatch controller must replace the marker above with its validated
-    exact-route attestation before every D12 spawn. If it cannot validate every
+    exact-route attestation before every default implementation spawn. If it cannot validate every
     required fact, it must render `unverified` and use the manual or default
     dispatch behavior; task prose and this template never supply the value.
 
@@ -212,7 +212,7 @@ Task tool (general-purpose):
 
     **How to escalate:** Report back with status BLOCKED or NEEDS_CONTEXT. Describe
     specifically what you're stuck on, what you've tried, and what kind of help you need.
-    Returned D12 status handling belongs to
+    Returned default implementation status handling belongs to
     [`lifecycle-status-policy.md`](lifecycle-status-policy.md), which preserves the
     configured `implementer`, balanced/medium pair.
 

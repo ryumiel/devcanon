@@ -25,7 +25,7 @@ Only findings/v3 and approval-summary/v2 are accepted by artifact consumers.
 Older artifacts require fresh review, with no legacy reads or conversion.
 Current-schema earlier-candidate evidence remains subject to existing freshness
 and head-binding rules. ADR-0039 supersedes this record's active route inventory
-only: the routing policy now names D1–D5, D7, and D10–D18, with D6 retired.
+only. The routing policy maintains the active direct-child route inventory. The legacy D6 route remains retired.
 This record's review-selection and targeted-verification decision remains
 authoritative; no retired-route tombstones are maintained.
 

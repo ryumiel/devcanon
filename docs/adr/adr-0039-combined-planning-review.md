@@ -38,7 +38,7 @@ explicit owning reassessment. Every genuine blocker prevents approval,
 including a defect inspectable but missed during the initial review.
 
 A final complete FAIL limited to an omitted declaration of a mapping explicitly
-established by current accepted sources may receive fresh independent D5
+established by current accepted sources may receive fresh independent combined planning review
 verification-only assurance after the two semantic passes. It checks the full
 diff, sources, gaps and complete current/carried coverage, binds corrected bytes
 and preserves historical FAILs and consumed passes. New or uncertain mapping,
@@ -51,14 +51,14 @@ transplanted onto new bytes.
 Reuse source maps and scoped evidence in existing artifacts while inputs remain
 valid. Independent judgment requires checking relevant authoritative sources,
 not repeating discovery. Changed authority, source or candidate invalidates
-dependent claims; uncertain impact requires broader refresh. D18 retains its
-semantic-context responsibility. Final D7/D10 and implementation-internal
-D14–D16 review remain outside this consolidation.
+dependent claims; uncertain impact requires broader refresh. Semantic review context retains its
+semantic-context responsibility. Final independent review and targeted verification and implementation-internal
+per-task and whole-implementation reviews remain outside this consolidation.
 
 The [planning contract](../../skills/play-planning/references/combined-review-contract.md)
 owns operational result, coverage, budget and compatibility semantics. The
 [routing policy](../guidelines/agent-routing-and-mutation-policy.md#active-combined-planning-route)
-owns the retained D5 tuple and D6 retirement. The
+owns the retained combined planning review tuple and D6 retirement. The
 [workflow spec](../specs/afds-workflow-routing.md#planning-review-and-preparation-behavior)
 owns observable requirements and evaluation limits.
 
@@ -66,7 +66,7 @@ Activate the planning producer and all coupled consumers together. Distinguish
 combined review with explicit controller-local provenance; do not create a
 persisted result registry or reinterpret legacy PASS results. Preserve separate
 exact-digest user approval and all external authority gates. The note route
-never enters plan-only helpers, mechanical/reduced executor routes or D5/auto
+never enters plan-only helpers, mechanical/reduced executor routes or combined planning review/auto
 handoff contracts. Batch continuation distinguishes preparation kind and exact
 identity in existing controller-local provenance. Both issue routes retain
 source protection, candidate closure, full checks, independent final branch

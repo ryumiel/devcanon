@@ -35,10 +35,10 @@ invalid-question-pairing inputs independently. Pass guarded paths, never copied
 untrusted content. A proposed child has no cleanup or ledger state before the
 complete prompt passes.
 
-For each D2 and D3 route independently, choose the next positive base-10
+For each internal research and external research route independently, choose the next positive base-10
 `<instance_ordinal>` not used by retained rows for that route; completed and
-superseded rows remain reserved. Use `d2_<instance_ordinal>` or
-`d3_<instance_ordinal>`, require `^[a-z0-9_]+$`, nonblankness, and absence from
+superseded rows remain reserved. Use `internal_research_<instance_ordinal>` or
+`external_research_<instance_ordinal>`, require `^[a-z0-9_]+$`, nonblankness, and absence from
 all retained ledger task names. Keep scope and sibling identity in ledger
 dimensions, not the task name.
 
@@ -48,28 +48,28 @@ Reconfirm the main skill's full tuple immediately before capture. Each child
 receives no inherited turns and is created once only in its selected route:
 
 ```text
-# D2 internal research; D2_MODEL is the Codex-bound balanced model
+# Internal research. INTERNAL_RESEARCH_MODEL is the Codex-bound balanced model
 Codex.spawn_agent({
-  task_name: d2_<instance_ordinal>,
+  task_name: internal_research_<instance_ordinal>,
   agent_type: "investigator",
-  model: D2_MODEL,
+  model: INTERNAL_RESEARCH_MODEL,
   reasoning_effort: "medium",
   fork_turns: "none",
-  message: D2_PROMPT,
+  message: INTERNAL_RESEARCH_PROMPT,
 })
-# D3 external research; D3_MODEL is the Codex-bound balanced model
+# External research. EXTERNAL_RESEARCH_MODEL is the Codex-bound balanced model
 Codex.spawn_agent({
-  task_name: d3_<instance_ordinal>,
+  task_name: external_research_<instance_ordinal>,
   agent_type: "investigator",
-  model: D3_MODEL,
+  model: EXTERNAL_RESEARCH_MODEL,
   reasoning_effort: "medium",
   fork_turns: "none",
-  message: D3_PROMPT,
+  message: EXTERNAL_RESEARCH_PROMPT,
 })
 ```
 
 If native Codex rejects the requested pair, retain the exact
-`model=<D2_OR_D3_MODEL> effort=high` and take only the main policy's unavailable
+`model=<RESEARCH_MODEL> effort=high` and take only the main policy's unavailable
 investigator outcome after required cleanup. Do not retry or alter the route.
 
 ## Guarded Result Handling
