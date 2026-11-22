@@ -7,16 +7,16 @@ research child performs one assigned scope and never dispatches another agent.
 
 ## Message Body Template
 
-This file supplies only the fully substituted message body. Phase 3 in
-[`SKILL.md`](../SKILL.md) owns tuple validation and the one fresh Codex creation;
-do not wrap this template in another spawning call.
+This file supplies only the fully substituted message body. The
+[Phase 3 controller procedure](phase-3-research-controller.md) owns tuple
+validation and the one fresh Codex creation. Do not wrap this template in
+another spawning call.
 
 **Promotion classification:** Workflow-local prompt template paired with the
-source agent at
-[`agents/investigator.yaml`](../../../agents/investigator.yaml) — referenced
-from `skills/issue-priming-workflow/SKILL.md` Phase 3 for dispatch-time
+source agent `agents/investigator.yaml` in the DevCanon repository. The
+Phase 3 controller procedure references this template for dispatch-time
 placeholder substitution. The role identity is already promoted; per
-[`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md)
+`docs/guidelines/agent-authoring-guide.md` in the DevCanon repository
 §4, workflow-local prompt assembly stays as a template.
 
 ## Root-Supplied Inputs
@@ -25,7 +25,7 @@ The root independently validates and substitutes every visible dispatch input
 before it creates lifecycle state or dispatches this template. Each child gets a
 fresh complete prompt and never infers source, scope, external necessity, or
 external question; root-side tuple validation and returned-report consumption
-remain owned by Phase 3 in [`SKILL.md`](../SKILL.md).
+remain with the [Phase 3 controller procedure](phase-3-research-controller.md).
 
 ````text
     You are a source-immutable research leaf preparing one bounded report for

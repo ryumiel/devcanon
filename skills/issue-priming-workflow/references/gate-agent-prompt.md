@@ -5,17 +5,16 @@ Phase 2. The source workflow owns the source-immutability guard around this
 prompt; the assessor returns only the gate response and receives zero handoffs.
 
 **Promotion classification:** Workflow-local prompt template paired with the
-semantic source role at
-[`agents/assessor.yaml`](../../../agents/assessor.yaml). The source role owns
+semantic source role `agents/assessor.yaml` in the DevCanon repository. The source role owns
 identity, capability, and source-authority envelope. The routing policy and
 Phase 2 own the fresh balanced/low tuple; this template owns only
 issue-priming gate method and response shape.
 
 ## Message Body Template
 
-This file supplies only the fully substituted message body. Phase 2 in
-[`SKILL.md`](../SKILL.md) owns tuple validation and the one fresh Codex creation;
-do not wrap this template in another spawning call.
+This file supplies only the fully substituted message body. The
+[Phase 2 procedure](phase-2-complexity-gate.md) owns tuple validation and the
+one fresh Codex creation. Do not wrap this template in another spawning call.
 
 ```text
     You are assessing whether an issue requires multi-agent research

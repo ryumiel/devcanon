@@ -22,6 +22,14 @@ const CI_BRANCH_BY_MODEL = {
   CI_JUDGMENT_FIX_MODEL: "judgment-fix",
 } as const;
 
+const ISSUE_PRIMING_GATE = "phase-2-complexity-gate.md";
+const ISSUE_PRIMING_RESEARCH = "phase-3-research-controller.md";
+const ISSUE_PRIMING_SPAWN_PROCEDURES = new Map([
+  ["issue-gate-assessment", ISSUE_PRIMING_GATE],
+  ["internal-research", ISSUE_PRIMING_RESEARCH],
+  ["external-research", ISSUE_PRIMING_RESEARCH],
+]);
+
 const FRESH_SPAWNS = [
   [
     "issue-gate-assessment",
@@ -400,6 +408,20 @@ describe("agent routing and mutation policy owner", () => {
       ),
     );
 
+    const primingProcedures = new Map(
+      await Promise.all(
+        [ISSUE_PRIMING_GATE, ISSUE_PRIMING_RESEARCH].map(
+          async (file) =>
+            [
+              file,
+              await readRepoFile(
+                `skills/issue-priming-workflow/references/${file}`,
+              ),
+            ] as const,
+        ),
+      ),
+    );
+
     for (const [
       id,
       ownerSkill,
@@ -440,7 +462,14 @@ describe("agent routing and mutation policy owner", () => {
           : `\`${model}\` = \`${role === "implementer" ? "gpt-6.1-terra" : `{{model-codex:${capability}}}`}\``,
       );
       expect(config.capabilityProfiles[capability].codex).toMatch(/\S/);
-      expect(source).toContain(
+      const procedureFile = ISSUE_PRIMING_SPAWN_PROCEDURES.get(id);
+      const procedure = procedureFile
+        ? primingProcedures.get(procedureFile)
+        : source;
+      if (procedureFile) {
+        expect(source).toContain(`](references/${procedureFile})`);
+      }
+      expect(procedure).toContain(
         [
           "Codex.spawn_agent({",
           `  task_name: ${id.replaceAll("-", "_")}_<instance_ordinal>,`,
@@ -528,7 +557,6 @@ describe("agent routing and mutation policy owner", () => {
     const CONSUMER_LINK =
       /\[[^\]]+\]\(\.\.\/play-agent-dispatch\/references\/dispatch-ritual-usage\.md\)/u;
     const consumingSkills = [
-      "issue-priming-workflow",
       "play-planning",
       "play-review",
       "play-skill-authoring",
@@ -549,6 +577,16 @@ describe("agent routing and mutation policy owner", () => {
     for (const [skill, source] of sources) {
       const link = skill === "play-agent-dispatch" ? OWNER_LINK : CONSUMER_LINK;
       expect(source, `${skill} links the shared dispatch ritual`).toMatch(link);
+    }
+    const primingConsumerLink =
+      /\[[^\]]+\]\(\.\.\/\.\.\/play-agent-dispatch\/references\/dispatch-ritual-usage\.md\)/u;
+    for (const file of [ISSUE_PRIMING_GATE, ISSUE_PRIMING_RESEARCH]) {
+      const source = await readRepoFile(
+        `skills/issue-priming-workflow/references/${file}`,
+      );
+      expect(source, `${file} links the shared dispatch ritual`).toMatch(
+        primingConsumerLink,
+      );
     }
   });
 });
