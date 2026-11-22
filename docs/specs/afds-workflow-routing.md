@@ -353,9 +353,11 @@ Before selected creation, owner release, messaging or timer activation, one
 initial check inspects applicable human decisions visible in the controller or
 verifiable through supported evidence. It enumerates only selected effects:
 owner-chat creation, coordinator-to-owner instructions and owner-to-coordinator
-gates/completion/required readiness; enabled monitoring adds one watchdog chat,
+gates/completion/required readiness. Scheduled monitoring adds one watchdog chat,
 watchdog-to-owner updates, watchdog-to-coordinator exceptions and recurring
-scheduling with cadence. A selected stop includes only required shutdown controls.
+scheduling with cadence. GitHub push adds a webhook registration and authorization
+for notices to the bound recipients. A selected stop includes only required
+shutdown controls.
 Alongside setup permissions, establish separately scoped publication, conditional
 merge and scoped cleanup authority, reusing actual human decisions and collecting
 only missing scope or authority before affected effects.
@@ -953,7 +955,11 @@ generic resume preserves the stop and independent owner mode. An explicit
 active-timer stop instead requires its bounded host control/permission check and
 observed shutdown without replacement setup.
 
-An explicit monitoring request defaults to one separate watchdog and timer
+A new GitHub batch on local macOS Codex Desktop may explicitly select
+[GitHub push delivery](#route-007-push-github-push-delivery). For other explicit
+monitoring requests, the existing watchdog and heartbeat selection applies.
+
+An explicit watchdog request defaults to one separate watchdog and timer
 unless another existing mode is explicitly selected, and requires retained
 applicable scheduling and messaging authority, a verified controller, existing owner and
 repository bindings, readable canonical policy, and inspectable schedule and
@@ -1026,6 +1032,32 @@ A separate watcher may retain only local notification state and notify existing
 recipients. It cannot approve,
 implement, merge, mutate a provider, create or replace an owner, or write the
 batch ledger. Neither mode introduces a custom scheduler or mandatory agent.
+
+#### ROUTE-007-PUSH: GitHub push delivery
+
+Select this mode only at fresh batch setup with explicit authorization for the
+GitHub subscription and the existing coordinator and owner recipients. The
+coordinator records the mode in its current ledger and supplies the relay
+read-only access to that ledger. Push mode uses signed GitHub events as its
+trigger. Owner reports remain the normal path for local work and owner results.
+
+The relay verifies the signature, repository, current ledger binding, and live
+provider evidence. Route a completed Connector code-review verdict for the
+current PR head to the existing owner. Route PR opened, merged, and
+closed-without-merge notices to the existing coordinator. Use the registered
+branch and PR association to identify the batch item. Hold ambiguous or missing
+bindings and suppress verified equivalent notices. On an opened event, a unique
+registered owner branch can identify the item before a closing reference is
+available. The coordinator verifies the association before recording it.
+
+Keep queued receipts distinct from evidence that a turn started. Retain an
+unresolved attempt for reconciliation before replay. The relay neither reads
+GitHub on a timer nor writes the ledger. The existing recipients revalidate
+notices under ROUTE-007-EVENT and retain their ordinary reporting, publication,
+merge and cleanup gates. CI notifications and owner-result recovery remain
+outside push mode. The
+[GitHub push operation](../../skills/issue-batch-coordination/references/github-push.md)
+describes setup and verification.
 
 #### ROUTE-007-EVENT: Observation is non-authorizing evidence
 

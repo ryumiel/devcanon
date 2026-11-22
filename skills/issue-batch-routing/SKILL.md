@@ -63,7 +63,7 @@ preference or capability inquiries, consume the coordinator's selected effects
 or, for direct routing, select them from intent, independent owner/monitor
 overrides, bound modes/settings and retained explicit stops. Fresh execution
 selects owner reports with no monitor unless monitoring is explicitly requested;
-that request follows the companion's watchdog procedure. Resume preserves
+the companion selects its authorized push or scheduled procedure. Resume preserves
 compatible previously authorized monitoring and retained stops rather than
 stopping or replacing a monitor because the fresh default changed. Disabled
 monitoring excludes watcher creation, monitor-specific messaging authorization,
