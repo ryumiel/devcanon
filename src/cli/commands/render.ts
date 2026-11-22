@@ -1,20 +1,8 @@
 import { loadConfig } from "../../config/load.js";
-import {
-  reconcileDevcanonRuntimeSource,
-  reconcileDevcanonRuntimeSubtree,
-} from "../../render/devcanon-runtime.js";
-import {
-  preflightGeneratedRender,
-  renderAllWithValidatedRuntime,
-} from "../../render/pipeline.js";
+import { renderAll } from "../../render/pipeline.js";
 import type { AcceptedProvider } from "../../runtime-build/provider.js";
 import { UserError } from "../../utils/errors.js";
 import { getLogger } from "../../utils/output.js";
-import {
-  bundledDevcanonRuntimeDir,
-  devcanonRuntimeDir,
-  validateDevcanonRuntime,
-} from "../../validate/devcanon-runtime.js";
 
 interface RenderOptions {
   target?: string;
@@ -43,38 +31,9 @@ export async function renderAction(
   const acceptedProvider =
     typeof provider === "function" ? await provider() : provider;
 
-  const runtimeDir = devcanonRuntimeDir(config.library.skillsDir);
-  let validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
-    adapterSourceDir: bundledDevcanonRuntimeDir(),
-    operation: "compose",
-    provider: acceptedProvider,
-  });
-  const projection = await renderAllWithValidatedRuntime(
+  const { outputs } = await renderAll(
     config,
-    validatedRuntime,
-    false,
-    strict,
-    options.target as "claude" | "codex" | undefined,
-  );
-  await preflightGeneratedRender(config, projection);
-  if (validatedRuntime.sourceDisposition !== "current") {
-    if (validatedRuntime.sourceDisposition === "repair-runtime") {
-      await reconcileDevcanonRuntimeSubtree(runtimeDir, acceptedProvider);
-    } else {
-      await reconcileDevcanonRuntimeSource(
-        runtimeDir,
-        acceptedProvider,
-        validatedRuntime,
-      );
-    }
-    validatedRuntime = await validateDevcanonRuntime(runtimeDir, {
-      adapterSourceDir: bundledDevcanonRuntimeDir(),
-      provider: acceptedProvider,
-    });
-  }
-  const { outputs } = await renderAllWithValidatedRuntime(
-    config,
-    validatedRuntime,
+    acceptedProvider,
     true,
     strict,
     options.target as "claude" | "codex" | undefined,
