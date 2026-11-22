@@ -272,11 +272,7 @@ async function validatePrReviewResultEvidenceInCurrentWorktree(
   validateDirectChildPath("result", input.resultFile, "-result.json");
   await assertReadableFile("result file", input.resultFile);
   const result = await readJsonObject(input.resultFile, "result file");
-  validateResultObject(
-    result,
-    input.resultFile,
-    input.resultIdentityPath ?? input.resultFile,
-  );
+  validatePrReviewResultObject(result, input.resultFile);
   const handoff = await validateResultFacts(result, input, options);
   return { result, handoff };
 }
@@ -716,10 +712,9 @@ export function validatePrReviewHandoffObject(
   }
 }
 
-function validateResultObject(
+export function validatePrReviewResultObject(
   value: unknown,
   file: string,
-  _identityPath: string,
 ): asserts value is JsonObject {
   if (
     !isObject(value) ||

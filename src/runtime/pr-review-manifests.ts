@@ -34,6 +34,7 @@ import {
   validatePrReviewResultCommandAuthority,
   validatePrReviewResultCommandAuthorityForFindingsPublication,
   validatePrReviewResultCommandAuthorityForReviewBodyRecovery,
+  validatePrReviewResultObject,
 } from "./pr-review-result-validation.js";
 import { validateTargetedReviewEvidence } from "./review-artifacts.js";
 import { extractPreFindingsMarkdown } from "./review-artifacts.js";
@@ -71,23 +72,6 @@ type LeaseStatus = {
 };
 
 const PRE_INPUT_FINDINGS_SHA256 = createHash("sha256").digest("hex");
-
-const FORBIDDEN_KEYS = new Set([
-  "approval",
-  "approved_review",
-  "approved_review_file",
-  "approval_state",
-  "lease",
-  "lease_state",
-  "lease_file",
-  "review_payload_file",
-  "payload",
-  "payload_sha256",
-  "review_payload_sha256",
-  "REVIEW_EVENT",
-  "review_event",
-  "event",
-]);
 
 export async function runPrReviewManifestsCommand(
   args: readonly string[],
@@ -374,7 +358,7 @@ async function writeResult(): Promise<string> {
     },
   };
 
-  validateResultObject(result, file, file);
+  validatePrReviewResultObject(result, file);
   await validateResultFacts(result, file);
   await writeTextAtomically(
     path.join(process.cwd(), file),
@@ -558,7 +542,7 @@ async function recoverReviewBodyPublication(): Promise<string> {
       status: "edited",
     },
   };
-  validateResultObject(recovered, resultFile, resultFile);
+  validatePrReviewResultObject(recovered, resultFile);
   await prepareWriteTarget("result", resultFile);
   await prepareWriteTarget("result temp", tmpPathFor(resultFile));
   await writeTextAtomically(
@@ -671,7 +655,7 @@ async function replaceFindings(): Promise<string> {
         status: "edited",
       },
     };
-    validateResultObject(rebound, resultFile, resultFile);
+    validatePrReviewResultObject(rebound, resultFile);
     await prepareWriteTarget("result", resultFile);
     await prepareWriteTarget("result temp", tmpPathFor(resultFile));
     await writeTextAtomically(
@@ -1303,149 +1287,6 @@ function inheritedHelperEnv(): Record<string, string> {
     }
   }
   return inherited;
-}
-
-function validateResultObject(
-  value: unknown,
-  file: string,
-  identityFile: string,
-): asserts value is JsonObject {
-  if (
-    !isObject(value) ||
-    !hasExactKeys(value, [
-      "schema",
-      "pr_number",
-      "repository",
-      "review_head_sha",
-      "findings_file",
-      "review_body_file",
-      "context_file",
-      "artifacts",
-      "digests",
-      "scope_decision",
-      "presentation",
-      "validation",
-    ]) ||
-    hasForbiddenKey(value)
-  ) {
-    fail(`result schema mismatch: ${file}`);
-  }
-  const artifacts = objectField(
-    value,
-    "artifacts",
-    `result schema mismatch: ${file}`,
-  );
-  const digests = objectField(
-    value,
-    "digests",
-    `result schema mismatch: ${file}`,
-  );
-  const scope = objectField(
-    value,
-    "scope_decision",
-    `result schema mismatch: ${file}`,
-  );
-  const presentation = objectField(
-    value,
-    "presentation",
-    `result schema mismatch: ${file}`,
-  );
-  const validation = objectField(
-    value,
-    "validation",
-    `result schema mismatch: ${file}`,
-  );
-  if (
-    stringField(value, "schema", "") !== "pr-review/result/v1" ||
-    !isPositiveInteger(value.pr_number) ||
-    !isRepository(stringField(value, "repository", "")) ||
-    !isSha(stringField(value, "review_head_sha", "")) ||
-    !isDirectEphemeralPath(
-      stringField(value, "findings_file", ""),
-      "-findings.json",
-    ) ||
-    !isNullableDirectEphemeralPath(value.review_body_file, "-review-body.md") ||
-    !isNullableDirectEphemeralPath(value.context_file, "-context.md") ||
-    !hasExactKeys(artifacts, [
-      "handoff_file",
-      "scope_decision_file",
-      "prior_threads_file",
-      "rendered_preview_file",
-      "provider_scope_evidence_file",
-    ]) ||
-    !isDirectEphemeralPath(
-      stringField(artifacts, "handoff_file", ""),
-      "-handoff.json",
-    ) ||
-    !isDirectEphemeralPath(
-      stringField(artifacts, "scope_decision_file", ""),
-      "-scope-decision.json",
-    ) ||
-    !isNullableDirectEphemeralPath(
-      artifacts.prior_threads_file,
-      "-prior-threads.json",
-    ) ||
-    !isNullableDirectEphemeralPath(
-      artifacts.rendered_preview_file,
-      "-review-preview.md",
-    ) ||
-    !isDirectEphemeralPath(
-      stringField(artifacts, "provider_scope_evidence_file", ""),
-      "-provider-scope-evidence.json",
-    ) ||
-    !hasExactKeys(digests, [
-      "handoff_sha256",
-      "findings_sha256",
-      "review_body_sha256",
-      "context_sha256",
-      "scope_decision_sha256",
-      "prior_threads_sha256",
-      "rendered_preview_sha256",
-      "provider_scope_evidence_sha256",
-    ]) ||
-    !isSha256(stringField(digests, "handoff_sha256", "")) ||
-    !isSha256(stringField(digests, "findings_sha256", "")) ||
-    !isSha256(stringField(digests, "scope_decision_sha256", "")) ||
-    !isSha256(stringField(digests, "provider_scope_evidence_sha256", "")) ||
-    !digestMatchesNullable(
-      value.review_body_file,
-      digests.review_body_sha256,
-    ) ||
-    !digestMatchesNullable(value.context_file, digests.context_sha256) ||
-    !digestMatchesNullable(
-      artifacts.prior_threads_file,
-      digests.prior_threads_sha256,
-    ) ||
-    !digestMatchesNullable(
-      artifacts.rendered_preview_file,
-      digests.rendered_preview_sha256,
-    ) ||
-    !hasExactKeys(scope, [
-      "summary",
-      "selected_range",
-      "full_range",
-      "is_followup_narrow",
-    ]) ||
-    stringField(scope, "summary", "").length === 0 ||
-    stringField(scope, "selected_range", "").length === 0 ||
-    stringField(scope, "full_range", "").length === 0 ||
-    typeof scope.is_followup_narrow !== "boolean" ||
-    !hasExactKeys(presentation, ["status", "notes"]) ||
-    !["not-presented", "presented", "edited", "preview-current"].includes(
-      stringField(presentation, "status", ""),
-    ) ||
-    !(presentation.notes === null || typeof presentation.notes === "string") ||
-    !hasExactKeys(validation, [
-      "status",
-      "findings_validated",
-      "scope_decision_validated",
-    ]) ||
-    stringField(validation, "status", "") !== "valid" ||
-    validation.findings_validated !== true ||
-    validation.scope_decision_validated !== true
-  ) {
-    fail(`result schema mismatch: ${file}`);
-  }
 }
 
 async function validateHandoffFacts(handoff: JsonObject, identityFile: string) {
@@ -2461,53 +2302,12 @@ function hasExactKeys(object: JsonObject, keys: readonly string[]): boolean {
   return jsonEqual(Object.keys(object).sort(), [...keys].sort());
 }
 
-function hasForbiddenKey(value: unknown): boolean {
-  if (Array.isArray(value)) {
-    return value.some(hasForbiddenKey);
-  }
-  if (!isObject(value)) {
-    return false;
-  }
-  return Object.entries(value).some(
-    ([key, nested]) => FORBIDDEN_KEYS.has(key) || hasForbiddenKey(nested),
-  );
-}
-
-function isPositiveInteger(value: unknown): boolean {
-  return typeof value === "number" && Number.isInteger(value) && value >= 1;
-}
-
-function isRepository(value: string): boolean {
-  return /^[^/\s]+\/[^/\s]+$/u.test(value);
-}
-
 function isRefString(value: string): boolean {
   return value.length > 0 && !/[\s\p{Cc}]/u.test(value);
 }
 
 function isAbsolutePath(value: string): boolean {
   return value.startsWith("/") || /^[A-Za-z]:[\\/]/u.test(value);
-}
-
-function isDirectEphemeralPath(value: string, suffix: string): boolean {
-  try {
-    requireReviewArtifactPath(value);
-    return (
-      !value.includes("\\") && !value.includes("..") && value.endsWith(suffix)
-    );
-  } catch {
-    return false;
-  }
-}
-
-function isNullableDirectEphemeralPath(
-  value: unknown,
-  suffix: string,
-): boolean {
-  return (
-    value === null ||
-    (typeof value === "string" && isDirectEphemeralPath(value, suffix))
-  );
 }
 
 function isSha(value: string): boolean {
@@ -2526,12 +2326,6 @@ function isTimestamp(value: string): boolean {
     new Date(wholeSeconds).toISOString().replace(/\.\d{3}Z$/u, "Z") ===
       wholeSeconds
   );
-}
-
-function digestMatchesNullable(file: unknown, digest: unknown): boolean {
-  return file === null
-    ? digest === null
-    : typeof digest === "string" && isSha256(digest);
 }
 
 export function toOperationalPathText(value: string): string {
