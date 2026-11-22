@@ -343,19 +343,21 @@ Apply the dispatch ritual loaded in Phase 2.25 before capture; unavailable
 ritual or unresolved bindings block before capture. Independent review has zero handoffs,
 `external_authority: none`, and no recursion. Do not substitute roles or effort.
 
-| Route                | `agent_type` | Capability | Model marker                               | `reasoning_effort` | `source_authority` | Prompt                      |
-| -------------------- | ------------ | ---------- | ------------------------------------------ | ------------------ | ------------------ | --------------------------- |
-| `independent-review` | `reviewer`   | `frontier` | `INDEPENDENT_REVIEW_MODEL` = `gpt-6.1-sol` | `high`             | `source-immutable` | `INDEPENDENT_REVIEW_PROMPT` |
+| Route                | `agent_type` | Capability | Model marker               | `reasoning_effort` | `source_authority` | Prompt                      |
+| -------------------- | ------------ | ---------- | -------------------------- | ------------------ | ------------------ | --------------------------- |
+| `independent-review` | `reviewer`   | `frontier` | `INDEPENDENT_REVIEW_MODEL` | `high`             | `source-immutable` | `INDEPENDENT_REVIEW_PROMPT` |
 
 Build one self-contained prompt using `references/agent-briefing-template.md`.
 Include exact active/full ranges and frozen head, working directory,
 shared-context path, applicable checks, source pointers, the template's
 owner-linked closed finding/assessment instructions and example,
 contract-example context, and terminal requirements.
-Missing, blank, unresolved, or mismatched bindings block before capture; no
-source-checkout lookup or fallback model is permitted. After capture:
+Use the fixed `INDEPENDENT_REVIEW_MODEL` below. Missing, blank, unresolved,
+or mismatched bindings block before capture; no source-checkout lookup or
+fallback model is permitted. After capture, use the spawn fields below:
 
 ```text
+INDEPENDENT_REVIEW_MODEL = "gpt-6.1-sol"
 Codex.spawn_agent({
   task_name: independent_review_<instance_ordinal>,
   agent_type: "reviewer",
@@ -504,11 +506,12 @@ For consequential, disputed, or uncertain blocking candidates, dispatch at
 most one fresh, independent response-only targeted verifier using `subagent-lifecycle` and
 the Phase 2.25 dispatch ritual. Targeted verification is separate from independent review and the implementer;
 zero handoffs, `external_authority: none`, source-immutable, no recursion.
-Missing or mismatched bindings block before capture; no substitute pair.
+Use the fixed `TARGETED_VERIFICATION_MODEL` below. Missing or mismatched
+bindings block before capture; no substitute pair.
 
-| Route                   | `agent_type` | Capability | Model marker                                  | `reasoning_effort` | `source_authority` | Prompt                                |
-| ----------------------- | ------------ | ---------- | --------------------------------------------- | ------------------ | ------------------ | ------------------------------------- |
-| `targeted-verification` | `reviewer`   | `frontier` | `TARGETED_VERIFICATION_MODEL` = `gpt-6.1-sol` | `high`             | `source-immutable` | `TARGETED_VERIFICATION_CRITIC_PROMPT` |
+| Route                   | `agent_type` | Capability | Model marker                  | `reasoning_effort` | `source_authority` | Prompt                                |
+| ----------------------- | ------------ | ---------- | ----------------------------- | ------------------ | ------------------ | ------------------------------------- |
+| `targeted-verification` | `reviewer`   | `frontier` | `TARGETED_VERIFICATION_MODEL` | `high`             | `source-immutable` | `TARGETED_VERIFICATION_CRITIC_PROMPT` |
 
 The self-contained brief contains only selected unchanged Blocking claims,
 stable identities/ordinals, exact candidate/ranges, working directory, literal
@@ -520,6 +523,7 @@ counterevidence, open literal references, assess actual reachable consequences
 or applicable obligations, and independently apply the repository merge gate.
 
 ```text
+TARGETED_VERIFICATION_MODEL = "gpt-6.1-sol"
 Codex.spawn_agent({
   task_name: targeted_verification_<instance_ordinal>,
   agent_type: "reviewer",
