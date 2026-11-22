@@ -549,6 +549,16 @@ and never imply attachment reconciliation from filesystem removal.
 Delete the selected local branch only after its expected tip and lack of use by
 any worktree are verified. Chat archival does not clear remaining cleanup work.
 
+At batch closeout, the coordinator verifies accepted delivery against durable
+evidence and reconciles outstanding deliveries and effects before monitor
+retirement. Under existing stop authority, disable the selected GitHub webhook
+and verify that it is inactive. Then stop the receiver and verify the stop
+before retiring its dedicated HTTPS route and verifying its removal. Verify
+watchdog shutdown through its owning control when applicable.
+Honor explicit monitor retention and preserve its required state. Monitor
+retention or unresolved shutdown holds dependent state under EVID-004-CLEANUP
+while independently eligible owner cleanup proceeds.
+
 Acceptance scenarios are a completed owner whose archival removes the checkout;
 archival that leaves an eligible checkout for selected removal; a terminal
 archive-capability refusal followed by guarded Git removal with host metadata
@@ -1586,6 +1596,15 @@ resolved. Publish information needed after completion to its durable destination
 A directory's `.gitignore` status alone does not designate it as disposable;
 other ignored files, including user configuration and datasets, remain protected.
 Source changes, unique commits and nested repositories retain their Git guards.
+
+For batch closeout, dispose of only the authorized exact ledger and designated
+disposable files of the selected batch. Verify required evidence is usable
+outside the removal targets and that monitor and other consumers, unresolved
+effects and remaining obligations have released each resource. Existing
+durable PR, issue and repository evidence suffices when it covers the
+requirement. Retain an affected resource with its specific reason and release
+condition, verify absence after eligible deletion, and preserve other batches
+and unrelated files.
 
 Cleanup is resource-local: an active consumer, explicit retention, unresolved
 removal effect or Git preservation/removal failure holds that resource and

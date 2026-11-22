@@ -578,3 +578,5 @@ separately; pending/unknown removal effects still block competing removal. Do no
 wake an archived owner solely for cleanup. The
 [cleanup scenarios](references/reporting-scenarios.md#post-delivery-cleanup-outcomes)
 cover archive-triggered removal, refusal and partial retries.
+
+For batch closeout, follow [monitor retirement](references/github-push.md#reconcile-delivery-and-stop) and the router's [Operational retention](../issue-batch-routing/SKILL.md#operational-retention) for releasing the batch's working state.

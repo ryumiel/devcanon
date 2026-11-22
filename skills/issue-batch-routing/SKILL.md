@@ -343,6 +343,26 @@ links to them and neither copies nor deletes them. Resume compacts legacy
 content by these same rules after authoritative reconciliation, then derives
 summaries from the items. Missing evidence blocks the affected action.
 
+At batch closeout, verify accepted delivery and required evidence at a durable
+location outside the removal targets. Existing PR, issue and repository
+evidence suffices when it covers the requirement. If required evidence exists
+only in a selected resource, retain that resource until the evidence is usable
+at its durable destination. Check monitor, owner and recovery consumers and
+reconcile any unresolved effect or remaining obligation that needs the resource.
+Retain the exact affected resource with the reason and release condition in
+existing state, and continue independently eligible cleanup.
+
+Verify applicable
+[monitor retirement](../issue-batch-coordination/references/github-push.md#reconcile-delivery-and-stop)
+before deleting any state it reads. An explicitly retained monitor or an
+unverified stop holds the files and ledger it still needs. Verify cleanup
+authority and exact targets for the selected batch ledger and each designated
+disposable `.ephemeral/` file. Delete only those eligible paths and verify
+their absence. Preserve other batches and unrelated files, including ignored
+files. Use
+[post-delivery lifecycle reconciliation](#post-delivery-lifecycle-reconciliation)
+for independently eligible owner resources.
+
 ### Current-state scenarios
 
 These hypothetical cases exercise operational retention; they do not add fields
