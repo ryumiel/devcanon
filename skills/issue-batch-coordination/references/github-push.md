@@ -132,7 +132,27 @@ monitoring, the existing owner may perform one live gate check against the
 current binding. If a gate remains pending, yield again and keep the
 external-event wait. Receipt inspection and recovery remain on demand.
 
-On an authorized stop or batch closeout, disable the batch subscription and
-verify its state, then stop the receiver. Record the outcome in the existing
-monitor state. Keep any unresolved receipt needed to settle a delivery. Existing
-owner reports continue under their original authority.
+For batch closeout, verify each accepted item's delivery and source disposition
+against durable evidence, such as the merged PR and closed issue. Reconcile
+outstanding deliveries and issued effects against current provider, receipt
+and host evidence before retiring the monitor at batch closeout. Record any
+unresolved result with its exact binding in the existing state and retain the
+resources it needs. Honor explicit instructions to keep the relay running and
+retain its required state while eligible owner cleanup proceeds independently.
+
+For authorized retirement, verify the selected repository, webhook, receiver
+and HTTPS route against the existing monitor binding. Disable the selected
+webhook and verify its inactive state in GitHub before stopping the batch's
+receiver. Verify the stop through its host control, then remove the batch's
+dedicated HTTPS route and verify that route is gone through its ingress
+control. For any shared component, release only the selected batch's binding
+and verify its removal while preserving the component and other bindings.
+Reconcile pending or unknown outcomes before retrying the affected effect. Record each
+observed result in the existing monitor state and keep unresolved receipts
+needed to settle deliveries. Existing owner reports continue under their
+original authority.
+
+When a watchdog is present, use its
+[stop procedure](watchdog.md#recover-hand-off-and-stop). Before deleting any
+state a monitor reads, verify the applicable shutdown outcomes and apply the
+router's [Operational retention](../../issue-batch-routing/SKILL.md#operational-retention).
