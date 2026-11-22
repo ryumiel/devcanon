@@ -77,10 +77,11 @@ verification. Register one GitHub repository webhook per instance for `issue_com
 To enable CI notices, set the optional numeric `ci_workflow_id` in
 `config.json` to the repository's GitHub Actions CI workflow ID and add
 `workflow_run` to that subscription. The relay accepts completed
-`success` and `failure` outcomes for that workflow's PR runs. It verifies
-the current open PR and exact head against the reported run. The owner gets one notice per run attempt. Cancelled, skipped,
-stale, and ambiguous outcomes leave no notice. Restart the receiver after changing its
-configuration.
+`success`, `failure`, and `cancelled` outcomes for that workflow's PR runs. It verifies
+the current open PR and exact head against the reported run. The owner gets one notice per run attempt. Skipped, stale, and ambiguous outcomes leave no notice. Restart the receiver after changing its
+configuration. Verify that the subscribed workflow covers the CI gate the owner
+will await. Omitting `ci_workflow_id` intentionally disables CI notices and
+leaves a review-only setup.
 
 Confirm that a signed ping succeeds and an unsigned request is rejected. Record
 the accepted scope and the verified endpoint and delivery readiness in the
@@ -90,10 +91,26 @@ query.
 
 ## Reconcile delivery and stop
 
-The relay queues a compact evidence notice. The owner verifies current-head
-review evidence and reports through the existing owner path. For lifecycle
-notices, the coordinator checks current provider facts and reconciles its
-ledger once, including any result already reported by the owner.
+When a covered CI or Connector review gate is pending on the published head,
+the owner reports the PR, head and outstanding gates through the existing authorized
+path and ends its turn. The coordinator records the `external_event` wait in
+its ledger. This applies after initial publication and after a corrected head
+is pushed. The owner uses no status polling or watch loop during the wait. In a verified
+review-only setup, pending CI instead uses the existing bounded ordinary CI
+poll; afterward the owner checks current review and yields if covered review
+is pending; do not poll review. If both are pending, CI is handled before
+yielding. A configured delivery path that fails, is unverifiable, or does not
+cover the pending CI gate uses gap reporting and bounded
+recovery, not polling.
+
+The relay queues a compact evidence notice, including while the owner is
+active. A matching notice resumes the same owner, which checks the live PR
+head and result, disregards stale or duplicate evidence, and applies the same coverage selection if
+a gate remains pending. See
+[`pr-merge`](../../pr-merge/SKILL.md#step-2a-wait-for-github-push-notices)
+for the wait and merge gates. For lifecycle notices, the coordinator checks
+current provider facts and reconciles its ledger once, including any result
+already reported by the owner.
 
 Inspect receipts on demand with the
 [relay CLI's `status` command](github-push-relay-usage.md#invocation).
@@ -110,6 +127,10 @@ bindings. Keep an unknown result visible and avoid another send while its
 delivery is ambiguous. The receipt guard stays in place for these attempts.
 A failed ingress delivery with no attempted send can be redelivered once the
 endpoint recovers. Use GitHub's delivery record for that bounded recovery.
+For a confirmed delivery failure or a missing notice surfaced by authorized
+monitoring, the existing owner may perform one live gate check against the
+current binding. If a gate remains pending, yield again and keep the
+external-event wait. Receipt inspection and recovery remain on demand.
 
 On an authorized stop or batch closeout, disable the batch subscription and
 verify its state, then stop the receiver. Record the outcome in the existing

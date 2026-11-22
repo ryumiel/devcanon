@@ -1046,7 +1046,7 @@ repository. Push mode uses signed GitHub events as its trigger. Owner reports re
 The relay verifies the signature, repository, current ledger binding, and live
 provider evidence. Route a completed Connector code-review verdict for the
 current PR head to the existing owner. When a GitHub Actions CI workflow
-is configured, route completed success or failure results for the current PR
+is configured, route completed success, failure, or cancelled results for the current PR
 head to that owner. Verify the workflow, run attempt, and exact open PR
 association against GitHub. Route PR opened, merged, and
 closed-without-merge notices to the existing coordinator. Use the registered
@@ -1056,12 +1056,44 @@ registered owner branch can identify the item before a closing reference is
 available. For a closure, require a verified issue link or a recorded PR
 association. The coordinator verifies the association before recording it.
 
+After initial publication or a corrected head is pushed, an existing owner
+with a verified push binding verifies completion delivery coverage for each
+current-head pending gate. For CI, verify that the subscribed configured
+workflow supplies completion notices for the CI gate being awaited. Use an
+`external_event` wait for covered pending gates. When CI notices were
+intentionally omitted in a verified review-only setup, use the existing bounded
+ordinary CI poll for pending CI before checking current Connector review; yield
+if covered review remains pending; do not poll review. Do not yield early when uncovered CI and
+review are both pending. Configured delivery that fails, is unverifiable, or
+does not cover the pending CI gate uses
+the gap and bounded recovery path, not ordinary polling. Record the PR, exact head
+and outstanding gates through the existing owner state and authorized
+reporting path. Only the coordinator records the wait in the batch ledger.
+End the owner turn so queued notices can resume it. Use no repeated status
+queries, watch calls, sleep-and-retry loops or substitute timers for this wait.
+
+On resume, the same owner reconciles the notice with the current binding,
+live PR head and provider result under
+[`pr-merge`](../../skills/pr-merge/SKILL.md#step-2a-wait-for-github-push-notices).
+Discard stale or already reconciled evidence, including superseded run attempts.
+For a verified current cancellation, report a terminal non-green CI blocker and
+end the turn without polling, repair, rerun, or merge. Fresh valid later evidence
+may carry a different verdict. Route actionable failures
+through their existing procedures. When a covered gate remains pending, record the
+current wait and yield again; apply the same coverage selection to pending CI.
+A confirmed delivery failure or a
+missing notice surfaced by authorized monitoring permits one live
+reconciliation check for that recovery evidence. Yield again if any gate
+remains pending. Ordinary workflows outside verified push mode retain their
+existing behavior.
+
 Keep queued receipts distinct from evidence that a turn started. Retain an
 unresolved attempt for reconciliation before replay. The relay neither reads
 GitHub on a timer nor writes the ledger. The existing recipients revalidate
-notices under ROUTE-007-EVENT and retain their ordinary reporting, publication,
-merge and cleanup gates. Missing-owner-report recovery remains outside push
-mode. The
+notices under ROUTE-007-EVENT. A notice supplies evidence only. Reporting,
+publication, independent review, live merge preflight, merge authority and
+cleanup retain their existing gates. Missing-owner-report recovery remains
+outside push mode. The
 [GitHub push operation](../../skills/issue-batch-coordination/references/github-push.md)
 describes setup and verification.
 
