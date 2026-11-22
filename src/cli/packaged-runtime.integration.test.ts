@@ -252,6 +252,8 @@ describe("packaged passive runtime", () => {
           "skills/devcanon-runtime/config/runtime-config.json",
           "skills/devcanon-runtime/scripts/devcanon-runtime.sh",
           "skills/devcanon-runtime/scripts/resolve-bash.mjs",
+          "skills/issue-batch-coordination/references/github-push-relay-usage.md",
+          "skills/issue-batch-coordination/scripts/github-push-relay.mjs",
         ]),
       );
       expect(
@@ -330,6 +332,15 @@ describe("packaged passive runtime", () => {
           ),
       );
       const commandOptions = { cwd: library, env: packageEnv };
+      const relayHelp = await run(
+        "package-local GitHub push relay help",
+        process.execPath,
+        [packageCli, "github-push-relay", "--help"],
+        commandOptions,
+      );
+      expect(relayHelp.stdout).toContain("devcanon github-push-relay serve");
+      expect(relayHelp.stdout).toContain("devcanon github-push-relay status");
+
       // Resolve using the installed package, including its native home expansion,
       // before allowing sync to write anything.
       const resolved = JSON.parse(

@@ -8,11 +8,11 @@ bound to one opted-in coordinator ledger. Run an instance per coordinator.
 ## Invocation
 
 ```sh
-node "$SKILL_DIR/scripts/github-push-relay.mjs" --help
-node "$SKILL_DIR/scripts/github-push-relay.mjs" serve \
+devcanon github-push-relay --help
+devcanon github-push-relay serve \
   --ledger "$LEDGER_PATH" --state-dir "$RELAY_STATE_DIR" --port 38762 \
   --gh "$(command -v gh)" --codex "$(command -v codex)"
-node "$SKILL_DIR/scripts/github-push-relay.mjs" status \
+devcanon github-push-relay status \
   --ledger "$LEDGER_PATH" --state-dir "$RELAY_STATE_DIR"
 ```
 
@@ -48,8 +48,8 @@ contents of this file.
 
 ## Working directory
 
-Run from any directory using absolute ledger, state, and script paths. The CLI
-resolves relative arguments against the current working directory.
+Run from any directory. DevCanon resolves its bundled relay, and the relay
+resolves relative ledger and state paths against the current working directory.
 
 ## Outputs
 

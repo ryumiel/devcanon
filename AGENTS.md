@@ -168,20 +168,21 @@ For module responsibilities, dependency rules, and data flow, see
 
 ## CLI Commands
 
-| Command            | Description                                                     |
-| ------------------ | --------------------------------------------------------------- |
-| `init`             | Initialize a new DevCanon library                               |
-| `config path`      | Print the selected source-config or bundled-catalog path        |
-| `config get <key>` | Print a selected scalar configuration value                     |
-| `new skill <name>` | Scaffold a new skill                                            |
-| `new agent <name>` | Scaffold a new agent role                                       |
-| `validate`         | Validate config, the passive runtime bundle, skills, and agents |
-| `render`           | Generate outputs into `generated/` without installing           |
-| `sync`             | Render and write installed managed outputs                      |
-| `uninstall`        | Remove installed managed outputs recorded in the manifest       |
-| `diff`             | Show differences between generated and installed outputs        |
-| `doctor`           | Inspect environment health                                      |
-| `list`             | List known skills and agents                                    |
+| Command             | Description                                                     |
+| ------------------- | --------------------------------------------------------------- |
+| `init`              | Initialize a new DevCanon library                               |
+| `config path`       | Print the selected source-config or bundled-catalog path        |
+| `config get <key>`  | Print a selected scalar configuration value                     |
+| `new skill <name>`  | Scaffold a new skill                                            |
+| `new agent <name>`  | Scaffold a new agent role                                       |
+| `validate`          | Validate config, the passive runtime bundle, skills, and agents |
+| `render`            | Generate outputs into `generated/` without installing           |
+| `sync`              | Render and write installed managed outputs                      |
+| `uninstall`         | Remove installed managed outputs recorded in the manifest       |
+| `diff`              | Show differences between generated and installed outputs        |
+| `doctor`            | Inspect environment health                                      |
+| `list`              | List known skills and agents                                    |
+| `github-push-relay` | Serve signed GitHub notices or inspect delivery receipts        |
 
 ---
 

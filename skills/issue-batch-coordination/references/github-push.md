@@ -66,8 +66,9 @@ delivery error.
 
 Create the secret and start the receiver using the
 [relay CLI usage](github-push-relay-usage.md). Run it as the same macOS user
-as Desktop. For launchd, pass absolute paths to Node.js, the packaged script,
-the ledger, the state directory, `gh`, and `codex`.
+as Desktop. For launchd, invoke the absolute path to `devcanon` with
+`github-push-relay serve` and absolute paths to the ledger, the state directory,
+`gh`, and `codex`. Ensure Node.js 24 or later is on the service's `PATH`.
 
 Expose the loopback receiver through a durable HTTPS endpoint with TLS
 verification. Register one GitHub repository webhook per instance for `issue_comment` and

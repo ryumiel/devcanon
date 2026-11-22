@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import { CLI_COMMAND } from "../config/identity.js";
 import type {
@@ -120,6 +121,18 @@ export function createCliProgram(
     .description("List known skills and agents")
     .option("--target <target>", "claude or codex")
     .action(listAction);
+  program.command(
+    "github-push-relay",
+    "Serve signed GitHub notices or inspect delivery receipts",
+    {
+      executableFile: fileURLToPath(
+        new URL(
+          "../../skills/issue-batch-coordination/scripts/github-push-relay.mjs",
+          import.meta.url,
+        ),
+      ),
+    },
+  );
   return program;
 }
 

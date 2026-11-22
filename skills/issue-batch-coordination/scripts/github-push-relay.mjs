@@ -544,8 +544,9 @@ export function listener(relay) {
 }
 
 async function main() {
-  if (process.argv.slice(2).includes("--help")) {
-    if (process.argv.length !== 3) {
+  const args = process.argv.slice(2);
+  if (args.includes("--help") || args.includes("-h")) {
+    if (args.length !== 1) {
       throw new Error("--help does not accept additional arguments");
     }
     const usage = new URL(
@@ -560,6 +561,7 @@ async function main() {
     return;
   }
   const { positionals, values } = parseArgs({
+    args,
     allowPositionals: true,
     options: {
       ledger: { type: "string" },
