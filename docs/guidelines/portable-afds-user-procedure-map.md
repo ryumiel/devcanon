@@ -228,7 +228,7 @@ flowchart TD
   ready["Existing PR with explicit merge request"] --> mergeFlow["Merge workflow"]
   finish --> gate["User review and branch protection gate"]
   gate --> mergeFlow
-  mergeFlow --> ci["Poll CI and investigate in-scope failures"]
+  mergeFlow --> ci["Check CI and wait using the applicable mode"]
   ci --> blocked["CI or log evidence blocker when inaccessible"]
   ci --> merge["PR system and Git history own merge state"]
 ```

@@ -90,10 +90,20 @@ query.
 
 ## Reconcile delivery and stop
 
-The relay queues a compact evidence notice. The owner verifies current-head
-review evidence and reports through the existing owner path. For lifecycle
-notices, the coordinator checks current provider facts and reconciles its
-ledger once, including any result already reported by the owner.
+When CI or Connector review is pending on the published head, the owner
+reports the PR, head and outstanding gates through the existing authorized
+path and ends its turn. The coordinator records the `external_event` wait in
+its ledger. This applies after initial publication and after a corrected head
+is pushed. The owner uses no status polling or watch loop during the wait.
+
+The relay queues a compact evidence notice, including while the owner is
+active. A matching notice resumes the same owner, which checks the live PR
+head and result, disregards stale or duplicate evidence, and yields again if
+a gate remains pending. See
+[`pr-merge`](../../pr-merge/SKILL.md#step-2a-wait-for-github-push-notices)
+for the wait and merge gates. For lifecycle notices, the coordinator checks
+current provider facts and reconciles its ledger once, including any result
+already reported by the owner.
 
 Inspect receipts on demand with the
 [relay CLI's `status` command](github-push-relay-usage.md#invocation).
@@ -110,6 +120,10 @@ bindings. Keep an unknown result visible and avoid another send while its
 delivery is ambiguous. The receipt guard stays in place for these attempts.
 A failed ingress delivery with no attempted send can be redelivered once the
 endpoint recovers. Use GitHub's delivery record for that bounded recovery.
+For a confirmed delivery failure or a missing notice surfaced by authorized
+monitoring, the existing owner may perform one live gate check against the
+current binding. If a gate remains pending, yield again and keep the
+external-event wait. Receipt inspection and recovery remain on demand.
 
 On an authorized stop or batch closeout, disable the batch subscription and
 verify its state, then stop the receiver. Record the outcome in the existing

@@ -337,6 +337,45 @@ test("CI verifies the exact current PR head, then sends one failure or success p
   assert.match(instance.sent[1].message, /CI passed/);
 });
 
+test("a corrected head in external-event wait keeps CI and review bound to the existing owner", async (t) => {
+  const instance = fixture(t, 106, "corrected-head-fixture-key");
+  const workflowEvent = () => ({
+    action: "completed",
+    repository,
+    workflow_run: instance.run,
+  });
+
+  instance.pull.headRefOid = nextHead;
+  instance.item.current_head_sha = nextHead;
+  instance.saveLedger();
+
+  await instance.deliver("workflow_run", 40, workflowEvent());
+  await instance.deliver("issue_comment", 41, instance.reviewEvent());
+  assert.equal(instance.sent.length, 0);
+
+  instance.run.head_sha = nextHead;
+  instance.run.pull_requests[0].head.sha = nextHead;
+  instance.run.conclusion = "success";
+  await instance.deliver("workflow_run", 42, workflowEvent());
+  await instance.deliver(
+    "issue_comment",
+    43,
+    instance.reviewEvent({ commit_sha: nextHead }),
+  );
+
+  assert.equal(instance.sent.length, 2);
+  assert.match(instance.sent[0].message, /CI passed/);
+  assert.match(instance.sent[1].message, /review/i);
+  for (const notice of instance.sent) {
+    assert.equal(notice.target, instance.owner);
+    assert.ok(notice.message.includes(nextHead));
+  }
+  assert.deepEqual(
+    instance.receipts().map(({ state }) => state),
+    ["queued", "queued"],
+  );
+});
+
 test("closures route to the coordinator and an ambiguous queue result is retained without replay", async (t) => {
   const instance = fixture(t, 105, "lifecycle-fixture-key");
   Object.assign(instance.pull, {

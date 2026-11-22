@@ -1056,12 +1056,32 @@ registered owner branch can identify the item before a closing reference is
 available. For a closure, require a verified issue link or a recorded PR
 association. The coordinator verifies the association before recording it.
 
+After initial publication or a corrected head is pushed, an existing owner
+with a verified push binding uses an `external_event` wait when current-head
+CI or the applicable Connector review is pending. Record the PR, exact head
+and outstanding gates through the existing owner state and authorized
+reporting path. Only the coordinator records the wait in the batch ledger.
+End the owner turn so queued notices can resume it. Use no repeated status
+queries, watch calls, sleep-and-retry loops or substitute timers for this wait.
+
+On resume, the same owner reconciles the notice with the current binding,
+live PR head and provider result under
+[`pr-merge`](../../skills/pr-merge/SKILL.md#step-2a-wait-for-github-push-notices).
+Discard stale or already reconciled evidence. Route actionable failures
+through their existing procedures. When a gate remains pending, record the
+current wait and yield again. A confirmed delivery failure or a
+missing notice surfaced by authorized monitoring permits one live
+reconciliation check for that recovery evidence. Yield again if any gate
+remains pending. Ordinary workflows outside verified push mode retain their
+existing behavior.
+
 Keep queued receipts distinct from evidence that a turn started. Retain an
 unresolved attempt for reconciliation before replay. The relay neither reads
 GitHub on a timer nor writes the ledger. The existing recipients revalidate
-notices under ROUTE-007-EVENT and retain their ordinary reporting, publication,
-merge and cleanup gates. Missing-owner-report recovery remains outside push
-mode. The
+notices under ROUTE-007-EVENT. A notice supplies evidence only. Reporting,
+publication, independent review, live merge preflight, merge authority and
+cleanup retain their existing gates. Missing-owner-report recovery remains
+outside push mode. The
 [GitHub push operation](../../skills/issue-batch-coordination/references/github-push.md)
 describes setup and verification.
 

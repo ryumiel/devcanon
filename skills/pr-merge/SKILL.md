@@ -1,6 +1,6 @@
 ---
 name: pr-merge
-description: PR merge automation with CI polling and in-scope failure investigation. Use when a PR is ready to merge pending CI, or when asked to "merge this PR" or "check CI and merge".
+description: PR merge automation with event-driven or polled CI waits and in-scope failure investigation. Use when a PR is ready to merge pending CI, or when asked to "merge this PR" or "check CI and merge".
 requires:
   - issue-batch-routing
   - play-agent-dispatch
@@ -25,7 +25,8 @@ removal effects still hold competing cleanup of the same resource.
 
 Use the adjacent [preflight-worktree-context usage](references/preflight-worktree-context-usage.md), [source-immutability usage](references/source-immutability-usage.md), and [post-merge-cleanup usage](references/post-merge-cleanup-usage.md) for helper mechanics. This workflow owns CI investigation and merge continuation.
 
-Poll CI status on a pull request, merge when green, investigate and fix failures automatically.
+Verify PR gates, wait for pending results using the applicable mode, and merge
+when the live gates and authority pass. Investigate and fix in-scope failures.
 
 Consume a concrete current merge instruction from the human or existing batch
 controller under accepted delivery authority, or validate the controller-established
@@ -44,7 +45,7 @@ eligible handoff, within retained scope without generic
 reapproval. Missing scope, revocation, expansion, an unresolved choice, a
 reserved human decision, or a required exception needs its owning decision.
 PR-only intent, priming `--auto`, planning PASS, reports, and tool availability
-are not merge authority. This owner retains polling, verified merge, cleanup,
+are not merge authority. This owner retains gate verification, merge, cleanup,
 and final reporting; routing and priming do not acquire those effects.
 
 Preserve existing cleanup guards for dirty, locked, unfinished, unpublished,
@@ -117,10 +118,12 @@ characters are preserved. Omit flags for unchanged fields.
 Do not skip `pr-authoring` because the description "looks close enough." The
 shared procedure exists so PR creation and PR merge enforce the same policy.
 
-## Step 2: Poll CI
+## Step 2: Check CI
 
-**Default interval: 3 minutes.** User can override via args (e.g., `5m`, `1m`).
-Poll with `{{tool:github-cli}} pr checks <N>`.
+Select [Step 2a](#step-2a-wait-for-github-push-notices) for a verified GitHub
+push binding. Otherwise use the ordinary CI poll with
+`{{tool:github-cli}} pr checks <N>`. The default interval is 3 minutes and the
+user can override it via args (e.g., `5m`, `1m`).
 
 Classify output:
 
@@ -130,11 +133,52 @@ Classify output:
 
 **Max poll duration:** 30 minutes. If CI has not completed, report and stop.
 
+## Step 2a: Wait for GitHub push notices
+
+Apply [ROUTE-007-PUSH](../../docs/specs/afds-workflow-routing.md#route-007-push-github-push-delivery)
+when the authorized live monitor and existing ledger verify the repository,
+coordinator, owner and host, and the open PR association. Check the current
+published head and applicable CI and Connector gates after initial publication
+and after each corrected head is pushed. A corrected head requires fresh
+evidence. Surface a broken delivery path for a pending gate through the
+existing authorized path while preserving the wait.
+
+Use the existing failure disposition for actionable current-head evidence.
+A verified CI failure enters Step 4 under its existing authority. A completed
+nonpassing review follows the existing review-response or blocker route.
+When the remaining work is a pending CI or applicable Connector gate, retain
+the PR, its exact head SHA and the outstanding gates in the owner's current
+state. Report the `external_event` wait and any material change through the
+existing authorized reporting path so the coordinator can update its ledger. If reporting is held,
+surface that gap through the owner's user-facing path. End the turn. While
+waiting, do not repeat status queries, use watch calls, sleep and retry, or
+schedule a substitute check.
+
+On a relay notice, resume in the same owner. Match the repository, PR, owner
+binding and notice head against the current binding and live GitHub PR. Verify
+a matching result against the live check/run or Connector review evidence.
+Ignore stale or already reconciled notices and avoid repeating investigation,
+reporting or merge effects. A notice for an older head cannot satisfy a gate
+on its replacement. If the live head changes outside the bound action,
+invalidate the prior gate evidence and refresh the current action through
+its existing owner. For newly verified evidence, reconcile the applicable
+live gates and use the same failure or pending disposition. Enter Step 3
+only after applicable CI and Connector gates pass and existing merge
+authority is established.
+
+An evidenced delivery failure or a missing notice surfaced by authorized
+monitoring permits one bounded live check for that evidence and the same
+current binding. Apply the same gate dispositions. If a gate remains pending,
+end the turn again and await a fresh notice or distinct recovery evidence.
+Elapsed time alone supplies no recovery trigger.
+
 ## Step 3: Preflighted Merge
 
 Immediately before any merge command, refetch the current PR/head, feedback,
 review state, CI, and protections. For an accepted batch/router handoff, verify
 its required existing current merge action binding.
+If a verified push-mode CI or Connector gate is pending at preflight, return
+to the Step 2a wait and yield.
 
 Under an accepted conditional policy in ROUTE-007-REVIEW, applicable supported
 current-head thumbs-up or a complete current passing independent fallback
@@ -250,8 +294,8 @@ attempted":
 ## Issue Batch Routing Reports
 
 When invoked by `issue-batch-routing`, this workflow produces
-issue-batch-routing reports for merge approval waits, CI polling timeout or
-failure, in-scope CI investigation result, merge-conflict blockers,
+issue-batch-routing reports for merge approval waits, external-event waits,
+CI polling timeout or failure, in-scope CI investigation result, merge-conflict blockers,
 missing-review blockers, missing-protection blockers, merge result, post-merge
 cleanup outcome, and terminal merge-path reports.
 
@@ -498,7 +542,8 @@ the manual-resolution recommendation.
 
 The controller/root runs the relevant validation again, then pushes the
 validated committed fix to the PR branch. After the controller/root pushes the
-validated commit, increment the retry count and return to Step 2.
+validated commit, increment the retry count and return to Step 2. Select
+Step 2a for a verified GitHub push binding and check the corrected head.
 
 ### 4e. Second failure or out-of-scope
 
@@ -511,21 +556,22 @@ If retry count reaches 2, or investigation determines the failure is out of scop
 
 ## Quick Reference
 
-| Situation                         | Action                                                                                                                                                |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| No PR number given                | Auto-detect from current branch via `{{tool:github-cli}} pr view`                                                                                     |
-| PR authoring validation           | Use the available sibling `pr-authoring` skill workflow in `validate-fix` mode, then apply repaired title/body with `{{tool:github-cli}} pr edit`     |
-| Description content stale vs diff | Accept the repaired title/body returned by `pr-authoring`, applying body fixes with `{{tool:github-cli}} pr edit --body-file`                         |
-| No project guideline found        | Use `pr-authoring` default fallback validation; do not bypass PR title/body validation                                                                |
-| CI pending                        | Poll every 3 min (configurable)                                                                                                                       |
-| CI passes                         | Run worktree preflight → `{{tool:github-cli}} pr merge --squash` → verify `MERGED` → cleanup helper                                                   |
-| Post-merge cleanup                | Run `skills/pr-merge/scripts/post-merge-cleanup.sh`; report worktree, base update, local branch, remote branch, and manual-action outcomes separately |
-| CI fails (1st time)               | Investigate → fix if in scope → push → re-poll                                                                                                        |
-| CI fails (2nd time)               | Report and stop                                                                                                                                       |
-| Out-of-scope failure              | Report and stop immediately                                                                                                                           |
-| CI not done after 30 min          | Report and stop                                                                                                                                       |
-| Merge conflicts                   | Report to user — requires manual resolution                                                                                                           |
-| Missing review approvals          | Report which reviews are missing                                                                                                                      |
+| Situation                                            | Action                                                                                                                                                |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No PR number given                                   | Auto-detect from current branch via `{{tool:github-cli}} pr view`                                                                                     |
+| PR authoring validation                              | Use the available sibling `pr-authoring` skill workflow in `validate-fix` mode, then apply repaired title/body with `{{tool:github-cli}} pr edit`     |
+| Description content stale vs diff                    | Accept the repaired title/body returned by `pr-authoring`, applying body fixes with `{{tool:github-cli}} pr edit --body-file`                         |
+| No project guideline found                           | Use `pr-authoring` default fallback validation; do not bypass PR title/body validation                                                                |
+| CI pending outside verified push mode                | Poll every 3 min (configurable)                                                                                                                       |
+| CI or Connector review pending in verified push mode | Record the exact-head `external_event` wait and end the turn                                                                                          |
+| Applicable gates pass                                | Run live merge preflight → `{{tool:github-cli}} pr merge --squash` → verify `MERGED` → cleanup helper                                                 |
+| Post-merge cleanup                                   | Run `skills/pr-merge/scripts/post-merge-cleanup.sh`; report worktree, base update, local branch, remote branch, and manual-action outcomes separately |
+| CI fails (1st time)                                  | Investigate → fix if in scope → push → check the corrected head using the applicable wait mode                                                        |
+| CI fails (2nd time)                                  | Report and stop                                                                                                                                       |
+| Out-of-scope failure                                 | Report and stop immediately                                                                                                                           |
+| Ordinary CI poll reaches 30 min                      | Report and stop                                                                                                                                       |
+| Merge conflicts                                      | Report to user — requires manual resolution                                                                                                           |
+| Missing review approvals                             | Report which reviews are missing                                                                                                                      |
 
 ## Common Mistakes
 
@@ -551,11 +597,13 @@ Always dispatch a **dedicated agent** for investigation. Reading CI logs and deb
 
 ### Polling too frequently
 
-60-second intervals waste API calls. Most CI runs take 5-10 minutes. 3-minute intervals balance responsiveness with efficiency.
+For ordinary polling, the default is a 3-minute interval. A verified GitHub
+push wait ends the turn under Step 2a.
 
 ### Forgetting retry count
 
-Track retry count as an explicit variable, not "mentally." Context compression can lose track. State it in each poll message: "Poll attempt N, retry count: M/2."
+Retain the explicit retry count across turns. Include it in ordinary poll
+messages and carry it forward when a push notice resumes the owner.
 
 ### Pushing without local verification
 
