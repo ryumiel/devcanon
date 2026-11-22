@@ -328,6 +328,8 @@ Quick navigation index for the DevCanon repository.
   [`skills/issue-slicing/SKILL.md`](skills/issue-slicing/SKILL.md)
 - Where is the shared issue reporting skill? -> [`skills/report-devcanon-issue/SKILL.md`](skills/report-devcanon-issue/SKILL.md)
 - Where do I coordinate an issue batch? -> [`skills/issue-batch-coordination/SKILL.md`](skills/issue-batch-coordination/SKILL.md)
+- Where do I set up GitHub push delivery for an opted-in Desktop batch? ->
+  [GitHub push operation](skills/issue-batch-coordination/references/github-push.md)
 - Where is explicitly invoked provider-neutral issue routing? -> [`skills/issue-batch-routing/SKILL.md`](skills/issue-batch-routing/SKILL.md)
 - Where is issue worktree setup policy? -> [`skills/issue-worktree-setup/SKILL.md`](skills/issue-worktree-setup/SKILL.md)
 - Where is the native issue worktree setup launcher? -> [`skills/issue-worktree-setup/scripts/setup-worktree.mjs`](skills/issue-worktree-setup/scripts/setup-worktree.mjs)

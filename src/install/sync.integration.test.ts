@@ -530,14 +530,15 @@ describe("sync", () => {
     const catalogRows = parsePublicHelperCatalog(
       await readFile(path.resolve("contracts/public-helpers.md"), "utf8"),
     );
-    expect(catalogRows).toHaveLength(30);
+    expect(catalogRows).toHaveLength(31);
     const representativeIds = new Set([
       "play-subagent-execution/write-snapshot-manifest",
       "play-agent-dispatch/source-immutability",
       "issue-worktree-setup/setup-worktree",
+      "issue-batch-coordination/github-push-relay",
     ]);
     const rows = catalogRows.filter((row) => representativeIds.has(row.id));
-    expect(rows).toHaveLength(3);
+    expect(rows).toHaveLength(4);
     const owningSkills = new Set(rows.map((row) => row.skill));
     const selectedSkills = new Set([
       ...owningSkills,
