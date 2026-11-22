@@ -416,4 +416,76 @@ describe("pre-commit markdown scripts", () => {
       "docs/unrelated.md",
     ]);
   });
+
+  describe.each([
+    {
+      script: "scripts/format-tracked-markdown.mjs" as const,
+      pnpmArgs: ["exec", "prettier", "--check"],
+    },
+    {
+      script: "scripts/lint-tracked-markdown.mjs" as const,
+      pnpmArgs: ["exec", "markdownlint-cli2"],
+    },
+  ])("$script file selection", ({ script, pnpmArgs }) => {
+    const trackedMarkdownFiles = ["docs/a.md", "docs/b.md", "docs/c.md"];
+
+    it.each([
+      { kind: "positional", args: ["docs/c.md", "missing.md", "docs/a.md"] },
+      {
+        kind: "separator",
+        args: ["docs/b.md", "--", "docs/c.md", "missing.md", "docs/a.md"],
+      },
+    ])("keeps $kind paths in argument order", async ({ args }) => {
+      const result = await runHelperScriptFixture({
+        script,
+        args,
+        trackedMarkdownFiles,
+      });
+
+      expect(result.status).toBe(0);
+      expect(result.invocations).toEqual([
+        [...pnpmArgs, "docs/c.md", "docs/a.md"],
+      ]);
+    });
+
+    it("uses tracked Markdown after a bare separator", async () => {
+      const result = await runHelperScriptFixture({
+        script,
+        args: ["docs/c.md", "--"],
+        trackedMarkdownFiles,
+      });
+
+      expect(result.status).toBe(0);
+      expect(result.invocations).toEqual([
+        [...pnpmArgs, ...trackedMarkdownFiles],
+      ]);
+    });
+
+    it.each([
+      { kind: "positional", args: ["missing.md"] },
+      { kind: "separator", args: ["--", "missing.md"] },
+    ])("skips pnpm when all $kind paths are missing", async ({ args }) => {
+      const result = await runHelperScriptFixture({
+        script,
+        args,
+        trackedMarkdownFiles,
+      });
+
+      expect(result.status).toBe(0);
+      expect(result.invocations).toEqual([]);
+    });
+  });
+
+  it("formatter still honors write mode", async () => {
+    const result = await runHelperScriptFixture({
+      script: "scripts/format-tracked-markdown.mjs",
+      args: ["--write", "docs/staged.md"],
+      trackedMarkdownFiles: ["docs/staged.md"],
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.invocations).toEqual([
+      ["exec", "prettier", "--write", "docs/staged.md"],
+    ]);
+  });
 });
