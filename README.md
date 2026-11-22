@@ -25,81 +25,86 @@ Source files are authoritative. Generated outputs are disposable.
 
 **Prerequisites:** Node.js `>=24.0.0` and pnpm `10.33.0`.
 
-Before `pnpm run setup:cli`, configure the platform's global executable
-directory on `PATH`:
+### Breaking Rename From agents-manager
 
-- On macOS, Linux, and WSL, configure pnpm's user-global bin directory. If
-  pnpm reports it missing, run `pnpm setup` and follow its shell-reload
-  guidance.
-- On native Windows, including PowerShell, cmd, and Git Bash, ensure npm's
-  global prefix is on `PATH`; `setup:cli` uses npm for global registration.
+If you are migrating from `agents-manager`, run the old CLI's uninstall command
+before installing DevCanon.
+
+```sh
+agents-manager uninstall
+```
+
+DevCanon uses new CLI, config, environment variable, and manifest names.
+
+### Configure PATH
+
+Before installing or refreshing DevCanon, make sure your platform's global
+executable directory is on `PATH`.
+
+- **Native Windows** (PowerShell, cmd, or Git Bash). Run
+  `npm config get prefix` to find npm's global prefix and add that directory
+  to `PATH` if needed. Open a new shell after changing `PATH` so it picks up
+  the change. DevCanon uses npm for global registration on native Windows.
+- **macOS, Linux, or WSL.** Use pnpm's user-global bin directory. If pnpm
+  reports that the directory is missing, run `pnpm setup` and follow its
+  shell-reload guidance before continuing.
 
 DevCanon does not modify `PATH`.
 
-```sh
-# Clone into a stable location: the globally registered CLI points here, and
-# this checkout remains the source library and configuration root.
-git clone <repo-url> devcanon
-cd devcanon
+### First install
 
+Clone into a stable location and keep the checkout there. The globally
+registered CLI points to it, and the checkout remains the source library
+and default configuration root.
+
+```sh
+git clone https://github.com/ryumiel/devcanon.git
+cd devcanon
 pnpm install
 pnpm run setup:cli
 devcanon sync
 ```
 
-`setup:cli` is a package setup script, not a `devcanon` application
-subcommand. It builds and globally registers the CLI from this checkout.
-`devcanon sync` is a separate application command that writes managed skills
-and agents; registering the CLI does not run sync.
-
-Keep the checkout at its stable path. To run the globally registered CLI from
-elsewhere, select that checkout's config explicitly:
-
-```sh
-devcanon --config /absolute/path/to/devcanon.config.yaml sync
-```
+`pnpm run setup:cli` builds the CLI and registers it from the checkout.
+`devcanon sync` separately installs the managed skills and agents into your
+configured target directories. Contributors can use `pnpm run setup` to
+configure Git hooks and the commit template. See
+[contributor hook setup](CONTRIBUTING.md#getting-started).
 
 ### Refreshing an existing checkout
 
-Update the stable checkout, refresh dependencies, register the updated CLI,
-then refresh managed outputs:
+Check your [PATH setup](#configure-path), then update the stable checkout,
+refresh dependencies, register the updated CLI, and sync managed outputs.
 
 ```sh
-cd /absolute/path/to/devcanon
+cd "/absolute/path/to/devcanon"
 git pull
 pnpm install
 pnpm run setup:cli
 devcanon sync
 ```
 
-## Breaking Rename From agents-manager
+### Selecting the checkout config from another directory
 
-DevCanon does not support legacy `agents-manager` CLI, config, env-var, or
-manifest names. Existing users must uninstall with the old CLI before
-installing DevCanon:
-
-```sh
-agents-manager uninstall
-```
-
-After installing DevCanon, use:
+To run the registered CLI from another directory with the stable checkout's
+config, pass its absolute config path before the subcommand.
 
 ```sh
-devcanon sync
+devcanon --config "/absolute/path/to/devcanon/devcanon.config.yaml" sync
 ```
 
 ## Documentation
 
-| Topic                | Location                                                 |
-| -------------------- | -------------------------------------------------------- |
-| Getting started      | [AGENTS.md](AGENTS.md)                                   |
-| Navigation index     | [MAP.md](MAP.md)                                         |
-| Product requirements | [docs/product-requirements/](docs/product-requirements/) |
-| Behavior specs       | [docs/specs/](docs/specs/)                               |
-| Architecture         | [docs/arch/overview.md](docs/arch/overview.md)           |
-| Contributing         | [CONTRIBUTING.md](CONTRIBUTING.md)                       |
-| Decision records     | [docs/adr/](docs/adr/)                                   |
-| Roadmap              | [docs/roadmap/](docs/roadmap/)                           |
+| Topic                  | Location                                                 |
+| ---------------------- | -------------------------------------------------------- |
+| Repository orientation | [AGENTS.md](AGENTS.md)                                   |
+| Navigation index       | [MAP.md](MAP.md)                                         |
+| Product requirements   | [docs/product-requirements/](docs/product-requirements/) |
+| Behavior specs         | [docs/specs/](docs/specs/)                               |
+| Architecture           | [docs/arch/overview.md](docs/arch/overview.md)           |
+| Contributing           | [CONTRIBUTING.md](CONTRIBUTING.md)                       |
+| Decision records       | [docs/adr/](docs/adr/)                                   |
+| Roadmap                | [docs/roadmap/](docs/roadmap/)                           |
 
 ## Status
 
