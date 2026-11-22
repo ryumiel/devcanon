@@ -1048,7 +1048,8 @@ closed-without-merge notices to the existing coordinator. Use the registered
 branch and PR association to identify the batch item. Hold ambiguous or missing
 bindings and suppress verified equivalent notices. On an opened event, a unique
 registered owner branch can identify the item before a closing reference is
-available. The coordinator verifies the association before recording it.
+available. For a closure, require a verified issue link or a recorded PR
+association. The coordinator verifies the association before recording it.
 
 Keep queued receipts distinct from evidence that a turn started. Retain an
 unresolved attempt for reconciliation before replay. The relay neither reads

@@ -137,6 +137,16 @@ class SignedFixtures(unittest.TestCase):
         self.send("pull_request", payload)
         self.command.assert_not_called()
 
+    def test_closure_without_links_requires_an_existing_pr_binding(self):
+        closure = self.pr(state="CLOSED", linked=())
+        self.send("pull_request", closure)
+        self.command.assert_not_called()
+        self.item["pr_identifier"] = f"github:{REPO}#42"
+        self.save()
+        self.send("pull_request", closure)
+        self.command.assert_called_once()
+        self.assertEqual(self.command.call_args.args[0][3], COORDINATOR)
+
     def test_timeout_is_unresolved_without_automatic_resend(self):
         payload = self.verdict()
         self.command.side_effect = subprocess.TimeoutExpired("codex", 3)

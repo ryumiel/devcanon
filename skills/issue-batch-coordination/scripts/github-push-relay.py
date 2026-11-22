@@ -116,7 +116,7 @@ class Relay:
             return None
         return ledger
 
-    def binding(self, pull, number, *, lifecycle):
+    def binding(self, pull, number, *, lifecycle=None):
         repo = self.config["repository"]
         ledger = self.ledger()
         if (ledger is None or not pull or pull["baseRefName"] != self.config["base_branch"]
@@ -132,6 +132,7 @@ class Relay:
         }
         if (not branch or (not links and (not lifecycle or references["nodes"]))):
             return None
+        expected_pr = f"github:{repo}#{number}"
         scope = {
             f"github:{repo}#{issue}": issue for issue in self.config["issues"]
             if issue in links or not links
@@ -139,7 +140,10 @@ class Relay:
         items = [
             item for item in ledger["items"]
             if item.get("source_issue_identifier") in scope
-            and (links or item.get("branch_name") == branch)
+            and (links or (
+                item.get("branch_name") == branch and
+                (lifecycle == "opened" or item.get("pr_identifier") == expected_pr)
+            ))
         ]
         if len(items) != 1:
             return None
@@ -148,7 +152,7 @@ class Relay:
         if (item.get("source_state") != "OPEN" or item.get("owner_host_id") != "local"
                 or not canonical_uuid(owner) or owner == self.config["coordinator_thread"]
                 or item.get("branch_name") != branch
-                or item.get("pr_identifier") not in (None, f"github:{repo}#{number}")):
+                or item.get("pr_identifier") not in (None, expected_pr)):
             return None
         if not lifecycle and item.get("wait_reason") not in ("owner_result", "external_event"):
             return None
@@ -182,7 +186,7 @@ class Relay:
         pull = self.pull(number)
         if not pull or pull["state"] != "OPEN" or pull["headRefOid"] != head:
             return None
-        binding = self.binding(pull, number, lifecycle=False)
+        binding = self.binding(pull, number)
         if binding is None:
             return None
         issue_number, item = binding
@@ -225,7 +229,7 @@ class Relay:
                 merge_commit = (pull["mergeCommit"] or {}).get("oid")
                 if not isinstance(merge_commit, str) or not SHA.fullmatch(merge_commit):
                     raise OSError("Merge commit unavailable")
-        binding = self.binding(pull, number, lifecycle=True)
+        binding = self.binding(pull, number, lifecycle=action)
         if binding is None:
             return None
         issue_number, item = binding
