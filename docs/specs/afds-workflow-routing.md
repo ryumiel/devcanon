@@ -932,7 +932,9 @@ schedules through the [retirement procedure](../../skills/issue-batch-coordinati
 
 At GitHub batch startup and issue admission on local macOS Codex Desktop, include
 relay setup, repository webhook registration and notices to the bound recipients
-in the permission check by default. Reuse a compatible verified relay. Honor an explicit exclusion and
+in the permission check by default. Verify that the running receiver covers each admitted issue. For an added issue outside
+its loaded allowlist, extend the disjoint scope, restart the same receiver with
+its receipt state, and verify coverage before relying on notices. Honor an explicit exclusion and
 reuse existing authorization. Approval of the listed batch effects covers event
 delivery. Verify that authority before setup and verify delivery before relying
 on notices. The

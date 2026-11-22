@@ -32,6 +32,20 @@ owns the event and authority rules.
    [relay CLI usage](github-push-relay-usage.md). Keep that state directory
    across receiver restarts. Use a fresh state directory for each new batch receiver.
 
+### Admit another issue
+
+For an accepted GitHub issue, verify the repository, ledger membership, owner
+recipient and non-overlap with other receivers on the same repository. The
+running receiver loads the issue IDs from `config.json` at startup and reads
+owner bindings from the ledger on each delivery. If the running receiver
+already covers the issue, reuse it. Otherwise add the issue ID to `issues`
+while preserving the existing IDs and settings. Restart the same receiver with
+its existing ledger, state directory, receipts, secret, endpoint and webhook.
+Confirm it loaded the intended configuration and can deliver to the bound
+recipient before relying on notices. If restart or coverage is uncertain,
+report the affected delivery gap and reconcile pending deliveries through the
+existing receipts before replay.
+
 ### Ledger fields
 
 Use these fields in the existing ledger. The example shows just the fields

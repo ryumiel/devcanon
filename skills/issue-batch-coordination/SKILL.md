@@ -129,7 +129,7 @@ lacks coverage, report the gap and yield without polling or scheduling a check.
 At startup and when adding issues, ask once for the selected actions that still
 need approval. Skip the prompt if all are covered. Include issue creation and
 admission by default. For GitHub batches on local macOS Codex Desktop, also
-include event delivery unless excluded. Reuse a verified relay or follow the
+include event delivery unless excluded. Verify coverage for each addition under the
 [push procedure](references/github-push.md) and [relay CLI usage](references/github-push-relay-usage.md).
 
 Use the wording and order below. Fill in the batch, repository, affected issue
