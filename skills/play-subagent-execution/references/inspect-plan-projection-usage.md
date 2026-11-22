@@ -108,7 +108,7 @@ Inspection is read-only and creates no files.
 ## Workflow boundary
 
 This public helper has two authorized callers over the same strict runtime
-grammar: `play-planning` uses it for planning preflight before its combined D5
+grammar: `play-planning` uses it for planning preflight before its combined planning review
 review, and [Play subagent execution workflow context](../SKILL.md) uses it
 again for executor intake after its expected-digest gate. For each invocation,
 the caller owns its path guards, lifecycle, closed-result validation, and

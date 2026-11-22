@@ -8,7 +8,7 @@ digraph priming {
   rankdir=TB;
   worktree [label="1. Worktree\nAdopt handed-off\nworktree + issue body"];
   helpers [label="Helper guards\nphase-artifacts.mjs\nwrite-* helpers", shape=box];
-  immutable_guard [label="D1-D3 source-immutable guard\nresolve configured full model + independent effort; validate complete tuple\nfresh Codex fork_turns:none; response-only; zero handoffs\ncapture -> spawn -> verify -> validate -> cleanup -> apply", shape=note];
+  immutable_guard [label="Source guard for the issue gate and research routes\nresolve configured full model + independent effort; validate complete tuple\nfresh Codex fork_turns:none; response-only; zero handoffs\ncapture -> spawn -> verify -> validate -> cleanup -> apply", shape=note];
   selection [label="Preparation Selection\nCurrent authority + sources\nSettled scope, owner, approach, proof?", shape=diamond];
   note [label="Guarded Execution Note\nExisting design carrier; no approval"];
   inline [label="Same-owner inline implementation\nRevalidate note + inputs; stop on uncertainty"];
@@ -43,7 +43,7 @@ digraph priming {
   worktree -> helpers -> selection;
   selection -> note [label="complete + authorized; forced research satisfied"];
   selection -> immutable_guard -> gate -> decide [label="needed investigation"];
-  selection -> external_policy [label="forced research; D2-D3 guards apply"];
+  selection -> external_policy [label="forced research; internal and external research guards apply"];
   selection -> brainstorm [label="needed design; investigation settled"];
   selection -> plan [label="--auto; current accepted design; planning needed"];
   note -> inline [label="--auto"];

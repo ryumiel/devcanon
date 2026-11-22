@@ -278,7 +278,7 @@ Track retry count explicitly. **Max 2 failure cycles.** A "failure cycle" is: CI
 
 The shared `subagent-lifecycle` owner and the Agent Routing and Mutation Policy
 adoption inventory own capability-escalation declarations. No current exact
-target transition is declared here: `D17 current exact target transition: none`.
+target transition is declared here: `ci-diagnosis-and-fix current exact target transition: none`.
 Guarded diagnosis and classified exact/judgment fix routes remain exact. The two
 CI repair cycles are workflow retries, not a capability escalation budget.
 
@@ -304,21 +304,21 @@ with zero handoffs. This bounded B3 diagnosis route has external authority
 `none`; do not substitute another role, capability, effort, mutation default,
 or ambient agent.
 
-Before every fresh D17 diagnosis or classified fix capture, load the dispatch
+Before every fresh CI diagnosis or classified fix capture, load the dispatch
 ritual in
 [`dispatch-ritual-usage.md`](../play-agent-dispatch/references/dispatch-ritual-usage.md)
 from the installed `play-agent-dispatch` bundle and run it with that branch's
 route values below. A missing, blank, unreadable, or unavailable ritual
 reference is a terminal pre-dispatch blocker: create no ledger row or baseline,
 do not spawn, and do not invent inline fallback detail. That reference owns the
-generic dispatch ritual; this skill owns its D17 route values, prompt inputs,
+generic dispatch ritual; this skill owns its CI diagnosis and fix route values, prompt inputs,
 and CI-repair disposition.
 
-| Route              | `agent_type`   | Capability  | Model marker                                        | `reasoning_effort` | `source_authority` | Prompt                                   |
-| ------------------ | -------------- | ----------- | --------------------------------------------------- | ------------------ | ------------------ | ---------------------------------------- |
-| D17 `diagnosis`    | `investigator` | `balanced`  | `D17_DIAGNOSIS_MODEL` = `{{model-codex:balanced}}`  | `medium`           | `source-immutable` | `D17_DIAGNOSIS_SELF_CONTAINED_PROMPT`    |
-| D17 `exact-fix`    | `executor`     | `efficient` | `D17_EXACT_FIX_MODEL` = `{{model-codex:efficient}}` | `medium`           | `source-mutable`   | `D17_EXACT_FIX_SELF_CONTAINED_PROMPT`    |
-| D17 `judgment-fix` | `implementer`  | `balanced`  | `D17_JUDGMENT_FIX_MODEL` = `gpt-6.1-terra`          | `medium`           | `source-mutable`   | `D17_JUDGMENT_FIX_SELF_CONTAINED_PROMPT` |
+| Route                                 | `agent_type`   | Capability  | Model marker                                       | `reasoning_effort` | `source_authority` | Prompt                                  |
+| ------------------------------------- | -------------- | ----------- | -------------------------------------------------- | ------------------ | ------------------ | --------------------------------------- |
+| `ci-diagnosis-and-fix` `diagnosis`    | `investigator` | `balanced`  | `CI_DIAGNOSIS_MODEL` = `{{model-codex:balanced}}`  | `medium`           | `source-immutable` | `CI_DIAGNOSIS_SELF_CONTAINED_PROMPT`    |
+| `ci-diagnosis-and-fix` `exact-fix`    | `executor`     | `efficient` | `CI_EXACT_FIX_MODEL` = `{{model-codex:efficient}}` | `medium`           | `source-mutable`   | `CI_EXACT_FIX_SELF_CONTAINED_PROMPT`    |
+| `ci-diagnosis-and-fix` `judgment-fix` | `implementer`  | `balanced`  | `CI_JUDGMENT_FIX_MODEL` = `gpt-6.1-terra`          | `medium`           | `source-mutable`   | `CI_JUDGMENT_FIX_SELF_CONTAINED_PROMPT` |
 
 Every branch has `external_authority: none`. The fully substituted prompt names
 the anchored PR head, bounded repository and authorized paths, collected CI
@@ -331,41 +331,41 @@ lifecycle/capture gate, use the actual Codex fields:
 ```text
 # Diagnosis: source-immutable, response-only; output is the evidence-only
 # diagnosis. Termination is diagnosis validation, cleanup, then classification.
-# D17_DIAGNOSIS_MODEL is the Codex-bound balanced model
+# CI_DIAGNOSIS_MODEL is the Codex-bound balanced model
 Codex.spawn_agent({
-  task_name: d17_<instance_ordinal>,
+  task_name: ci_diagnosis_and_fix_<instance_ordinal>,
   agent_type: "investigator",
-  model: D17_DIAGNOSIS_MODEL,
+  model: CI_DIAGNOSIS_MODEL,
   reasoning_effort: "medium",
   fork_turns: "none",
-  message: D17_DIAGNOSIS_SELF_CONTAINED_PROMPT,
+  message: CI_DIAGNOSIS_SELF_CONTAINED_PROMPT,
 })
 # Exact mechanical fix: source-mutable; output is scoped committed fix/report.
 # Termination returns the committed result to the root for verification/push.
-# D17_EXACT_FIX_MODEL is the Codex-bound efficient model
+# CI_EXACT_FIX_MODEL is the Codex-bound efficient model
 Codex.spawn_agent({
-  task_name: d17_<instance_ordinal>,
+  task_name: ci_diagnosis_and_fix_<instance_ordinal>,
   agent_type: "executor",
-  model: D17_EXACT_FIX_MODEL,
+  model: CI_EXACT_FIX_MODEL,
   reasoning_effort: "medium",
   fork_turns: "none",
-  message: D17_EXACT_FIX_SELF_CONTAINED_PROMPT,
+  message: CI_EXACT_FIX_SELF_CONTAINED_PROMPT,
 })
 # Judgment-bearing fix: source-mutable; output is scoped committed fix/report.
 # Termination returns the committed result to the root for verification/push.
-# D17_JUDGMENT_FIX_MODEL is the literal Codex implementer override
+# CI_JUDGMENT_FIX_MODEL is the literal Codex implementer override
 Codex.spawn_agent({
-  task_name: d17_<instance_ordinal>,
+  task_name: ci_diagnosis_and_fix_<instance_ordinal>,
   agent_type: "implementer",
-  model: D17_JUDGMENT_FIX_MODEL,
+  model: CI_JUDGMENT_FIX_MODEL,
   reasoning_effort: "medium",
   fork_turns: "none",
-  message: D17_JUDGMENT_FIX_SELF_CONTAINED_PROMPT,
+  message: CI_JUDGMENT_FIX_SELF_CONTAINED_PROMPT,
 })
 ```
 
-The resolved `D17_*_MODEL` is the full Codex-bound model, never an ambient,
-alias, or universal hard-coded capability string. As its owner allows, D17 may
+The resolved `CI_*_MODEL` is the full Codex-bound model, never an ambient,
+alias, or universal hard-coded capability string. As its owner allows, CI diagnosis and fix may
 continue only an unchanged branch and stable diagnosis/fix task identity through
 the shared lifecycle rule; diagnosis-to-fix classification is a fresh changed
 tuple. Native rejection uses the existing unavailable/blocked terminal without
@@ -473,7 +473,7 @@ exactly one mutable fix child:
 - Route a judgment-bearing fix to one source-mutable `implementer`,
   balanced/medium.
 
-These are the only two fix routes; do not add or infer a fourth D17 path. Every
+These are the only two fix routes; do not add or infer a fourth branch of CI diagnosis and fix. Every
 semantic child has external authority `none`. Name the exact authorized durable
 workspace paths and the validated diagnosis in the mutable child's prompt. The
 mutable child may edit only the authorized paths, run verification, and commit;

@@ -36,6 +36,6 @@ Prepare commands create `.ephemeral` and reserve a validated target. `finalize-s
 
 New approval-summary creation requires head-bound findings/v3 and emits
 `branch-review/approval-summary/v2`, including `verification_state`. The
-historical `incomplete_topical_count` field counts all incomplete D7/D10 routes.
+historical `incomplete_topical_count` field counts all incomplete independent review and targeted verification routes.
 The runtime recomputes counts and checks matching schemas, head, scope and
 digests; skipped verification does not make an unverified fix eligible.

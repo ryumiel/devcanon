@@ -13,12 +13,12 @@ codex_sidecar:
 
 # Writing Plans
 
-Source-immutability invocation and failure mechanics are owned by the adjacent [source-immutability usage](references/source-immutability-usage.md); this skill owns the D5 lifecycle decisions.
+Source-immutability invocation and failure mechanics are owned by the adjacent [source-immutability usage](references/source-immutability-usage.md); this skill owns the combined planning review lifecycle. Its route ID is `combined-planning-review`.
 
 ## Active combined review contract
 
 The [combined-review contract](references/combined-review-contract.md) is the
-active D5 authority. One fresh, independent D5 reviewer covers correctness and
+active combined planning review authority. One fresh, independent combined planning reviewer covers correctness and
 executability for the exact plan bytes. D6 is retired and has no active prompt,
 session, result, inventory entry, or implicit PASS. Do not use this workflow to
 approve the combined-contract migration itself.
@@ -31,7 +31,7 @@ Issue preparation applicability belongs to `issue-priming-workflow` Preparation
 Selection. Its Execution Note is local context, not this skill's design/plan
 input or review result. Needed planning consumes unresolved decisions and
 current accepted sources; unchanged decisions can be referenced under current
-freshness rules. Once planning is invoked, readiness, projection, combined D5,
+freshness rules. Once planning is invoked, readiness, projection, combined planning review,
 exact digest, correction budget and material reassessment remain mandatory.
 
 ## Overview
@@ -77,7 +77,7 @@ mkdir -p .ephemeral
 ```
 
 After writing the plan artifact, keep the saved path in controller-local state
-while self-review and combined D5 review run. Emit these three literal lines,
+while self-review and combined planning review run. Emit these three literal lines,
 in this order, only after the applicable review gate has passed and the plan is
 ready for the next handoff:
 
@@ -88,7 +88,7 @@ Planning review contract: planning-review/combined-v1
 ```
 
 The reviewed digest is the exact lowercase 64-hex digest that passed combined
-D5 and the pre-handoff rehash. These three values are the controller-local
+Combined planning review and the pre-handoff rehash. These three values are the controller-local
 handoff contract that parent workflows preserve for
 `play-subagent-execution` — do not reword them or write the digest or contract
 tag into a persistent artifact.
@@ -107,7 +107,7 @@ Ordinary planning uses explicit Sol High selection under
 [focused specialist selection](../play-agent-dispatch/SKILL.md#risk-based-specialist-selection).
 If planning exposes an unresolved material design risk, return it to the design
 owner for architect consultation rather than choosing new behavior in the plan.
-D5 remains independent combined review. Claude keeps its current behavior.
+Combined planning review remains independent combined review. Claude keeps its current behavior.
 
 ## Inputs
 
@@ -198,13 +198,13 @@ from the loaded or installed `play-planning` skill bundle, not from the target
 repository or current working directory. The controller must resolve both
 bundled references to concrete readable regular-file paths and retain the
 validated paths in controller-local state for readiness, self-review, and the
-combined D5 review. A missing or unreadable reference blocks planning.
+combined planning review. A missing or unreadable reference blocks planning.
 
 The readiness reference owns the exhaustive pre-drafting audit triggers,
 dimensions, outcomes, assumption bounds, and missing-decision records. The
 criteria reference owns scope, planning authority, contract and traceability
 coverage, task contracts, proof proportionality, shared result and gap
-classification, and the combined D5 correctness and executability remits. Do
+classification, and the combined planning review correctness and executability remits. Do
 not copy either reference's detailed contract into reviewer prompts.
 
 Apply the readiness audit before file mapping or task drafting. Evaluate all
@@ -498,7 +498,7 @@ contract detail; planning owns this classification, and the criteria own the
 tier definitions, eligibility dimensions, and ambiguity default.
 
 Projection disposition and task-valued proof are the sole plan-local membership
-facts. D5 validates their semantic truth and completeness. The executor
+facts. Combined planning review validates their semantic truth and completeness. The executor
 mechanically selects entries that explicitly name the current Task ID without
 inferring missing entries, topology, or semantic applicability.
 
@@ -683,7 +683,7 @@ that a correction preserves meaning or supplies authority.
 
 Discard failed inspection output; correcting the producer's input is distinct
 from repairing or partially consuming a result. After each correction, rerun
-all canonical preflight gates below on the saved input before D5 capture or
+all canonical preflight gates below on the saved input before combined planning review capture or
 dispatch. A second distinct mechanical defect alone requires neither
 coordinator/user reapproval nor a workflow restart when unchanged meaning and
 authority are established and correction makes progress. Pre-dispatch intake
@@ -745,31 +745,31 @@ If original bytes or provenance are unavailable, apply that contract's
 comprehensive-review-or-reassessment fallback rather than focused carry.
 Require only the selected design form: a selected path
 must remain readable and a selected inline payload must remain present. The
-unselected form may be absent. Pass the selected form explicitly to D5 and
+unselected form may be absent. Pass the selected form explicitly to combined planning review and
 instruct it to read the plan, selected design input, criteria, and readiness
 references before review. Load the shared
 [dispatch ritual](../play-agent-dispatch/references/dispatch-ritual-usage.md),
 then use it with `subagent-lifecycle` and the source-immutability guard in this
-order: capture, fresh D5 dispatch, verify, validate the response, cleanup, then
+order: capture, fresh combined planning review dispatch, verify, validate the response, cleanup, then
 consume the result. A guard failure, unavailable or malformed response,
 incomplete coverage, unexpected tag, digest mismatch, source drift, or cleanup
 failure is non-passing and never creates a handoff.
 
-Use only the rendered `D5_MODEL` = `gpt-6.1-sol`, `reviewer`, frontier/high,
+Use only the rendered `COMBINED_PLANNING_REVIEW_MODEL` = `gpt-6.1-sol`, `reviewer`, frontier/high,
 source-immutable, response-only tuple, with no handoffs or external authority:
 
 ```text
 Codex.spawn_agent({
-  task_name: d5_<instance_ordinal>,
+  task_name: combined_planning_review_<instance_ordinal>,
   agent_type: "reviewer",
-  model: D5_MODEL,
+  model: COMBINED_PLANNING_REVIEW_MODEL,
   reasoning_effort: "high",
   fork_turns: "none",
-  message: D5_PLAN_REVIEW_PROMPT,
+  message: COMBINED_PLANNING_REVIEW_PLAN_REVIEW_PROMPT,
 })
 ```
 
-The D5 prompt requires the active tag `planning-review/combined-v1`, exact
+The combined planning review prompt requires the active tag `planning-review/combined-v1`, exact
 digest, complete coverage of correctness and executability, independent source
 inspection, classified gaps, full correction diff, and prior coverage
 provenance. Follow the combined contract for result shape, carried coverage,
@@ -777,7 +777,7 @@ materiality, specialist evidence, reopening, the two-semantic-pass limit and the
 [source-established declaration verification](references/combined-review-contract.md#source-established-declaration-verification)
 exception. For that exception, retain original/current identities, complete
 prior coverage and gaps, explicit accepted mapping and consumed semantic
-history; set D5 purpose to verification-only without a third semantic wave.
+history; set combined planning review purpose to verification-only without a third semantic wave.
 Require `Review mode: verification-only` and full current/carried provenance
 in the current result. Failed verification stops exhausted recovery, without
 automatic redispatch. A late
@@ -837,7 +837,7 @@ Choose an execution route:
 
 Before either selected route begins execution, rehash the guarded saved plan
 and compare it with the retained reviewed digest, then validate the retained
-combined D5 producer provenance and
+combined planning review producer provenance and
 `planning-review/combined-v1` tag. A missing hasher, unreadable plan, malformed
 digest, mismatch, missing provenance, or invalid tag stops execution and
 returns to planning; never replace the expected digest with the current digest.
@@ -847,6 +847,6 @@ literal consumer lines above. It retains its own task-contract validation,
 dispatch/skip-dispatch, and review-routing rules. For the inline route, execute
 the approved tasks sequentially in this session with review checkpoints while
 retaining the same path, digest, tag, and producer provenance. A plan-byte edit
-after PASS invalidates approval on either route: use the remaining combined D5
+after PASS invalidates approval on either route: use the remaining combined planning review
 pass or stop for the explicit owning reassessment and reopening required by the
 combined-review contract. An execution choice never bypasses that cap.

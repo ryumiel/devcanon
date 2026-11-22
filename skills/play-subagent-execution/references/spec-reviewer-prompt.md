@@ -11,23 +11,23 @@ Use this template when dispatching a spec compliance reviewer subagent.
 
 **Promotion classification:** Workflow-local prompt template paired with the source agent at [`agents/reviewer.yaml`](../../../agents/reviewer.yaml) — referenced from `skills/play-subagent-execution/SKILL.md` for dispatch-time placeholder substitution. The role identity is already promoted; per [`docs/guidelines/agent-authoring-guide.md`](../../../docs/guidelines/agent-authoring-guide.md) §4, workflow-local prompt assembly stays as a template.
 
-**Route:** D14 is a response-only `reviewer`, frontier/high and
+**Route:** task specification review is a response-only `reviewer`, frontier/high and
 source-immutable, with zero handoffs. The controller supplies the captured task
 head and applies GUARD-001 outside this prompt. Do not change source, tests,
 configuration, documentation, or external systems; return only the response.
 Findings are evidence; mutation disposition belongs to the controller.
 
-**Fresh configuration:** Before D14 capture, validate `reviewer`,
+**Fresh configuration:** Before task specification review capture, validate `reviewer`,
 `frontier`, the nonblank full model in the controller/owner-supplied
-already-rendered `D14_MODEL` binding, independent `high`, source-immutable and
-external-none authority, `d14_<instance_ordinal>`, `fork_turns: "none"`, this
+already-rendered `TASK_SPEC_REVIEW_MODEL` binding, independent `high`, source-immutable and
+external-none authority, `task_spec_review_<instance_ordinal>`, `fork_turns: "none"`, this
 independent fully substituted prompt, response-only output, and the existing
 same-head/fix-loop termination. A missing, blank, unresolved, or mismatched
 binding blocks before capture or spawn; do not locate a source checkout or use
 an alias, nearby, or ambient model. Apply `subagent-lifecycle` for allocation
-and cleanup. D14 is always a fresh one-shot reviewer.
+and cleanup. Task specification review is always a fresh one-shot reviewer.
 
-**D14 question:** Does the implementation at the supplied task head satisfy
+**task specification review question:** Does the implementation at the supplied task head satisfy
 Task N exactly, including its extracted contract, without missing or extra
 behavior?
 
@@ -101,7 +101,7 @@ Task tool (general-purpose):
     context, missing task-local authority, or a source-confirmed contradiction
     that prevents this task from being specified or accepted fails closed as a
     spec-compliance issue. Do not rejudge plan-wide participant or relationship
-    completeness, which D5 owns, and do not guess or reclassify. A canonical valid example
+    completeness, which combined planning review owns, and do not guess or reclassify. A canonical valid example
     is the valid reviewed `LIGHTWEIGHT` context above: it does not add FULL-only
     matrices, spec or risk rows, or `N/A` placeholders. For invalid family 1,
     changing only that example's tier to missing or unsupported must fail
@@ -162,7 +162,7 @@ Task tool (general-purpose):
       and only otherwise the tier-specific task context. Consume the selected
       carrier without restating it. A contradiction that creates a concrete
       task-local specification defect is in remit. Do not assess, originate, or
-      route plan-wide projection completeness; D5 owns that review on reviewed
+      route plan-wide projection completeness; combined planning review owns that review on reviewed
       plans.
     - For `FULL`, verify all must-preserve, behavior, spec/procedure, risk, and
       task-local verification expectations are complete. Consume projection

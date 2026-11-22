@@ -262,7 +262,7 @@ The script-owned deterministic surfaces are:
 
 - `scripts/phase-artifacts.mjs` for read guards on issue-priming-owned phase artifacts.
 - `scripts/source-immutability.mjs` for the packaged source-immutable
-  `capture`, `verify`, and `cleanup` lifecycle around D1-D3 leaves.
+  `capture`, `verify`, and `cleanup` lifecycle around issue gate assessment and research leaves.
 - `scripts/write-research-brief.mjs` for preparing the Phase 3 research-brief write target.
 - `scripts/write-auto-handoff.mjs` for writing the Phase 6 automatic handoff.
 - `scripts/write-assumptions-comment.mjs` for preparing the Phase 8 assumptions-comment write target.
@@ -372,7 +372,7 @@ introduced. Missing, malformed, unreadable, stale or contradictory inputs stop
 before dependent execution and return to selection or the missing owner.
 
 The note is execution context and identity, never approval. Emit no `Plan
-written`, `Reviewed digest`, planning-review tag, D5 PASS, reviewed tier or
+written`, `Reviewed digest`, planning-review tag, combined planning review PASS, reviewed tier or
 auto-handoff for it. Do not pass it as `Design:` to planning or `Plan:` to the
 executor, including direct unreviewed FULL, mechanical skip-dispatch or reduced
 routes. It supplies no publication, provider-mutation or cleanup authority;
@@ -414,8 +414,8 @@ child, owns the final research brief path and synthesized report.
 
 The shared `subagent-lifecycle` owner and the Agent Routing and Mutation Policy
 adoption inventory own capability-escalation declarations. No current exact
-target transition is declared here: `D1 current exact target transition: none`;
-`D2 current exact target transition: none`; and `D3 current exact target transition: none`.
+target transition is declared here: `issue-gate-assessment current exact target transition: none`;
+`internal-research current exact target transition: none`; and `external-research current exact target transition: none`.
 The fixed assessor and investigator pairs remain exact.
 Ordinary gate and research outcomes remain their existing fallback and
 outcome-precedence routes; they are not capability retries.
@@ -439,18 +439,18 @@ checks `AGENTS.md` for relevant rules. The route has external authority `none`,
 no network access, and zero handoffs. Do not substitute an ambient role, model,
 or effort and do not escalate this bounded gate into a different route.
 
-Before D1 capture, load the dispatch ritual in
+Before issue gate assessment capture, load the dispatch ritual in
 [`dispatch-ritual-usage.md`](../play-agent-dispatch/references/dispatch-ritual-usage.md)
-from the installed `play-agent-dispatch` bundle and run it with the D1 route
+from the installed `play-agent-dispatch` bundle and run it with the issue gate assessment route
 values below. A missing, blank, unreadable, or unavailable ritual reference is
 a terminal pre-dispatch blocker: create no ledger row or baseline, do not
 spawn, and do not invent inline fallback detail. That reference owns the
-generic dispatch ritual; this skill owns its D1 route values, prompt inputs,
+generic dispatch ritual; this skill owns its issue gate assessment route values, prompt inputs,
 and gate disposition.
 
-| Route | `agent_type` | Capability | Model marker                            | `reasoning_effort` | `source_authority` | Prompt      |
-| ----- | ------------ | ---------- | --------------------------------------- | ------------------ | ------------------ | ----------- |
-| D1    | `assessor`   | `balanced` | `D1_MODEL` = `{{model-codex:balanced}}` | `low`              | `source-immutable` | `D1_PROMPT` |
+| Route                   | `agent_type` | Capability | Model marker                                               | `reasoning_effort` | `source_authority` | Prompt                         |
+| ----------------------- | ------------ | ---------- | ---------------------------------------------------------- | ------------------ | ------------------ | ------------------------------ |
+| `issue-gate-assessment` | `assessor`   | `balanced` | `ISSUE_GATE_ASSESSMENT_MODEL` = `{{model-codex:balanced}}` | `low`              | `source-immutable` | `ISSUE_GATE_ASSESSMENT_PROMPT` |
 
 The route has `external_authority: none` and zero handoffs. The prompt must name
 the issue title, source, identifier, guarded issue-body path,
@@ -461,18 +461,18 @@ a nearby or ambient model. Only after the ritual's validation and capture,
 create exactly one fresh Codex child:
 
 ```text
-# D1_MODEL is the Codex-bound balanced model
+# ISSUE_GATE_ASSESSMENT_MODEL is the Codex-bound balanced model
 Codex.spawn_agent({
-  task_name: d1_<instance_ordinal>,
+  task_name: issue_gate_assessment_<instance_ordinal>,
   agent_type: "assessor",
-  model: D1_MODEL,
+  model: ISSUE_GATE_ASSESSMENT_MODEL,
   reasoning_effort: "low",
   fork_turns: "none",
-  message: D1_PROMPT,
+  message: ISSUE_GATE_ASSESSMENT_PROMPT,
 })
 ```
 
-If native Codex rejects the D1 pair, use the existing unavailable-gate fallback
+If native Codex rejects the issue gate assessment pair, use the existing unavailable-gate fallback
 after the required cleanup. A known created assessor's explicit terminal
 model-capacity failure first uses `subagent-lifecycle`'s bounded recovery rule.
 
@@ -557,7 +557,7 @@ notice on that route.
 
 Only `RESEARCH_NEEDED` or `payload.research = forced` enters research. Before
 prompt preparation, lifecycle-row creation, source-immutability capture, or
-D2/D3 dispatch, load
+internal and external research dispatch, load
 [`references/phase-3-research-controller.md`](references/phase-3-research-controller.md).
 Missing, blank, unreadable, or unavailable support is a terminal pre-dispatch
 blocker: create no row, baseline, artifact, notice, or Phase 4 handoff. Do not
@@ -566,7 +566,7 @@ normative owner of this policy; the loaded reference is a subordinate
 research-selected operating procedure.
 
 The depth-0 root alone dispatches, validates reports, synthesizes, and
-persists. D2 and D3 are direct depth-1 response-only `investigator` leaves with
+persists. Internal research and external research are direct depth-1 response-only `investigator` leaves with
 `external_authority: none` and zero handoffs. Before either capture, load the
 dispatch ritual in
 [`dispatch-ritual-usage.md`](../play-agent-dispatch/references/dispatch-ritual-usage.md)
@@ -574,15 +574,15 @@ from the installed `play-agent-dispatch` bundle and run it once per route with
 the values below. A missing, blank, unreadable, or unavailable ritual reference
 is a terminal pre-dispatch blocker: create no ledger row or baseline, do not
 spawn, and do not invent inline fallback detail. That reference owns the
-generic dispatch ritual; this skill owns its D2/D3 route values, prompt inputs,
+generic dispatch ritual; this skill owns its internal and external research route values, prompt inputs,
 and research disposition.
 
-| Route | `agent_type`   | Capability | Model marker                            | `reasoning_effort` | `source_authority` | Prompt      |
-| ----- | -------------- | ---------- | --------------------------------------- | ------------------ | ------------------ | ----------- |
-| D2    | `investigator` | `balanced` | `D2_MODEL` = `{{model-codex:balanced}}` | `medium`           | `source-immutable` | `D2_PROMPT` |
-| D3    | `investigator` | `balanced` | `D3_MODEL` = `{{model-codex:balanced}}` | `medium`           | `source-immutable` | `D3_PROMPT` |
+| Route               | `agent_type`   | Capability | Model marker                                           | `reasoning_effort` | `source_authority` | Prompt                     |
+| ------------------- | -------------- | ---------- | ------------------------------------------------------ | ------------------ | ------------------ | -------------------------- |
+| `internal-research` | `investigator` | `balanced` | `INTERNAL_RESEARCH_MODEL` = `{{model-codex:balanced}}` | `medium`           | `source-immutable` | `INTERNAL_RESEARCH_PROMPT` |
+| `external-research` | `investigator` | `balanced` | `EXTERNAL_RESEARCH_MODEL` = `{{model-codex:balanced}}` | `medium`           | `source-immutable` | `EXTERNAL_RESEARCH_PROMPT` |
 
-D2 has no network access. D3's network binding is exactly `dispatch-named`, and
+Internal research has no network access. External research's network binding is exactly `dispatch-named`, and
 its evidence qualifier is exactly `named-network`, only for its one root-curated
 question; neither route may mutate an external system. A missing, blank,
 unresolved, or mismatched marker blocks before capture or spawn. Do not search a
@@ -592,20 +592,20 @@ reports, or emit notices.
 
 ```text
 Codex.spawn_agent({
-  task_name: d2_<instance_ordinal>,
+  task_name: internal_research_<instance_ordinal>,
   agent_type: "investigator",
-  model: D2_MODEL,
+  model: INTERNAL_RESEARCH_MODEL,
   reasoning_effort: "medium",
   fork_turns: "none",
-  message: D2_PROMPT,
+  message: INTERNAL_RESEARCH_PROMPT,
 })
 Codex.spawn_agent({
-  task_name: d3_<instance_ordinal>,
+  task_name: external_research_<instance_ordinal>,
   agent_type: "investigator",
-  model: D3_MODEL,
+  model: EXTERNAL_RESEARCH_MODEL,
   reasoning_effort: "medium",
   fork_turns: "none",
-  message: D3_PROMPT,
+  message: EXTERNAL_RESEARCH_PROMPT,
 })
 ```
 
@@ -939,7 +939,7 @@ another approval request: routine source inspection and mapping; bounded
 internal choices resolved from named authoritative sources, repository patterns,
 and the smallest compatible design; coherent slices; test or fixture correction;
 validation, normal commits, reviewer dispatch or waiting, and bounded
-in-contract fixes; and task-locally recoverable D12 `NEEDS_CONTEXT` or
+in-contract fixes; and task-locally recoverable default implementation `NEEDS_CONTEXT` or
 `BLOCKED` statuses.
 
 An active owner with an intact confirmed binding continues this authorized
@@ -1012,7 +1012,7 @@ Include the literal `Comment evidence: <repo-relative-path>` line only when
 ```
 Write an implementation plan for <source-noun> issue <ID>: <TITLE>.
 
-`--auto` flow active (invoked by `issue-priming-workflow`). Do NOT prompt for execution mode at the end — return after saving the plan and only after complete combined D5 review passes both remits so the parent skill can invoke `play-subagent-execution`. Invalid combined review stops before `play-subagent-execution`.
+`--auto` flow active (invoked by `issue-priming-workflow`). Do NOT prompt for execution mode at the end — return after saving the plan and only after complete combined planning review passes both remits so the parent skill can invoke `play-subagent-execution`. Invalid combined review stops before `play-subagent-execution`.
 
 Design: <repo-relative-path captured above>
 
@@ -1037,7 +1037,7 @@ and final implementation review remain separate gates.
 After `play-planning` returns, capture its literal
 `Plan written to <path>.`, `Reviewed digest: <sha256>`, and
 `Planning review contract: planning-review/combined-v1` lines. That return
-means complete current combined D5 assurance passed, either semantic review
+means complete current combined planning review assurance passed, either semantic review
 or the qualifying verification-only composite. Preserve the reviewed digest and
 combined producer provenance in controller-local state, validate them, and stop
 if any value is missing or malformed. Invalid planning provenance must stop
@@ -1088,16 +1088,16 @@ Any missing tool, unreadable plan, hashing failure, malformed digest, or
 mismatch stops before executor handoff and requires a fresh planning wave; do
 not update the expected digest to match changed bytes.
 
-Before every D12 spawn or same-route redispatch, the controller validates the
+Before every default implementation spawn or same-route redispatch, the controller validates the
 exact approved route from current issue authority, existing owner-route
 identity, preserved reviewed plan digest, auto-handoff identity, and current
 head when one exists. It carries only the current validated tuple in
-controller-local state; after a D12 commit changes that head, it must rebuild
-and validate the attestation before another D12 prompt. When an
+controller-local state; after a default implementation commit changes that head, it must rebuild
+and validate the attestation before another default implementation prompt. When an
 `issue-batch-routing` parent is present, first
 send the initial owner-handoff report defined below so the router can record
 the same facts before any progress receipt. Then inject a `Verified auto-route
-attestation` into each D12 prompt that names the source provider and issue,
+attestation` into each default implementation prompt that names the source provider and issue,
 owner thread, exact approved route identity, reviewed plan digest, auto-handoff
 identity, current head when present, and that current issue authority was
 validated. Missing, unclear,
@@ -1109,9 +1109,9 @@ reference, the preserved `Expected digest: <sha256>`, `Auto handoff:
 <repo-relative-path>`, and the controller-validated `Verified auto-route
 attestation` in the invocation prose, NOT as inline content. The executor
 controller must validate and retain a current controller-provided attestation
-before every D12 spawn or same-route redispatch, then substitute only that
+before every default implementation spawn or same-route redispatch, then substitute only that
 current retained value; it must render `unverified` and use the
-manual/default D12 behavior when validation fails. Use the `$AUTO_HANDOFF_FILE`
+manual default implementation behavior when validation fails. Use the `$AUTO_HANDOFF_FILE`
 path captured above. Carry
 `ISSUE_PRIMING_AUTO_PARENT_ACTIVE=true` and `ISSUE_PRIMING_AUTO_HEAD` in
 controller-local state for the executor's handoff validation. Reduced routes
@@ -1144,7 +1144,7 @@ Phase 7 final-review guarantee, both defined in
 [`references/phase-6-auto-handoff.md`](references/phase-6-auto-handoff.md)
 §§ "Single-Task Final-Review Carve-Out" and "Phase 7 Final-Review Guarantee".
 
-`play-subagent-execution` may execute trivial single-task plans inline (skip-dispatch path; see its [skip-dispatch policy](../play-subagent-execution/references/skip-dispatch-policy.md)). On the reviewed-plan route, Phase 6 remains "invoke `play-subagent-execution`" — the inline optimization is internal to that skill. Four runtime guardrails (single-task, `**Mode:** mechanical`, structural task-contract gate satisfied, no TDD expectations or legacy TDD step-pair markers) plus one upstream precondition (current combined D5 provenance from Phase 5) gate the path; the runtime guardrails are checked by the skill's controller after plan extraction. A missing or invalid required contract checklist stops before implementation rather than falling back to mechanical dispatch.
+`play-subagent-execution` may execute trivial single-task plans inline (skip-dispatch path; see its [skip-dispatch policy](../play-subagent-execution/references/skip-dispatch-policy.md)). On the reviewed-plan route, Phase 6 remains "invoke `play-subagent-execution`" — the inline optimization is internal to that skill. Four runtime guardrails (single-task, `**Mode:** mechanical`, structural task-contract gate satisfied, no TDD expectations or legacy TDD step-pair markers) plus one upstream precondition (current combined planning review provenance from Phase 5) gate the path; the runtime guardrails are checked by the skill's controller after plan extraction. A missing or invalid required contract checklist stops before implementation rather than falling back to mechanical dispatch.
 
 Successful `play-subagent-execution` completion returns control to this owning
 workflow. Phase 6 completion is not terminal; it enters Candidate Closure and
@@ -1377,10 +1377,10 @@ validation, explicit preparation kind/path/digest and its provenance, and
 the refreshed current head SHA whenever a branch or PR exists. The batch
 controller retains the refreshed source-issue state snapshot digest from its
 own source refresh; the owner-handoff cannot originate or refresh that fact.
-For `reviewed-plan`, preserve the actual reviewed digest, real D5 producer and
+For `reviewed-plan`, preserve the actual reviewed digest, real combined planning review producer and
 non-authorizing auto-handoff identity. For `execution-note`, report the guarded
 note path/digest, current issue validation and existing owner identity without
-D5, reviewed-plan or auto-handoff claims. These variants are never interchangeable.
+Combined planning review, reviewed-plan or auto-handoff claims. These variants are never interchangeable.
 For batch-routed handoffs, it reports the received canonical
 `batch-source-issue-identifier`, not the provider-native payload identifier.
 It also echoes the complete `issue-priming` route key received as

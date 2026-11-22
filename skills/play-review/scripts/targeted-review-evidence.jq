@@ -26,13 +26,13 @@ and ((.findings + .carry_forward) | group_by(.id) | all(.[]; (unique | length) =
 and (.incomplete_review_routes | type == "array")
 and (.incomplete_review_routes | all(.[];
   keys == ["disposition", "route"]
-  and (.route == "D7" or .route == "D10")
+  and (.route == "independent-review" or .route == "targeted-verification")
   and (.disposition == "FAILED" or .disposition == "NEEDS_CONTEXT" or .disposition == "CONTROLLER_OBSERVED_FAILURE")))
 and ((.incomplete_review_routes | map(.route) | unique | length) == (.incomplete_review_routes | length))
-and (if (.incomplete_review_routes | any(.[]; .route == "D7")) then
+and (if (.incomplete_review_routes | any(.[]; .route == "independent-review")) then
   .findings == [] and .carry_forward == [] and .prior_dispositions == []
   and .verification.state == "not-required" and .verification.selected_ids == []
-  and (.incomplete_review_routes | all(.[]; .route != "D10"))
+  and (.incomplete_review_routes | all(.[]; .route != "targeted-verification"))
   else true end)
 and (.verification | keys == ["reason", "selected_ids", "state"])
 and (.verification.reason | nonblank)
@@ -40,12 +40,12 @@ and (.verification.selected_ids | type == "array")
 and ((.verification.selected_ids | unique | length) == (.verification.selected_ids | length))
 and (((.findings + .carry_forward) | map(select(.assessment.selection != "none") | .id) | unique | sort) == (.verification.selected_ids | sort))
 and (if (.verification.selected_ids | length) == 0 then
-    .verification.state == "not-required" and (.incomplete_review_routes | all(.[]; .route != "D10"))
+    .verification.state == "not-required" and (.incomplete_review_routes | all(.[]; .route != "targeted-verification"))
   elif .verification.state == "completed" then
-    (.incomplete_review_routes | all(.[]; .route != "D10"))
+    (.incomplete_review_routes | all(.[]; .route != "targeted-verification"))
     and ((.findings + .carry_forward) | all(.[]; .assessment.selection == "none" or .assessment.verification == "completed"))
   elif .verification.state == "incomplete" then
-    (.incomplete_review_routes | any(.[]; .route == "D10"))
+    (.incomplete_review_routes | any(.[]; .route == "targeted-verification"))
     and ((.findings + .carry_forward) | all(.[]; .assessment.selection == "none" or .assessment.verification == "incomplete"))
   else false end)
 and (.prior_dispositions | type == "array" and unique_ids)

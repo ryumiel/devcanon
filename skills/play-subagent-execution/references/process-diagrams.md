@@ -5,7 +5,7 @@ These diagrams are non-normative summaries of the controller flow in
 owned by [`review-routing-policy.md`](review-routing-policy.md); returned
 status, freshness, guard-failure, cleanup, and terminal transitions are owned
 by [`lifecycle-status-policy.md`](lifecycle-status-policy.md).
-Fresh D12-D16 tuple validation and creation fields are owned by `SKILL.md`;
+Fresh tuple validation for implementation and review routes and creation fields are owned by `SKILL.md`;
 the shared lifecycle rule is owned by `subagent-lifecycle`. The diagram never
 implies an inherited or configuration-changing dispatch.
 
@@ -42,20 +42,20 @@ digraph process {
     "Controller chooses guarded inline?" [shape=diamond];
     "Controller executes Write/Edit + verify + commit inline" [shape=box];
     "Inline branch: no child DONE report or snapshot request" [shape=box];
-    "Dispatch D13 executor for exact validated operation" [shape=box];
-    "Dispatched D13: capture DONE report and snapshot state" [shape=box];
+    "Dispatch executor for the validated exact task" [shape=box];
+    "Dispatched exact task execution: capture DONE report and snapshot state" [shape=box];
     "Dispatch implementer prompt" [shape=box];
-    "Send incremental D12 follow-up to stable session" [shape=box];
+    "Send incremental default implementation follow-up to stable session" [shape=box];
     "Implementer asks questions?" [shape=diamond];
     "Answer questions and provide context" [shape=box];
     "Implementer implements, verifies, commits, self-reviews" [shape=box];
     "Compute effective review route" [shape=diamond];
     "Dispatch spec and quality reviewers for same task head" [shape=box];
-    "Capture separate D14 and D15 baselines" [shape=box];
-    "Independent D14 and D15 verify-validate-cleanup-apply" [shape=box];
-    "Capture D14 baseline" [shape=box];
+    "Capture separate task specification review and task quality review baselines" [shape=box];
+    "Verify, validate, clean up and apply both review results" [shape=box];
+    "Capture task specification review baseline" [shape=box];
     "Dispatch spec reviewer" [shape=box];
-    "D14 verify-validate-cleanup-apply" [shape=box];
+    "Verify, validate, clean up and apply the specification review" [shape=box];
     "Join same-head review results" [shape=box];
     "Classify independently and separate dispositions before grouping" [shape=box];
     "Bounded fix permitted?" [shape=diamond];
@@ -68,10 +68,10 @@ digraph process {
     "More tasks remain?" [shape=diamond];
     "Single-task caller-scoped final-review skip applies?" [shape=diamond];
     "Dispatch final whole-implementation code-quality reviewer" [shape=box];
-    "Fresh D16 capture" [shape=box];
-    "D16 verify-validate-cleanup-apply" [shape=box];
+    "Fresh whole-implementation quality review capture" [shape=box];
+    "Verify, validate, clean up and apply the final review" [shape=box];
     "Final whole-implementation review passes?" [shape=diamond];
-    "Fresh D12 final whole-implementation fix" [shape=box];
+    "Fresh implementer for the final fix" [shape=box];
     "Final fix commits and verifies" [shape=box];
     "Owning caller final whole-diff gate present?" [shape=diamond];
     "Return to caller" [shape=box];
@@ -89,35 +89,35 @@ digraph process {
     "Plan has exactly one task?" -> "Skip-dispatch guardrails all pass?" [label="yes"];
     "Skip-dispatch guardrails all pass?" -> "Controller chooses guarded inline?" [label="yes"];
     "Controller chooses guarded inline?" -> "Controller executes Write/Edit + verify + commit inline" [label="yes"];
-    "Controller chooses guarded inline?" -> "Dispatch D13 executor for exact validated operation" [label="no"];
-    "Skip-dispatch guardrails all pass?" -> "Dispatch implementer prompt" [label="non-contract miss: reclassify D12"];
+    "Controller chooses guarded inline?" -> "Dispatch executor for the validated exact task" [label="no"];
+    "Skip-dispatch guardrails all pass?" -> "Dispatch implementer prompt" [label="non-contract miss: reclassify default implementation"];
     "Plan has exactly one task?" -> "Dispatch implementer prompt" [label="no"];
     "Dispatch implementer prompt" -> "Implementer asks questions?";
     "Implementer asks questions?" -> "Answer questions and provide context" [label="yes"];
-    "Answer questions and provide context" -> "Send incremental D12 follow-up to stable session";
-    "Send incremental D12 follow-up to stable session" -> "Implementer implements, verifies, commits, self-reviews";
+    "Answer questions and provide context" -> "Send incremental default implementation follow-up to stable session";
+    "Send incremental default implementation follow-up to stable session" -> "Implementer implements, verifies, commits, self-reviews";
     "Implementer asks questions?" -> "Implementer implements, verifies, commits, self-reviews" [label="no"];
     "Implementer implements, verifies, commits, self-reviews" -> "Mark task complete" [label="single-task plan"];
     "Implementer implements, verifies, commits, self-reviews" -> "Compute effective review route" [label="multi-task plan"];
-    "Dispatch D13 executor for exact validated operation" -> "Dispatched D13: capture DONE report and snapshot state" [label="DONE or purely observational DONE_WITH_CONCERNS"];
-    "Dispatched D13: capture DONE report and snapshot state" -> "Mark task complete" [label="single-task plan; DONE or purely observational concerns"];
-    "Dispatched D13: capture DONE report and snapshot state" -> "Dispatch implementer prompt" [label="judgment-bearing concerns: route D12 via lifecycle/status policy"];
-    "Compute effective review route" -> "Capture separate D14 and D15 baselines" [label="spec-and-quality"];
-    "Capture separate D14 and D15 baselines" -> "Dispatch spec and quality reviewers for same task head" [label="capture succeeds"];
-    "Dispatch spec and quality reviewers for same task head" -> "Independent D14 and D15 verify-validate-cleanup-apply";
-    "Independent D14 and D15 verify-validate-cleanup-apply" -> "Join same-head review results";
-    "Compute effective review route" -> "Capture D14 baseline" [label="spec-only"];
-    "Capture D14 baseline" -> "Dispatch spec reviewer" [label="capture succeeds"];
+    "Dispatch executor for the validated exact task" -> "Dispatched exact task execution: capture DONE report and snapshot state" [label="DONE or purely observational DONE_WITH_CONCERNS"];
+    "Dispatched exact task execution: capture DONE report and snapshot state" -> "Mark task complete" [label="single-task plan; DONE or purely observational concerns"];
+    "Dispatched exact task execution: capture DONE report and snapshot state" -> "Dispatch implementer prompt" [label="judgment-bearing concerns: route default implementation via lifecycle/status policy"];
+    "Compute effective review route" -> "Capture separate task specification review and task quality review baselines" [label="spec-and-quality"];
+    "Capture separate task specification review and task quality review baselines" -> "Dispatch spec and quality reviewers for same task head" [label="capture succeeds"];
+    "Dispatch spec and quality reviewers for same task head" -> "Verify, validate, clean up and apply both review results";
+    "Verify, validate, clean up and apply both review results" -> "Join same-head review results";
+    "Compute effective review route" -> "Capture task specification review baseline" [label="spec-only"];
+    "Capture task specification review baseline" -> "Dispatch spec reviewer" [label="capture succeeds"];
     "Compute effective review route" -> "Mark task complete" [label="none-final-only"];
-    "Dispatch spec reviewer" -> "D14 verify-validate-cleanup-apply";
-    "D14 verify-validate-cleanup-apply" -> "Spec-only review passes?";
+    "Dispatch spec reviewer" -> "Verify, validate, clean up and apply the specification review";
+    "Verify, validate, clean up and apply the specification review" -> "Spec-only review passes?";
     "Join same-head review results" -> "Spec passes for reviewed head?";
     "Spec-only review passes?" -> "Classify independently and separate dispositions before grouping" [label="no"];
     "Spec passes for reviewed head?" -> "Classify independently and separate dispositions before grouping" [label="no"];
     "Quality findings present?" -> "Classify independently and separate dispositions before grouping" [label="yes"];
     "Classify independently and separate dispositions before grouping" -> "Bounded fix permitted?";
-    "Bounded fix permitted?" -> "Send incremental D12 follow-up to stable session" [label="yes; compatible stable D12"];
-    "Bounded fix permitted?" -> "Dispatch implementer prompt" [label="yes; fresh D12 required"];
+    "Bounded fix permitted?" -> "Send incremental default implementation follow-up to stable session" [label="yes; compatible stable default implementation"];
+    "Bounded fix permitted?" -> "Dispatch implementer prompt" [label="yes; fresh default implementation required"];
     "Bounded fix permitted?" -> "Mark task complete" [label="no; all-non-mutating dispositions satisfy active-task gate"];
     "Bounded fix permitted?" -> "Stop: BLOCKED" [label="no; unclear authority, mandatory round 3, or optional unchanged-family early stop"];
     "Spec-only review passes?" -> "Mark task complete" [label="yes"];
@@ -132,13 +132,13 @@ digraph process {
     "More tasks remain?" -> "Dispatch implementer prompt" [label="yes"];
     "More tasks remain?" -> "Single-task caller-scoped final-review skip applies?" [label="no"];
     "Single-task caller-scoped final-review skip applies?" -> "Return to caller" [label="yes"];
-    "Single-task caller-scoped final-review skip applies?" -> "Fresh D16 capture" [label="no"];
-    "Fresh D16 capture" -> "Dispatch final whole-implementation code-quality reviewer" [label="capture succeeds"];
-    "Dispatch final whole-implementation code-quality reviewer" -> "D16 verify-validate-cleanup-apply";
-    "D16 verify-validate-cleanup-apply" -> "Final whole-implementation review passes?";
-    "Final whole-implementation review passes?" -> "Fresh D12 final whole-implementation fix" [label="no"];
-    "Fresh D12 final whole-implementation fix" -> "Final fix commits and verifies" [label="complete fresh D12 prompt/creation"];
-    "Final fix commits and verifies" -> "Fresh D16 capture";
+    "Single-task caller-scoped final-review skip applies?" -> "Fresh whole-implementation quality review capture" [label="no"];
+    "Fresh whole-implementation quality review capture" -> "Dispatch final whole-implementation code-quality reviewer" [label="capture succeeds"];
+    "Dispatch final whole-implementation code-quality reviewer" -> "Verify, validate, clean up and apply the final review";
+    "Verify, validate, clean up and apply the final review" -> "Final whole-implementation review passes?";
+    "Final whole-implementation review passes?" -> "Fresh implementer for the final fix" [label="no"];
+    "Fresh implementer for the final fix" -> "Final fix commits and verifies" [label="complete fresh default implementation prompt/creation"];
+    "Final fix commits and verifies" -> "Fresh whole-implementation quality review capture";
     "Final whole-implementation review passes?" -> "Owning caller final whole-diff gate present?" [label="yes"];
     "Owning caller final whole-diff gate present?" -> "Return to caller" [label="yes"];
     "Owning caller final whole-diff gate present?" -> "Report implementation and final review status; resolve branch-level review status" [label="no"];
@@ -157,18 +157,18 @@ cleanup, verification, returned-status, and terminal failure edges are
 deliberate and are governed by
 [`lifecycle-status-policy.md`](lifecycle-status-policy.md). Initial route labels
 are governed by [`review-routing-policy.md`](review-routing-policy.md), and
-pre-dispatch D13 selection is governed by
+pre-dispatch exact task execution selection is governed by
 [`skip-dispatch-policy.md`](skip-dispatch-policy.md).
 
 For a review finding, the classification box represents the lifecycle owner's
-private bounded impact preview before a D12 edge. Classification authority is
+private bounded impact preview before a default implementation dispatch. Classification authority is
 [Writing Skills](../../../docs/guidelines/writing-skills.md#review-and-mutation-routing),
 with an installed copy in
 [`finding-proportionality.md`](../../play-review-response/references/finding-proportionality.md);
-the lifecycle owner applies its dispositions and owns the D12 loop. A
+the lifecycle owner applies its dispositions and owns the default implementation loop. A
 complete authorized-correction wave records its round before the decision:
 rounds 1 and 2 may take the bounded-fix edge, while round 3 must stop at
-`BLOCKED` with `review-loop-limit` before D12; a materially unchanged family
+`BLOCKED` with `review-loop-limit` before default implementation; a materially unchanged family
 may stop earlier through that same blocker and resumption path. A
 finding-bound single-use approval can permit one identified extra edge. After
 its failed review, the lifecycle owner's same-contract reassessment recovery

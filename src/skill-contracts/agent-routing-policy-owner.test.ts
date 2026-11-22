@@ -2,6 +2,7 @@ import { lstat, readdir } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
 import {
+  parseAgentRoutingPolicyOwner,
   readAgentRoutingPolicyOwner,
   readAgentSemanticRoleOwner,
 } from "../__test-helpers__/agent-routing-policy.js";
@@ -15,172 +16,172 @@ const reviewerModel: string = parseYaml(
 const OWNER_PATH = "docs/guidelines/agent-routing-and-mutation-policy.md";
 const AGENT_SPEC_PATH = "docs/specs/agents.md";
 
-const D17_BRANCH_BY_MODEL = {
-  D17_DIAGNOSIS_MODEL: "diagnosis",
-  D17_EXACT_FIX_MODEL: "exact-fix",
-  D17_JUDGMENT_FIX_MODEL: "judgment-fix",
+const CI_BRANCH_BY_MODEL = {
+  CI_DIAGNOSIS_MODEL: "diagnosis",
+  CI_EXACT_FIX_MODEL: "exact-fix",
+  CI_JUDGMENT_FIX_MODEL: "judgment-fix",
 } as const;
 
 const FRESH_SPAWNS = [
   [
-    "D1",
+    "issue-gate-assessment",
     "issue-priming-workflow",
     "assessor",
     "balanced",
-    "D1_MODEL",
+    "ISSUE_GATE_ASSESSMENT_MODEL",
     "low",
     "source-immutable",
-    "D1_PROMPT",
+    "ISSUE_GATE_ASSESSMENT_PROMPT",
   ],
   [
-    "D2",
+    "internal-research",
     "issue-priming-workflow",
     "investigator",
     "balanced",
-    "D2_MODEL",
+    "INTERNAL_RESEARCH_MODEL",
     "medium",
     "source-immutable",
-    "D2_PROMPT",
+    "INTERNAL_RESEARCH_PROMPT",
   ],
   [
-    "D3",
+    "external-research",
     "issue-priming-workflow",
     "investigator",
     "balanced",
-    "D3_MODEL",
+    "EXTERNAL_RESEARCH_MODEL",
     "medium",
     "source-immutable",
-    "D3_PROMPT",
+    "EXTERNAL_RESEARCH_PROMPT",
   ],
   [
-    "D5",
+    "combined-planning-review",
     "play-planning",
     "reviewer",
     "frontier",
-    "D5_MODEL",
+    "COMBINED_PLANNING_REVIEW_MODEL",
     "high",
     "source-immutable",
-    "D5_PLAN_REVIEW_PROMPT",
+    "COMBINED_PLANNING_REVIEW_PLAN_REVIEW_PROMPT",
   ],
   [
-    "D7",
+    "independent-review",
     "play-review",
     "reviewer",
     "frontier",
-    "D7_MODEL",
+    "INDEPENDENT_REVIEW_MODEL",
     "high",
     "source-immutable",
-    "D7_PROMPT",
+    "INDEPENDENT_REVIEW_PROMPT",
   ],
   [
-    "D10",
+    "targeted-verification",
     "play-review",
     "reviewer",
     "frontier",
-    "D10_MODEL",
+    "TARGETED_VERIFICATION_MODEL",
     "high",
     "source-immutable",
-    "D10_CRITIC_PROMPT",
+    "TARGETED_VERIFICATION_CRITIC_PROMPT",
   ],
   [
-    "D11",
+    "skill-pressure-scenario",
     "play-skill-authoring",
     "assessor",
     "balanced",
-    "D11_MODEL",
+    "SKILL_PRESSURE_SCENARIO_MODEL",
     "low",
     "source-immutable",
-    "D11_SCENARIO_PROMPT",
+    "SKILL_PRESSURE_SCENARIO_SCENARIO_PROMPT",
   ],
   [
-    "D12",
+    "default-implementation",
     "play-subagent-execution",
     "implementer",
     "balanced",
-    "D12_MODEL",
+    "DEFAULT_IMPLEMENTATION_MODEL",
     "medium",
     "source-mutable",
-    "D12_SELF_CONTAINED_PROMPT",
+    "DEFAULT_IMPLEMENTATION_SELF_CONTAINED_PROMPT",
   ],
   [
-    "D13",
+    "exact-task-execution",
     "play-subagent-execution",
     "executor",
     "efficient",
-    "D13_MODEL",
+    "EXACT_TASK_EXECUTION_MODEL",
     "medium",
     "source-mutable",
-    "D13_SELF_CONTAINED_PROMPT",
+    "EXACT_TASK_EXECUTION_SELF_CONTAINED_PROMPT",
   ],
   [
-    "D14",
+    "task-spec-review",
     "play-subagent-execution",
     "reviewer",
     "frontier",
-    "D14_MODEL",
+    "TASK_SPEC_REVIEW_MODEL",
     "high",
     "source-immutable",
-    "D14_SELF_CONTAINED_PROMPT",
+    "TASK_SPEC_REVIEW_SELF_CONTAINED_PROMPT",
   ],
   [
-    "D15",
+    "task-quality-review",
     "play-subagent-execution",
     "reviewer",
     "frontier",
-    "D15_MODEL",
+    "TASK_QUALITY_REVIEW_MODEL",
     "high",
     "source-immutable",
-    "D15_SELF_CONTAINED_PROMPT",
+    "TASK_QUALITY_REVIEW_SELF_CONTAINED_PROMPT",
   ],
   [
-    "D16",
+    "whole-implementation-quality-review",
     "play-subagent-execution",
     "reviewer",
     "frontier",
-    "D16_MODEL",
+    "WHOLE_IMPLEMENTATION_QUALITY_REVIEW_MODEL",
     "high",
     "source-immutable",
-    "D16_SELF_CONTAINED_PROMPT",
+    "WHOLE_IMPLEMENTATION_QUALITY_REVIEW_SELF_CONTAINED_PROMPT",
   ],
   [
-    "D17",
+    "ci-diagnosis-and-fix",
     "pr-merge",
     "investigator",
     "balanced",
-    "D17_DIAGNOSIS_MODEL",
+    "CI_DIAGNOSIS_MODEL",
     "medium",
     "source-immutable",
-    "D17_DIAGNOSIS_SELF_CONTAINED_PROMPT",
+    "CI_DIAGNOSIS_SELF_CONTAINED_PROMPT",
   ],
   [
-    "D17",
+    "ci-diagnosis-and-fix",
     "pr-merge",
     "executor",
     "efficient",
-    "D17_EXACT_FIX_MODEL",
+    "CI_EXACT_FIX_MODEL",
     "medium",
     "source-mutable",
-    "D17_EXACT_FIX_SELF_CONTAINED_PROMPT",
+    "CI_EXACT_FIX_SELF_CONTAINED_PROMPT",
   ],
   [
-    "D17",
+    "ci-diagnosis-and-fix",
     "pr-merge",
     "implementer",
     "balanced",
-    "D17_JUDGMENT_FIX_MODEL",
+    "CI_JUDGMENT_FIX_MODEL",
     "medium",
     "source-mutable",
-    "D17_JUDGMENT_FIX_SELF_CONTAINED_PROMPT",
+    "CI_JUDGMENT_FIX_SELF_CONTAINED_PROMPT",
   ],
   [
-    "D18",
+    "semantic-review-context",
     "play-review",
     "assessor",
     "balanced",
-    "D18_MODEL",
+    "SEMANTIC_REVIEW_CONTEXT_MODEL",
     "low",
     "source-immutable",
-    "D18_SEMANTIC_CONTEXT_PROMPT",
+    "SEMANTIC_REVIEW_CONTEXT_PROMPT",
   ],
 ] as const;
 
@@ -210,18 +211,111 @@ describe("agent routing and mutation policy owner", () => {
     expect(owner.inventory.map((row) => row.skill).sort()).toEqual(
       sourceSkills,
     );
-    expect(owner.directChildRoutes.map((row) => row.id)).toEqual([
-      ...Array.from({ length: 5 }, (_, index) => `D${index + 1}`),
-      "D7",
-      ...Array.from({ length: 9 }, (_, index) => `D${index + 10}`),
+    expect(
+      owner.directChildRoutes.map(({ id, displayName }) => [id, displayName]),
+    ).toEqual([
+      ["issue-gate-assessment", "Issue gate assessment"],
+      ["internal-research", "Internal research"],
+      ["external-research", "External research"],
+      ["focused-specialist-dispatch", "Focused specialist dispatch"],
+      ["combined-planning-review", "Combined planning review"],
+      ["independent-review", "Independent review"],
+      ["targeted-verification", "Targeted verification"],
+      ["skill-pressure-scenario", "Skill pressure scenario"],
+      ["default-implementation", "Default implementation"],
+      ["exact-task-execution", "Exact task execution"],
+      ["task-spec-review", "Task specification review"],
+      ["task-quality-review", "Task quality review"],
+      [
+        "whole-implementation-quality-review",
+        "Whole-implementation quality review",
+      ],
+      ["ci-diagnosis-and-fix", "CI diagnosis and fix"],
+      ["semantic-review-context", "Semantic review context"],
     ]);
     expect(owner.escalationAdoptionInventory).toEqual(
-      owner.directChildRoutes.map(({ id }) => ({
+      owner.directChildRoutes.map(({ id, displayName }) => ({
         id,
+        displayName,
         state: "opt-out",
         transition: "none",
       })),
     );
+  });
+
+  it("rejects missing and extra routes in either inventory", async () => {
+    const [owner, markdown] = await Promise.all([
+      readAgentRoutingPolicyOwner(OWNER_PATH),
+      readRepoFile(OWNER_PATH),
+    ]);
+    const sourceSkills = owner.inventory.map(({ skill }) => skill);
+    const directRow = markdown
+      .split("\n")
+      .find((line) => line.includes('<a id="task-spec-review"></a>'));
+    const adoptionRow = markdown
+      .split("\n")
+      .find((line) => line.includes("[`task-spec-review`](#task-spec-review)"));
+    expect(directRow).toBeDefined();
+    expect(adoptionRow).toBeDefined();
+    for (const row of [directRow, adoptionRow]) {
+      if (!row) throw new Error("Expected inventory row");
+      expect(() =>
+        parseAgentRoutingPolicyOwner(
+          markdown.replace(`${row}\n`, ""),
+          sourceSkills,
+        ),
+      ).toThrow();
+      for (const extra of [
+        row,
+        row.replaceAll("task-spec-review", "unknown-review"),
+      ]) {
+        expect(() =>
+          parseAgentRoutingPolicyOwner(
+            markdown.replace(row, `${row}\n${extra}`),
+            sourceSkills,
+          ),
+        ).toThrow();
+      }
+    }
+  });
+
+  it("keeps the ID, owner and dispatch contract when a display name changes", async () => {
+    const [owner, markdown] = await Promise.all([
+      readAgentRoutingPolicyOwner(OWNER_PATH),
+      readRepoFile(OWNER_PATH),
+    ]);
+    const sourceSkills = owner.inventory.map(({ skill }) => skill);
+    const original = owner.directChildRoutes.find(
+      ({ id }) => id === "task-spec-review",
+    );
+    const renamed = parseAgentRoutingPolicyOwner(
+      markdown.replace(
+        "Task specification review —",
+        "Per-task specification review —",
+      ),
+      sourceSkills,
+    );
+    expect(
+      renamed.directChildRoutes.find(({ id }) => id === "task-spec-review"),
+    ).toEqual({
+      ...original,
+      displayName: "Per-task specification review",
+      surfaceAndOwner: original?.surfaceAndOwner.replace(
+        "Task specification review",
+        "Per-task specification review",
+      ),
+    });
+    expect(
+      renamed.escalationAdoptionInventory.find(
+        ({ id }) => id === "task-spec-review",
+      )?.displayName,
+    ).toBe("Per-task specification review");
+    expect(() =>
+      parseAgentRoutingPolicyOwner(
+        markdown.replace("Task specification review —", " —"),
+        sourceSkills,
+      ),
+    ).toThrow(/display name/);
   });
 
   it("reconciles every policy route to its semantic role capability, effort, and authority", async () => {
@@ -256,12 +350,12 @@ describe("agent routing and mutation policy owner", () => {
       .map((route) => [route.id, route.clauses[0]?.effort]);
 
     expect(reviewerRoutes).toEqual([
-      ["D5", "high"],
-      ["D7", "high"],
-      ["D10", "high"],
-      ["D14", "high"],
-      ["D15", "high"],
-      ["D16", "high"],
+      ["combined-planning-review", "high"],
+      ["independent-review", "high"],
+      ["targeted-verification", "high"],
+      ["task-spec-review", "high"],
+      ["task-quality-review", "high"],
+      ["whole-implementation-quality-review", "high"],
     ]);
   });
 
@@ -274,23 +368,11 @@ describe("agent routing and mutation policy owner", () => {
       ),
     ]);
 
-    expect(owner.directChildRoutes.map((route) => route.id)).toEqual([
-      "D1",
-      "D2",
-      "D3",
-      "D4",
-      "D5",
-      "D7",
-      "D10",
-      "D11",
-      "D12",
-      "D13",
-      "D14",
-      "D15",
-      "D16",
-      "D17",
-      "D18",
-    ]);
+    expect(
+      owner.directChildRoutes.filter(
+        ({ id }) => id === "combined-planning-review",
+      ),
+    ).toHaveLength(1);
     const activeCombined = planning.slice(
       planning.lastIndexOf("## Exact Digest and Combined Review Orchestration"),
     );
@@ -341,9 +423,9 @@ describe("agent routing and mutation policy owner", () => {
           clause.capability === capability &&
           clause.effort === effort &&
           clause.sourceAuthority === sourceAuthority &&
-          (id !== "D17" ||
+          (id !== "ci-diagnosis-and-fix" ||
             clause.branchId ===
-              D17_BRANCH_BY_MODEL[model as keyof typeof D17_BRANCH_BY_MODEL]),
+              CI_BRANCH_BY_MODEL[model as keyof typeof CI_BRANCH_BY_MODEL]),
       );
       expect(
         matchingClauses,
@@ -359,7 +441,7 @@ describe("agent routing and mutation policy owner", () => {
       expect(source).toContain(
         [
           "Codex.spawn_agent({",
-          `  task_name: ${id.toLowerCase()}_<instance_ordinal>,`,
+          `  task_name: ${id.replaceAll("-", "_")}_<instance_ordinal>,`,
           `  agent_type: \"${role}\",`,
           `  model: ${model},`,
           `  reasoning_effort: \"${effort}\",`,
@@ -371,17 +453,19 @@ describe("agent routing and mutation policy owner", () => {
     }
   });
 
-  it("keeps D4 as the existing dynamic exact-configured-role contract", async () => {
+  it("keeps focused specialist dispatch as the existing dynamic exact-configured-role contract", async () => {
     const [owner, source, roles] = await Promise.all([
       readAgentRoutingPolicyOwner(OWNER_PATH),
       readRepoFile("skills/play-agent-dispatch/SKILL.md"),
       readAgentSemanticRoleOwner(AGENT_SPEC_PATH),
     ]);
-    const d4 = owner.directChildRoutes.find((route) => route.id === "D4");
+    const specialist = owner.directChildRoutes.find(
+      (route) => route.id === "focused-specialist-dispatch",
+    );
 
-    expect(d4?.ownerSkill).toBe("play-agent-dispatch");
-    expect(d4?.clauses).toEqual([]);
-    expect(d4?.d4Contract).toMatchObject({
+    expect(specialist?.ownerSkill).toBe("play-agent-dispatch");
+    expect(specialist?.clauses).toEqual([]);
+    expect(specialist?.specialistContract).toMatchObject({
       roleCardinality: 7,
       selectionTiming: "before spawn",
       configuration: "exact configured capability/effort",
@@ -398,7 +482,7 @@ describe("agent routing and mutation policy owner", () => {
     expect(source).toContain(
       [
         "Codex.spawn_agent({",
-        "  task_name: d4_<instance_ordinal>,",
+        "  task_name: focused_specialist_dispatch_<instance_ordinal>,",
         "  agent_type: SELECTED_ROLE_ID,",
         "  model: RESOLVED_CODEX_MODEL,",
         "  reasoning_effort: SELECTED_CODEX_EFFORT,",
@@ -409,7 +493,7 @@ describe("agent routing and mutation policy owner", () => {
     );
   });
 
-  it("keeps the D12 continuity call configuration-free", async () => {
+  it("keeps the default implementation continuity call configuration-free", async () => {
     const continuity = await readRepoFile(
       "skills/play-subagent-execution/references/lifecycle-status-policy.md",
     );
@@ -417,18 +501,18 @@ describe("agent routing and mutation policy owner", () => {
     const followupStart = continuity.indexOf("Codex.followup_task({");
     expect(
       followupStart,
-      "D12 lifecycle follow-up anchor is present",
+      "Default implementation lifecycle follow-up anchor is present",
     ).toBeGreaterThanOrEqual(0);
     const followupEnd = continuity.indexOf("\n})", followupStart);
     expect(
       followupEnd,
-      "D12 lifecycle follow-up terminator is present",
+      "Default implementation lifecycle follow-up terminator is present",
     ).toBeGreaterThan(followupStart);
     expect(continuity.slice(followupStart, followupEnd + 3)).toBe(
       [
         "Codex.followup_task({",
-        "  target: D12_STABLE_SESSION_ID,",
-        "  message: D12_INCREMENTAL_FINDINGS_AND_TASK_CONTEXT_PLUS_VERIFIED_AUTO_ROUTE_ATTESTATION_WHEN_APPLICABLE,",
+        "  target: DEFAULT_IMPLEMENTATION_STABLE_SESSION_ID,",
+        "  message: DEFAULT_IMPLEMENTATION_INCREMENTAL_FINDINGS_AND_TASK_CONTEXT_PLUS_VERIFIED_AUTO_ROUTE_ATTESTATION_WHEN_APPLICABLE,",
         "})",
       ].join("\n"),
     );

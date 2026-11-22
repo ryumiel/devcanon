@@ -7,7 +7,7 @@ Behavioral signals that this skill is being violated.
 - You started implementing without a current guarded Execution Note or valid planned handoff
 - You dumped raw research output instead of passing the synthesized brief
 - You selected a note because of size or green checks while behavior, custody, ownership or proof remained unresolved
-- You represented an Execution Note as D5 approval, a plan, reviewed tier or auto-handoff
+- You represented an Execution Note as combined planning review approval, a plan, reviewed tier or auto-handoff
 - You wrote spec/design/plan files outside the worktree
 - You created a nested worktree inside an already-managed worktree
 - You bypassed an issue-priming helper with hand-written path logic after

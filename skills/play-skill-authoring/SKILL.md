@@ -57,18 +57,18 @@ disposition and acceptance condition outside the spawned scenario input. Never
 include the expected answer, pass/fail criteria, or equivalent hints in that
 input.
 
-Before every D11 RED, GREEN, or REFACTOR capture, load the dispatch ritual in
+Before every skill pressure scenario RED, GREEN, or REFACTOR capture, load the dispatch ritual in
 [`dispatch-ritual-usage.md`](../play-agent-dispatch/references/dispatch-ritual-usage.md)
-from the installed `play-agent-dispatch` bundle and run it with the D11 route
+from the installed `play-agent-dispatch` bundle and run it with the skill pressure scenario route
 values below. A missing, blank, unreadable, or unavailable ritual reference is
 a terminal pre-dispatch blocker: create no ledger row or baseline, do not
 spawn, and do not invent inline fallback detail. That reference owns the
-generic dispatch ritual; this skill owns its D11 route values, scenario prompt
+generic dispatch ritual; this skill owns its skill pressure scenario route values, scenario prompt
 inputs, and scenario disposition.
 
-| Route | `agent_type` | Capability | Model marker                             | `reasoning_effort` | `source_authority` | Prompt                |
-| ----- | ------------ | ---------- | ---------------------------------------- | ------------------ | ------------------ | --------------------- |
-| D11   | `assessor`   | `balanced` | `D11_MODEL` = `{{model-codex:balanced}}` | `low`              | `source-immutable` | `D11_SCENARIO_PROMPT` |
+| Route                     | `agent_type` | Capability | Model marker                                                 | `reasoning_effort` | `source_authority` | Prompt                                    |
+| ------------------------- | ------------ | ---------- | ------------------------------------------------------------ | ------------------ | ------------------ | ----------------------------------------- |
+| `skill-pressure-scenario` | `assessor`   | `balanced` | `SKILL_PRESSURE_SCENARIO_MODEL` = `{{model-codex:balanced}}` | `low`              | `source-immutable` | `SKILL_PRESSURE_SCENARIO_SCENARIO_PROMPT` |
 
 The route has `external_authority: none` and zero handoffs. Build a
 self-contained scenario prompt naming the repository root, the exact
@@ -82,14 +82,14 @@ alias, or fall back to a nearby or ambient model.
 After validation and the existing capture, create exactly one fresh evaluator:
 
 ```text
-# D11_MODEL is the Codex-bound balanced model
+# SKILL_PRESSURE_SCENARIO_MODEL is the Codex-bound balanced model
 Codex.spawn_agent({
-  task_name: d11_<instance_ordinal>,
+  task_name: skill_pressure_scenario_<instance_ordinal>,
   agent_type: "assessor",
-  model: D11_MODEL,
+  model: SKILL_PRESSURE_SCENARIO_MODEL,
   reasoning_effort: "low",
   fork_turns: "none",
-  message: D11_SCENARIO_PROMPT,
+  message: SKILL_PRESSURE_SCENARIO_SCENARIO_PROMPT,
 })
 ```
 
@@ -126,7 +126,7 @@ retained rationalization evidence. Rerun the same pressure scenario with a
 fresh evaluator under the applicable RED, GREEN, or REFACTOR retest step.
 
 The fresh-scenario/retest rule is for an ordinary evaluator outcome after an
-accepted creation attempt. It never converts a missing D11 tuple or native
+accepted creation attempt. It never converts a missing skill pressure scenario tuple or native
 model/effort rejection into a second creation attempt. Apply the lifecycle-owned
 terminal model-capacity eligibility and allowance before this ordinary retest
 rule when the created evaluator fails explicitly for capacity without a

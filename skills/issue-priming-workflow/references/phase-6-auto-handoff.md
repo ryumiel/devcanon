@@ -44,7 +44,7 @@ eligibility requires both that state and a validated matching artifact.
 
 Before creating or consuming the auto handoff, the parent validates the
 controller-held planning provenance: readable guarded plan path, exact current
-digest, producer identity, successful cleanup, complete D5 coverage, and the
+digest, producer identity, successful cleanup, complete combined planning review coverage, and the
 exact tag `planning-review/combined-v1`. This is separate from the auto-handoff
 artifact and precedes reduced-route eligibility. Missing, stale, mixed, or
 legacy paired provenance stops reviewed auto dispatch; invalid auto evidence

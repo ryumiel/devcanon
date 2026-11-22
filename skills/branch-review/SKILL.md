@@ -14,7 +14,7 @@ requires:
 Use the adjacent [prepare-review-inputs usage](references/prepare-review-inputs-usage.md), [scope-decision-artifacts usage](references/scope-decision-artifacts-usage.md), and [play-review review-artifacts usage](../play-review/references/review-artifacts-usage.md) for reusable invocation mechanics. The workflow below retains scope and continuation decisions.
 
 Before handing off to `play-review`, validate the prepared paths and current
-base/head/worktree bindings. The shared-context preflight then runs before D18
+base/head/worktree bindings. The shared-context preflight then runs before semantic review context
 semantic dispatch; missing paths or changed source, policy, authority, or dirty
 worktree state require preparation refresh. This wrapper supplies facts and
 does not decide semantic relevance for `play-review`.
@@ -62,7 +62,7 @@ and its reuse association before deliberately releasing or replacing that
 family or worktree custody; do not restore them after a failed release or
 replacement. A later review without them uses ordinary discovery. Unexpected
 missing or broken evidence while a family is still supplied remains a
-`play-review` pre-D18 refusal. Its absence is normal; do not add a CLI
+`play-review` pre-context refusal. Its absence is normal; do not add a CLI
 argument, derive context filenames, parse the artifacts, or treat navigation as
 a scope decision. `play-review` invokes the installed helper to validate live
 custody, then checks the independent association and current applicability.
@@ -382,7 +382,7 @@ consequential, disputed, or uncertain claim with completed verification and
 `critic: VALID`; or an ordinary undisputed supported blocker with selection `none`,
 `assessment.verification: not-required`, `critic: null`, and current
 implementation authority covers the exact bounded repair. Both require the
-whole review complete. Recheck D10 triggers against current evidence before
+whole review complete. Recheck targeted verification triggers against current evidence before
 mutation; conflicting or uncertain evidence is not ordinary. Findings and
 `--fix` do not establish authority. Capture the review head and findings path
 before any fix:
@@ -487,7 +487,7 @@ consequential/disputed/uncertain candidate additionally requires
 `assessment.verification: completed` and `critic: VALID`. An ordinary
 undisputed supported blocker must instead have selection `none`,
 `assessment.verification: not-required`, and `critic: null`. Both paths require
-current implementation authority covering the exact bounded repair. Recheck D10
+current implementation authority covering the exact bounded repair. Recheck targeted verification
 triggers before mutation; a conflict or uncertainty stops the ordinary path.
 A skipped verifier or verification of another claim never authorizes a selected
 finding. Findings and `--fix` alone never establish authority. Nits, INVALID,

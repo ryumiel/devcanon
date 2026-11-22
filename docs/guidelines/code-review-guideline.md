@@ -44,9 +44,9 @@ separate; in particular, a `VALID` blocker must retain a `VALID`
 representative, while duplicate retained Nits may consolidate.
 
 [`play-review`](../../skills/play-review/SKILL.md) operationalizes this judgment
-for consumer repositories. One D7 independently judges all applicable dimensions
+for consumer repositories. One independent reviewer judges all applicable dimensions
 and admits/calibrates findings before compatible duplicate retention. Separate
-D10 verifies only consequential, disputed, or uncertain Blocking candidates.
+Targeted verification checks only consequential, disputed, or uncertain Blocking candidates.
 Nits keep `critic: null` and remain report-only. The v3 evidence contract
 explicitly distinguishes skipped and failed required verification and retains
 honest carry-forward freshness. This does not become a second owner of
@@ -333,7 +333,7 @@ Agent-assisted review follows this contract:
 - Check the CONTRIBUTING.md PR checklist items that can be verified
   mechanically (schema alignment, snapshot freshness, MAP.md coverage)
 
-The exact D15, D16, and D17 routes are owned by the
+The exact task quality review, whole-implementation quality review, and CI diagnosis and fix routes are owned by the
 [Agent Routing and Mutation Policy](agent-routing-and-mutation-policy.md#direct-child-route-inventory),
 and source-immutability guard behavior is owned by
 [AFDS GUARD-001](../specs/afds-workflow-routing.md#guard-001-source-immutable-result-gate).
@@ -345,7 +345,7 @@ following review-consumer requirements apply:
   explicit review scope as a `base..head` ref or unified diff; reviewers
   must not be asked to discover the scope themselves
 - Verify that ordinary and high-assurance review dispatches use their exact
-  policy-owned routes, and keep D15 task-quality and D16 final-review sessions
+  policy-owned routes, and keep task quality review and whole-implementation quality review sessions
   distinct
 - When dispatching the per-task spec review session, the caller must also
   provide the scoped requirements or task spec it should compare against
@@ -353,4 +353,4 @@ following review-consumer requirements apply:
   the owning skill prompt; sharing a semantic role does not collapse distinct
   prompts, scopes, verdicts, fix loops, or termination
 - Guard reviewer results before consuming findings or verdicts, and never
-  treat an unavailable or invalid D15 or D16 result as a passing verdict
+  treat an unavailable or invalid task quality review or whole-implementation quality review result as a passing verdict

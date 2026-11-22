@@ -27,24 +27,24 @@ Write the failing test` and `Step 3: Write minimal implementation` markers.
 ## Conditions
 
 For the single-task subset of plans that are also fully mechanical approved
-verbatim artifact work or unambiguous identifier replacement, D13 permits
+verbatim artifact work or unambiguous identifier replacement, exact task execution permits
 guarded inline execution or a dispatched `executor`, efficient/medium. All five
 guardrails pass before either guarded inline execution or executor dispatch.
 The controller chooses inline only when it can perform the exact operation
 directly; otherwise it dispatches `executor-prompt.md` with the same validated
 authorization.
 
-All five guardrails must hold for D13. Guardrail #4 failure blocks before source
-mutation; any other missing guardrail reclassifies to D12 and uses
+All five guardrails must hold for exact task execution. Guardrail #4 failure blocks before source
+mutation; any other missing guardrail reclassifies to default implementation and uses
 `implementer-prompt.md`. Do not dispatch the executor on a partial guard set.
 
-| #   | Guardrail                                     | Detection signal                                                                                                                                                                                                                                                                                                                                     |
-| --- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Plan is single-task                           | Task count from plan extraction = 1.                                                                                                                                                                                                                                                                                                                 |
-| 2   | Task is fully mechanical                      | Task header carries `**Mode:** mechanical`.                                                                                                                                                                                                                                                                                                          |
-| 3   | No clarifying questions could plausibly arise | Implicit: current combined D5 provenance covers the exact plan bytes before `Plan written to <path>.` is emitted. Direct invocations without that provenance fail this guardrail and fall back to dispatched implementation.                                                                                                                         |
-| 4   | Task contract gate is satisfied               | The task declares `FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER` and satisfies that tier's structure. Both `LIGHTWEIGHT` and `NO-TRIGGER` require current combined D5 provenance; without it, the task must use a structurally complete `FULL` contract. Contract Example Discipline obligations are additive and do not satisfy guardrail #4 by themselves. |
-| 5   | No tests need to be authored                  | Task body contains no `**TDD expectation:**` field and no legacy TDD step-pair markers.                                                                                                                                                                                                                                                              |
+| #   | Guardrail                                     | Detection signal                                                                                                                                                                                                                                                                                                                                                  |
+| --- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Plan is single-task                           | Task count from plan extraction = 1.                                                                                                                                                                                                                                                                                                                              |
+| 2   | Task is fully mechanical                      | Task header carries `**Mode:** mechanical`.                                                                                                                                                                                                                                                                                                                       |
+| 3   | No clarifying questions could plausibly arise | Implicit: current combined planning review provenance covers the exact plan bytes before `Plan written to <path>.` is emitted. Direct invocations without that provenance fail this guardrail and fall back to dispatched implementation.                                                                                                                         |
+| 4   | Task contract gate is satisfied               | The task declares `FULL`, `LIGHTWEIGHT`, or `NO-TRIGGER` and satisfies that tier's structure. Both `LIGHTWEIGHT` and `NO-TRIGGER` require current combined planning review provenance; without it, the task must use a structurally complete `FULL` contract. Contract Example Discipline obligations are additive and do not satisfy guardrail #4 by themselves. |
+| 5   | No tests need to be authored                  | Task body contains no `**TDD expectation:**` field and no legacy TDD step-pair markers.                                                                                                                                                                                                                                                                           |
 
 In the case when extracted plan/task execution context includes Contract
 Example Discipline or an equivalent clearly labeled section/obligation, present
@@ -53,7 +53,7 @@ satisfaction and do not satisfy guardrail #4 by themselves. Apply the shared
 consumer rule in
 [`contract-example-discipline-consumer-rule.md`](contract-example-discipline-consumer-rule.md).
 
-## D13 Execution Sequence
+## Exact task execution sequence
 
 When all five guardrails hold, choose exactly one path:
 
@@ -62,7 +62,7 @@ When all five guardrails hold, choose exactly one path:
 - **Executor dispatch:** the controller supplies the validated exact operation
   to `executor-prompt.md`. `executor-prompt.md` owns the dispatched child's
   action and report schema; `lifecycle-status-policy.md` owns every returned
-  D13 disposition.
+  Exact task execution disposition.
 
 The guarded inline sequence is:
 
@@ -87,26 +87,26 @@ The guarded inline sequence is:
 
 After step 4, return control to
 [`lifecycle-status-policy.md`](lifecycle-status-policy.md), which owns every
-post-selection D13, D16, and terminal disposition. This pre-dispatch policy
+post-selection exact task execution, whole-implementation quality review, and terminal disposition. This pre-dispatch policy
 makes no final-review or terminal-routing decision.
 
 ## Fallback
 
 If guardrail #4 fails, stop before implementation and report the contract gap;
 do not execute inline, dispatch an executor, or dispatch an implementer against
-a missing or invalid task contract. Other guardrail misses reclassify to D12
+a missing or invalid task contract. Other guardrail misses reclassify to default implementation
 and use `implementer-prompt.md`; the `**Mode:** mechanical` hint alone never
 selects the executor.
 
-- Guardrail #1 fails: standard multi-task D12 flow with executor-computed
+- Guardrail #1 fails: standard multi-task default implementation flow with executor-computed
   per-task review routing.
-- Guardrail #2 fails: single-task D12 flow with `implementer-prompt.md`.
-- Guardrail #3 fails: single-task D12 flow with `implementer-prompt.md`.
+- Guardrail #2 fails: single-task default implementation flow with `implementer-prompt.md`.
+- Guardrail #3 fails: single-task default implementation flow with `implementer-prompt.md`.
 - Guardrail #4 fails: stop before implementation and report
   BLOCKED/NEEDS_CONTEXT with the exact missing or invalid tier structure,
   absent reduced-tier provenance, unexplained `N/A`, or unconfirmed owner,
   authority, source-of-truth, consumer, generated-output, or evidence surface.
-- Guardrail #5 fails: single-task D12 flow with `implementer-prompt.md`,
+- Guardrail #5 fails: single-task default implementation flow with `implementer-prompt.md`,
   overriding any `**Mode:** mechanical` hint.
 
 ## Skip-Dispatch Examples

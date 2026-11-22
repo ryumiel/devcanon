@@ -70,8 +70,9 @@ Before capture for every fresh Codex child, the controller chooses the route's
 `<instance_ordinal>` as the next positive base-10 integer not already used by a
 retained lifecycle-ledger row for that route. Completed and rows with a captured
 supersession decision remain retained, so an ordinal is never reused in the
-controller flow. The route-local `task_name` is `dN_<instance_ordinal>`; it
-must be nonblank, match `^[a-z0-9_]+$`, and be absent from every retained ledger
+controller flow. Form the route-local `task_name` by replacing hyphens in the
+semantic route ID with underscores and appending `_<instance_ordinal>`. It must
+be nonblank, match `^[a-z0-9_]+$`, and be absent from every retained ledger
 task name before capture. Keep task, scope, wave, branch, head, and role
 identity in the existing separate ledger dimensions, not in `task_name`.
 
@@ -169,7 +170,7 @@ role-specific state has already been captured.
    closing any session or recording its supersession decision.
 2. Before any closure attempt, keep a session open when its owning route
    explicitly authorizes unchanged-tuple continuation for the same stable task
-   identity and that continuation window is pending, such as D12 awaiting the
+   identity and that continuation window is pending, such as default implementation awaiting the
    applicable reviewer/fix-loop final disposition. This keep-open decision runs
    before automatic closure.
 3. When the target is `automatic-close-supported`, attempt to close only an

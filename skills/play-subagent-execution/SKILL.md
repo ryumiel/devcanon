@@ -18,7 +18,7 @@ codex_sidecar:
 
 ## Public helper mechanics
 
-Use the adjacent [inspect-plan-projection usage](references/inspect-plan-projection-usage.md), [source-immutability usage](references/source-immutability-usage.md), [write-risk-signals usage](references/write-risk-signals-usage.md), [write-snapshot-manifest usage](references/write-snapshot-manifest-usage.md), and [validate-snapshot-manifest usage](references/validate-snapshot-manifest-usage.md). This skill retains D14-D16 lifecycle, blocking, and terminal-handoff policy.
+Use the adjacent [inspect-plan-projection usage](references/inspect-plan-projection-usage.md), [source-immutability usage](references/source-immutability-usage.md), [write-risk-signals usage](references/write-risk-signals-usage.md), [write-snapshot-manifest usage](references/write-snapshot-manifest-usage.md), and [validate-snapshot-manifest usage](references/validate-snapshot-manifest-usage.md). This skill retains per-task and whole-implementation review lifecycle, blocking, and terminal-handoff policy.
 
 ## Invocation Policy
 
@@ -27,12 +27,12 @@ Do not select this workflow from ordinary discussion, review-shaped text, possib
 Reject an Execution Note before projection, fallback, inline execution or
 dispatch: it is not `Plan:` input, direct unreviewed FULL, mechanical or reduced
 route evidence. `issue-priming-workflow` owns its separate same-owner inline
-route. A note digest supplies no combined D5 provenance or auto attestation;
+route. A note digest supplies no combined planning review provenance or auto attestation;
 missing or invalid planned provenance retains the existing refusal behavior.
 
 Execute plan by dispatching fresh subagent per task. Multi-task plans use
 executor-owned risk-based per-task review routing; hard-risk or unclear tasks
-use `spec-and-quality`: dispatch separate D14 specification and D15 quality
+use `spec-and-quality`: dispatch separate task specification review and task quality review
 review sessions concurrently when practical, against the same committed
 task head, then join their results before final disposition.
 Single-task plans skip per-task review.
@@ -42,7 +42,7 @@ Single-task plans skip per-task review.
 **Core principle:** Fresh subagent per task + executor-owned risk-based
 review routing for multi-task plans = high-assurance serial execution with
 isolated implementer context and independent review. Hard-risk and unclear
-multi-task tasks use `spec-and-quality`: D14 and D15 may run concurrently when
+multi-task tasks use `spec-and-quality`: task specification review and task quality review may run concurrently when
 practical against the same committed task head, then join their results before
 final disposition. The
 [lifecycle/status policy](references/lifecycle-status-policy.md) owns their
@@ -186,7 +186,7 @@ labeled section/obligation is present, inline the full shared
 `references/contract-example-discipline-consumer-rule.md` content in that
 context under the subsection heading `Contract Example Discipline Consumer
 Rule`. The controller consumes this same named context directly for
-guarded-inline D13; prompt-mediated consumers receive it through their curated
+guarded-inline exact task execution; prompt-mediated consumers receive it through their curated
 prompt. Subagents do not read the full plan file or resolve controller-relative
 rule paths.
 
@@ -201,11 +201,11 @@ executor checks the selected entries, resolved IDs, curated records, and
 task-local fields structurally against them and does not restate them. The
 executor must not promote, demote, infer, or otherwise
 reclassify the tier from task prose, diff size, path spelling, or runtime risk
-routing. D5 owns correctness and executability coverage for reviewed plans,
+routing. Combined planning review owns correctness and executability coverage for reviewed plans,
 including whether the
 selected entries cover every actual participant and independently necessary
 execution relationship; the controller must not treat prompt-mediated
-consumers as the only consumers or omit guarded-inline D13 as an actual
+consumers as the only consumers or omit guarded-inline exact task execution as an actual
 participant or direct consumer merely because no child prompt is dispatched.
 Present Contract Example Discipline obligations are part of the task contract;
 the executor only verifies obligations already included in extracted plan/task
@@ -216,14 +216,14 @@ an equivalent clearly labeled section/obligation, apply the shared consumer
 rule in
 [`references/contract-example-discipline-consumer-rule.md`](references/contract-example-discipline-consumer-rule.md).
 Both `LIGHTWEIGHT` and `NO-TRIGGER` are trusted only when this controller can
-identify current combined D5 producer provenance for the plan being executed:
+identify current combined planning review producer provenance for the plan being executed:
 complete coverage, successful cleanup, matching path and digest, and
 `planning-review/combined-v1` before `Plan written to <path>.` was emitted.
 Direct, hand-written, copied, older, legacy-paired, or otherwise unreviewed
 plans without that combined return must
 use a structurally complete `FULL` contract. That direct `FULL` route is
 caller-authorized and receives structural validation only; the executor does
-not claim, infer, or synthesize D5-equivalent semantic completeness for it. A
+not claim, infer, or synthesize combined planning review-equivalent semantic completeness for it. A
 caller that requires planning-review assurance must use the reviewed
 `play-planning` route. If this structural gate or the extracted plan/task
 execution context is missing, malformed, unsupported, internally inconsistent,
@@ -240,14 +240,14 @@ non-authoritative.
 ## Target-specific implementation and review roles
 
 Codex implementer dispatch uses the literal `gpt-6.1-terra`/`medium` override.
-D14, D15 and D16 use `reviewer`, `gpt-6.1-sol`/`high` on Codex. Wherever this
+Task specification review, task quality review and whole-implementation quality review use `reviewer`, `gpt-6.1-sol`/`high` on Codex. Wherever this
 skill or its prompt templates name reviewer for those gates, Claude instead
 retains `deep-reviewer`, frontier capability and its catalog Claude effort.
 Their source guards, independent scopes, fix loops and completion rules remain
 unchanged. Codex snippets below do not select Claude roles or effort.
 For material risk or consequential unresolved review judgments, use
 [focused specialist selection](../play-agent-dispatch/SKILL.md#risk-based-specialist-selection)
-through D4. Extra evidence does not replace required gate coverage.
+through focused specialist dispatch. Extra evidence does not replace required gate coverage.
 
 ## Inputs
 
@@ -310,7 +310,7 @@ cannot authorize changed bytes; missing, mixed, unsupported or stale composite
 evidence stops without downgrade. Execution/publication authority, auto evidence
 and final implementation review remain separate gates.
 
-For a reviewed route, validate the matching controller-held D5 producer
+For a reviewed route, validate the matching controller-held combined planning review producer
 identity, successful cleanup, complete coverage, and
 `planning-review/combined-v1` before mechanical eligibility or dispatch.
 Missing, mixed, stale, legacy paired, or summary-only evidence stops a reviewed
@@ -352,24 +352,24 @@ controller-local parent state, leave `AUTO_HANDOFF_FILE` unset and
 
 The active parent controller may also pass a `Verified auto-route attestation:`
 field. Treat it as controller-provided context only when the active parent state
-and the auto-handoff artifact both validate. Before every fresh D12 spawn or
-route-authorized stable D12 continuation, require a freshly validated attestation to state that
+and the auto-handoff artifact both validate. Before every fresh default implementation spawn or
+route-authorized stable default implementation continuation, require a freshly validated attestation to state that
 current issue authority was validated and to name
 the source provider and issue, owner thread, exact approved route identity,
 reviewed plan digest, auto-handoff identity, and the current head when one
 exists. Retain only that current validated value in controller-local state as
 `ISSUE_PRIMING_AUTO_ROUTE_ATTESTATION`; it is not task prose, plan content, a
-durable artifact, or a reduced-route authority. If a prior D12 task changed the
+durable artifact, or a reduced-route authority. If a prior default implementation task changed the
 head or any other route fact, rebuild and validate the attestation from current
 controller-held facts before the next prompt.
 
-For every fresh D12 spawn, substitute only the current retained attestation into
+For every fresh default implementation spawn, substitute only the current retained attestation into
 the full implementer prompt's `Verified Auto-Route Attestation` marker. For a
-route-authorized stable D12 continuation, freshly revalidate the attestation and
+route-authorized stable default implementation continuation, freshly revalidate the attestation and
 send it only in the incremental task-local `followup_task` message; do not
 substitute or resend the full implementer prompt or full task context. If current
 validation fails or the field is missing, malformed, or unavailable after parent
-and auto-handoff validation, retain `unverified` and use the manual/default D12
+and auto-handoff validation, retain `unverified` and use the manual default implementation
 behavior. Never reuse or infer an attestation from prior task text, a returned
 status, or copied invocation prose.
 
@@ -425,7 +425,7 @@ For the full selection and process diagrams, load
 4. For single-task mechanical plans, evaluate the skip-dispatch guardrails.
    When all five guardrails hold, the controller either performs the Write/Edit,
    verification, and commit inline or dispatches the exact-task executor prompt.
-   A contract-gate failure blocks; another missing guardrail reclassifies to D12
+   A contract-gate failure blocks; another missing guardrail reclassifies to default implementation
    and dispatches the implementer prompt.
 5. Before implementer dispatch, classify snapshot state as `requested` or
    `skipped`. Snapshot hints in plans are advisory only; the assembled prompt
@@ -436,7 +436,7 @@ For the full selection and process diagrams, load
 7. For multi-task plans, compute the effective review route from the actual task
    diff after the implementer commits. Hard-risk, unclear, stale, malformed,
    conflicting, or untrusted classifications fail closed to `spec-and-quality`.
-8. Dispatch reviewers according to the effective route. D14 and D15 are
+8. Dispatch reviewers according to the effective route. Task specification review and task quality review are
    separate response-only `reviewer` sessions with independent GUARD-001
    lifecycles. Load the
    [lifecycle/status policy](references/lifecycle-status-policy.md) for guard
@@ -445,7 +445,7 @@ For the full selection and process diagrams, load
    completion state, then load the
    [review-routing policy](references/review-routing-policy.md) only to
    recompute the effective route.
-10. After the lifecycle/status policy permits task completion, follow its D16
+10. After the lifecycle/status policy permits task completion, follow its whole-implementation quality review
     and terminal disposition. This index does not restate those transitions.
 
 **Trust-boundary summaries:**
@@ -482,19 +482,19 @@ Codex dispatch resolves its full model from its Codex-bound rendered route bindi
 and passes both model and effort explicitly. Rendered semantic role TOML
 emits literal model and effort defaults when its source specifies them;
 executor retains explicit-null model suppression and omitted effort. Direct
-dispatch still supplies its complete route tuple independently. D12
-uses `implementer`, balanced/medium; D13 uses `executor`, efficient/medium; and
-D14-D16 use `reviewer`, frontier/high on Codex. On Claude they retain
+dispatch still supplies its complete route tuple independently. Default implementation
+uses `implementer`, balanced/medium; exact task execution uses `executor`, efficient/medium; and
+per-task and whole-implementation reviews use `reviewer`, frontier/high on Codex. On Claude they retain
 `deep-reviewer` with frontier capability and catalog Claude effort. These pairs do not grant external
 mutation authority.
 
-For Claude D13 executor dispatch, omit named effort for the efficient
+For Claude exact task executor dispatch, omit named effort for the efficient
 capability. The `medium` effort above remains the Codex dispatch value; do not
 translate it to a Claude thinking budget.
 
-### D12-D16 fresh-Codex dispatch contract
+### Fresh Codex dispatch for implementation and review
 
-Before every fresh D12-D16 capture, load the dispatch ritual in
+Before every fresh capture for an implementation or review route, load the dispatch ritual in
 [`dispatch-ritual-usage.md`](../play-agent-dispatch/references/dispatch-ritual-usage.md)
 from the installed `play-agent-dispatch` bundle and run it with that route's
 values below. A missing, blank, unreadable, or unavailable ritual reference is
@@ -503,21 +503,21 @@ spawn, and do not invent inline fallback detail. That reference owns the
 generic dispatch ritual; this workflow owns its route values, prompt and output
 contracts, and termination below.
 
-| Route | `agent_type`  | Capability  | Model marker                              | `reasoning_effort` | `source_authority` | Prompt                      |
-| ----- | ------------- | ----------- | ----------------------------------------- | ------------------ | ------------------ | --------------------------- |
-| D12   | `implementer` | `balanced`  | `D12_MODEL` = `gpt-6.1-terra`             | `medium`           | `source-mutable`   | `D12_SELF_CONTAINED_PROMPT` |
-| D13   | `executor`    | `efficient` | `D13_MODEL` = `{{model-codex:efficient}}` | `medium`           | `source-mutable`   | `D13_SELF_CONTAINED_PROMPT` |
-| D14   | `reviewer`    | `frontier`  | `D14_MODEL` = `gpt-6.1-sol`               | `high`             | `source-immutable` | `D14_SELF_CONTAINED_PROMPT` |
-| D15   | `reviewer`    | `frontier`  | `D15_MODEL` = `gpt-6.1-sol`               | `high`             | `source-immutable` | `D15_SELF_CONTAINED_PROMPT` |
-| D16   | `reviewer`    | `frontier`  | `D16_MODEL` = `gpt-6.1-sol`               | `high`             | `source-immutable` | `D16_SELF_CONTAINED_PROMPT` |
+| Route                                 | `agent_type`  | Capability  | Model marker                                                | `reasoning_effort` | `source_authority` | Prompt                                                      |
+| ------------------------------------- | ------------- | ----------- | ----------------------------------------------------------- | ------------------ | ------------------ | ----------------------------------------------------------- |
+| `default-implementation`              | `implementer` | `balanced`  | `DEFAULT_IMPLEMENTATION_MODEL` = `gpt-6.1-terra`            | `medium`           | `source-mutable`   | `DEFAULT_IMPLEMENTATION_SELF_CONTAINED_PROMPT`              |
+| `exact-task-execution`                | `executor`    | `efficient` | `EXACT_TASK_EXECUTION_MODEL` = `{{model-codex:efficient}}`  | `medium`           | `source-mutable`   | `EXACT_TASK_EXECUTION_SELF_CONTAINED_PROMPT`                |
+| `task-spec-review`                    | `reviewer`    | `frontier`  | `TASK_SPEC_REVIEW_MODEL` = `gpt-6.1-sol`                    | `high`             | `source-immutable` | `TASK_SPEC_REVIEW_SELF_CONTAINED_PROMPT`                    |
+| `task-quality-review`                 | `reviewer`    | `frontier`  | `TASK_QUALITY_REVIEW_MODEL` = `gpt-6.1-sol`                 | `high`             | `source-immutable` | `TASK_QUALITY_REVIEW_SELF_CONTAINED_PROMPT`                 |
+| `whole-implementation-quality-review` | `reviewer`    | `frontier`  | `WHOLE_IMPLEMENTATION_QUALITY_REVIEW_MODEL` = `gpt-6.1-sol` | `high`             | `source-immutable` | `WHOLE_IMPLEMENTATION_QUALITY_REVIEW_SELF_CONTAINED_PROMPT` |
 
-| Route | Self-contained prompt and output                                              | Termination                                                      |
-| ----- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| D12   | Full task/context, authorized paths, snapshot request, report/status          | Existing scoped commit, report, snapshot, and status disposition |
-| D13   | Exact guarded task/context, authorized paths, snapshot request, report/status | Existing five-guardrail stop/reclassify disposition              |
-| D14   | Independent D14 prompt, captured task head, response-only report              | Same-head D14 disposition/fix loop                               |
-| D15   | Independent D15 prompt, captured task head, response-only report              | Provisional/final same-head disposition/fix loop                 |
-| D16   | Fresh D16 whole-range prompt, base/head, response-only report                 | Exact ADR-0016 skip or final fix/fresh-review/terminal route     |
+| Route                                 | Self-contained prompt and output                                                              | Termination                                                      |
+| ------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `default-implementation`              | Full task/context, authorized paths, snapshot request, report/status                          | Existing scoped commit, report, snapshot, and status disposition |
+| `exact-task-execution`                | Exact guarded task/context, authorized paths, snapshot request, report/status                 | Existing five-guardrail stop/reclassify disposition              |
+| `task-spec-review`                    | Independent task specification review prompt, captured task head, response-only report        | Same-head task specification review disposition/fix loop         |
+| `task-quality-review`                 | Independent task quality review prompt, captured task head, response-only report              | Provisional/final same-head disposition/fix loop                 |
+| `whole-implementation-quality-review` | Fresh whole-implementation quality review whole-range prompt, base/head, response-only report | Exact ADR-0016 skip or final fix/fresh-review/terminal route     |
 
 Every route has `external_authority: none`. A missing, blank, unresolved, or
 mismatched marker blocks before capture or spawn. Do not search a source
@@ -527,77 +527,76 @@ After validation and the existing route-local capture, create exactly one fresh
 child with the actual Codex fields:
 
 ```text
-# D12: D12_MODEL is the literal Codex implementer override
+# Default implementation: DEFAULT_IMPLEMENTATION_MODEL is the literal Codex implementer override
 Codex.spawn_agent({
-  task_name: d12_<instance_ordinal>,
+  task_name: default_implementation_<instance_ordinal>,
   agent_type: "implementer",
-  model: D12_MODEL,
+  model: DEFAULT_IMPLEMENTATION_MODEL,
   reasoning_effort: "medium",
   fork_turns: "none",
-  message: D12_SELF_CONTAINED_PROMPT,
+  message: DEFAULT_IMPLEMENTATION_SELF_CONTAINED_PROMPT,
 })
-# D13: D13_MODEL is the Codex-bound efficient model
+# Exact task execution: EXACT_TASK_EXECUTION_MODEL is the Codex-bound efficient model
 Codex.spawn_agent({
-  task_name: d13_<instance_ordinal>,
+  task_name: exact_task_execution_<instance_ordinal>,
   agent_type: "executor",
-  model: D13_MODEL,
+  model: EXACT_TASK_EXECUTION_MODEL,
   reasoning_effort: "medium",
   fork_turns: "none",
-  message: D13_SELF_CONTAINED_PROMPT,
+  message: EXACT_TASK_EXECUTION_SELF_CONTAINED_PROMPT,
 })
-# D14: D14_MODEL is the literal Codex reviewer override
+# Task specification review: TASK_SPEC_REVIEW_MODEL is the literal Codex reviewer override
 Codex.spawn_agent({
-  task_name: d14_<instance_ordinal>,
+  task_name: task_spec_review_<instance_ordinal>,
   agent_type: "reviewer",
-  model: D14_MODEL,
+  model: TASK_SPEC_REVIEW_MODEL,
   reasoning_effort: "high",
   fork_turns: "none",
-  message: D14_SELF_CONTAINED_PROMPT,
+  message: TASK_SPEC_REVIEW_SELF_CONTAINED_PROMPT,
 })
-# D15: D15_MODEL is the literal Codex reviewer override
+# Task quality review: TASK_QUALITY_REVIEW_MODEL is the literal Codex reviewer override
 Codex.spawn_agent({
-  task_name: d15_<instance_ordinal>,
+  task_name: task_quality_review_<instance_ordinal>,
   agent_type: "reviewer",
-  model: D15_MODEL,
+  model: TASK_QUALITY_REVIEW_MODEL,
   reasoning_effort: "high",
   fork_turns: "none",
-  message: D15_SELF_CONTAINED_PROMPT,
+  message: TASK_QUALITY_REVIEW_SELF_CONTAINED_PROMPT,
 })
-# D16: D16_MODEL is the literal Codex reviewer override
+# Whole-implementation quality review: WHOLE_IMPLEMENTATION_QUALITY_REVIEW_MODEL is the literal Codex reviewer override
 Codex.spawn_agent({
-  task_name: d16_<instance_ordinal>,
+  task_name: whole_implementation_quality_review_<instance_ordinal>,
   agent_type: "reviewer",
-  model: D16_MODEL,
+  model: WHOLE_IMPLEMENTATION_QUALITY_REVIEW_MODEL,
   reasoning_effort: "high",
   fork_turns: "none",
-  message: D16_SELF_CONTAINED_PROMPT,
+  message: WHOLE_IMPLEMENTATION_QUALITY_REVIEW_SELF_CONTAINED_PROMPT,
 })
 ```
 
 The route prompt references below own task-local content. An explicitly
-permitted same-session D12 fixup for the original stable task carries only
-incremental findings/context. D13-to-D12 reclassification and a D16 final
-whole-implementation fix use the lifecycle fresh-child path. D14/D15 are
+permitted same-session default implementation fixup for the original stable task carries only
+incremental findings/context. Exact-task-to-default-implementation reclassification and a whole-implementation fix after final review use the lifecycle fresh-child path. Per-task reviews are
 always fresh one-shot reviewers after a head-changing fix. A target rejection
-reports the exact requested `model=<Dn_MODEL> effort=<Dn_EFFORT>` and stops
+reports the exact requested `model=<model> effort=<effort>` and stops
 through the existing route terminal without substitution.
 
 ## Execution Route Classification
 
-D12 uses the source-mutable `implementer`, balanced/medium, for judgment-bearing
+Default implementation uses the source-mutable `implementer`, balanced/medium, for judgment-bearing
 scoped implementation. Preserve the existing status, snapshot, scoped commit,
 self-review, TDD, and verification contracts in
 [`references/implementer-prompt.md`](references/implementer-prompt.md).
 Implementer dispatch remains serial: never run two source-mutable task workers
 concurrently.
 
-D13 uses guarded inline execution or the source-mutable `executor`,
+Exact task execution uses guarded inline execution or the source-mutable `executor`,
 efficient/medium, only when all five exact guardrails pass. The
 [skip-dispatch policy](references/skip-dispatch-policy.md) owns pre-dispatch
 selection and fallback, the [executor prompt](references/executor-prompt.md)
 owns child action and report shape, and the
 [lifecycle/status policy](references/lifecycle-status-policy.md) owns returned
-D13 dispositions. None of these surfaces permits the executor to guess or
+Exact task execution dispositions. None of these surfaces permits the executor to guess or
 widen scope.
 
 ## Mechanical Task Hint
@@ -606,10 +605,10 @@ A task whose entire deliverable is "reproduce this approved verbatim artifact
 content into a file and commit" doesn't need the full implementer scaffolding
 (escalation prose, ask-if-unclear reminders, code-organization advice). Plans
 can mark such tasks with `**Mode:** mechanical` in the task header. The hint is
-an input to the five D13 guardrails, not dispatch authority by itself. When all
+an input to the five exact task execution guardrails, not dispatch authority by itself. When all
 five guardrails pass and the controller does not take the inline path, dispatch
 with [`references/executor-prompt.md`](references/executor-prompt.md). If a
-non-contract guardrail fails, reclassify to D12 and use the default
+non-contract guardrail fails, reclassify to default implementation and use the default
 [`references/implementer-prompt.md`](references/implementer-prompt.md). A task
 contract failure stops before mutation.
 
@@ -641,19 +640,19 @@ parent-owned `issue-priming-workflow --auto` Phase 6 handoff with a validated
 repo files alone cannot authorize reduced routes.
 
 Hard-risk and unclear multi-task tasks select `spec-and-quality`, which assigns
-D14 and D15 to the task. Post-selection result disposition, freshness,
+Task specification review and task quality review to the task. Post-selection result disposition, freshness,
 invalidation, and failure transitions belong to the lifecycle/status policy.
 That policy also owns proportionality disposition, review-loop limit, and
-resumption before a D14/D15 finding can reach D12.
+resumption before a per-task review finding can reach default implementation.
 
 Load [`references/review-routing-policy.md`](references/review-routing-policy.md)
 when computing the initial effective route, validating auto-handoff
 eligibility, or checking hard-risk triggers.
 
-### D14-D15 guarded per-task reviews
+### Guarded per-task reviews
 
-D14 is a separate response-only `reviewer`, frontier/high and
-source-immutable, with zero handoffs. D15 is a separate response-only
+Task specification review is a separate response-only `reviewer`, frontier/high and
+source-immutable, with zero handoffs. Task quality review is a separate response-only
 `reviewer`, frontier/high and source-immutable, with zero handoffs. Use
 the exact configured target-specific role, model and effort; do not substitute
 an ambient role, model or effort. The
@@ -663,15 +662,15 @@ fix invalidation, cleanup, and incomplete or terminal outcomes. That policy
 applies the bundle's `scripts/source-immutability.sh`; this index does not copy
 its command sequence.
 
-### D16 guarded final whole-implementation review
+### Guarded whole-implementation quality review
 
-D16 is a fresh response-only `reviewer`, frontier/high and
+Whole-implementation quality review is a fresh response-only `reviewer`, frontier/high and
 source-immutable, with zero handoffs. Supply the whole implementation base/head
-range and the D16-specific question from
+range and the whole-implementation quality review question from
 `references/code-quality-reviewer-prompt.md`.
 
 The [lifecycle/status policy](references/lifecycle-status-policy.md) is the
-normative owner of D16 dispatch timing, the exact skip, guard ordering, cleanup,
+normative owner of whole-implementation quality review dispatch timing, the exact skip, guard ordering, cleanup,
 fix-loop freshness, and final incomplete or terminal outcomes.
 
 ## Single-Task Plans
@@ -683,7 +682,7 @@ came from `issue-priming-workflow --auto` and identifies Candidate Closure and
 Source Freeze followed by `branch-review --fix` as the mandatory downstream
 route. Use the
 [lifecycle/status policy](references/lifecycle-status-policy.md) for task
-completion, exact D16 skip eligibility, final-review timing, and returned
+completion, exact whole-implementation quality review skip eligibility, final-review timing, and returned
 terminal disposition. This index does not restate those transitions.
 
 For direct/manual runs, load the
@@ -823,12 +822,12 @@ stale snapshots.
 
 For the single-task subset of plans that are fully mechanical approved verbatim
 artifact work or unambiguous identifier replacement, the controller may execute
-Write/Edit, verification, and commit inline or dispatch D13's `executor`. This
+Write/Edit, verification, and commit inline or dispatch exact task execution's `executor`. This
 path sits on top of the single-task per-task-review skip.
 
 All five guardrails must hold: the plan is single-task, the task is explicitly
 mechanical, no clarifying questions could plausibly arise under current
-combined D5 planning provenance, the structural task-contract gate is
+combined planning review provenance, the structural task-contract gate is
 satisfied, and no tests need to be authored. Direct, hand-written, copied, or
 older plans without current combined provenance fail the clarifying-question
 guardrail and fall back to dispatched implementation. A task-contract failure
@@ -845,7 +844,7 @@ when evaluating guardrails, choosing fallback behavior, or checking examples.
 
 ## Handling Implementer Status
 
-Returned D12/D13 status interpretation and all post-selection D14-D16 state
+Returned default implementation and exact task execution status interpretation and all post-selection per-task and whole-implementation review state
 transitions are owned by the lifecycle/status policy; this index does not
 restate them.
 
@@ -862,13 +861,13 @@ subagent prompt; do not inline their full bodies into this skill source.
 
 - `references/implementer-prompt.md` — default dispatch-time prompt for the
   `implementer` agent.
-- `references/executor-prompt.md` — D13 exact-task dispatch prompt for the
+- `references/executor-prompt.md` — exact task execution dispatch prompt for the
   `executor` agent, used only after all five guardrails pass and subject to the
   existing inline-choice and abstention rules.
 - `references/spec-reviewer-prompt.md` — per-task dispatch prompt for the
-  D14 `reviewer` when the effective route includes spec review.
+  Task specification review `reviewer` when the effective route includes spec review.
 - `references/code-quality-reviewer-prompt.md` — dispatch-time prompt for the
-  D15 per-task `reviewer` and the separate D16 final whole-implementation
+  Task quality review `reviewer` and the separate whole-implementation quality review
   `reviewer`; the template carries distinct questions and scopes.
 - `references/contract-example-discipline-consumer-rule.md` — shared
   consumer-side Contract Example Discipline rule used by the executor, prompt
@@ -914,8 +913,8 @@ See [`references/advantages.md`](references/advantages.md) for the rationale (vs
 ## Hard Rules
 
 1. **Never start implementation on `main` / `master` without explicit user consent.** Skills invoked outside an authorized worktree or feature branch must surface and stop.
-2. **Never dispatch source-mutable task workers in parallel.** D12 implementers
-   and D13 executors are serial — concurrent dispatch produces conflicts and
+2. **Never dispatch source-mutable task workers in parallel.** default implementation implementers
+   and exact task execution executors are serial — concurrent dispatch produces conflicts and
    race conditions.
 
 ## Red Flags

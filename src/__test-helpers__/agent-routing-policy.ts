@@ -22,6 +22,25 @@ const ESCALATION_ADOPTION_HEADERS = [
   "Adoption state",
   "Transition",
 ] as const;
+const DIRECT_CHILD_ROUTE_IDS = [
+  "issue-gate-assessment",
+  "internal-research",
+  "external-research",
+  "focused-specialist-dispatch",
+  "combined-planning-review",
+  "independent-review",
+  "targeted-verification",
+  "skill-pressure-scenario",
+  "default-implementation",
+  "exact-task-execution",
+  "task-spec-review",
+  "task-quality-review",
+  "whole-implementation-quality-review",
+  "ci-diagnosis-and-fix",
+  "semantic-review-context",
+] as const;
+type DirectChildRouteId = (typeof DIRECT_CHILD_ROUTE_IDS)[number];
+
 const SEMANTIC_ROLE_HEADING = "Semantic role catalog";
 const SEMANTIC_ROLE_HEADERS = [
   "Agent",
@@ -72,24 +91,25 @@ export interface AgentRoutingSkillInventoryRow {
 }
 
 export interface AgentRoutingDirectChildRouteRow {
-  readonly id: `D${number}`;
+  readonly id: DirectChildRouteId;
   readonly surfaceAndOwner: string;
   readonly route: string;
   readonly sourceOwnerLocatorOrSummary: string;
   readonly ownerSkill: string;
-  readonly evidenceLabel: string;
+  readonly displayName: string;
   readonly evidenceLocator?: string;
   readonly clauses: readonly AgentRoutingRouteClause[];
-  readonly d4Contract?: AgentRoutingD4RouteContract;
+  readonly specialistContract?: AgentRoutingSpecialistRouteContract;
 }
 
 export interface AgentRoutingEscalationAdoptionRow {
-  readonly id: `D${number}`;
+  readonly id: DirectChildRouteId;
+  readonly displayName: string;
   readonly state: (typeof ESCALATION_ADOPTION_STATES)[number];
   readonly transition: string;
 }
 
-export interface AgentRoutingD4RouteContract {
+export interface AgentRoutingSpecialistRouteContract {
   readonly roleCardinality: 7;
   readonly selectionTiming: "before spawn";
   readonly configuration: "exact configured capability/effort";
@@ -302,8 +322,11 @@ export function parseAgentRoutingPolicyOwner(
   const directChildRoutes = routeTable.map((cells, index) =>
     parseRouteRow(cells, index, knownSkills),
   );
-  const escalationAdoptionInventory = adoptionTable.map(
-    parseEscalationAdoptionRow,
+  const routeNames = new Map(
+    directChildRoutes.map(({ id, displayName }) => [id, displayName]),
+  );
+  const escalationAdoptionInventory = adoptionTable.map((cells) =>
+    parseEscalationAdoptionRow(cells, routeNames),
   );
 
   assertUnique(
@@ -315,12 +338,12 @@ export function parseAgentRoutingPolicyOwner(
     directChildRoutes.map((row) => row.id),
     "direct-route ID",
   );
-  assertDirectRouteCoverage(directChildRoutes);
+  assertRouteCoverage(directChildRoutes, "direct-route");
   assertUnique(
     escalationAdoptionInventory.map((row) => row.id),
     "escalation-adoption ID",
   );
-  assertEscalationAdoptionCoverage(escalationAdoptionInventory);
+  assertRouteCoverage(escalationAdoptionInventory, "escalation-adoption");
 
   return { inventory, directChildRoutes, escalationAdoptionInventory };
 }
@@ -532,12 +555,18 @@ function parseInventoryRow(
 
 function parseEscalationAdoptionRow(
   cells: readonly string[],
-  index: number,
+  routeNames: ReadonlyMap<DirectChildRouteId, string>,
 ): AgentRoutingEscalationAdoptionRow {
-  const id = cells[0];
-  if (!/^D\d+$/.test(id)) {
+  const reference = /^\[`([a-z]+(?:-[a-z]+)*)`\]\(#\1\)$/.exec(cells[0]);
+  const id = closedValue(
+    reference?.[1] ?? "",
+    DIRECT_CHILD_ROUTE_IDS,
+    "escalation-adoption ID",
+  );
+  const displayName = routeNames.get(id);
+  if (!displayName) {
     throw new Error(
-      `Agent routing policy owner escalation-adoption ID at row ${index + 1} is invalid: ${id}`,
+      `Agent routing policy owner escalation-adoption ID ${id} must refer to a direct-route row`,
     );
   }
   const state = closedValue(
@@ -555,7 +584,7 @@ function parseEscalationAdoptionRow(
       "Agent routing policy owner adoption opt-out transition must be exactly: none",
     );
   }
-  return { id: id as `D${number}`, state, transition: cells[2] };
+  return { id, displayName, state, transition: cells[2] };
 }
 
 const ROUTE_CAPABILITIES = ["efficient", "balanced", "frontier"] as const;
@@ -570,16 +599,23 @@ function parseRouteRow(
   index: number,
   knownSkills: ReadonlySet<string>,
 ): AgentRoutingDirectChildRouteRow {
-  const id = cells[0];
-  if (!/^D\d+$/.test(id)) {
+  const anchor = /^<a id="([a-z]+(?:-[a-z]+)*)"><\/a>`\1`$/.exec(cells[0]);
+  const id = closedValue(
+    anchor?.[1] ?? "",
+    DIRECT_CHILD_ROUTE_IDS,
+    `direct-route ID at row ${index + 1}`,
+  );
+  const specialist = id === "focused-specialist-dispatch";
+  const specialistContract = specialist
+    ? parseSpecialistRouteContract(cells[2])
+    : undefined;
+  const clauses = specialist ? [] : parseRouteClauses(id, cells[2]);
+  const [displayName, ownerSurface] = cells[1].split(" — ", 2);
+  if (!displayName.trim() || !ownerSurface) {
     throw new Error(
-      `Agent routing policy owner direct-route ID at row ${index + 1} is invalid: ${id}`,
+      `Agent routing policy owner direct-route ${id} must have a display name and owner surface`,
     );
   }
-
-  const d4Contract = id === "D4" ? parseD4RouteContract(cells[2]) : undefined;
-  const clauses = id === "D4" ? [] : parseRouteClauses(id, cells[2]);
-  const [evidenceLabel, ownerSurface = ""] = cells[1].split(/\s+—\s+/, 2);
   const explicitOwners = [...ownerSurface.matchAll(/`([a-z][a-z0-9-]*)`/g)]
     .map((match) => match[1])
     .filter((name) => knownSkills.has(name));
@@ -597,23 +633,25 @@ function parseRouteRow(
   const evidenceLocator = ownerSurface.match(/\b(?:Phase|Step)\s+\d+\b/i)?.[0];
 
   return {
-    id: id as `D${number}`,
+    id,
     surfaceAndOwner: cells[1],
     route: cells[2],
     sourceOwnerLocatorOrSummary: cells[3],
     ownerSkill,
-    evidenceLabel,
+    displayName,
     evidenceLocator,
     clauses,
-    d4Contract,
+    specialistContract,
   };
 }
 
-function parseD4RouteContract(route: string): AgentRoutingD4RouteContract {
+function parseSpecialistRouteContract(
+  route: string,
+): AgentRoutingSpecialistRouteContract {
   const segments = route.split(";").map((segment) => segment.trim());
   if (segments.length !== 4) {
     throw new Error(
-      "Agent routing policy owner direct-route D4 must contain exactly four route dimensions",
+      "Agent routing policy owner direct-route focused-specialist-dispatch must contain exactly four route dimensions",
     );
   }
 
@@ -631,41 +669,41 @@ function parseD4RouteContract(route: string): AgentRoutingD4RouteContract {
     !externalAuthority
   ) {
     throw new Error(
-      "Agent routing policy owner direct-route D4 has malformed route structure",
+      "Agent routing policy owner direct-route focused-specialist-dispatch has malformed route structure",
     );
   }
 
   closedValue(
     selection[1],
     ["seven"] as const,
-    "direct-route D4 role cardinality",
+    "direct-route focused-specialist-dispatch role cardinality",
   );
   return {
     roleCardinality: 7,
     selectionTiming: closedValue(
       selection[2],
       ["before spawn"] as const,
-      "direct-route D4 selection timing",
+      "direct-route focused-specialist-dispatch selection timing",
     ),
     configuration: closedValue(
       roleConfiguration[1],
       ["exact configured capability/effort"] as const,
-      "direct-route D4 configured capability and effort",
+      "direct-route focused-specialist-dispatch configured capability and effort",
     ),
     sourceDefault: closedValue(
       roleConfiguration[2],
       ["matching source default"] as const,
-      "direct-route D4 source default",
+      "direct-route focused-specialist-dispatch source default",
     ),
     scopeAndTermination: closedValue(
       scopeAndTermination[1],
       ["scope/termination"] as const,
-      "direct-route D4 scope and termination",
+      "direct-route focused-specialist-dispatch scope and termination",
     ),
     externalAuthority: closedValue(
       externalAuthority[1],
       ["none"] as const,
-      "direct-route D4 external authority",
+      "direct-route focused-specialist-dispatch external authority",
     ),
   };
 }
@@ -676,7 +714,7 @@ function parseRouteClauses(
 ): readonly AgentRoutingRouteClause[] {
   const clauses = route.split(";").map((clause) => clause.trim());
 
-  const requiredMultiplicity = id === "D17" ? 3 : 1;
+  const requiredMultiplicity = id === "ci-diagnosis-and-fix" ? 3 : 1;
   if (clauses.length !== requiredMultiplicity) {
     throw new Error(
       `Agent routing policy owner direct-route ${id} must contain exactly ${requiredMultiplicity} route clause${requiredMultiplicity === 1 ? "" : "s"}`,
@@ -777,42 +815,15 @@ function assertInventoryCoverage(
   }
 }
 
-function assertDirectRouteCoverage(
-  routes: readonly AgentRoutingDirectChildRouteRow[],
+function assertRouteCoverage(
+  rows: readonly { readonly id: DirectChildRouteId }[],
+  dimension: string,
 ): void {
-  const expected: readonly `D${number}`[] = [
-    ...Array.from({ length: 5 }, (_, index) => `D${index + 1}` as const),
-    "D7",
-    ...Array.from({ length: 9 }, (_, index) => `D${index + 10}` as const),
-  ];
-  const actual = new Set(routes.map((row) => row.id));
-  const missing = expected.filter((id) => !actual.has(id));
-  const unexpected = routes
-    .map((row) => row.id)
-    .filter((id) => !expected.includes(id));
-  if (missing.length > 0 || unexpected.length > 0) {
-    throw new Error(
-      `Agent routing policy owner direct-route ID coverage must be the active route set (D1–D5, D7, D10–D18); missing: ${missing.join(", ") || "none"}; unexpected: ${unexpected.join(", ") || "none"}`,
-    );
-  }
-}
-
-function assertEscalationAdoptionCoverage(
-  rows: readonly AgentRoutingEscalationAdoptionRow[],
-): void {
-  const expected: readonly `D${number}`[] = [
-    ...Array.from({ length: 5 }, (_, index) => `D${index + 1}` as const),
-    "D7",
-    ...Array.from({ length: 9 }, (_, index) => `D${index + 10}` as const),
-  ];
   const actual = new Set(rows.map((row) => row.id));
-  const missing = expected.filter((id) => !actual.has(id));
-  const unexpected = rows
-    .map((row) => row.id)
-    .filter((id) => !expected.includes(id));
-  if (missing.length > 0 || unexpected.length > 0) {
+  const missing = DIRECT_CHILD_ROUTE_IDS.filter((id) => !actual.has(id));
+  if (missing.length > 0) {
     throw new Error(
-      `Agent routing policy owner escalation-adoption ID coverage must be the active route set (D1–D5, D7, D10–D18); missing: ${missing.join(", ") || "none"}; unexpected: ${unexpected.join(", ") || "none"}`,
+      `Agent routing policy owner ${dimension} ID coverage is missing: ${missing.join(", ")}`,
     );
   }
 }

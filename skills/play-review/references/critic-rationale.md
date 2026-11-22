@@ -21,7 +21,7 @@ that a blocker is automatically valid. The critic first tries to falsify the
 unchanged finding `why` at the captured reviewed head. It then determines
 whether a blocker has a reachable consequence or actual breach of an applicable
 repository-owned obligation and independently crosses the merge gate. A blocker
-that remains a real concern below that gate receives `DOWNGRADE`. D7 admits Nits independently; they are not inputs to D10. A dispute claiming
+that remains a real concern below that gate receives `DOWNGRADE`. Independent review admits Nits independently; they are not inputs to targeted verification. A dispute claiming
 a blocking consequence is represented as a disputed Blocking candidate with
 its original claim preserved.
 
@@ -29,6 +29,6 @@ Duplicate retention comes only after those individual outcomes. Only candidates
 with the same supported reachable consequence or violated obligation,
 remediation, effective anchor, and compatible severity/outcome class share a
 group. A group never mixes Nits with blockers or blocker verdicts; duplicate
-Nits admitted by D7 may collapse, while a `VALID` blocker retains a `VALID`
+Nits admitted by independent review may collapse, while a `VALID` blocker retains a `VALID`
 representative. Ambiguity, different anchors, and carry-forward items also stay
 separate.

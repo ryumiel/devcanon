@@ -1,73 +1,73 @@
 # Lifecycle And Status Policy - `play-subagent-execution`
 
-The [source-immutability usage](source-immutability-usage.md) owns D14-D16
+The [source-immutability usage](source-immutability-usage.md) owns per-task and whole-implementation reviews
 guard commands, I/O, and refusal mechanics. This reference owns lifecycle
-ordering, status disposition, freshness, escalation, and the D14/D15
+ordering, status disposition, freshness, escalation, and the per-task reviews
 review-fix-loop disposition. It consumes the existing [finding proportionality
 runtime reference](../../play-review-response/references/finding-proportionality.md)
-before any D12 route. Writing Skills remains the sole classification authority;
+before any default implementation route. Writing Skills remains the sole classification authority;
 this lifecycle policy remains the sole execution disposition, count, stop, and
 resumption owner.
 
 ## Subagent Lifecycle
 
 Use `subagent-lifecycle` for shared cleanup and target capability state. Keep
-D12 implementers available through same-session D14/D15 fix loops when that
+Default implementation implementers available through same-session fix loops after per-task review when that
 follow-up is supported. Capture task reports, snapshot state, changed files,
 base/head and reviewed heads, routing, reviewer results, fixups, and blockers.
 It owns the generic controller lifecycle ledger, target lifecycle capability
 classification, cleanup gate before spawns, target-honest cleanup outcomes, and
 slot-limit recovery; this skill owns only execution-specific lifecycle details.
 
-For a same-tuple D12 fixup, keep the stable D12 session identity and send only
+For a same-tuple default implementation fixup, keep the stable default implementation session identity and send only
 the incremental findings/task context. On the verified-auto route, include the
 freshly revalidated controller-provided auto-route attestation as structured
 context; it is not task prose. Direct/manual routes do not invent an attestation.
 
 ```text
 Codex.followup_task({
-  target: D12_STABLE_SESSION_ID,
-  message: D12_INCREMENTAL_FINDINGS_AND_TASK_CONTEXT_PLUS_VERIFIED_AUTO_ROUTE_ATTESTATION_WHEN_APPLICABLE,
+  target: DEFAULT_IMPLEMENTATION_STABLE_SESSION_ID,
+  message: DEFAULT_IMPLEMENTATION_INCREMENTAL_FINDINGS_AND_TASK_CONTEXT_PLUS_VERIFIED_AUTO_ROUTE_ATTESTATION_WHEN_APPLICABLE,
 })
 ```
 
 Do not include `agent_type`, `model`, `reasoning_effort`, `fork_turns`, or an
-equivalent override, the full implementer prompt, or full task context. This D12 continuation is available only for the original
-stable task identity and unchanged D12 tuple. D13-to-D12 reclassification and a
-D16 final whole-implementation fix instead use the shared fresh-child lifecycle
-path. If no compatible reusable D12 session exists, use that path as well.
+equivalent override, the full implementer prompt, or full task context. This default implementation continuation is available only for the original
+stable task identity and unchanged default implementation tuple. Exact-task-to-default-implementation reclassification and a
+Whole-implementation quality review final whole-implementation fix instead use the shared fresh-child lifecycle
+path. If no compatible reusable default implementation session exists, use that path as well.
 
 ## Mutable Task-Worker Status
 
-For D12/D13 `DONE` or `DONE_WITH_CONCERNS`, capture report, snapshot state,
+For default implementation and exact task execution `DONE` or `DONE_WITH_CONCERNS`, capture report, snapshot state,
 changed files, base/head, and test evidence before review. `skipped` uses normal
 git/disk reads; `malformed` surfaces the incident and uses the same fallback.
 For `NEEDS_CONTEXT` and `BLOCKED`, record the available evidence and run the
 cleanup gate before the next session.
 
-`DONE` follows the effective route: `spec-and-quality` requires fresh D14 and
-D15, `spec-only` requires D14, and `none-final-only` completes after self-review
+`DONE` follows the effective route: `spec-and-quality` requires fresh task specification review and
+Task quality review, `spec-only` requires task specification review, and `none-final-only` completes after self-review
 and commit. A single-task plan completes after its applicable route. Concerns
-about correctness or scope remain incomplete until addressed. A D13
+about correctness or scope remain incomplete until addressed. An exact task execution
 `DONE_WITH_CONCERNS` report with judgment-bearing correctness or scope concerns
-routes the captured report to D12; purely observational concerns may continue
+routes the captured report to default implementation; purely observational concerns may continue
 through the selected route.
 
 ## Reviewer Freshness and Fixups
 
-D14 and D15 use independent fresh one-shot sessions and prompts against the
+Task specification review and task quality review use independent fresh one-shot sessions and prompts against the
 same task head; they never receive a follow-up or reuse a prior reviewer
 session. For `spec-and-quality`, one complete same-head required reviewer wave
 is one round regardless of reviewer or finding count. Join same-head results
-only after the independent guard lifecycles settle. D15 stays provisional until
-the active-task D14 gate is satisfied: a literal D14 pass or finalized
-all-non-mutating D14 dispositions satisfies that gate without rewriting raw
-responses. When D14 authorizes a fix, same-head provisional D15 candidates may
+only after the independent guard lifecycles settle. Task quality review stays provisional until
+the active task’s specification review gate is satisfied: a literal task specification review pass or finalized
+all-non-mutating task specification review dispositions satisfies that gate without rewriting raw
+responses. When task specification review authorizes a fix, same-head provisional task quality review candidates may
 join that single fix only when independently proportionate; they neither
-complete the task nor add a second round. `spec-only` D14 is one wave.
+complete the task nor add a second round. `spec-only` task specification review is one wave.
 
-Quality is final only after the same-head D14 gate and current-head validation;
-otherwise it is advisory, stale, or superseded. A fresh D14 pass plus every
+Quality is final only after the same-head task specification review gate and current-head validation;
+otherwise it is advisory, stale, or superseded. A fresh task specification review pass plus every
 reviewer required by the effective route passing on that same head permits task
 completion. Every fix commit invalidates both verdicts. Revalidate the route
 after each fixup: it may stay or escalate, never downgrade. After a
@@ -75,11 +75,11 @@ head-changing fix, rerun every reviewer required by the revalidated route as
 fresh one-shot reviewers against the new same task head; no earlier verdict
 survives.
 
-## D14/D15 Proportional Disposition and Bounded Fix Loops
+## Per-task review proportional disposition and Bounded Fix Loops
 
 After guarded capture → spawn → verify → validate/retain → cleanup → apply and
-before any D12 route, process every guard-verified semantically consumable
-candidate that could otherwise reach D12 through the portable Writing Skills
+before any default implementation route, process every guard-verified semantically consumable
+candidate that could otherwise reach default implementation through the portable Writing Skills
 classification policy.
 Retain a private, transient, same-controller, unnamed, unpersisted bounded
 impact preview. It has no helper, schema, artifact, notice, or independent
@@ -101,7 +101,7 @@ proof-only gap`, but it still requires an authoritative proof obligation and an
 existing proof owner. For an invalid or speculative finding, an explicit record
 that no authoritative contract anchor, production path, or meaningful bad
 outcome was demonstrated is sufficient negative evidence for rejection; it is
-not missing preview evidence. Return existing `BLOCKED` before D12 only when the
+not missing preview evidence. Return existing `BLOCKED` before default implementation only when the
 controller cannot determine the classification or whether required authority,
 evidence, or proof ownership exists. Include a concise sanitized summary of the
 unknown fact plus permitted repository anchors or minimum evidence pointers.
@@ -117,11 +117,11 @@ classifications and dispositions from the portable policy:
   with no production-behavior expansion.
 - A compliance candidate is classified from the shared Writing Skills owner's
   rule, violation, and preservation evidence independently of exact repair
-  authority. Establish that authority separately before D12. Known missing
-  authority retains the class, withholds D12, and produces an explicit existing
+  authority. Establish that authority separately before default implementation. Known missing
+  authority retains the class, withholds default implementation, and produces an explicit existing
   owner or approval handoff; uncertain authority retains the class and uses the
   existing `BLOCKED` clarification route. Only an otherwise qualified candidate
-  with exact authority may reach D12 with before-edit evidence and after-edit
+  with exact authority may reach default implementation with before-edit evidence and after-edit
   proof obligations; the changed head requires validation and independent
   review. Typing-only work does not automatically narrow review.
 - An adjacent independently releasable defect receives a concise
@@ -129,14 +129,14 @@ classifications and dispositions from the portable policy:
 - An invalid or speculative finding receives a concise rejection and no
   mutation.
 
-Treat the wave as the publication boundary. If any D14/D15 candidate authorizes
+Treat the wave as the publication boundary. If any per-task review candidate authorizes
 a head-changing fix, keep every same-wave non-mutating handoff provisional and
 do not issue it to the caller. The fresh post-fix wave must independently
 confirm the handoff before publication. A no-fix wave may finalize its
 dispositions after same-head validation.
 
 Only after this separation, preview, classification, current contract/head/route
-validation, and limit decision may authorized incremental context reach D12
+validation, and limit decision may authorized incremental context reach default implementation
 through the existing compatible-session or fresh-child route. Reviewer evidence,
 severity, validity, technical fixability, grouping, or approval prose alone is
 not mutation authority.
@@ -150,19 +150,19 @@ their existing terminal handling. The existing current-episode fixup count `0`,
 `1`, or `2` makes the newly observed failed wave round `1`, `2`, or `3`.
 Record the failed wave before deciding. Rounds 1 and 2 may each permit one
 bounded fix. Round 3 returns existing `BLOCKED` with blocker family
-`review-loop-limit` before D12. A materially unchanged unresolved finding
+`review-loop-limit` before default implementation. A materially unchanged unresolved finding
 family may stop earlier with that same blocker and resumption path; changed SHA
 alone is not new evidence.
 
 After a `review-loop-limit` block, explicit resumption approval must be
 finding-bound, current-head/current-route/current-contract/current-evidence,
-single-use. It authorizes exactly one identified D12 attempt without clearing
+single-use. It authorizes exactly one identified default implementation attempt without clearing
 history or resetting count. Before the approved attempt is dispatched, a
 changed head, route, contract, or material evidence invalidates it and requires
 a replacement current approval unless the revised-contract route applies. Once
 dispatched, the episode's finding-bound approval escape hatch is consumed;
 preserve that fact in the existing controller-local ledger. A failed fresh wave
-after the extra attempt blocks before further D12. Reassess before selecting
+after the extra attempt blocks before further default implementation. Reassess before selecting
 either same-contract recovery or a genuinely revised contract below.
 
 ### Reassessment and same-contract recovery
@@ -183,15 +183,15 @@ After the original extra attempt has failed fresh review, the same exhausted
 episode may receive exactly one reassessment recovery under the unchanged
 contract. It requires the evidence above, separately established exact mutation
 authority, and explicit user approval acknowledging the exhausted history and
-covering one identified D12 dispatch plus required fresh review. Bind approval
+covering one identified default implementation dispatch plus required fresh review. Bind approval
 to the current finding, head, route, contract and evidence; pre-dispatch changes
 invalidate it and require explicit current replacement. General implementation
 authority, `--auto`, and prior resumption approval do not grant recovery.
 
-Record recovery consumption at D12 dispatch in the existing controller-local
+Record recovery consumption at default implementation dispatch in the existing controller-local
 history without resetting the fixup count. `NEEDS_CONTEXT`, `BLOCKED`, or an
 absent valid review wave does not restore it. This grant permits no automatic
-D12 redispatch, including the ordinary verified-auto context-recovery route.
+Default implementation redispatch, including the ordinary verified-auto context-recovery route.
 After a completed correction, revalidate and run all independently guarded
 reviewers required by the current route on the current head. If the recovery
 does not complete with the required passing review, end local same-contract
@@ -199,8 +199,8 @@ recovery and hand the remaining defect, cause and evidence to the existing
 owner; do not solicit another recovery approval for that episode. Renaming the
 task, session, finding or episode does not replenish either consumed grant.
 
-This recovery applies only to a valid guarded D14/D15 `review-loop-limit`
-episode. It cannot reopen D16 or a guard-integrity, cleanup, malformed or
+This recovery applies only to a valid guarded per-task reviews `review-loop-limit`
+episode. It cannot reopen whole-implementation quality review or a guard-integrity, cleanup, malformed or
 incomplete-review terminal. Existing classification, source guards and
 changed-head proof remain mandatory; recovery is not a new review tier.
 
@@ -216,10 +216,10 @@ separately. Contract changes require their own product/design justification,
 not a need to obtain more attempts. After that material revalidation, reset
 only existing current-episode fixup count to `0` and retain
 prior ledger and family history. When the revised contract authorizes
-correction, dispatch through the existing D12 compatibility logic and begin the
+correction, dispatch through the existing default implementation compatibility logic and begin the
 new three-round budget with post-fix fresh review. When the unchanged
 implementation satisfies the revised contract and no correction is authorized,
-skip D12 and dispatch every reviewer required by the revalidated route as a
+skip default implementation and dispatch every reviewer required by the revalidated route as a
 fresh one-shot wave against the current head and revised contract; no prior
 verdict survives the contract change. Cosmetic wording or still-unauthorized
 evidence cannot reset or dispatch. Prior family history supports early stop only
@@ -228,14 +228,14 @@ when authority, outcome, and impact remain materially unchanged.
 ## Guarded review lifecycle
 
 Resolve the installed `play-subagent-execution` bundle before the first guarded
-review and discover the local guard contract once for the enclosing D14-D16
+review and discover the local guard contract once for the enclosing review wave
 flow:
 
 ```bash
 bash "$PLAY_SUBAGENT_EXECUTION_DIR/scripts/source-immutability.sh" --help
 ```
 
-For D14, D15, and D16, use the source-immutability lifecycle before consuming
+For task specification review, task quality review, and whole-implementation quality review, use the source-immutability lifecycle before consuming
 a response: capture → spawn → verify → validate/retain → cleanup → apply. A
 capture failure prevents spawn and records no invented cleanup evidence because
 there is no retained baseline. After capture succeeds, every terminal path
@@ -243,32 +243,32 @@ attempts cleanup against that exact retained baseline before final disposition,
 including paths caused by spawn, response, verification, validation, retention,
 or apply failure. Any such failure leaves the task incomplete and `BLOCKED`;
 detected mutation or cleanup failure is guard-integrity terminal and source
-remains visible and unrepaired. D16 is a fresh whole-range reviewer after all
-tasks, except the exact verified ADR-0016 single-task auto carve-out. A D16
+remains visible and unrepaired. Whole-implementation quality review is a fresh whole-range reviewer after all
+tasks, except the exact verified ADR-0016 single-task auto carve-out. A whole-implementation quality review
 result with no Blocking findings, including one with only Nit findings, may
-continue after safe cleanup. Blocking D16 findings keep final review
-incomplete, route to D12 for a fix, and require a fresh D16 after the fix
-commit. D16 is one-shot and never receives a follow-up or reuses a prior final
+continue after safe cleanup. Blocking whole-implementation quality review findings keep final review
+incomplete, route to default implementation for a fix, and require a fresh whole-implementation quality review after the fix
+commit. Whole-implementation quality review is one-shot and never receives a follow-up or reuses a prior final
 reviewer session.
 
-## D13 and D12 Recovery
+## Recovery for exact task execution and default implementation
 
-A D13 boundary failure (`NEEDS_CONTEXT` or `BLOCKED` from judgment, policy,
-authorization, clarification, or widened scope) reclassifies to D12; never
-redispatch or model-escalate D13. Other D13 blockers also route to D12 with
+An exact task execution boundary failure (`NEEDS_CONTEXT` or `BLOCKED` from judgment, policy,
+authorization, clarification, or widened scope) reclassifies to default implementation; never
+redispatch or model-escalate exact task execution. Other exact task execution blockers also route to default implementation with
 available evidence. This reclassification changes the tuple and therefore uses
-the fresh-child lifecycle path above, not a D13 follow-up with an altered role,
+the fresh-child lifecycle path above, not an exact task execution follow-up with an altered role,
 model, or effort.
 
 The dispatch-consumed original extra attempt and same-contract recovery above
 take precedence over the context-recovery rules below. On the exact verified
 `issue-priming-workflow --auto` route, a task-local
-recoverable D12 `NEEDS_CONTEXT` or `BLOCKED` result is non-gate continuation:
+recoverable default implementation `NEEDS_CONTEXT` or `BLOCKED` result is non-gate continuation:
 provide the bounded missing context or recoverable unblock and redispatch the
-same D12 route. Outside that route, automatic recovery is limited to a
+same default implementation route. Outside that route, automatic recovery is limited to a
 within-scope context repair; other blockers remain incomplete under the owning
 caller. Do not invent effort/model overrides. Record blockers as stable family
 plus detail and escalate repeated family behavior instead of retrying unchanged.
-When that redispatch is a same-tuple D12 continuation, use the incremental-only
+When that redispatch is a same-tuple default implementation continuation, use the incremental-only
 follow-up above; any tuple change instead follows the fresh-child lifecycle
 path.

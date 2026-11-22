@@ -48,7 +48,7 @@ const noReferenceStructuralPlan = structuralPlan
   );
 
 describe("planning-projection inspect command", () => {
-  it("refuses a note without a projection even when it claims D5 provenance", async () => {
+  it("refuses a note without a projection even when it claims combined planning review provenance", async () => {
     await withPlan(
       "# Execution Note\n\nD5 PASS; reviewed producer claimed.\n",
       async (planPath) => {

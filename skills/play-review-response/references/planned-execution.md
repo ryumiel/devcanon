@@ -76,7 +76,7 @@ rely on issue-priming `--auto` reduced-route behavior, because direct/manual
 review-response plans do not carry parent-owned issue-priming state, validated
 auto-handoff evidence, or a guaranteed downstream `branch-review --fix` loop.
 For `Route: review-response-parent-owned`, `play-planning` emits the plan path
-only after current combined D5 assurance covers both remits, including the
+only after current combined planning review assurance covers both remits, including the
 qualifying verification-only composite defined by the
 [combined owner](../../play-planning/references/combined-review-contract.md#source-established-declaration-verification). Approval
 satisfaction is separate from planning review, binds the exact reviewed digest,
@@ -100,7 +100,7 @@ For planned review-response work, create and self-review the written
 `Route: review-response-parent-owned` and `Design: <path>`, and capture the
 emitted `Plan written to <path>.`, `Reviewed digest: <sha256>`, and combined
 contract notice before implementation, only after `play-planning` has completed
-one D5 review covering both remits. This gate borrows the approval-gate shape from `play-brainstorm`
+one combined planning review covering both remits. This gate borrows the approval-gate shape from `play-brainstorm`
 without invoking `play-brainstorm` and without making it a dependency of
 `play-review-response`.
 
@@ -153,7 +153,7 @@ The plan approval gate is explicit:
   `.ephemeral/`; they are not durable product, architecture, or workflow
   documentation.
 - Run planning input self-review before invoking `play-planning`;
-  `play-planning` owns plan self-review and combined D5 review before it emits
+  `play-planning` owns plan self-review and combined planning review before it emits
   `Plan written to <path>.`.
 - Establish approval satisfaction after `Plan written to <path>.` and before
   `play-subagent-execution`. Use exact existing authority only under the
@@ -162,16 +162,16 @@ The plan approval gate is explicit:
 - Immediately before execution, recheck the retained authority against the
   current reviewed plan, its digest and producer provenance. Any changed plan
   bytes invalidate the prior review and approval assessment: use the remaining
-  combined D5 pass, the qualifying declaration-verification exception, or the
+  combined planning review pass, the qualifying declaration-verification exception, or the
   existing reassessment route, then reassess authority
   for the new exact plan. Do not reset the pass budget.
 - `play-planning` returns `Plan written to <path>.` for this route only after
-  combined D5 review passes both remits; invalid planning provenance remains
+  combined planning review passes both remits; invalid planning provenance remains
   inside `play-planning` and stops before this approval gate.
 - If the user requests a generated-plan change, retain the accepted scope and
-  complete D5 pass history, then derive the remaining budget from that history.
+  complete combined planning review pass history, then derive the remaining budget from that history.
   A PASS from the initial first pass leaves one correction pass; route that edit
-  through `play-planning`, including plan self-review and combined D5 review,
+  through `play-planning`, including plan self-review and combined planning review,
   before renewed approval assessment. A PASS reached on correction pass two
   leaves no pass, even when this is the user's first requested edit.
 - A final complete mapping-only FAIL may instead use the combined owner's
@@ -187,7 +187,7 @@ The plan approval gate is explicit:
 - Repeat the approval assessment after each reviewed revision until exact
   authority covers it, the user explicitly approves it, or work stops. User
   approval may continue indefinitely, but every edited plan remains subject
-  to the current cycle's D5 pass budget and any required reopening.
+  to the current cycle's combined planning review pass budget and any required reopening.
 
 ## Planning Input Self-Review
 
@@ -272,7 +272,7 @@ Mode: Planned execution.
 Action: Apply the canonical `.ephemeral` write guard, write
 `.ephemeral/<date>-review-response-design.md`, invoke `play-planning` with
 `Route: review-response-parent-owned` and `Design: <path>`. Follow the Plan
-Approval Gate: wait for a current combined D5 PASS, capture
+Approval Gate: wait for a current combined planning review PASS, capture
 `Plan written to <path>.`, `Reviewed digest: <sha256>`, and
 `Planning review contract: planning-review/combined-v1`, and retain validated
 producer provenance. Request explicit user approval of this reviewed

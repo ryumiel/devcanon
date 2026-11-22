@@ -26,20 +26,20 @@ it does not add a source-level Codex model or effort default.
 ## Review Route Contract
 
 [ADR-0038](../adr/adr-0038-single-reviewer-targeted-verification.md) replaces
-topical fanout with one independent D7 and conditional targeted D10. Both use
+topical fanout with one independent review and conditional targeted verification. Both use
 `reviewer`, frontier, source-immutable, external authority none, response-only,
-zero handoffs and fresh history. D7 uses ordinary `high` effort; D10 is the
+zero handoffs and fresh history. Independent review uses ordinary `high` effort; targeted verification is the
 sole explicit `high` targeted-verifier exception. The existing configured
 capability binding, tools, sandbox, exact-pair checks, dispatch ritual, and
 source-protection lifecycle are unchanged.
 
-D7 covers baseline quality/data safety and all applicable architecture, spec,
-documentation, examples, platform and external-invocation checks. D10 covers
+Independent review covers baseline quality/data safety and all applicable architecture, spec,
+documentation, examples, platform and external-invocation checks. Targeted verification covers
 only consequential, disputed or uncertain Blocking candidates. The
 [workflow contract](../../skills/play-review/references/single-reviewer-contract.md)
 owns exact triggers, terminals, evidence and failure handling. Missing required
-coverage or verification cannot approve. D7 owns the complete review coverage;
-D18 and all other active routes remain unchanged. Neither review child delegates
+coverage or verification cannot approve. Independent review owns the complete review coverage;
+Semantic review context and all other active routes remain unchanged. Neither review child delegates
 or mutates.
 
 ## Closed Classifications
@@ -132,31 +132,33 @@ child role.
 
 ## Direct-Child Route Inventory
 
-The **active route set** is D1–D5, D7 and D10–D18. Every inventory and
-normative route consumer uses exactly these 15 routes.
+The inventory defines the 15 active direct-child routes. Each row pairs a
+stable kebab-case ID and anchor with a readable display name. The escalation
+inventory links to these rows by ID. Use display names in prose and the exact
+semantic ID for route lookup or serialized evidence. Editing a display name
+leaves the ID, anchor and existing semantic-ID evidence valid.
 
-The row IDs and source anchors are inventory keys, not a marker or annotation
-language. Each source-immutable row is response-only unless it explicitly
+Each source-immutable row is response-only unless it explicitly
 declares a handoff. It uses the minimum source-immutable guard around the
 existing response contract.
 
-| ID  | Surface and owner                                                                     | Route                                                                                                                                                                                                          | Source-owner locator / summary (non-authoritative)                                                                            |
-| --- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| D1  | Issue gate — `issue-priming-workflow` Phase 2                                         | `assessor`, balanced/low, source-immutable                                                                                                                                                                     | Gate enum; terminal Phase 2 route                                                                                             |
-| D2  | Internal research — `issue-priming-workflow` Phase 3                                  | `investigator`, balanced/medium, source-immutable                                                                                                                                                              | Existing report headings; root synthesizes                                                                                    |
-| D3  | External research — `issue-priming-workflow` Phase 3                                  | `investigator`, balanced/medium, source-immutable, network-binding `dispatch-named`, evidence-qualifier `named-network`                                                                                        | Existing necessity/URL/headings; root synthesizes                                                                             |
-| D4  | Focused specialist — `play-agent-dispatch`                                            | Resolve exactly one of the seven semantic roles before spawn; use its exact configured capability/effort and matching source default; declare scope/termination; external authority `none`                     | Source-immutable selection is response-only under B3; unresolved route blocks                                                 |
-| D5  | Combined planning review — `play-planning`                                            | `reviewer`, frontier/high, source-immutable                                                                                                                                                                    | One digest-bound result covers correctness and executability                                                                  |
-| D7  | Complete independent review — `play-review` Phase 3                                   | `reviewer`, frontier/high, source-immutable                                                                                                                                                                    | Workflow-owned terminal disposition; controller aggregates completed findings                                                 |
-| D10 | Targeted verifier — `play-review` Phase 5                                             | `reviewer`, frontier/high, source-immutable                                                                                                                                                                    | Workflow-owned terminal disposition; controller retains critic verdicts; no recursion                                         |
-| D11 | Skill pressure scenario — `play-skill-authoring`                                      | `assessor`, balanced/low, source-immutable                                                                                                                                                                     | Existing scenario evidence; invalid evidence retested                                                                         |
-| D12 | Default implementation — `play-subagent-execution`                                    | `implementer`, balanced/medium, source-mutable                                                                                                                                                                 | Existing status/snapshot; scoped commit                                                                                       |
-| D13 | Exact task — `play-subagent-execution`                                                | `executor`, efficient/medium, source-mutable, selection-mode `inline-or-delegated`                                                                                                                             | Five guardrails; stop/reclassify on judgment                                                                                  |
-| D14 | Per-task spec review — `play-subagent-execution` review routing                       | `reviewer`, frontier/high, source-immutable                                                                                                                                                                    | Existing distinct prompt/same-head fix loop                                                                                   |
-| D15 | Per-task quality review — `play-subagent-execution` review routing                    | `reviewer`, frontier/high, source-immutable                                                                                                                                                                    | Existing distinct prompt/provisional same-head loop                                                                           |
-| D16 | Final whole-implementation quality review — `play-subagent-execution` Process step 10 | `reviewer`, frontier/high, source-immutable                                                                                                                                                                    | Whole-range prompt; narrow ADR-0016 skip; final fix/fresh-review or terminal-owner route                                      |
-| D17 | CI diagnosis/fix — `pr-merge` Step 4                                                  | branch `diagnosis`: `investigator`, balanced/medium, source-immutable; branch `exact-fix`: `executor`, efficient/medium, source-mutable; branch `judgment-fix`: `implementer`, balanced/medium, source-mutable | Guard diagnosis before fix classification; mutable child commits only; root alone separately owns external-mutable push/merge |
-| D18 | Semantic review context — `play-review` Phase 2.25                                    | `assessor`, balanced/low, source-immutable                                                                                                                                                                     | Response-only four-family summary; controller validates, cleans, maps, and continues                                          |
+| ID                                                                                    | Surface and owner                                                               | Route                                                                                                                                                                                                          | Source-owner locator / summary (non-authoritative)                                                                            |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| <a id="issue-gate-assessment"></a>`issue-gate-assessment`                             | Issue gate assessment — `issue-priming-workflow` Phase 2                        | `assessor`, balanced/low, source-immutable                                                                                                                                                                     | Gate enum; terminal Phase 2 route                                                                                             |
+| <a id="internal-research"></a>`internal-research`                                     | Internal research — `issue-priming-workflow` Phase 3                            | `investigator`, balanced/medium, source-immutable                                                                                                                                                              | Existing report headings; root synthesizes                                                                                    |
+| <a id="external-research"></a>`external-research`                                     | External research — `issue-priming-workflow` Phase 3                            | `investigator`, balanced/medium, source-immutable, network-binding `dispatch-named`, evidence-qualifier `named-network`                                                                                        | Existing necessity/URL/headings; root synthesizes                                                                             |
+| <a id="focused-specialist-dispatch"></a>`focused-specialist-dispatch`                 | Focused specialist dispatch — `play-agent-dispatch`                             | Resolve exactly one of the seven semantic roles before spawn; use its exact configured capability/effort and matching source default; declare scope/termination; external authority `none`                     | Source-immutable selection is response-only under B3; unresolved route blocks                                                 |
+| <a id="combined-planning-review"></a>`combined-planning-review`                       | Combined planning review — `play-planning`                                      | `reviewer`, frontier/high, source-immutable                                                                                                                                                                    | One digest-bound result covers correctness and executability                                                                  |
+| <a id="independent-review"></a>`independent-review`                                   | Independent review — `play-review` Phase 3                                      | `reviewer`, frontier/high, source-immutable                                                                                                                                                                    | Workflow-owned terminal disposition; controller aggregates completed findings                                                 |
+| <a id="targeted-verification"></a>`targeted-verification`                             | Targeted verification — `play-review` Phase 5                                   | `reviewer`, frontier/high, source-immutable                                                                                                                                                                    | Workflow-owned terminal disposition; controller retains critic verdicts; no recursion                                         |
+| <a id="skill-pressure-scenario"></a>`skill-pressure-scenario`                         | Skill pressure scenario — `play-skill-authoring`                                | `assessor`, balanced/low, source-immutable                                                                                                                                                                     | Existing scenario evidence; invalid evidence retested                                                                         |
+| <a id="default-implementation"></a>`default-implementation`                           | Default implementation — `play-subagent-execution`                              | `implementer`, balanced/medium, source-mutable                                                                                                                                                                 | Existing status/snapshot; scoped commit                                                                                       |
+| <a id="exact-task-execution"></a>`exact-task-execution`                               | Exact task execution — `play-subagent-execution`                                | `executor`, efficient/medium, source-mutable, selection-mode `inline-or-delegated`                                                                                                                             | Five guardrails; stop/reclassify on judgment                                                                                  |
+| <a id="task-spec-review"></a>`task-spec-review`                                       | Task specification review — `play-subagent-execution` review routing            | `reviewer`, frontier/high, source-immutable                                                                                                                                                                    | Existing distinct prompt/same-head fix loop                                                                                   |
+| <a id="task-quality-review"></a>`task-quality-review`                                 | Task quality review — `play-subagent-execution` review routing                  | `reviewer`, frontier/high, source-immutable                                                                                                                                                                    | Existing distinct prompt/provisional same-head loop                                                                           |
+| <a id="whole-implementation-quality-review"></a>`whole-implementation-quality-review` | Whole-implementation quality review — `play-subagent-execution` Process step 10 | `reviewer`, frontier/high, source-immutable                                                                                                                                                                    | Whole-range prompt; narrow ADR-0016 skip; final fix/fresh-review or terminal-owner route                                      |
+| <a id="ci-diagnosis-and-fix"></a>`ci-diagnosis-and-fix`                               | CI diagnosis and fix — `pr-merge` Step 4                                        | branch `diagnosis`: `investigator`, balanced/medium, source-immutable; branch `exact-fix`: `executor`, efficient/medium, source-mutable; branch `judgment-fix`: `implementer`, balanced/medium, source-mutable | Guard diagnosis before fix classification; mutable child commits only; root alone separately owns external-mutable push/merge |
+| <a id="semantic-review-context"></a>`semantic-review-context`                         | Semantic review context — `play-review` Phase 2.25                              | `assessor`, balanced/low, source-immutable                                                                                                                                                                     | Response-only four-family summary; controller validates, cleans, maps, and continues                                          |
 
 ## Active combined planning route
 
@@ -164,25 +166,23 @@ existing response contract.
 replacement decision; the [planning owner](../../skills/play-planning/references/combined-review-contract.md)
 owns detailed results, coverage, correction, failure and reassessment.
 
-D5 is the combined correctness/executability review. Its
-tuple remains `reviewer`, frontier/high, source-immutable, external authority
-`none`, response-only, zero handoffs, fresh history with the configured target
-binding. D6 is retired, never reassigned or interpreted as implicit PASS. The
-active set becomes D1–D5, D7 and D10–D18 (15 routes); remove D6 from both the
-active inventory and escalation adoption inventory together. D5 remains opt-out
-with transition `none`. No new semantic agent or target override is needed.
+Combined planning review covers correctness and executability. It uses a
+`reviewer`, frontier/high, source-immutable, external authority `none`, a
+response-only result, zero handoffs, and fresh history with the configured
+target binding. The route is opt-out with transition `none`. The retired D6
+route stays absent from both inventories and provides no implicit PASS.
 
-The same fresh independent D5 tuple also performs the planning owner's narrow
+The same fresh independent combined planning review tuple also performs the planning owner's narrow
 verification-only check of accepted-source declaration corrections. Explicit
 mode and complete composite coverage/provenance distinguish current assurance
 from historical semantic results. Verification consumes no semantic pass;
 failed verification stops existing recovery without automatic redispatch.
 This adds no route, role, authority or budget reset.
 
-Exceptional planning specialists use the existing D4 declaration and source
+Exceptional planning specialists use the existing focused specialist dispatch declaration and source
 role constraints, with the planning owner's bounded evidence-only scope. They
-do not change D5's pass budget or borrow D10. D18 ownership, D7/D10 final-review
-behavior, D14–D16, source guards, lifecycle and all other tuples/adoption states
+do not change combined planning review's pass budget or borrow targeted verification. Semantic review context ownership, independent review and targeted verification final-review
+behavior, per-task and whole-implementation reviews, source guards, lifecycle and all other tuples/adoption states
 remain unchanged. Rendering and migration checks must reconcile the complete
 active inventory on both targets before activation.
 
@@ -200,23 +200,23 @@ procedure owns eligibility, declaration, support, invariants, evidence, budget,
 and terminal semantics. This table is the authoritative current adoption record;
 it does not replace any route's workflow-local dispatch or termination owner.
 
-| ID  | Adoption state | Transition |
-| --- | -------------- | ---------- |
-| D1  | opt-out        | none       |
-| D2  | opt-out        | none       |
-| D3  | opt-out        | none       |
-| D4  | opt-out        | none       |
-| D5  | opt-out        | none       |
-| D7  | opt-out        | none       |
-| D10 | opt-out        | none       |
-| D11 | opt-out        | none       |
-| D12 | opt-out        | none       |
-| D13 | opt-out        | none       |
-| D14 | opt-out        | none       |
-| D15 | opt-out        | none       |
-| D16 | opt-out        | none       |
-| D17 | opt-out        | none       |
-| D18 | opt-out        | none       |
+| ID                                                                            | Adoption state | Transition |
+| ----------------------------------------------------------------------------- | -------------- | ---------- |
+| [`issue-gate-assessment`](#issue-gate-assessment)                             | opt-out        | none       |
+| [`internal-research`](#internal-research)                                     | opt-out        | none       |
+| [`external-research`](#external-research)                                     | opt-out        | none       |
+| [`focused-specialist-dispatch`](#focused-specialist-dispatch)                 | opt-out        | none       |
+| [`combined-planning-review`](#combined-planning-review)                       | opt-out        | none       |
+| [`independent-review`](#independent-review)                                   | opt-out        | none       |
+| [`targeted-verification`](#targeted-verification)                             | opt-out        | none       |
+| [`skill-pressure-scenario`](#skill-pressure-scenario)                         | opt-out        | none       |
+| [`default-implementation`](#default-implementation)                           | opt-out        | none       |
+| [`exact-task-execution`](#exact-task-execution)                               | opt-out        | none       |
+| [`task-spec-review`](#task-spec-review)                                       | opt-out        | none       |
+| [`task-quality-review`](#task-quality-review)                                 | opt-out        | none       |
+| [`whole-implementation-quality-review`](#whole-implementation-quality-review) | opt-out        | none       |
+| [`ci-diagnosis-and-fix`](#ci-diagnosis-and-fix)                               | opt-out        | none       |
+| [`semantic-review-context`](#semantic-review-context)                         | opt-out        | none       |
 
 `adopt`, `specialize`, and `opt-out` remain the conceptual closed adoption
 states. Current parser validation is deliberately fail-closed: it accepts only
@@ -254,19 +254,24 @@ must not derive a fresh Codex model or effort from source-agent Codex fields,
 rediscover a source configuration, or read a sibling passive-runtime catalog
 to replace the rendered binding. A missing, blank, unresolved, or mismatched
 binding blocks before spawn; no alias, nearby or ambient model, effort change,
-or fallback is permitted. Compatible same-session reuse is permitted only for D12's
-original stable-task fix or within-scope continuation, D17's unchanged stable
-branch/task, and D7/D10's bounded routine result correction under the
-[review recovery contract](../../skills/play-review/references/terminal-result-boundaries.md#routine-recovery).
-D7/D10 reuse requires the same frozen candidate, scope, complete tuple, and
-independent reviewer; it cannot reopen a completed substantive judgment.
-Every other route in the active route set is fresh-only; D14, D15, and D16 are
-explicitly one-shot fresh reviewers. After this route permission, the existing
+or fallback is permitted. The following routes allow compatible same-session
+reuse within their existing limits:
+
+- Default implementation for an original stable-task fix or within-scope continuation.
+- CI diagnosis and fix for an unchanged stable branch and task.
+- Independent review and targeted verification for bounded result correction under the
+  [review recovery contract](../../skills/play-review/references/terminal-result-boundaries.md#routine-recovery).
+  Reuse requires the same frozen candidate, scope, complete tuple, and
+  independent reviewer. It cannot reopen a completed substantive judgment.
+
+Every other route requires a fresh session. Task specification review, task
+quality review, and whole-implementation quality review are one-shot.
+After this route permission, the existing
 lifecycle owner performs task-name allocation, follow-up, capture,
 supersession, cleanup, slot recovery, and terminal model-capacity recovery;
 this policy does not create a naming schema or lifecycle registry.
 
-A follow-up for D7, D10, D12, or D17 is permitted only under the route permission above,
+A follow-up for independent review, targeted verification, default implementation, or CI diagnosis and fix is permitted only under the route permission above,
 when the stable task identity and complete tuple are unchanged, and the existing
 session remains compatible. It supplies incremental context and the
 verified-auto attestation when applicable, without configuration overrides. A
@@ -286,16 +291,15 @@ is the installed projection that documents this generic dispatch ritual for
 every route-owning skill; it consumes this contract and the lifecycle owner's
 allocation rule and does not become a second owner of either.
 
-### D4 Declaration Obligation
+### Focused Specialist Dispatch Declaration Obligation
 
-This policy is the sole D4 route owner: it owns the D4 route identity, exact
-seven-role allowed set, controller declaration obligation, producer path
+This policy owns the focused specialist dispatch identity, exact seven-role
+allowlist, controller declaration obligation, producer path
 [`skills/play-agent-dispatch/SKILL.md`](../../skills/play-agent-dispatch/SKILL.md),
-and current D4 adoption record. The producer consumes this obligation; it does
-not define a peer route or role registry.
+and current adoption record. The producer consumes this declaration contract.
 
-Before D4 spawns, the controller must issue one complete pre-spawn declaration.
-Its controller-bound fields are exactly `route_id` (`D4`), `target_id`, the
+Before spawning a focused specialist, issue one complete pre-spawn declaration.
+Its controller-bound fields are exactly `route_id` (`focused-specialist-dispatch`), `target_id`, the
 planner-selected `selected_role_id`, `scope`, `termination`, `context_ref`, and
 `approval_ref`; `termination` includes the declared output behavior. The
 [agent spec](../specs/agents.md) is the sole semantic-role catalog and
@@ -308,7 +312,7 @@ catalog's route effort and Claude uses its Claude effort. For a Claude
 arguments; validate this required absence against the role catalog. All Codex
 roles (including executor at `medium`) and the other five Claude roles still
 require their exact catalog effort. Do not replace omission with an ambient
-value or a thinking budget. A fresh Codex D4 model is the rendered full model from
+value or a thinking budget. A fresh Codex focused specialist dispatch model is the rendered full model from
 the selected route capability's Codex-bound binding; its effort is the
 independent selected route effort. The selected source must match the selected
 role's capability before that render-time binding is used; a capability-less or
@@ -325,7 +329,7 @@ or owner-derived values block before spawn. The required Claude-executor effort
 omission above is the sole exception to field presence; supplying effort for
 that selection also blocks. No other declaration field is optional or may be
 inferred from the child, parent, workflow, or runtime environment. Under
-the B3 routing boundary, a source-immutable D4 selection is response-only.
+the B3 routing boundary, a source-immutable focused specialist dispatch selection is response-only.
 
 ### Ordinary child failure disposition
 
@@ -333,13 +337,13 @@ After safe cleanup, existing unavailable or invalid-child behavior remains in
 force. The five surfaces that need a minimum explicit disposition use this
 table:
 
-| Routes                                  | Ordinary unavailable, failed, malformed, or verification-rejected child after safe cleanup                                                       |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Generic focused specialist (D4)         | Let already-started siblings settle and clean up, integrate no results, and return the failed domain plus successful summaries to the controller |
-| Per-task reviews (D14-D15)              | Keep the task incomplete and return the existing execution `BLOCKED` state with the failed review named; no verdict passes                       |
-| Final whole-implementation review (D16) | Keep final review incomplete and return `BLOCKED` to the owning caller or direct/manual terminal-status path; do not enter branch finish         |
-| CI diagnosis (D17)                      | Keep retry count unchanged, perform no fix/push/merge, and report the failed check plus manual-resolution recommendation                         |
-| Semantic review context (D18)           | Stop before shared-context construction and topical fanout; do not use controller summarization, partial context, or the rejected result         |
+| Routes                                                                  | Ordinary unavailable, failed, malformed, or verification-rejected child after safe cleanup                                                       |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Generic focused specialist (focused specialist dispatch)                | Let already-started siblings settle and clean up, integrate no results, and return the failed domain plus successful summaries to the controller |
+| Per-task reviews (per-task reviews)                                     | Keep the task incomplete and return the existing execution `BLOCKED` state with the failed review named; no verdict passes                       |
+| Final whole-implementation review (whole-implementation quality review) | Keep final review incomplete and return `BLOCKED` to the owning caller or direct/manual terminal-status path; do not enter branch finish         |
+| CI diagnosis (CI diagnosis and fix)                                     | Keep retry count unchanged, perform no fix/push/merge, and report the failed check plus manual-resolution recommendation                         |
+| Semantic review context (semantic review context)                       | Stop before shared-context construction and topical fanout; do not use controller summarization, partial context, or the rejected result         |
 
 Other routes retain their current gate/revision, partial research, missing
 topical, unverified critic, or fresh-scenario behavior. Only detected source
@@ -380,13 +384,13 @@ The portable dispatch procedure lives in
 This policy owns role/route selection; the source skill owns its invocation.
 
 Allocation decision: [ADR-0043](../adr/adr-0043-risk-based-specialist-review.md).
-The route table records Codex defaults. On Claude, D14–D16 retain
+The route table records Codex defaults. On Claude, per-task and whole-implementation reviews retain
 `deep-reviewer`, frontier capability and its catalog Claude effort; other
 existing routes retain their behavior. The
 [agent spec](../specs/agents.md#codex-specialist-roles) owns model allocation
 and role responsibilities.
 
-Use Sol High for ordinary design and review, including D14, D15 and D16. Keep
+Use Sol High for ordinary design and review, including task specification review, task quality review and whole-implementation quality review. Keep
 those gates, their reduced-review paths, finding disposition, source guards and
 existing lifecycle rules. Use Terra Medium for implementation and repairs.
 
@@ -411,8 +415,8 @@ do not depend solely on the ordinary reviewer's findings. Reuse applicable
 specialist evidence for the same unchanged candidate and question instead of
 repeating it at every gate; required fresh ordinary reviews still run.
 
-Use existing D4 focused-agent dispatch and lifecycle procedures, with explicit
-role/model selection. D4 includes architect on Codex and rejects it on Claude;
+Use existing focused specialist dispatch and lifecycle procedures, with explicit
+role/model selection. Focused specialist dispatch includes architect on Codex and rejects it on Claude;
 do not introduce S1–S3 routes, a new retry budget framework or a rollout state
 machine. Cross-role specialist selection is a new focused task, not a same-role
 capability retry, and cannot bypass current same-role escalation restrictions.

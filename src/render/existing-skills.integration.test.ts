@@ -18,21 +18,21 @@ import { buildGlossary, resolvePlaceholders } from "./placeholders.js";
 
 const TARGETS = ["claude", "codex"] as const;
 const FIXED_ROUTE_OWNER_CONTRACT = [
-  ["D1", "issue-priming-workflow"],
-  ["D2", "issue-priming-workflow"],
-  ["D3", "issue-priming-workflow"],
-  ["D4", "play-agent-dispatch"],
-  ["D5", "play-planning"],
-  ["D7", "play-review"],
-  ["D10", "play-review"],
-  ["D11", "play-skill-authoring"],
-  ["D12", "play-subagent-execution"],
-  ["D13", "play-subagent-execution"],
-  ["D14", "play-subagent-execution"],
-  ["D15", "play-subagent-execution"],
-  ["D16", "play-subagent-execution"],
-  ["D17", "pr-merge"],
-  ["D18", "play-review"],
+  ["issue-gate-assessment", "issue-priming-workflow"],
+  ["internal-research", "issue-priming-workflow"],
+  ["external-research", "issue-priming-workflow"],
+  ["focused-specialist-dispatch", "play-agent-dispatch"],
+  ["combined-planning-review", "play-planning"],
+  ["independent-review", "play-review"],
+  ["targeted-verification", "play-review"],
+  ["skill-pressure-scenario", "play-skill-authoring"],
+  ["default-implementation", "play-subagent-execution"],
+  ["exact-task-execution", "play-subagent-execution"],
+  ["task-spec-review", "play-subagent-execution"],
+  ["task-quality-review", "play-subagent-execution"],
+  ["whole-implementation-quality-review", "play-subagent-execution"],
+  ["ci-diagnosis-and-fix", "pr-merge"],
+  ["semantic-review-context", "play-review"],
 ] as const;
 const ROUTE_OWNER_SKILLS = [
   "issue-priming-workflow",
@@ -198,22 +198,26 @@ describe("shipped skill rendering", () => {
     const config = shippedSkillsConfig;
     const { outputs } = shippedSkillsRender;
     const bindings = [
-      ["issue-priming-workflow", "D1_MODEL", "balanced"],
-      ["issue-priming-workflow", "D2_MODEL", "balanced"],
-      ["issue-priming-workflow", "D3_MODEL", "balanced"],
-      ["play-planning", "D5_MODEL", "frontier"],
-      ["play-review", "D7_MODEL", "frontier"],
-      ["play-review", "D10_MODEL", "frontier"],
-      ["play-skill-authoring", "D11_MODEL", "balanced"],
-      ["play-subagent-execution", "D12_MODEL", "balanced"],
-      ["play-subagent-execution", "D13_MODEL", "efficient"],
-      ["play-subagent-execution", "D14_MODEL", "frontier"],
-      ["play-subagent-execution", "D15_MODEL", "frontier"],
-      ["play-subagent-execution", "D16_MODEL", "frontier"],
-      ["pr-merge", "D17_DIAGNOSIS_MODEL", "balanced"],
-      ["pr-merge", "D17_EXACT_FIX_MODEL", "efficient"],
-      ["pr-merge", "D17_JUDGMENT_FIX_MODEL", "balanced"],
-      ["play-review", "D18_MODEL", "balanced"],
+      ["issue-priming-workflow", "ISSUE_GATE_ASSESSMENT_MODEL", "balanced"],
+      ["issue-priming-workflow", "INTERNAL_RESEARCH_MODEL", "balanced"],
+      ["issue-priming-workflow", "EXTERNAL_RESEARCH_MODEL", "balanced"],
+      ["play-planning", "COMBINED_PLANNING_REVIEW_MODEL", "frontier"],
+      ["play-review", "INDEPENDENT_REVIEW_MODEL", "frontier"],
+      ["play-review", "TARGETED_VERIFICATION_MODEL", "frontier"],
+      ["play-skill-authoring", "SKILL_PRESSURE_SCENARIO_MODEL", "balanced"],
+      ["play-subagent-execution", "DEFAULT_IMPLEMENTATION_MODEL", "balanced"],
+      ["play-subagent-execution", "EXACT_TASK_EXECUTION_MODEL", "efficient"],
+      ["play-subagent-execution", "TASK_SPEC_REVIEW_MODEL", "frontier"],
+      ["play-subagent-execution", "TASK_QUALITY_REVIEW_MODEL", "frontier"],
+      [
+        "play-subagent-execution",
+        "WHOLE_IMPLEMENTATION_QUALITY_REVIEW_MODEL",
+        "frontier",
+      ],
+      ["pr-merge", "CI_DIAGNOSIS_MODEL", "balanced"],
+      ["pr-merge", "CI_EXACT_FIX_MODEL", "efficient"],
+      ["pr-merge", "CI_JUDGMENT_FIX_MODEL", "balanced"],
+      ["play-review", "SEMANTIC_REVIEW_CONTEXT_MODEL", "balanced"],
     ] as const;
 
     for (const [skill, binding, capability] of bindings) {
@@ -223,15 +227,17 @@ describe("shipped skill rendering", () => {
         );
         const normalizedBody = normalizeContractText(body);
         const configuredModel = [
-          "D5_MODEL",
-          "D7_MODEL",
-          "D10_MODEL",
-          "D14_MODEL",
-          "D15_MODEL",
-          "D16_MODEL",
+          "COMBINED_PLANNING_REVIEW_MODEL",
+          "INDEPENDENT_REVIEW_MODEL",
+          "TARGETED_VERIFICATION_MODEL",
+          "TASK_SPEC_REVIEW_MODEL",
+          "TASK_QUALITY_REVIEW_MODEL",
+          "WHOLE_IMPLEMENTATION_QUALITY_REVIEW_MODEL",
         ].includes(binding)
           ? reviewerModel
-          : ["D12_MODEL", "D17_JUDGMENT_FIX_MODEL"].includes(binding)
+          : ["DEFAULT_IMPLEMENTATION_MODEL", "CI_JUDGMENT_FIX_MODEL"].includes(
+                binding,
+              )
             ? "gpt-6.1-terra"
             : config.capabilityProfiles[capability].codex;
 
@@ -299,42 +305,45 @@ describe("shipped skill rendering", () => {
     const referenceContracts = [
       {
         path: "play-review/references/reviewer-routing-policy.md",
-        bindings: ["D7_MODEL", "D10_MODEL"],
+        bindings: ["INDEPENDENT_REVIEW_MODEL", "TARGETED_VERIFICATION_MODEL"],
         failClosed:
           "missing or mismatched bindings block before capture without substitution.",
       },
       {
         path: "play-subagent-execution/references/implementer-prompt.md",
-        bindings: ["D12_MODEL"],
+        bindings: ["DEFAULT_IMPLEMENTATION_MODEL"],
         failClosed:
           "A missing, blank, unresolved, or mismatched binding blocks before capture or spawn; do not locate a source checkout or use an alias, nearby, or ambient model.",
       },
       {
         path: "play-subagent-execution/references/executor-prompt.md",
-        bindings: ["D13_MODEL"],
+        bindings: ["EXACT_TASK_EXECUTION_MODEL"],
         failClosed:
           "A missing, blank, unresolved, or mismatched binding blocks before capture or spawn; do not locate a source checkout or use an alias, nearby, or ambient model.",
       },
       {
         path: "play-subagent-execution/references/spec-reviewer-prompt.md",
-        bindings: ["D14_MODEL"],
+        bindings: ["TASK_SPEC_REVIEW_MODEL"],
         failClosed:
           "A missing, blank, unresolved, or mismatched binding blocks before capture or spawn; do not locate a source checkout or use an alias, nearby, or ambient model.",
       },
       {
         path: "play-subagent-execution/references/code-quality-reviewer-prompt.md",
-        bindings: ["D15_MODEL", "D16_MODEL"],
+        bindings: [
+          "TASK_QUALITY_REVIEW_MODEL",
+          "WHOLE_IMPLEMENTATION_QUALITY_REVIEW_MODEL",
+        ],
         failClosed:
           "A missing, blank, unresolved, or mismatched binding blocks before capture or spawn; do not locate a source checkout or use an alias, nearby, or ambient model.",
       },
       {
         path: "play-subagent-execution/references/example-workflow.md",
         bindings: [
-          "D12_MODEL",
-          "D13_MODEL",
-          "D14_MODEL",
-          "D15_MODEL",
-          "D16_MODEL",
+          "DEFAULT_IMPLEMENTATION_MODEL",
+          "EXACT_TASK_EXECUTION_MODEL",
+          "TASK_SPEC_REVIEW_MODEL",
+          "TASK_QUALITY_REVIEW_MODEL",
+          "WHOLE_IMPLEMENTATION_QUALITY_REVIEW_MODEL",
         ],
         failClosed:
           "A missing, blank, unresolved, or mismatched binding blocks before capture or spawn; do not locate a source checkout or use an alias, nearby, or ambient model.",
@@ -372,9 +381,9 @@ describe("shipped skill rendering", () => {
         const renderedFiles = new Map<string, string>(bundleFiles.flat());
         for (const [id, owner] of FIXED_ROUTE_OWNER_CONTRACT) {
           expect(
-            renderedFiles.has(`${owner}/SKILL.md`),
-            `${target} ${id} owner ${owner} is rendered`,
-          ).toBe(true);
+            renderedFiles.get(`${owner}/SKILL.md`),
+            `${target} ${id} resolves in its owner ${owner}`,
+          ).toContain(`\`${id}\``);
         }
 
         for (const [file, content] of renderedFiles) {
@@ -403,14 +412,14 @@ describe("shipped skill rendering", () => {
 
   it("renders ordinary reviewer routes at Sol/high with explicit Claude compatibility", async () => {
     const { outputs } = shippedSkillsRender;
-    const d10Spawn = [
+    const targetedVerificationSpawn = [
       "Codex.spawn_agent({",
-      "  task_name: d10_<instance_ordinal>,",
+      "  task_name: targeted_verification_<instance_ordinal>,",
       '  agent_type: "reviewer",',
-      "  model: D10_MODEL,",
+      "  model: TARGETED_VERIFICATION_MODEL,",
       '  reasoning_effort: "high",',
       '  fork_turns: "none",',
-      "  message: D10_CRITIC_PROMPT,",
+      "  message: TARGETED_VERIFICATION_CRITIC_PROMPT,",
       "})",
     ].join("\n");
     const ordinarySpawns = [
@@ -418,12 +427,12 @@ describe("shipped skill rendering", () => {
         "play-planning",
         [
           "Codex.spawn_agent({",
-          "  task_name: d5_<instance_ordinal>,",
+          "  task_name: combined_planning_review_<instance_ordinal>,",
           '  agent_type: "reviewer",',
-          "  model: D5_MODEL,",
+          "  model: COMBINED_PLANNING_REVIEW_MODEL,",
           '  reasoning_effort: "high",',
           '  fork_turns: "none",',
-          "  message: D5_PLAN_REVIEW_PROMPT,",
+          "  message: COMBINED_PLANNING_REVIEW_PLAN_REVIEW_PROMPT,",
           "})",
         ].join("\n"),
       ],
@@ -431,12 +440,12 @@ describe("shipped skill rendering", () => {
         "play-review",
         [
           "Codex.spawn_agent({",
-          "  task_name: d7_<instance_ordinal>,",
+          "  task_name: independent_review_<instance_ordinal>,",
           '  agent_type: "reviewer",',
-          "  model: D7_MODEL,",
+          "  model: INDEPENDENT_REVIEW_MODEL,",
           '  reasoning_effort: "high",',
           '  fork_turns: "none",',
-          "  message: D7_PROMPT,",
+          "  message: INDEPENDENT_REVIEW_PROMPT,",
           "})",
         ].join("\n"),
       ],
@@ -446,14 +455,16 @@ describe("shipped skill rendering", () => {
       const { body: playReview } = parseFrontmatter(
         getSkillOutput(outputs, "play-review", target).content,
       );
-      expect(playReview).toContain("fresh, independent response-only D10");
+      expect(playReview).toContain(
+        "fresh, independent response-only targeted verifier",
+      );
       expect(playReview).toContain("D8 and D9 are retired");
       expect(playReview).not.toContain("model: D8_MODEL");
       expect(playReview).not.toContain("model: D9_MODEL");
-      expect(playReview).toContain(d10Spawn);
+      expect(playReview).toContain(targetedVerificationSpawn);
       expect(playReview).toContain(reviewerModel);
       expect(playReview).not.toContain(
-        "D10 is one response-only `deep-reviewer`, frontier/high",
+        "Targeted verification is one response-only `deep-reviewer`, frontier/high",
       );
       expect(playReview).not.toContain(
         "`semantic_role: deep-reviewer`; `capability: frontier`",
@@ -486,17 +497,26 @@ describe("shipped skill rendering", () => {
         "retains `deep-reviewer`, frontier capability and its catalog Claude effort",
       );
       expect(execution).toContain("gpt-6.1-terra");
-      for (const route of ["D14", "D15", "D16"] as const) {
+      for (const [id, displayName] of [
+        ["task-spec-review", "Task specification review"],
+        ["task-quality-review", "Task quality review"],
+        [
+          "whole-implementation-quality-review",
+          "Whole-implementation quality review",
+        ],
+      ]) {
+        const taskPrefix = id.replaceAll("-", "_");
+        const binding = taskPrefix.toUpperCase();
         expect(execution).toContain(
           [
-            `# ${route}: ${route}_MODEL is the literal Codex reviewer override`,
+            `# ${displayName}: ${binding}_MODEL is the literal Codex reviewer override`,
             "Codex.spawn_agent({",
-            `  task_name: ${route.toLowerCase()}_<instance_ordinal>,`,
+            `  task_name: ${taskPrefix}_<instance_ordinal>,`,
             '  agent_type: "reviewer",',
-            `  model: ${route}_MODEL,`,
+            `  model: ${binding}_MODEL,`,
             '  reasoning_effort: "high",',
             '  fork_turns: "none",',
-            `  message: ${route}_SELF_CONTAINED_PROMPT,`,
+            `  message: ${binding}_SELF_CONTAINED_PROMPT,`,
             "})",
           ].join("\n"),
         );
@@ -521,9 +541,13 @@ describe("shipped skill rendering", () => {
       const dispatch = normalizeContractText(
         getSkillOutput(outputs, "play-agent-dispatch", target).content,
       );
-      expect(execution).toContain("`D12_MODEL` = `gpt-6.1-terra`");
-      expect(merge).toContain("`D17_JUDGMENT_FIX_MODEL` = `gpt-6.1-terra`");
-      expect(research).toContain("`D2_MODEL` = `custom-balanced-model`");
+      expect(execution).toContain(
+        "`DEFAULT_IMPLEMENTATION_MODEL` = `gpt-6.1-terra`",
+      );
+      expect(merge).toContain("`CI_JUDGMENT_FIX_MODEL` = `gpt-6.1-terra`");
+      expect(research).toContain(
+        "`INTERNAL_RESEARCH_MODEL` = `custom-balanced-model`",
+      );
       expect(dispatch).toContain(
         "For `implementer`, select `gpt-6.1-terra` instead of the balanced binding",
       );
@@ -550,17 +574,17 @@ describe("shipped skill rendering", () => {
     expect(implementer?.content).not.toContain("custom-balanced-model");
   });
 
-  it("renders the D18 route for both targets", async () => {
+  it("renders the semantic review context route for both targets", async () => {
     const config = shippedSkillsConfig;
     const { outputs } = shippedSkillsRender;
-    const d18Spawn = [
+    const semanticReviewContextSpawn = [
       "Codex.spawn_agent({",
-      "  task_name: d18_<instance_ordinal>,",
+      "  task_name: semantic_review_context_<instance_ordinal>,",
       '  agent_type: "assessor",',
-      "  model: D18_MODEL,",
+      "  model: SEMANTIC_REVIEW_CONTEXT_MODEL,",
       '  reasoning_effort: "low",',
       '  fork_turns: "none",',
-      "  message: D18_SEMANTIC_CONTEXT_PROMPT,",
+      "  message: SEMANTIC_REVIEW_CONTEXT_PROMPT,",
       "})",
     ].join("\n");
 
@@ -569,7 +593,7 @@ describe("shipped skill rendering", () => {
         getSkillOutput(outputs, "play-review", target).content,
       );
 
-      expect(body).toContain(d18Spawn);
+      expect(body).toContain(semanticReviewContextSpawn);
       expect(body).toContain(config.capabilityProfiles.balanced.codex);
     }
   });
@@ -671,7 +695,7 @@ describe("shipped skill rendering", () => {
           "utf8",
         );
         expect(repair).toBe(repairSource);
-        expect(repair).toContain("D4 `implementer`");
+        expect(repair).toContain("focused specialist dispatch `implementer`");
         expect(repair).toContain("`gpt-6.1-terra`/`medium`");
         expect(repair).not.toContain("custom-balanced-model");
         const response = getSkillOutput(
@@ -679,7 +703,9 @@ describe("shipped skill rendering", () => {
           "play-review-response",
           target,
         ).content;
-        expect(response).toContain("D4 or D12");
+        expect(response).toContain(
+          "focused specialist dispatch or default implementation",
+        );
         expect(response).toContain("`gpt-6.1-terra`/`medium`");
       }
     } finally {

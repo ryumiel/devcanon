@@ -8,7 +8,7 @@ Accepted
 
 ADR-0016 later refines the `issue-priming-workflow --auto` single-task
 subset of the path described here. ADR-0039 supersedes only this ADR's
-upstream two-gate planning-precondition statements with the combined D5
+upstream two-gate planning-precondition statements with the combined planning review
 provenance contract. The behavioral planning-tier decision consumed by guardrail
 four is recorded in ADR-0035. The skip-dispatch decision in this ADR remains
 authoritative, but statements below that the final whole-implementation reviewer
@@ -53,7 +53,7 @@ whose evidence is validated at execution time):
    clarifying questions could plausibly arise — implicit from the upstream
    two-gate `play-planning` return introduced by ADR-0023, meaning both Plan
    Review and Implementer Executability Review passed before the plan-written
-   notice was emitted. The active successor requires one D5 review covering
+   notice was emitted. The active successor requires one combined planning review covering
    correctness and executability before `Plan written to <path>.`,
    `Reviewed digest: <sha256>`, and
    `Planning review contract: planning-review/combined-v1` are emitted.
@@ -68,7 +68,7 @@ whose evidence is validated at execution time):
    with no upstream combined-review return then fails this precondition and
    falls back to dispatched implementation; a pre-projection plan blocks and returns to planning. The
    direct `FULL` route is caller-authorized and structurally validated; it does
-   not claim, infer, or synthesize the D5 semantic-completeness assurance of a
+   not claim, infer, or synthesize the combined planning review semantic-completeness assurance of a
    reviewed `play-planning` handoff.
 4. **Runtime guardrail.** The task passes `play-subagent-execution`'s
    structural task-contract gate. The controller does not re-infer
@@ -146,7 +146,7 @@ here.
   needs judgment) bypass dispatch. Mitigation: same as the existing
   `**Mode:** mechanical` hint policy — under-marking is harmless,
   over-marking is plan-author responsibility, caught by `play-planning`'s
-  combined D5 review and by either the final
+  combined planning review and by either the final
   whole-implementation reviewer or downstream `branch-review --fix` on the
   ADR-0016 path.
 - The implementer DONE-report snapshot contract (ADR-0014) does not
