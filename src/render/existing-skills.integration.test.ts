@@ -194,9 +194,11 @@ describe("shipped skill rendering", () => {
     }
   });
 
-  it("materializes capability bindings and explicit Codex role overrides", async () => {
-    const config = shippedSkillsConfig;
-    const { outputs } = shippedSkillsRender;
+  it("materializes capability bindings and explicit Codex role overrides under custom profiles", async () => {
+    const config = await loadConfig("devcanon.config.yaml");
+    config.capabilityProfiles.balanced.codex = "custom-balanced-model";
+    config.capabilityProfiles.frontier.codex = "custom-frontier-model";
+    const { outputs } = await renderAll(config, false, true);
     const bindings = [
       ["issue-priming-workflow", "ISSUE_GATE_ASSESSMENT_MODEL", "balanced"],
       ["issue-priming-workflow", "INTERNAL_RESEARCH_MODEL", "balanced"],
@@ -226,14 +228,15 @@ describe("shipped skill rendering", () => {
           getSkillOutput(outputs, skill, target).content,
         );
         const normalizedBody = normalizeContractText(body);
-        const configuredModel = [
+        const usesReviewerOverride = [
           "COMBINED_PLANNING_REVIEW_MODEL",
           "INDEPENDENT_REVIEW_MODEL",
           "TARGETED_VERIFICATION_MODEL",
           "TASK_SPEC_REVIEW_MODEL",
           "TASK_QUALITY_REVIEW_MODEL",
           "WHOLE_IMPLEMENTATION_QUALITY_REVIEW_MODEL",
-        ].includes(binding)
+        ].includes(binding);
+        const configuredModel = usesReviewerOverride
           ? reviewerModel
           : ["DEFAULT_IMPLEMENTATION_MODEL", "CI_JUDGMENT_FIX_MODEL"].includes(
                 binding,
@@ -242,7 +245,9 @@ describe("shipped skill rendering", () => {
             : config.capabilityProfiles[capability].codex;
 
         expect(normalizedBody).toContain(
-          `\`${binding}\` = \`${configuredModel}\``,
+          usesReviewerOverride
+            ? `${binding} = "${configuredModel}"`
+            : `\`${binding}\` = \`${configuredModel}\``,
         );
         expect(normalizedBody).not.toContain(
           `\`${binding}\` resolves to \`${config.capabilityProfiles[capability].claude}\``,
@@ -256,6 +261,10 @@ describe("shipped skill rendering", () => {
       );
       const normalizedBody = normalizeContractText(body);
       expect(normalizedBody).toContain("Codex-bound model bindings");
+      expect(body).toContain(`reviewer Codex model = "${reviewerModel}"`);
+      expect(body).toContain(
+        `model = "${reviewerModel}"\nreasoning_effort = "high"`,
+      );
       for (const capability of ["efficient", "balanced", "frontier"] as const) {
         expect(normalizedBody).toContain(
           `\`${capability}\` → \`${config.capabilityProfiles[capability].codex}\``,

@@ -435,7 +435,9 @@ describe("agent routing and mutation policy owner", () => {
       const source = ownerSkills.get(ownerSkill);
       expect(source, `${ownerSkill} source is readable`).toBeDefined();
       expect(source?.replace(/\s+/gu, " ")).toContain(
-        `\`${model}\` = \`${role === "reviewer" ? reviewerModel : role === "implementer" ? "gpt-6.1-terra" : `{{model-codex:${capability}}}`}\``,
+        role === "reviewer"
+          ? `${model} = "${reviewerModel}"`
+          : `\`${model}\` = \`${role === "implementer" ? "gpt-6.1-terra" : `{{model-codex:${capability}}}`}\``,
       );
       expect(config.capabilityProfiles[capability].codex).toMatch(/\S/);
       expect(source).toContain(
@@ -474,6 +476,7 @@ describe("agent routing and mutation policy owner", () => {
       externalAuthority: "none",
     });
     expect(roles).toHaveLength(7);
+    expect(source).toContain(`reviewer Codex model = "${reviewerModel}"`);
     for (const { capability } of roles) {
       expect(source.replace(/\s+/gu, " ")).toContain(
         `\`${capability}\` → \`{{model-codex:${capability}}}\``,

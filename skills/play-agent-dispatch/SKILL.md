@@ -98,13 +98,13 @@ thinking budget for omission. Validate `source_authority` separately against
 that same catalog; effort does not imply authority.
 `agents/*.yaml` are governed declarations and parity inputs,
 never semantic authorities; their target-local literal fields are governed
-values under the agent spec, and focused specialist dispatch's fresh-Codex selection honors the explicit Codex reviewer override
-`gpt-6.1-sol` and implementer override `gpt-6.1-terra`; other roles use their
-Codex-bound rendered capability binding.
+values under the agent spec. Focused specialist dispatch uses the explicit
+Codex role overrides for reviewer and implementer and the rendered capability
+binding for other roles.
 
 For the selected focused specialist dispatch role, the complete Codex-bound model bindings are
 `efficient` → `{{model-codex:efficient}}`, `balanced` →
-`{{model-codex:balanced}}`, and `frontier` → `{{model-codex:frontier}}`. For `reviewer`, select the literal role override `gpt-6.1-sol` instead of
+`{{model-codex:balanced}}`, and `frontier` → `{{model-codex:frontier}}`. For `reviewer`, use the fixed model declared below instead of
 the frontier binding. For `implementer`, select `gpt-6.1-terra` instead of
 the balanced binding. For `architect`, use the frontier binding and `high`
 Codex effort. On Claude, reject `architect` selection before capture or spawn;
@@ -113,6 +113,10 @@ bindings select only the exact full Codex model; the separately validated role e
 independent. A missing, blank, unresolved, or mismatched binding blocks before
 spawn. Do not search a source checkout, use a sibling runtime when a rendered
 binding owns this field, or select an alias, nearby, or ambient model.
+
+```text
+reviewer Codex model = "gpt-6.1-sol"
+```
 
 Classify each independent problem domain separately. The controller selects one
 of the policy-owned seven-role set before spawn; a generic or inherited workflow
@@ -384,7 +388,13 @@ From debugging session (2025-10-03):
 
 This procedure supplies focused specialist dispatch consultation within an authorized design or
 review workflow; it does not authorize unrelated specialist dispatch. On Codex,
-ordinary design/planning uses explicit `gpt-6.1-sol`/`high` session selection.
+ordinary design/planning uses this explicit session selection:
+
+```text
+model = "gpt-6.1-sol"
+reasoning_effort = "high"
+```
+
 If the parent cannot establish that selection, use a supported fresh design
 session with that pair or report the unavailable configuration. Do not claim
 that selecting a child changes the parent model. Claude keeps its current flow.

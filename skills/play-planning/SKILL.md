@@ -755,10 +755,12 @@ consume the result. A guard failure, unavailable or malformed response,
 incomplete coverage, unexpected tag, digest mismatch, source drift, or cleanup
 failure is non-passing and never creates a handoff.
 
-Use only the rendered `COMBINED_PLANNING_REVIEW_MODEL` = `gpt-6.1-sol`, `reviewer`, frontier/high,
-source-immutable, response-only tuple, with no handoffs or external authority:
+Use only the fixed `COMBINED_PLANNING_REVIEW_MODEL` below with the
+`reviewer`, frontier/high, source-immutable, response-only tuple, with no
+handoffs or external authority:
 
 ```text
+COMBINED_PLANNING_REVIEW_MODEL = "gpt-6.1-sol"
 Codex.spawn_agent({
   task_name: combined_planning_review_<instance_ordinal>,
   agent_type: "reviewer",
