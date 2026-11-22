@@ -5,6 +5,10 @@ import type { Manifest } from "../config/schema.js";
 import type { PlanAction, RenderedOutput } from "../models/types.js";
 import { pathExists, pathOrSymlinkExists } from "../utils/fs.js";
 import { KNOWN_SUBDIRS } from "../validate/skills.js";
+import {
+  managedPathTupleKey,
+  managedPathTupleMatches,
+} from "./manifest-identity.js";
 import { resolveEffectiveInstallMode } from "./mode.js";
 
 export type RequestedInstallModes = Record<
@@ -22,7 +26,7 @@ export async function computePlan(
   targetFilter?: "claude" | "codex",
 ): Promise<PlanAction[]> {
   const actions: PlanAction[] = [];
-  const currentOutputKeys = new Set(outputs.map(outputKey));
+  const currentOutputKeys = new Set(outputs.map(managedPathTupleKey));
 
   const effectivePolicy: OverwritePolicy = force
     ? "overwrite-all"
@@ -30,7 +34,7 @@ export async function computePlan(
 
   for (const output of outputs) {
     const record = manifest.records.find((candidate) =>
-      recordMatchesOutput(candidate, output),
+      managedPathTupleMatches(candidate, output),
     );
     const exists = record
       ? await pathOrSymlinkExists(output.installedPath)
@@ -163,7 +167,7 @@ export async function computePlan(
   if (cleanManagedOutputs) {
     for (const record of manifest.records) {
       if (targetFilter && record.target !== targetFilter) continue;
-      if (!currentOutputKeys.has(recordKey(record))) {
+      if (!currentOutputKeys.has(managedPathTupleKey(record))) {
         const exists = await pathOrSymlinkExists(record.installedPath);
         if (exists) {
           actions.push({
@@ -196,36 +200,6 @@ export async function computePlan(
   }
 
   return actions;
-}
-
-function recordMatchesOutput(
-  record: Manifest["records"][number],
-  output: RenderedOutput,
-): boolean {
-  return (
-    record.target === output.target &&
-    record.type === output.type &&
-    record.name === output.name &&
-    record.installedPath === output.installedPath
-  );
-}
-
-function outputKey(output: RenderedOutput): string {
-  return JSON.stringify([
-    output.target,
-    output.type,
-    output.name,
-    output.installedPath,
-  ]);
-}
-
-function recordKey(record: Manifest["records"][number]): string {
-  return JSON.stringify([
-    record.target,
-    record.type,
-    record.name,
-    record.installedPath,
-  ]);
 }
 
 function recordName(record: Manifest["records"][number]): string {

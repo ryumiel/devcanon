@@ -1,17 +1,19 @@
 import { lstat, realpath } from "node:fs/promises";
 import { createTwoFilesPatch } from "diff";
-import type { ResolvedConfig } from "../config/schema.js";
+import type { ManagedRecord, ResolvedConfig } from "../config/schema.js";
 import {
   hashDevcanonRuntimePayload,
   verifyManagedOutputIdentity,
 } from "../install/identity.js";
 import {
   ManifestIdentityError,
+  managedPathTupleKey,
+  managedPathTupleMatches,
   normalizeManifestIdentity,
 } from "../install/manifest-identity.js";
 import { loadManifestWithSnapshot } from "../install/manifest.js";
 import { resolveEffectiveInstallMode } from "../install/mode.js";
-import type { DiffResult } from "../models/types.js";
+import type { DiffResult, RenderedOutput } from "../models/types.js";
 import { renderAllWithValidatedRuntime } from "../render/pipeline.js";
 import type { AcceptedProvider } from "../runtime-build/provider.js";
 import { UserError } from "../utils/errors.js";
@@ -104,7 +106,7 @@ export async function diffAll(
         });
       } else {
         const record = manifest.records.find((candidate) =>
-          recordMatchesOutput(candidate, output),
+          managedPathTupleMatches(candidate, output),
         );
         if (record && record.contentHash === output.contentHash) {
           if (
@@ -158,9 +160,9 @@ export async function diffAll(
   }
 
   // Check for removed outputs
-  const currentPaths = new Set(outputs.map(outputKey));
+  const currentPaths = new Set(outputs.map(managedPathTupleKey));
   for (const record of manifest.records) {
-    if (!currentPaths.has(recordKey(record))) {
+    if (!currentPaths.has(managedPathTupleKey(record))) {
       const filterMatch = !targetFilter || record.target === targetFilter;
       if (filterMatch) {
         results.push({
@@ -200,51 +202,6 @@ async function hasMatchingRuntimeIdentity(
   }
 }
 
-function recordMatchesOutput(
-  record: {
-    target: string;
-    type: string;
-    name?: string;
-    installedPath: string;
-  },
-  output: { target: string; type: string; name: string; installedPath: string },
-): boolean {
-  return (
-    record.target === output.target &&
-    record.type === output.type &&
-    record.name === output.name &&
-    record.installedPath === output.installedPath
-  );
-}
-
-function outputKey(output: {
-  target: string;
-  type: string;
-  name: string;
-  installedPath: string;
-}): string {
-  return JSON.stringify([
-    output.target,
-    output.type,
-    output.name,
-    output.installedPath,
-  ]);
-}
-
-function recordKey(record: {
-  target: string;
-  type: string;
-  name?: string;
-  installedPath: string;
-}): string {
-  return JSON.stringify([
-    record.target,
-    record.type,
-    record.name,
-    record.installedPath,
-  ]);
-}
-
 function recordName(record: { name?: string }): string {
   if (record.name === undefined) {
     throw new Error("Managed manifest record is missing its normalized name");
@@ -254,22 +211,16 @@ function recordName(record: { name?: string }): string {
 
 async function diffAgentFile(
   generatedContent: string,
-  output: { target: string; type: string; name: string; installedPath: string },
-  records: Array<{
-    target: string;
-    type: string;
-    name?: string;
-    installedPath: string;
-    installMode: "symlink" | "copy";
-  }>,
+  output: RenderedOutput,
+  records: ManagedRecord[],
   requestedMode: "symlink" | "copy",
 ): Promise<DiffResult> {
   const exists = await pathExists(output.installedPath);
   if (!exists) {
     return {
       status: "added",
-      target: output.target as "claude" | "codex",
-      type: output.type as "skill" | "agent",
+      target: output.target,
+      type: output.type,
       name: output.name,
       installedPath: output.installedPath,
       diff: null,
@@ -277,13 +228,13 @@ async function diffAgentFile(
   }
 
   const record = records.find((candidate) =>
-    recordMatchesOutput(candidate, output),
+    managedPathTupleMatches(candidate, output),
   );
   if (!record) {
     return {
       status: "unmanaged-conflict",
-      target: output.target as "claude" | "codex",
-      type: output.type as "skill" | "agent",
+      target: output.target,
+      type: output.type,
       name: output.name,
       installedPath: output.installedPath,
       diff: null,
@@ -291,8 +242,8 @@ async function diffAgentFile(
   }
 
   const expectedMode = resolveEffectiveInstallMode(
-    output.target as "claude" | "codex",
-    output.type as "skill" | "agent",
+    output.target,
+    output.type,
     requestedMode,
   );
   if (
@@ -329,8 +280,8 @@ async function diffAgentFile(
       // Broken symlink or missing file — treat as not yet installed
       return {
         status: "added",
-        target: output.target as "claude" | "codex",
-        type: output.type as "skill" | "agent",
+        target: output.target,
+        type: output.type,
         name: output.name,
         installedPath: output.installedPath,
         diff: null,
@@ -342,8 +293,8 @@ async function diffAgentFile(
   if (installedContent === generatedContent) {
     return {
       status: "up-to-date",
-      target: output.target as "claude" | "codex",
-      type: output.type as "skill" | "agent",
+      target: output.target,
+      type: output.type,
       name: output.name,
       installedPath: output.installedPath,
       diff: null,
@@ -359,8 +310,8 @@ async function diffAgentFile(
 
   return {
     status: "changed",
-    target: output.target as "claude" | "codex",
-    type: output.type as "skill" | "agent",
+    target: output.target,
+    type: output.type,
     name: output.name,
     installedPath: output.installedPath,
     diff: patch,

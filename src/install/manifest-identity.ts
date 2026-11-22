@@ -30,11 +30,13 @@ export interface NormalizedManifestIdentity {
 
 export type ManagedPathActivity = "active" | "passive";
 
-export interface ManagedPathIdentity {
-  target: ManagedRecord["target"];
-  type: ManagedRecord["type"];
+type ManagedPathTuple = Pick<
+  ManagedRecord,
+  "target" | "type" | "name" | "installedPath"
+>;
+
+export interface ManagedPathIdentity extends ManagedPathTuple {
   name: string;
-  installedPath: string;
   activity: ManagedPathActivity;
 }
 
@@ -94,9 +96,10 @@ export function assertNoManagedPathConflicts(
   }
 }
 
-function managedPathTupleMatches(
-  first: ManagedPathIdentity,
-  second: ManagedPathIdentity,
+/** Compare the supplied tuple fields directly, including the path spelling. */
+export function managedPathTupleMatches(
+  first: ManagedPathTuple,
+  second: ManagedPathTuple,
 ): boolean {
   return (
     first.target === second.target &&
@@ -104,6 +107,15 @@ function managedPathTupleMatches(
     first.name === second.name &&
     first.installedPath === second.installedPath
   );
+}
+
+export function managedPathTupleKey(tuple: ManagedPathTuple): string {
+  return JSON.stringify([
+    tuple.target,
+    tuple.type,
+    tuple.name,
+    tuple.installedPath,
+  ]);
 }
 
 function managedPathsOverlap(first: string, second: string): boolean {

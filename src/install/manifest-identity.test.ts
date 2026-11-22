@@ -10,6 +10,8 @@ import {
   ManifestIdentityError,
   assertNoManagedPathConflicts,
   classifyManagedRecord,
+  managedPathTupleKey,
+  managedPathTupleMatches,
   normalizeManifestBoundary,
   normalizeManifestIdentity,
 } from "./manifest-identity.js";
@@ -36,6 +38,38 @@ function makeRecord(overrides: Partial<ManagedRecord> = {}): ManagedRecord {
     ...overrides,
   };
 }
+
+describe("managed path tuples", () => {
+  const first = makeRecord();
+
+  it.each([
+    ["identical", {}, true],
+    ["different target", { target: "codex" }, false],
+    ["different type", { type: "skill" }, false],
+    ["different name", { name: "other" }, false],
+    ["missing name", { name: undefined }, false],
+    [
+      "different installed path",
+      { installedPath: `${first.installedPath}.bak` },
+      false,
+    ],
+    [
+      "different raw spelling",
+      { installedPath: `${first.installedPath}${path.sep}.` },
+      false,
+    ],
+  ] as const)(
+    "agrees on matching and membership for %s tuples",
+    (_, changes, matches) => {
+      const second = { ...first, ...changes, contentHash: "different hash" };
+
+      expect(managedPathTupleMatches(first, second)).toBe(matches);
+      expect(
+        new Set([managedPathTupleKey(first)]).has(managedPathTupleKey(second)),
+      ).toBe(matches);
+    },
+  );
+});
 
 describe("manifest identity schema", () => {
   it("makes current fixture manifests bound to their supplied resolved config", () => {
