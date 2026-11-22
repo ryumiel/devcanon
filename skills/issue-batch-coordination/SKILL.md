@@ -128,9 +128,12 @@ are independent: interactive owners do not select monitoring, and an explicit
 monitoring request does not change owner mode. Preserve already-bound owner
 modes, compatible previously authorized monitor settings and retained explicit
 stops on resume; the fresh-batch default does not stop or replace an existing
-monitor, and a generic resume does not supersede a stop. Read
-[Watchdog operation](references/watchdog.md) when monitoring is explicitly
-requested, already exists, or needs recovery or shutdown.
+monitor, and a generic resume does not supersede a stop. For a new GitHub
+batch with explicit push opt-in, follow
+[GitHub push operation](references/github-push.md) and the
+[relay CLI usage](references/github-push-relay-usage.md). Read
+[Watchdog operation](references/watchdog.md) for scheduled monitoring setup,
+recovery, and shutdown.
 
 Select requested effects from intent, independent owner/monitor overrides,
 already-bound modes/settings and retained explicit stops before authorization,
@@ -149,8 +152,10 @@ perform one initial authorization check against applicable human decisions
 already visible here or verifiable through supported host evidence. Enumerate
 only selected effects: accepted issues' owner-chat creation, coordinator-to-owner
 instructions and owner-to-coordinator gates/completion/required readiness reports;
-when monitoring is enabled, add one watchdog chat, watchdog-to-owner external
+for scheduled monitoring, add one watchdog chat, watchdog-to-owner external
 updates, watchdog-to-coordinator exceptions and recurring activation with cadence.
+For GitHub push delivery, verify authorization for webhook registration and the
+ledger-bound owner and coordinator notices.
 A selected stop includes only its required shutdown controls.
 The default selects requested setup, never fabricates a host permission.
 Alongside these permissions, establish separately scoped publication, conditional
@@ -160,14 +165,15 @@ actual human decisions and obtaining only missing scope before its affected effe
 Reuse valid decisions and batch only uncovered permissions into one concise
 request where the host permits it. Identify the accepted batch, roles,
 selected notification directions and timer operation/cadence where applicable,
-and the actual host restriction requiring each permission. For enabled
+and the actual host restriction requiring each permission. For scheduled
 monitoring, request a genuinely missing cadence preference under the watchdog
 procedure before activation. Distinguish publication, conditional merge and
 scoped cleanup decisions explicitly from creation, messaging and timer
 permissions; collect only missing delivery
 decisions without silently expanding scope or provider-mutation authority.
-If all effects and preferences are already covered by verifiable human decisions,
-proceed without another approval question.
+GitHub push delivery has no cadence choice. If all effects and preferences are
+already covered by verifiable human decisions, proceed without another approval
+question.
 
 Retain scope and human authorization provenance in the existing stable controller
 state, bind them to actual selected owner/watchdog recipients as host identities
@@ -210,7 +216,7 @@ Request a new human decision only for missing/revoked authority, scope expansion
 an unresolved choice, required-gate exception or actual host restriction; a
 satisfied authorized gate is not another permission request.
 
-For enabled monitoring, verify owner bindings, watchdog identity and selected
+For scheduled monitoring, verify owner bindings, watchdog identity and selected
 model, timer target and activation, and permitted notification recipients
 separately before claiming monitored operation. Reuse authorized compatible components and create only what
 is missing. Pending or unknown creation/activation/stop outcomes hold duplicate
