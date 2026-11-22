@@ -57,10 +57,12 @@ def done_review(body):
     if not isinstance(review, dict) or review.get("status") != "completed":
         return None
     head = review.get("commit_sha")
+    findings, unresolved = review.get("has_any_findings"), review.get("has_unresolved_findings")
     if (not isinstance(head, str) or not SHA.fullmatch(head)
-            or type(review.get("has_unresolved_findings")) is not bool):
+            or type(findings) is not bool or type(unresolved) is not bool
+            or (unresolved and not findings)):
         return None
-    return head, review["has_unresolved_findings"]
+    return head, findings, unresolved
 
 
 class Relay:
@@ -114,6 +116,19 @@ class Relay:
                 or any(controller.get(key) != value for key, value in expected.items())
                 or (ledger.get("monitor") or {}).get("mode") != "github_push"):
             return None
+        items = ledger.get("items")
+        if not isinstance(items, list):
+            raise OSError("Opted-in batch ledger must contain an items array")
+        scopes = {f"github:{self.config['repository']}#{issue}" for issue in self.config["issues"]}
+        for item in items:
+            if not isinstance(item, dict) or not isinstance(item.get("source_issue_identifier"), str):
+                raise OSError("Batch ledger items must record source_issue_identifier")
+            if item["source_issue_identifier"] not in scopes:
+                continue
+            if not isinstance(item.get("source_state"), str) or not item["source_state"]:
+                raise OSError("An opted-in batch item is missing source_state")
+            if item.get("owner_thread_id") and not item.get("owner_host_id"):
+                raise OSError("A registered batch owner is missing owner_host_id")
         return ledger
 
     def binding(self, pull, number, *, lifecycle=None):
@@ -130,21 +145,21 @@ class Relay:
             node["number"] for node in references["nodes"]
             if node["repository"]["nameWithOwner"] == repo
         }
-        if (not branch or (not links and (not lifecycle or references["nodes"]))):
+        if not branch:
             return None
         expected_pr = f"github:{repo}#{number}"
-        scope = {
-            f"github:{repo}#{issue}": issue for issue in self.config["issues"]
-            if issue in links or not links
-        }
+        scope = {f"github:{repo}#{issue}": issue for issue in self.config["issues"]}
         items = [
             item for item in ledger["items"]
-            if item.get("source_issue_identifier") in scope
-            and (links or (
-                item.get("branch_name") == branch and
-                (lifecycle == "opened" or item.get("pr_identifier") == expected_pr)
-            ))
+            if item["source_issue_identifier"] in scope
+            and (item.get("pr_identifier") == expected_pr
+                 or scope[item["source_issue_identifier"]] in links)
         ]
+        if not items and lifecycle == "opened" and not references["nodes"]:
+            items = [
+                item for item in ledger["items"]
+                if item["source_issue_identifier"] in scope and item.get("branch_name") == branch
+            ]
         if len(items) != 1:
             return None
         item = items[0]
@@ -176,7 +191,7 @@ class Relay:
         review = done_review(comment["body"])
         if review is None:
             return None
-        head, unresolved = review
+        head, findings, unresolved = review
         repo = self.config["repository"]
         current = self.github(f"repos/{repo}/issues/comments/{comment_id}")
         if (current["id"] != comment_id or not self.connector(current["user"])
@@ -191,9 +206,10 @@ class Relay:
             return None
         issue_number, item = binding
         owner = item["owner_thread_id"]
-        return self.queue(delivery, [repo, number, "code_review", head, owner], owner, (
+        key = [repo, number, "code_review", head, owner, findings, unresolved]
+        return self.queue(delivery, key, owner, (
             f"GitHub Connector review for {repo} issue #{issue_number}, PR #{number}, head {head}. "
-            f"Code review completed. Unresolved findings: {unresolved}. "
+            f"Code review completed. Findings: {findings}. Unresolved findings: {unresolved}. "
             f"Source: https://github.com/{repo}/pull/{number}#issuecomment-{comment_id}. "
             f"Delivery: {delivery}. Verify the current review and PR head through your owning "
             "workflow and report any new actionable outcome through the existing owner reporting "
@@ -306,7 +322,8 @@ class Relay:
         except (KeyError, TypeError, ValueError, AttributeError):
             return 400
         except (OSError, subprocess.SubprocessError, sqlite3.Error) as error:
-            print(f"{delivery} evidence or receipt unavailable: {type(error).__name__}", flush=True)
+            detail = str(error) if type(error) is OSError else type(error).__name__
+            print(f"{delivery} evidence or receipt unavailable: {detail}", flush=True)
             return 503
 
 

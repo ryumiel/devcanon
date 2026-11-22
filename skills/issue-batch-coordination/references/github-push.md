@@ -39,6 +39,41 @@ owns the event and authority rules.
 }
 ```
 
+### Ledger fields
+
+Use these fields in the existing ledger. The example shows just the fields
+read by the relay. Preserve the coordinator's other records and authority.
+
+```json
+{
+  "repository": "org/repository",
+  "controller": {
+    "host": "local",
+    "thread_id": "01234567-89ab-4def-8123-456789abcdef"
+  },
+  "monitor": { "mode": "github_push" },
+  "items": [
+    {
+      "source_issue_identifier": "github:org/repository#123",
+      "source_state": "OPEN",
+      "owner_thread_id": "12345678-9abc-4def-8123-456789abcdef",
+      "owner_host_id": "local",
+      "branch_name": "feat/123-example",
+      "wait_reason": "external_event",
+      "pr_identifier": "github:org/repository#125",
+      "current_head_sha": "0123456789abcdef0123456789abcdef01234567"
+    }
+  ]
+}
+```
+
+Use the real, distinct owner and coordinator UUIDs. Set the owner fields
+after registration and the branch when verified. Record the PR when
+associated. Use `OPEN` for an open GitHub issue. For review delivery, the
+current wait must be `owner_result` or `external_event`. An absent or
+incompatible required ledger field produces an actionable setup or
+delivery error.
+
 Create `webhook.secret` inside that directory with a unique high-entropy secret
 of at least 32 bytes. Keep the secret private. Start the script packaged with
 this skill using Python 3.9 or later and the same macOS user as Desktop. If
@@ -77,7 +112,7 @@ python3 "$SKILL_DIR/scripts/github-push-relay.py" status \
 
 A `queued` row gives the queue message ID. To verify a wake, match its GitHub
 delivery ID, exact PR and head, and recipient UUID to a user input in a new
-Desktop turn. Review receipts use the PR head in their identity. Lifecycle
+Desktop turn. Review receipts use the PR head and verdict in their identity. Lifecycle
 receipts use the PR action and, for closures, its occurrence time.
 
 An `unresolved` or interrupted `received` row requires reconciliation before
