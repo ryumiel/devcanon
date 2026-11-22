@@ -337,6 +337,32 @@ test("CI verifies the exact current PR head, then sends one failure or success p
   assert.match(instance.sent[1].message, /CI passed/);
 });
 
+test("cancelled CI wakes the bound owner only for matching current evidence", async (t) => {
+  const instance = fixture(t, 107, "cancelled-ci-fixture-key");
+  instance.run.conclusion = "cancelled";
+  const event = (fields = {}) => ({
+    action: "completed",
+    repository,
+    workflow_run: { ...instance.run, ...fields },
+  });
+
+  instance.pull.headRefOid = nextHead;
+  await instance.deliver("workflow_run", 50, event());
+  instance.pull.headRefOid = head;
+  await instance.deliver("workflow_run", 51, event({ run_attempt: 2 }));
+  await instance.deliver("workflow_run", 52, event({ conclusion: "failure" }));
+  await instance.deliver("workflow_run", 55, event({ conclusion: "skipped" }));
+  assert.equal(instance.sent.length, 0);
+  await instance.deliver("workflow_run", 53, event());
+  await instance.deliver("workflow_run", 54, event());
+  assert.equal(instance.sent.length, 1);
+  assert.equal(instance.sent[0].target, instance.owner);
+  assert.match(instance.sent[0].message, /CI cancelled for workflow run 84, attempt 1\./);
+  assert.ok(instance.sent[0].message.includes(`issue #107, PR #207, head ${head}`));
+  assert.ok(instance.sent[0].message.includes(`${repo}/actions/runs/84/attempts/1`));
+  assert.deepEqual(instance.receipts().map(({ state }) => state), ["queued"]);
+});
+
 test("a corrected head in external-event wait keeps CI and review bound to the existing owner", async (t) => {
   const instance = fixture(t, 106, "corrected-head-fixture-key");
   const workflowEvent = () => ({

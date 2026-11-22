@@ -154,7 +154,11 @@ gap through the existing authorized path and preserve the wait and bounded
 recovery.
 
 Use the existing failure disposition for actionable current-head evidence.
-A verified CI failure enters Step 4 under its existing authority. A completed
+A verified CI failure enters Step 4 under its existing authority. For a verified
+current cancelled run, report a terminal non-green CI blocker and end the turn;
+do not poll, repair, rerun, or merge. Discard superseded attempts under the
+existing stale-evidence handling; fresh valid later evidence may carry a different
+verdict. A completed
 nonpassing review follows the existing review-response or blocker route.
 When the remaining work is a covered pending CI or applicable Connector gate, retain
 the PR, its exact head SHA and the outstanding gates in the owner's current

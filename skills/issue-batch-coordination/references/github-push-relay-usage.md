@@ -26,7 +26,8 @@ repository in the service's environment.
 
 Place a `config.json` file in the state directory with the following fields.
 Replace the examples with the opted-in scope and GitHub IDs. Omit
-`ci_workflow_id` to disable CI notices.
+`ci_workflow_id` to disable CI notices. Configured CI notices cover completed
+`success`, `failure`, and `cancelled` PR runs after live verification.
 
 ```json
 {

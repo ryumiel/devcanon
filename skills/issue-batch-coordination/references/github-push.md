@@ -77,9 +77,8 @@ verification. Register one GitHub repository webhook per instance for `issue_com
 To enable CI notices, set the optional numeric `ci_workflow_id` in
 `config.json` to the repository's GitHub Actions CI workflow ID and add
 `workflow_run` to that subscription. The relay accepts completed
-`success` and `failure` outcomes for that workflow's PR runs. It verifies
-the current open PR and exact head against the reported run. The owner gets one notice per run attempt. Cancelled, skipped,
-stale, and ambiguous outcomes leave no notice. Restart the receiver after changing its
+`success`, `failure`, and `cancelled` outcomes for that workflow's PR runs. It verifies
+the current open PR and exact head against the reported run. The owner gets one notice per run attempt. Skipped, stale, and ambiguous outcomes leave no notice. Restart the receiver after changing its
 configuration. Verify that the subscribed workflow covers the CI gate the owner
 will await. Omitting `ci_workflow_id` intentionally disables CI notices and
 leaves a review-only setup.

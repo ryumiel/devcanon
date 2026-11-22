@@ -12,7 +12,7 @@ const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 const sha = /^[0-9a-f]{40}$/;
 const maxBody = 1024 * 1024;
 const waits = new Set(["owner_result", "external_event"]);
-const outcomes = new Set(["success", "failure"]);
+const outcomes = new Set(["success", "failure", "cancelled"]);
 const pullQuery = [
   "query=query($owner: String!, $repo: String!, $number: Int!) {",
   "repository(owner: $owner, name: $repo) { pullRequest(number: $number) {",
@@ -338,7 +338,11 @@ export class Relay {
     const binding = this.binding(pull, number);
     if (!binding) return;
     const owner = binding.item.owner_thread_id;
-    const result = conclusion === "success" ? "passed" : "failed";
+    const result = {
+      success: "passed",
+      failure: "failed",
+      cancelled: "cancelled",
+    }[conclusion];
     return this.queue(
       delivery,
       [repo, number, "ci", head, owner, workflow, runId, attempt],
