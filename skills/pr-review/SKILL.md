@@ -357,17 +357,7 @@ does not store approval intent, review payload JSON, inline comments, findings
 content, or thread-resolution decisions. The lease helper never posts to GitHub
 and never constructs GitHub review payloads.
 
-Helper command surface:
-
-- `derive-path`
-- `discover`
-- `session-create`
-- `write`
-- `validate`
-- `inspect-worktree`
-- `read-status`
-- `record-audit-failure`
-- `cleanup-worktree`
+Find the public lease commands in [Invocation](references/review-leases-usage.md#invocation).
 
 The authoritative lifecycle contract lives in
 [`references/review-lease-lifecycle-contract.md`](references/review-lease-lifecycle-contract.md).
