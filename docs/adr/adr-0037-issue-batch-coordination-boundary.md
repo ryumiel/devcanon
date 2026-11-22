@@ -39,28 +39,10 @@ reports, explicit status requests, or concrete uncertain-operation recovery.
 Initial setup establishes a supported reporting path and recipient-verifiable
 human messaging authority where the sending host requires it. Compatible
 reporting authority is retained rather than requested again at every gate.
-The watchdog, when enabled, observes external events without becoming a second
-coordinator or substituting general progress polling for delivery. The accepted
-bounded reconciliation exception reuses per-item wait reasons, existing owner/action bindings,
-cadence and notification state: while the coordinator is inactive, compact
-checks of registered ordinary owners with pending `owner_result` waits may
-request reconciliation. Internal sub-agents and user-confirmation waits are
-excluded. Idle/terminal status supplies no verdict or continuation authority;
-the coordinator inspects actual outcomes through existing gates. No new
-registry, scheduler or consumption-acknowledgement protocol is introduced.
-
-Canonical policy refresh is part of coordination. Concrete execution defaults
-new eligible owners to autonomous execution and uses owner reports without a
-monitor unless monitoring is explicitly requested, within actual host
-authorization. Owner mode and monitoring selection are independent; status-only
-intent remains read-only. Compatible previously authorized monitoring and explicit
-stops survive resume; the fresh default does not stop or replace a monitor.
-Select requested effects before permission, preference or capability inquiries.
-No-monitor and retained stops exclude watcher creation, monitor-specific messaging
-authorization, capability/model/cadence inquiries and activation; independent
-authorized owner work continues in its selected mode. Generic resume preserves
-stops. An explicitly requested active-timer stop retains its bounded host
-control/permission checks and observed shutdown, without replacement authority.
+External gates use authorized provider events. A pending gate without coverage
+requires a specific delivery-gap report. The coordinator yields for evidence.
+Fresh execution defaults eligible new owners to autonomous work. Resume
+preserves their selected mode. Status requests remain read-only.
 The initial authorization check reuses verifiable human decisions and collects
 only missing host permissions/preferences before affected effects. Startup also
 establishes separately scoped delivery authority for publication, conditional
@@ -95,12 +77,7 @@ and cleanup obligations; verdict readiness and resource retirement are separate.
 Consumer release and lifecycle gates precede resource retirement, and verified
 terminal/pending-work checks precede task archival.
 Old-head approval never transfers; feedback, current CI, protection, mergeability
-and exact bindings remain required at their owning gates. The watchdog
-observes external events and reports to known authorized recipients; periodic
-general owner-progress polling is prohibited apart from that narrow separate
-watchdog exception. It adds no DevCanon scheduler and does not
-guarantee compliance. Invocation restrictions and timer behavior must
-be described according to each host's actual capabilities.
+and exact bindings remain required at their owning gates.
 
 [ROUTE-007](../specs/afds-workflow-routing.md#route-007-batch-coordination-and-explicit-routing)
 owns the observable workflow requirements. The

@@ -60,22 +60,11 @@ eligible new provider-owner invocations unless interactive work was selected;
 never silently change an already-bound owner's mode. Status-only routing has no
 creation, messaging, scheduling or priming effects. Before authorization,
 preference or capability inquiries, consume the coordinator's selected effects
-or, for direct routing, select them from intent, independent owner/monitor
-overrides, bound modes/settings and retained explicit stops. Fresh execution
-selects owner reports with no monitor unless monitoring is explicitly requested;
-the companion selects its authorized push or scheduled procedure. Resume preserves
-compatible previously authorized monitoring and retained stops rather than
-stopping or replacing a monitor because the fresh default changed. Disabled
-monitoring excludes watcher creation, monitor-specific messaging authorization,
-capability/model/cadence inquiries and activation; independently covered owners
-continue in their selected mode and generic resume never supersedes a stop.
-Consume the initial authorization check and recipient-visible evidence only for
-selected creation, messaging directions and timer actions; missing host
-permission holds only its affected effect. A direct route applies the same
-bounded check. An explicitly requested existing active-timer stop retains only
-its necessary host control/permission checks and observed shutdown; it grants no
-replacement authority. Preserve unresolved state and resources, and escalate the
-concrete conflicting authority or missing evidence before the affected action.
+or, for direct routing, apply the coordinator's startup authorization order.
+Carry the selected owner mode, authorized report recipients and any verified
+GitHub push binding. Yield for delivered events. A missing event path holds
+its affected gate. Preserve unresolved effects and their bindings.
+Escalate the specific missing evidence before taking the affected action.
 Startup also establishes separately scoped publication, conditional merge and
 scoped cleanup authority from actual human decisions; the execution default
 itself grants none of these effects or source-status mutation. Select action
@@ -220,7 +209,7 @@ Consume the cleanup owner's
 [mechanism selection and verification](../git-workspace-cleanup/references/git-workspace-cleanup-usage.md#mechanism-selection-and-verification)
 contract. Track delivery/accepted source disposition, retention, filesystem and
 Git registration removal, local/remote branch disposition, host metadata, chat
-archival, milestone closure and watchdog shutdown as distinct observed facts in
+archival, milestone closure and relay retirement as distinct observed facts in
 existing item/obligation/result fields. No new ledger or audit history is needed.
 Preserve the user's selected order and each operation's completion conditions.
 An unresolved result holds only dependent actions. Never infer worktree deletion
@@ -257,7 +246,7 @@ already-absent versus newly removed resources and branch-only retries separately
 Protect unrelated unfinished work within a selected cleanup resource and
 record any remaining obligation. Apply the archival checks independently of
 verified merge.
-Milestone closure and timer stop each need their own authorized operation and
+Milestone closure and relay retirement each need their own authorized operation and
 observed result; neither follows from chat archival or cleanup acceptance.
 
 For milestone-linked delivery, use current or historical provider evidence
@@ -314,19 +303,9 @@ a current decision or one of these operational purposes:
   again under retained authority. A retired or unknown route cannot initialize
   authority, reset its sequence or continue from a delayed receipt: hold it for
   authoritative reconciliation. No transcript reconstruction is allowed.
-- **Notices and monitors:** retain the event/head/recipient and actual delivery
-  outcome needed for duplicate suppression. For owner-result requests retain
-  canonical item, ordinary owner/host and existing dispatch/action, coordinator
-  recipient/host and recipient action, and supported delivery/wake outcome in
-  the existing local notification state across ticks, reuse and resume. Queue-only
-  send or failed/unknown wake is unresolved, never successful suppression.
-  Keep unresolved delivery, current schedule/controller binding and applicable
-  explicit stop. Replace superseded
-  observations after delivery reconciliation; remove resolved guards only when
-  delayed input cannot repeat notice or recreate a stopped monitor. An explicit
-  stop survives until later scheduling authority supersedes it. Retiring an old
-  owner-result marker cannot resurrect its notice or suppress a later B2
-  assignment to the same owner; distinct existing bindings remain independent.
+- **Notices:** retain event, head, recipient, action and verified delivery
+  across resume. Reconcile unknown sends before retrying. Release resolved
+  guards only when delayed input cannot repeat delivery.
 
 Remove resolved waiting keys and completed queued actions after accepting their
 verified replacement; never retain them as current work. Replace superseded
@@ -521,7 +500,7 @@ progress polling or closure of the batch by an owner.
   provider-specific CI-fix capability fails closed to waiting or manual action;
   do not rerun CI directly and do not fall back to `pr-merge` for repair
   outside the merge path.
-- `pr-merge` owns GitHub PR CI polling inside the merge path, final merge execution, scoped post-merge cleanup, and merge-result reporting.
+- `pr-merge` owns GitHub PR CI event waits inside the merge path, final merge execution, scoped post-merge cleanup, and merge-result reporting.
 - `branch-review` is used only when the owning workflow requires a local branch-review gate before PR update or merge.
 - `play-branch-finish` owns pushing branches, running PR creation side effects, posting caller-supplied assumptions or nits, and preserving the branch and worktree after PR creation when an owning workflow hands off to it.
 - `pr-authoring` owns PR title/body policy, title/body composition, and pre-merge title/body validation, but must not create, edit, comment on, or merge PRs.
@@ -561,7 +540,7 @@ or replay fact cannot be reconstructed from status or transcript. Apply the
 existing creation, approval, receipt, and route-specific safeguards after this
 reconciliation; it grants no new effect authority.
 
-## Monitor Loop
+## Event reconciliation
 
 This is one bounded reconciliation pass for an explicit request or delivered
 report/event, not an unattended owner-progress loop. Apply the coordinator's
@@ -570,11 +549,7 @@ without invoking it back: repeated owner reads, snapshots, or waits to discover
 ordinary progress or a gate are prohibited, regardless of tool or interval.
 Initial binding, received-report validation, explicit user status, and recovery
 of a concrete uncertain operation end at the named fact/result or its specific
-unresolved gap. A delivered watchdog reconciliation request permits bounded
-inspection of the named actual owner outcome after binding/authority validation;
-it cannot infer success or override user confirmation. After routing, yield
-for owner reports. Only the separate watchdog has the narrow ordinary
-owner-result exception in ROUTE-007-EVENT; it cannot route or write this ledger.
+unresolved gap. After routing, yield for owner reports and authorized provider events.
 
 Before unattended owner release, apply the shared
 [priming Inputs](../issue-priming-workflow/SKILL.md#inputs), the owning
@@ -600,7 +575,7 @@ continuation, replace original keys, reset receipts, or require a routine
 progress acknowledgement; independent authorized local work continues.
 
 For a coordinator-owned successor transition, apply the coordinator's
-[Recovery and watchdog](../issue-batch-coordination/SKILL.md#recovery-and-watchdog)
+[Controller recovery](../issue-batch-coordination/SKILL.md#controller-recovery)
 rebinding readiness before dispatch through the successor. Preserve exact
 owner/repository/route/receipt guards; a changed controller recipient does not
 initialize a new execution route or supply effect authority.
@@ -868,7 +843,7 @@ Never reuse a prior route when the head SHA or relevant state digest changed.
 | `archival`               | source provider, source issue identifier, owner thread ID, terminal PR or source-state digest.                                                                                                                                   |
 
 The route key prevents duplicate routes after monitor resumes, context
-compaction, repeated polling, or owner-thread re-reporting. A changed key means
+compaction, duplicate notices, or owner-thread re-reporting. A changed key means
 the parent must re-evaluate from fresh state rather than treating prior routing
 as still current. For eligible covered same-owner effects, the owner refreshes
 the action key under [Covered Same-Owner Delivery](#covered-same-owner-delivery)
@@ -922,7 +897,7 @@ For PR providers that expose these signals, evaluate gates in this order:
 3. Stale approval signals tied to an older head SHA do not count.
 4. Merge conflicts route to the owner thread for the PR's current base branch when a PR exists, or for configured/default base evidence when no PR base is known. Unknown base evidence waits instead of assuming `origin/main`; do not assume `origin/main` unless it is proven as the current or configured base.
 5. Unresolved inline review threads route to the review-response workflow unless already routed for the same complete review-response route key, including source provider, source issue identifier, PR provider, PR identifier, head SHA, and unresolved-thread-set digest.
-6. Failing CI routes to the CI-fix workflow only when the current failing run/check requires repair work outside PR-merge's normal polling scope. CI-fix routing also requires a provider-specific CI-fix workflow to be available. When that workflow is unavailable, report waiting with the missing workflow.
+6. Failing CI routes to the CI-fix workflow only when the current failing run/check requires repair work outside PR-merge's CI wait. CI-fix routing also requires a provider-specific CI-fix workflow to be available. When that workflow is unavailable, report waiting with the missing workflow.
 7. Otherwise merge-ready PRs that require explicit human merge approval wait until matching human merge approval evidence is present.
 8. Merge-ready PRs route to `pr-merge` only when all configured gates pass:
    non-draft, CI-green or pending CI, conflict-free, no unresolved review
@@ -931,18 +906,18 @@ For PR providers that expose these signals, evaluate gates in this order:
    present, and the configured review condition is satisfied by fresh current-head
    evidence, including an accepted conditional result when applicable.
 
-Pending CI that is already inside the merge path belongs to `pr-merge` polling,
+Pending CI that is already inside the merge path belongs to `pr-merge`,
 not a separate CI-fix route. A provider that does not expose one signal should
 record `unknown` for that signal and continue only when the remaining gates
 make the route safe; unknown required merge evidence means wait.
-Pending CI routes to `pr-merge` for polling only after every non-CI merge gate
+Pending CI routes to `pr-merge` for an event wait only after every non-CI merge gate
 is satisfied. Non-CI merge gates include non-draft status, conflict-free or
 mergeable state, no unresolved review threads, no active blocking bot signal,
 branch protection and review state compatible with waiting for CI, required
 human merge approval when policy requires it, and the configured review
 condition satisfied by fresh current-head evidence under the applicable policy.
 `pr-merge` may merge only after pending CI becomes green and current merge protections still pass. Failing CI that
-requires repair is not pending merge-path polling.
+requires repair is not a pending merge-path event wait.
 
 Use Connector-first published-head selection under the accepted conditional
 policy, including after corrections. A changed commit alone does not add
@@ -1001,7 +976,7 @@ Normalize only the generic state category:
 
 | Generic state      | Routing behavior                                                                                            |
 | ------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `active`           | Continue monitoring owner thread and PR state.                                                              |
+| `active`           | Yield for an owner report or authorized PR event.                                                           |
 | `blocked`          | Report waiting unless an owner workflow owns the unblocking action.                                         |
 | `duplicate`        | Report waiting for provider-specific disposition or delegated source-issue handling.                        |
 | `abandoned`        | Route archival only after PR/source terminal checks and no pending work.                                    |
@@ -1046,7 +1021,7 @@ action instead of assuming a report exists.
 The active owner is the producer of initial handoff, hard-gate, dependency-ready,
 material readiness-invalidation, and verified job-completion reports; its
 verified coordinator is the recipient. Use the established supported reporting
-path and retained actual human authority under Monitor Loop before delivery.
+path and retained actual human authority under Event reconciliation before delivery.
 A skill call or agent-authored instruction cannot fabricate that authority.
 The owner sends at the hard gate and holds only its affected action; independent
 already-authorized work continues. Successful completion delivery needs no
@@ -1336,23 +1311,7 @@ agent-local decision trails into shared PR or issue comments.
 
 ## Automation And Resume
 
-For explicitly requested monitoring or existing-monitor resume, recovery or
-shutdown, use
-the coordinator's [watchdog operation](../issue-batch-coordination/references/watchdog.md)
-for supported schedule and notification mechanics. A watcher observation is
-non-authorizing evidence; this router retains its complete route, approval,
-receipt, and terminal gates after reconciling current owner and provider facts.
-
-When the host provides recurring automation or thread-management tools:
-
-- carry known owner-thread mappings;
-- reconcile newly created owner threads only for initial binding or a named
-  uncertain creation result;
-- update monitor instructions when routing rules change;
-- avoid stale routes after resume or context compaction;
-- stop or pause monitoring when the batch reaches a terminal state.
-
-On heartbeat or compacted resume, first identify a concrete routing action,
+On resume, first identify a concrete routing action,
 delivered report, explicit user status request, initial binding need or named
 uncertain operation. With none, yield without owner progress or gate discovery. For a concrete action, refresh only relevant
 provider facts (source issue, branch, PR, CI, review threads, mergeability,

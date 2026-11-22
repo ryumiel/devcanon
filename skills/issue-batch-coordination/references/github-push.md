@@ -1,7 +1,10 @@
 # GitHub push operation
 
-Use this procedure for a new GitHub batch with explicitly authorized push
-delivery on local macOS Codex Desktop. The
+At GitHub batch startup and issue admission on local macOS Codex Desktop, the coordinator
+includes relay setup, webhook registration and recipient notices in its upfront
+permission check by default. Reuse a verified receiver and subscription for the same
+batch. Validate new issue and owner bindings in the live ledger, preserve disjoint
+issue scopes, and request only missing authority before extending delivery. The
 [workflow routing spec](../../../docs/specs/afds-workflow-routing.md#route-007-push-github-push-delivery)
 owns the event and authority rules.
 
@@ -27,7 +30,7 @@ owns the event and authority rules.
    PRs that reference multiple issues in the repository. Create
    `config.json` there as described in the
    [relay CLI usage](github-push-relay-usage.md). Keep that state directory
-   across receiver restarts. Use a fresh state directory for each new opt-in.
+   across receiver restarts. Use a fresh state directory for each new batch receiver.
 
 ### Ledger fields
 
@@ -96,12 +99,8 @@ the owner reports the PR, head and outstanding gates through the existing author
 path and ends its turn. The coordinator records the `external_event` wait in
 its ledger. This applies after initial publication and after a corrected head
 is pushed. The owner uses no status polling or watch loop during the wait. In a verified
-review-only setup, pending CI instead uses the existing bounded ordinary CI
-poll; afterward the owner checks current review and yields if covered review
-is pending; do not poll review. If both are pending, CI is handled before
-yielding. A configured delivery path that fails, is unverifiable, or does not
-cover the pending CI gate uses gap reporting and bounded
-recovery, not polling.
+review-only setup, report any pending CI gate without delivery coverage and yield. Verify all outstanding
+gates against the current head on a relevant event or explicit status request.
 
 The relay queues a compact evidence notice, including while the owner is
 active. A matching notice resumes the same owner, which checks the live PR
@@ -127,8 +126,7 @@ bindings. Keep an unknown result visible and avoid another send while its
 delivery is ambiguous. The receipt guard stays in place for these attempts.
 A failed ingress delivery with no attempted send can be redelivered once the
 endpoint recovers. Use GitHub's delivery record for that bounded recovery.
-For a confirmed delivery failure or a missing notice surfaced by authorized
-monitoring, the existing owner may perform one live gate check against the
+For a confirmed delivery failure or a missing notice identified by a delivered report, the existing owner may perform one live gate check against the
 current binding. If a gate remains pending, yield again and keep the
 external-event wait. Receipt inspection and recovery remain on demand.
 
@@ -152,7 +150,6 @@ observed result in the existing monitor state and keep unresolved receipts
 needed to settle deliveries. Existing owner reports continue under their
 original authority.
 
-When a watchdog is present, use its
-[stop procedure](watchdog.md#recover-hand-off-and-stop). Before deleting any
-state a monitor reads, verify the applicable shutdown outcomes and apply the
+Before releasing state used by the relay or a legacy schedule, verify shutdown
+under the applicable host control and apply the
 router's [Operational retention](../../issue-batch-routing/SKILL.md#operational-retention).

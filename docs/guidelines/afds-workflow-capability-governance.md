@@ -378,29 +378,14 @@ of owner progress is prohibited; bounded initial-binding, received-evidence,
 explicit-status and concrete-recovery reads remain available. Setup verifies
 reporting recipients and recipient-verifiable actual human messaging authority
 where the sender's host requires it, retaining valid scope across compatible
-reports/resume. Separate watchdog observation includes only the bounded
-ordinary owner-result reconciliation exception in ROUTE-007-EVENT, using
-per-item wait reasons and existing bindings while the coordinator is inactive.
-User waits and internal sub-agents are excluded; status is never a verdict.
+reports and resume. Each delivered event triggers bounded reconciliation.
 
 [ADR-0037](../adr/adr-0037-issue-batch-coordination-boundary.md) records the
 durable ownership decision, consequences, and rejected alternatives.
 
-Concrete execution defaults new eligible owners to autonomous work and owner
-reports with no monitor unless monitoring is explicitly requested; inspection
-remains read-only. Owner mode and monitoring selection are independent.
-Compatible previously authorized monitoring and explicit stops remain effective
-on resume; the fresh default does not stop or replace a monitor. Select requested
-effects before permission, preference or
-capability inquiries.
-No-monitor and retained stops exclude watcher creation, monitor-specific messaging
-authorization, capability/model/cadence inquiries and activation; independent
-authorized owner work continues in its selected mode. Generic resume preserves
-stops. An explicitly requested active-timer stop retains its bounded host
-control/permission checks and observed shutdown, without replacement authority.
-Startup reuses verifiable human decisions, requests only missing host
-permissions/preferences and verifies each selected component separately.
-It also establishes separately scoped publication, conditional merge and scoped
+Concrete execution defaults eligible new owners to autonomous work. Status requests remain read-only. Ask once for missing selected
+effects and verify recipient-visible authority where the host requires it.
+Startup also establishes separately scoped publication, conditional merge and scoped
 cleanup authority. Compatible standing human scope survives changed commits;
 fresh readiness and exact action bindings precede covered effects through their
 existing owners, without repeated human approval for satisfied conditions.
@@ -427,17 +412,13 @@ Consumer release and lifecycle gates precede resource retirement, and verified
 terminal/pending-work checks precede task archival.
 Old-head approval never transfers; feedback, current CI, protection, mergeability
 and exact bindings remain required at their owning gates.
-The efficient tier resolves through existing target bindings; model, effort and
-cadence are independent. External-event notifications reuse the reporting
-boundary; coordinator owner-progress polling is prohibited. These defaults add
-no task identity, scheduler or authority beyond supported host controls.
+External-event notices reuse the existing reporting boundary.
 
 Provider context is issue batches with existing owner workflows, including
 GitHub and Linear. Agent gate and source/runtime proof are `not applicable`:
-the method travels as skill prose, using existing invocation metadata and host
-scheduling when authorized. This classification approves no new agent, direct
+the method travels as skill prose, using existing invocation metadata and authorized host delivery. This classification approves no new agent, direct
 child route, scheduler, receipt schema, provider mutation authority, or install
-behavior. Host invocation and scheduling limitations remain explicit.
+behavior. Host invocation and delivery limitations remain explicit.
 
 ### GitHub-backed reusable workflow gap
 

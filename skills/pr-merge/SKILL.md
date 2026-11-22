@@ -121,12 +121,15 @@ shared procedure exists so PR creation and PR merge enforce the same policy.
 ## Step 2: Check CI
 
 Select [Step 2a](#step-2a-wait-for-github-push-notices) for a verified GitHub
-push binding and determine coverage for each pending gate. Otherwise use the
+push binding and determine coverage for each pending gate. For a batch without
+a verified binding, check the current head once. Apply a verified result under
+the normal gates. If a gate is pending, report it and the missing delivery
+path, then yield. For standalone merges use the
 ordinary CI poll with
 `{{tool:github-cli}} pr checks <N>`. The default interval is 3 minutes and the
 user can override it via args (e.g., `5m`, `1m`).
 
-Classify output:
+Classify standalone polling output:
 
 - All checks show `pass` → proceed to merge (Step 3)
 - Any check shows `pending`/`queued` → wait and re-poll
@@ -142,16 +145,10 @@ coordinator, owner and host, and the open PR association. Check the current
 published head and applicable CI and Connector gates after initial publication
 and after each corrected head is pushed. A corrected head requires fresh
 evidence. Verify that the subscribed configured CI workflow supplies completion
-notices for the pending CI gate. If CI notices were intentionally omitted in a
-verified review-only setup, use the ordinary bounded CI poll in Step 2 for
-pending CI only, including its timeout and failure dispositions. Then directly
-check current Connector review on the same head and yield if covered review
-remains pending; do not poll review. If both gates are pending, do not yield before handling
-uncovered CI. Repeat this selection after every corrected head. Do not start
-ordinary polling when configured delivery is failed, unverifiable, or does not
-cover the pending CI gate; surface that
-gap through the existing authorized path and preserve the wait and bounded
-recovery.
+notices for the pending CI gate. Report each uncovered gate through the existing
+authorized path, including pending CI in review-only setups. For pending gates, yield for a supported
+notice, owner report or explicit user request. Keep pending gates visible and
+repeat the coverage check after every corrected head.
 
 Use the existing failure disposition for actionable current-head evidence.
 A verified CI failure enters Step 4 under its existing authority. For a verified
@@ -180,8 +177,8 @@ live gates and use the same failure or pending disposition. Enter Step 3
 only after applicable CI and Connector gates pass and existing merge
 authority is established.
 
-An evidenced delivery failure or a missing notice surfaced by authorized
-monitoring permits one bounded live check for that evidence and the same
+An evidenced delivery failure or a missing notice identified by a delivered
+report permits one bounded live check for that evidence and the same
 current binding. Apply the same gate dispositions. If a gate remains pending,
 end the turn again and await a fresh notice or distinct recovery evidence.
 Elapsed time alone supplies no recovery trigger.
@@ -570,22 +567,22 @@ If retry count reaches 2, or investigation determines the failure is out of scop
 
 ## Quick Reference
 
-| Situation                                                                   | Action                                                                                                                                                |
-| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| No PR number given                                                          | Auto-detect from current branch via `{{tool:github-cli}} pr view`                                                                                     |
-| PR authoring validation                                                     | Use the available sibling `pr-authoring` skill workflow in `validate-fix` mode, then apply repaired title/body with `{{tool:github-cli}} pr edit`     |
-| Description content stale vs diff                                           | Accept the repaired title/body returned by `pr-authoring`, applying body fixes with `{{tool:github-cli}} pr edit --body-file`                         |
-| No project guideline found                                                  | Use `pr-authoring` default fallback validation; do not bypass PR title/body validation                                                                |
-| CI pending outside push mode or intentionally uncovered in review-only mode | Poll every 3 min (configurable)                                                                                                                       |
-| Covered CI or Connector review pending in verified push mode                | Record the exact-head `external_event` wait and end the turn                                                                                          |
-| Applicable gates pass                                                       | Run live merge preflight → `{{tool:github-cli}} pr merge --squash` → verify `MERGED` → cleanup helper                                                 |
-| Post-merge cleanup                                                          | Run `skills/pr-merge/scripts/post-merge-cleanup.sh`; report worktree, base update, local branch, remote branch, and manual-action outcomes separately |
-| CI fails (1st time)                                                         | Investigate → fix if in scope → push → check the corrected head using the applicable wait mode                                                        |
-| CI fails (2nd time)                                                         | Report and stop                                                                                                                                       |
-| Out-of-scope failure                                                        | Report and stop immediately                                                                                                                           |
-| Ordinary CI poll reaches 30 min                                             | Report and stop                                                                                                                                       |
-| Merge conflicts                                                             | Report to user — requires manual resolution                                                                                                           |
-| Missing review approvals                                                    | Report which reviews are missing                                                                                                                      |
+| Situation                                                    | Action                                                                                                                                                |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No PR number given                                           | Auto-detect from current branch via `{{tool:github-cli}} pr view`                                                                                     |
+| PR authoring validation                                      | Use the available sibling `pr-authoring` skill workflow in `validate-fix` mode, then apply repaired title/body with `{{tool:github-cli}} pr edit`     |
+| Description content stale vs diff                            | Accept the repaired title/body returned by `pr-authoring`, applying body fixes with `{{tool:github-cli}} pr edit --body-file`                         |
+| No project guideline found                                   | Use `pr-authoring` default fallback validation; do not bypass PR title/body validation                                                                |
+| CI pending during a standalone merge outside push mode       | Poll every 3 min (configurable)                                                                                                                       |
+| Covered CI or Connector review pending in verified push mode | Record the exact-head `external_event` wait and end the turn                                                                                          |
+| Applicable gates pass                                        | Run live merge preflight → `{{tool:github-cli}} pr merge --squash` → verify `MERGED` → cleanup helper                                                 |
+| Post-merge cleanup                                           | Run `skills/pr-merge/scripts/post-merge-cleanup.sh`; report worktree, base update, local branch, remote branch, and manual-action outcomes separately |
+| CI fails (1st time)                                          | Investigate → fix if in scope → push → check the corrected head using the applicable wait mode                                                        |
+| CI fails (2nd time)                                          | Report and stop                                                                                                                                       |
+| Out-of-scope failure                                         | Report and stop immediately                                                                                                                           |
+| Ordinary CI poll reaches 30 min                              | Report and stop                                                                                                                                       |
+| Merge conflicts                                              | Report to user — requires manual resolution                                                                                                           |
+| Missing review approvals                                     | Report which reviews are missing                                                                                                                      |
 
 ## Common Mistakes
 
@@ -611,9 +608,8 @@ Always dispatch a **dedicated agent** for investigation. Reading CI logs and deb
 
 ### Polling too frequently
 
-For ordinary polling, the default is a 3-minute interval. A verified GitHub
-push wait for a covered gate ends the turn under Step 2a; intentionally
-uncovered CI uses the ordinary bounded poll.
+The default three-minute interval applies only to standalone CI polling. Batch
+work yields for events and reports missing coverage.
 
 ### Forgetting retry count
 
