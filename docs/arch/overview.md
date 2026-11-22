@@ -397,6 +397,12 @@ command to continue, while close or unlink cleanup degradation retains the
 truthful exact committed backup and aborts before later effects. A residual
 exact lock blocks a later trusted-absence observation until that lock is absent.
 
+`src/install/manifest-recovery.ts` interprets recovery results for `sync` and
+`uninstall`. It reports verified backups and errors with command-specific retry
+guidance, then requires a fresh absence observation after clean recovery. Each
+command owns its initial inspection and calls the shared loader when recovery
+is permitted.
+
 `src/install/manifest-identity.ts` owns shared managed-path full-tuple identity
 and component-collision validation. The identity spans the normalized four-home
 boundary plus target, type, name, owning home, and exact target-native

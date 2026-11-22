@@ -1,3 +1,4 @@
+import { writeFileSync } from "node:fs";
 import {
   chmod,
   lstat,
@@ -1523,6 +1524,44 @@ describe("uninstall", () => {
     expect(testLogger.infos).toContain("Nothing to remove.");
     expect(await readFile(installedPath, "utf-8")).toBe("managed sentinel");
   });
+
+  it.each(["sync", "uninstall"] as const)(
+    "stops %s when a manifest reappears after clean recovery",
+    async (command) => {
+      const config = makeResolvedConfig(tempDir);
+      const invalidBytes = "{corrupt before recovery";
+      const replacement = makeManifestJson([]);
+      const backupPath = `${config.manifest.path}.bak`;
+      await mkdir(path.dirname(config.manifest.path), { recursive: true });
+      await writeFile(config.manifest.path, invalidBytes, "utf-8");
+
+      const recoveryWarning = `Recovered invalid manifest to verified backup ${backupPath}.`;
+      const warn = testLogger.logger.warn;
+      testLogger.logger.warn = (message) => {
+        warn(message);
+        if (message === recoveryWarning) {
+          // Simulate a concurrent writer after recovery releases its lock.
+          writeFileSync(config.manifest.path, replacement, { flag: "wx" });
+        }
+      };
+
+      const result =
+        command === "sync"
+          ? sync(config, { dryRun: false, force: false, strict: false })
+          : uninstall(config, { dryRun: false });
+
+      await expect(result).rejects.toMatchObject({
+        message: "Manifest state changed after invalid recovery completed.",
+        hint: `Inspect the current manifest state before retrying ${command}.`,
+      });
+      expect(testLogger.warnings).toEqual([recoveryWarning]);
+      expect(testLogger.infos).not.toContain("Nothing to remove.");
+      expect(await readFile(config.manifest.path, "utf-8")).toBe(replacement);
+      expect(await readFile(backupPath, "utf-8")).toBe(invalidBytes);
+      expect(await pathExists(config.library.generatedDir)).toBe(false);
+      expect(await pathExists(path.join(tempDir, "home"))).toBe(false);
+    },
+  );
 
   it.each([
     ["source-changed", "recovery-after-candidate"],
