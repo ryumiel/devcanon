@@ -25,6 +25,6 @@ claude:
     - Write
 
 codex:
-  model: gpt-6-astra
+  model: gpt-6.2-astra
   model_reasoning_effort: high
   sandbox_mode: workspace-write

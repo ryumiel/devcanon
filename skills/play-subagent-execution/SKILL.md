@@ -529,9 +529,9 @@ After validation and the existing route-local capture, create exactly one fresh
 child with the actual Codex fields:
 
 ```text
-TASK_SPEC_REVIEW_MODEL = "gpt-6.1-sol"
-TASK_QUALITY_REVIEW_MODEL = "gpt-6.1-sol"
-WHOLE_IMPLEMENTATION_QUALITY_REVIEW_MODEL = "gpt-6.1-sol"
+TASK_SPEC_REVIEW_MODEL = "gpt-6.2-sol"
+TASK_QUALITY_REVIEW_MODEL = "gpt-6.2-sol"
+WHOLE_IMPLEMENTATION_QUALITY_REVIEW_MODEL = "gpt-6.2-sol"
 
 # Default implementation: DEFAULT_IMPLEMENTATION_MODEL is the literal Codex implementer override
 Codex.spawn_agent({

@@ -37,10 +37,10 @@ capabilityProfiles:
     codex: gpt-6-luna
   balanced:
     claude: claude-sonnet-5
-    codex: gpt-6.1-sol
+    codex: gpt-6.2-sol
   frontier:
     claude: claude-opus-5
-    codex: gpt-6-astra
+    codex: gpt-6.2-astra
 `;
 
 export const SAMPLE_SKILL_MD = `---

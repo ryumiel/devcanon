@@ -57,7 +57,7 @@ Direct-child rows use their exact recorded capability and effort pair. An
 unresolved route blocks rather than escalating by guesswork. Capability resolves
 only the full native model unless a target-specific role model override is
 explicitly recorded; route effort is explicit and independent. Codex reviewer
-routes use `gpt-6.1-sol`, implementer routes use `gpt-6.1-terra`, and architect
+routes use `gpt-6.2-sol`, implementer routes use `gpt-6.1-terra`, and architect
 and deep-reviewer use the frontier binding. Literal role overrides take
 precedence over capability defaults.
 The executor retains `medium` for Codex. Claude executor dispatch omits named
@@ -238,7 +238,7 @@ following from the selected policy route and its Codex-bound rendered binding:
 - a lifecycle-owned, route-local `task_name`;
 - the selected semantic `agent_type`;
 - the rendered full Codex model produced from the route capability, or the
-  explicitly recorded Codex role override (`reviewer`: `gpt-6.1-sol`;
+  explicitly recorded Codex role override (`reviewer`: `gpt-6.2-sol`;
   `implementer`: `gpt-6.1-terra`);
 - the exact independent route `reasoning_effort`;
 - `fork_turns: "none"`; and
@@ -246,7 +246,7 @@ following from the selected policy route and its Codex-bound rendered binding:
   authority plus source-skill-owned output and termination instructions.
 
 The source route capability selects its binding only during rendering.
-Reviewer routes instead declare `gpt-6.1-sol` and implementer routes declare
+Reviewer routes instead declare `gpt-6.2-sol` and implementer routes declare
 `gpt-6.1-terra`,
 matching the role source. At dispatch, either binding is already a literal
 full target model. The controller
