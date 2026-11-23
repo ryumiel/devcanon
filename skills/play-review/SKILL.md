@@ -357,7 +357,7 @@ or mismatched bindings block before capture; no source-checkout lookup or
 fallback model is permitted. After capture, use the spawn fields below:
 
 ```text
-INDEPENDENT_REVIEW_MODEL = "gpt-6.1-sol"
+INDEPENDENT_REVIEW_MODEL = "gpt-6.2-sol"
 Codex.spawn_agent({
   task_name: independent_review_<instance_ordinal>,
   agent_type: "reviewer",
@@ -523,7 +523,7 @@ counterevidence, open literal references, assess actual reachable consequences
 or applicable obligations, and independently apply the repository merge gate.
 
 ```text
-TARGETED_VERIFICATION_MODEL = "gpt-6.1-sol"
+TARGETED_VERIFICATION_MODEL = "gpt-6.2-sol"
 Codex.spawn_agent({
   task_name: targeted_verification_<instance_ordinal>,
   agent_type: "reviewer",

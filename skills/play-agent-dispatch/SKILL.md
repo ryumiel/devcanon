@@ -115,7 +115,7 @@ spawn. Do not search a source checkout, use a sibling runtime when a rendered
 binding owns this field, or select an alias, nearby, or ambient model.
 
 ```text
-reviewer Codex model = "gpt-6.1-sol"
+reviewer Codex model = "gpt-6.2-sol"
 ```
 
 Classify each independent problem domain separately. The controller selects one
@@ -391,7 +391,7 @@ review workflow; it does not authorize unrelated specialist dispatch. On Codex,
 ordinary design/planning uses this explicit session selection:
 
 ```text
-model = "gpt-6.1-sol"
+model = "gpt-6.2-sol"
 reasoning_effort = "high"
 ```
 

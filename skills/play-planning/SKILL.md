@@ -760,7 +760,7 @@ Use only the fixed `COMBINED_PLANNING_REVIEW_MODEL` below with the
 handoffs or external authority:
 
 ```text
-COMBINED_PLANNING_REVIEW_MODEL = "gpt-6.1-sol"
+COMBINED_PLANNING_REVIEW_MODEL = "gpt-6.2-sol"
 Codex.spawn_agent({
   task_name: combined_planning_review_<instance_ordinal>,
   agent_type: "reviewer",

@@ -59,7 +59,7 @@ claude:
     - Write
 
 codex:
-  model: gpt-6.1-sol
+  model: gpt-6.2-sol
   model_reasoning_effort: low
   sandbox_mode: workspace-write
 ```
@@ -87,7 +87,7 @@ provider models, effort levels, or workflow phases.
 
 Capability and route effort are explicit for all seven semantic roles and remain
 independent. The ordinary reviewer source defaults to literal
-`gpt-6.1-sol`/`high`, and all its direct-child routes mirror that pair.
+`gpt-6.2-sol`/`high`, and all its direct-child routes mirror that pair.
 Implementer overrides balanced with `gpt-6.1-terra`/`medium`.
 Assessor uses `low`; investigator and implementer use `medium` on Codex.
 Claude effort remains independently configured as shown above. Neither source
@@ -175,7 +175,7 @@ evidence, not source authority.
 
 The canonical `assessor` example above must preserve the unchanged Claude
 envelope, retain its command and named-handoff envelope, prohibit durable and
-external mutation, and emit Codex `model: gpt-6.1-sol` and
+external mutation, and emit Codex `model: gpt-6.2-sol` and
 `model_reasoning_effort: low`. A rendered role count other than seven, a Codex
 model or effort that differs from the source role, or broader mutation instructions
 fails the contract.
@@ -300,12 +300,12 @@ Explicit `codex.model: null` is known agent-source schema, not passthrough or a
 warning. Claude `model` accepts only a literal string or absence; Claude null is
 rejected. The agent spec owns this target distinction.
 Assessor and investigator retain their capability and Claude envelope and
-pin `codex.model: gpt-6.1-sol` with `low` and `medium` effort, respectively.
+pin `codex.model: gpt-6.2-sol` with `low` and `medium` effort, respectively.
 Implementer retains balanced capability and its Claude envelope, but pins
 `codex.model: gpt-6.1-terra` with `medium` effort. Architect uses the frontier
-binding, pins `gpt-6-astra` with `high` effort, and is selected only on Codex. Ordinary reviewer retains its
-frontier capability and Claude envelope and pins `codex.model: gpt-6.1-sol`
-with `codex.model_reasoning_effort: high`. Deep-reviewer pins `codex.model: gpt-6-astra`
+binding, pins `gpt-6.2-astra` with `high` effort, and is selected only on Codex. Ordinary reviewer retains its
+frontier capability and Claude envelope and pins `codex.model: gpt-6.2-sol`
+with `codex.model_reasoning_effort: high`. Deep-reviewer pins `codex.model: gpt-6.2-astra`
 and `codex.model_reasoning_effort: high`; its direct routes use the frontier
 binding at `high`. Executor retains `codex.model: null` and omits Codex
 effort; its direct routes resolve through the efficient profile at `medium`.
@@ -388,10 +388,10 @@ The catalog above and source agent definitions govern the active role envelopes.
 
 | Responsibility                                                                                                                 | Codex model     | Effort |
 | ------------------------------------------------------------------------------------------------------------------------------ | --------------- | ------ |
-| Ordinary design and planning                                                                                                   | `gpt-6.1-sol`   | high   |
+| Ordinary design and planning                                                                                                   | `gpt-6.2-sol`   | high   |
 | Implementer, including review-feedback fixes                                                                                   | `gpt-6.1-terra` | medium |
-| Reviewer, including task specification review, task quality review, whole-implementation quality review and ordinary PR review | `gpt-6.1-sol`   | high   |
-| Architect consultation and significant-risk deep review                                                                        | `gpt-6-astra`   | high   |
+| Reviewer, including task specification review, task quality review, whole-implementation quality review and ordinary PR review | `gpt-6.2-sol`   | high   |
+| Architect consultation and significant-risk deep review                                                                        | `gpt-6.2-astra` | high   |
 
 Balanced remains Sol. Implementer uses a literal Terra override, honored by
 all dispatch consumers including focused specialist dispatch, default implementation, judgment fixes in CI diagnosis and fix and delegated
