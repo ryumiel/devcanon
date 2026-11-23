@@ -16,6 +16,14 @@ devcanon github-push-relay status \
   --ledger "$LEDGER_PATH" --state-dir "$RELAY_STATE_DIR"
 ```
 
+In Windows PowerShell, set `$LedgerPath` and `$RelayStateDir` to the batch paths.
+Pass the native executables available to the Desktop user:
+
+```powershell
+devcanon github-push-relay serve --ledger "$LedgerPath" --state-dir "$RelayStateDir" --gh (Get-Command gh.exe).Source --codex (Get-Command codex.exe).Source
+devcanon github-push-relay status --ledger "$LedgerPath" --state-dir "$RelayStateDir"
+```
+
 ## Inputs
 
 Use Node.js 24 or later. Both commands require the coordinator's `--ledger`
