@@ -53,13 +53,10 @@ the independence of adversarial stance; and the issue #528 escalation boundary.
 This policy consumes those classifications in the inventories below without
 redefining their meanings or default routes.
 
-Direct-child rows use their exact recorded capability and effort pair. An
-unresolved route blocks rather than escalating by guesswork. Capability resolves
-only the full native model unless a target-specific role model override is
-explicitly recorded; route effort is explicit and independent. Codex reviewer
-routes use `gpt-6.2-sol`, implementer routes use `gpt-6.1-terra`, and architect
-and deep-reviewer use the frontier binding. Literal role overrides take
-precedence over capability defaults.
+Direct-child rows use their recorded capability and effort. Each route selects
+an explicit model profile for rendering. Codex reviewer routes select balanced,
+implementer routes select implementation, and architect and deep-reviewer routes
+select frontier. An unresolved model binding blocks the route.
 The executor retains `medium` for Codex. Claude executor dispatch omits named
 effort for Haiku, as specified by the agent role catalog; this omission does
 not change the recorded Codex route tuple.
@@ -237,19 +234,14 @@ following from the selected policy route and its Codex-bound rendered binding:
 
 - a lifecycle-owned, route-local `task_name`;
 - the selected semantic `agent_type`;
-- the rendered full Codex model produced from the route capability, or the
-  explicitly recorded Codex role override (`reviewer`: `gpt-6.2-sol`;
-  `implementer`: `gpt-6.1-terra`);
+- the full Codex model produced by rendering the route's model profile;
 - the exact independent route `reasoning_effort`;
 - `fork_turns: "none"`; and
 - a self-contained message that includes the task context and the route's
   authority plus source-skill-owned output and termination instructions.
 
-The source route capability selects its binding only during rendering.
-Reviewer routes instead declare `gpt-6.2-sol` and implementer routes declare
-`gpt-6.1-terra`,
-matching the role source. At dispatch, either binding is already a literal
-full target model. The controller
+The route's model profile resolves during rendering. At dispatch, the
+controller consumes the resulting full target model and
 must not derive a fresh Codex model or effort from source-agent Codex fields,
 rediscover a source configuration, or read a sibling passive-runtime catalog
 to replace the rendered binding. A missing, blank, unresolved, or mismatched
@@ -312,14 +304,12 @@ catalog's route effort and Claude uses its Claude effort. For a Claude
 arguments; validate this required absence against the role catalog. All Codex
 roles (including executor at `medium`) and the other five Claude roles still
 require their exact catalog effort. Do not replace omission with an ambient
-value or a thinking budget. A fresh Codex focused specialist dispatch model is the rendered full model from
-the selected route capability's Codex-bound binding; its effort is the
-independent selected route effort. The selected source must match the selected
-role's capability before that render-time binding is used; a capability-less or
-mismatched source fails that parity check rather than entering model resolution.
-Source-level explicit-null suppression remains a source-to-render contract and
-does not override the fresh-route tuple. The controller does not reload source
-configuration or use the sibling passive runtime to supply this binding.
+value or a thinking budget. The owning workflow renders the selected role's Codex model profile for a
+fresh focused dispatch. Route effort and capability parity are separate checks.
+The selected source must declare the role's capability before using the
+binding. Executor omits its source model selector and uses the rendered
+efficient binding for explicit dispatch. The controller consumes the rendered
+model without reloading source configuration or the sibling passive runtime.
 
 `agents/*.yaml` are governed declarations/instances and parity inputs, never
 peer semantic authorities. Cognitive demand and stance remain planner
@@ -390,11 +380,11 @@ existing routes retain their behavior. The
 [agent spec](../specs/agents.md#codex-specialist-roles) owns model allocation
 and role responsibilities.
 
-Use Sol High for ordinary design and review, including task specification review, task quality review and whole-implementation quality review. Keep
+Use the balanced Codex model at high effort for ordinary design and review, including task specification review, task quality review and whole-implementation quality review. Keep
 those gates, their reduced-review paths, finding disposition, source guards and
-existing lifecycle rules. Use Terra Medium for implementation and repairs.
+existing lifecycle rules. Use the implementation Codex model at medium effort for implementation and repairs.
 
-Request Astra High specialist attention when actual scope or code changes pose
+Request frontier Codex specialist attention at high effort when actual scope or code changes pose
 material risk to:
 
 - architectural contracts, module ownership, persisted formats or core invariants;
@@ -425,6 +415,6 @@ result that is unavailable or inconclusive leaves the affected decision unresolv
 failed checks and unresolved blockers cannot be approved by model choice.
 
 The [Kiki practical trial](../specs/workflow-specialist-pilot.md) supplies supporting
-feedback on detection, repairs and unnecessary Astra usage. It is not a mandatory
+feedback on detection, repairs and unnecessary specialist dispatches. It is not a mandatory
 publication or installation gate. Normal review, verification and authorization
 requirements continue to apply.

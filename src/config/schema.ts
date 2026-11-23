@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { FILESYSTEM_SAFE } from "../utils/naming.js";
 import { DEFAULT_MANIFEST_PATH, MANIFEST_MANAGED_BY } from "./identity.js";
+import { isModelId } from "./model-id.js";
 
 // --- Install mode ---
 export const InstallModeSchema = z.enum(["symlink", "copy"]);
@@ -94,29 +95,36 @@ const TargetEntrySchema = z.object({
 
 export const PLACEHOLDER_KEY = /^[a-z0-9][a-z0-9-]*$/;
 
-const CapabilityProfileModelSchema = renderSafeString(
-  1,
-  TARGET_ENTRY_VALUE_MAX,
-).refine((value) => value.trim().length > 0, {
-  message: "model identifier must not be blank",
+const ModelIdentifierSchema = z.string().refine(isModelId, {
+  message: "model identifier must be a render-safe ID of 1–256 characters",
 });
 
-const CapabilityProfileSchema = z
+const ModelProfileEntrySchema = z
   .object({
-    claude: CapabilityProfileModelSchema,
-    codex: CapabilityProfileModelSchema,
+    claude: ModelIdentifierSchema,
+    codex: ModelIdentifierSchema,
   })
   .strict();
 
-export const CapabilityProfilesSchema = z
+export const ModelProfilesSchema = z
   .object({
-    efficient: CapabilityProfileSchema,
-    balanced: CapabilityProfileSchema,
-    frontier: CapabilityProfileSchema,
+    efficient: ModelProfileEntrySchema,
+    balanced: ModelProfileEntrySchema,
+    frontier: ModelProfileEntrySchema,
+    implementation: z.object({ codex: ModelIdentifierSchema }).strict(),
   })
   .strict();
 
-export type CapabilityProfiles = z.infer<typeof CapabilityProfilesSchema>;
+export type ModelProfiles = z.infer<typeof ModelProfilesSchema>;
+
+export const ModelProfileSchema = z.enum([
+  "efficient",
+  "balanced",
+  "frontier",
+  "implementation",
+]);
+export type ModelProfile = z.infer<typeof ModelProfileSchema>;
+const ClaudeModelProfileSchema = ModelProfileSchema.exclude(["implementation"]);
 
 export const CapabilitySchema = z.enum(["efficient", "balanced", "frontier"]);
 export type Capability = z.infer<typeof CapabilitySchema>;
@@ -159,7 +167,7 @@ export type FileArtifacts = z.infer<typeof FileArtifactsSchema>;
 
 // --- Main config ---
 export const ConfigSchema = z.object({
-  version: z.literal(2),
+  version: z.literal(3),
   library: z
     .object({
       skillsDir: z.string().default("./skills"),
@@ -198,7 +206,7 @@ export const ConfigSchema = z.object({
       path: z.string().default(DEFAULT_MANIFEST_PATH),
     })
     .default({}),
-  capabilityProfiles: CapabilityProfilesSchema,
+  modelProfiles: ModelProfilesSchema,
   toolNames: ToolNamesSchema.optional(),
   fileArtifacts: FileArtifactsSchema.optional(),
 });
@@ -232,7 +240,7 @@ export interface ResolvedConfig {
   manifest: {
     path: string;
   };
-  capabilityProfiles: CapabilityProfiles;
+  modelProfiles: ModelProfiles;
   toolNames?: ToolNames;
   fileArtifacts?: FileArtifacts;
 }
@@ -268,7 +276,7 @@ const ClaudeToolNameSchema = renderSafeString(1, TARGET_ENTRY_VALUE_MAX).refine(
 );
 
 const ClaudeTargetShape = {
-  model: renderSafeString(1, TARGET_ENTRY_VALUE_MAX).optional(),
+  modelProfile: ClaudeModelProfileSchema.optional(),
   effort: ClaudeEffortSchema.optional(),
   tools: z.array(ClaudeToolNameSchema).optional(),
 };
@@ -333,7 +341,7 @@ const CodexApprovalPolicySchema = z.union([
 ]);
 
 const CodexTargetShape = {
-  model: renderSafeString(1, TARGET_ENTRY_VALUE_MAX).nullable().optional(),
+  modelProfile: ModelProfileSchema.optional(),
   model_reasoning_effort: CodexReasoningEffortSchema.optional(),
   sandbox_mode: z
     .enum(["read-only", "workspace-write", "danger-full-access"])
@@ -358,9 +366,28 @@ export const CODEX_TARGET_FIELDS = Object.keys(CodexTargetShape) as Array<
 // Extra keys flow through to renderers for forward compatibility with
 // upstream target fields the schema has not yet adopted. Typo detection
 // happens in `collectUnknownFields` (src/validate/agents.ts), not here.
-const ClaudeTargetSchema = z.object(ClaudeTargetShape).passthrough();
+function rejectLegacyAgentModel(
+  target: Record<string, unknown>,
+  ctx: z.RefinementCtx,
+) {
+  if (Object.hasOwn(target, "model")) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["model"],
+      message:
+        "Legacy agent model fields are unsupported. Select modelProfile or omit it.",
+    });
+  }
+}
 
-const CodexTargetSchema = z.object(CodexTargetShape).passthrough();
+const ClaudeTargetSchema = z
+  .object(ClaudeTargetShape)
+  .passthrough()
+  .superRefine(rejectLegacyAgentModel);
+const CodexTargetSchema = z
+  .object(CodexTargetShape)
+  .passthrough()
+  .superRefine(rejectLegacyAgentModel);
 
 const AgentSourceShape = {
   name: z

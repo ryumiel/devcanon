@@ -9,8 +9,8 @@ import {
   createTempDir,
 } from "../__test-helpers__/fixtures.js";
 import type {
-  CapabilityProfiles,
   FileArtifacts,
+  ModelProfiles,
   ToolNames,
 } from "../config/schema.js";
 import { SkillSourceSchema } from "../config/schema.js";
@@ -20,10 +20,11 @@ import { type Logger, getLogger, setLogger } from "../utils/output.js";
 import type { ValidationDiagnostic } from "./diagnostics.js";
 import { loadAndValidateSkills } from "./skills.js";
 
-const TEST_CAPABILITY_PROFILES: CapabilityProfiles = {
+const TEST_CAPABILITY_PROFILES: ModelProfiles = {
   efficient: { claude: "haiku", codex: "gpt-5.4-mini" },
   balanced: { claude: "sonnet", codex: "gpt-5.4" },
   frontier: { claude: "opus", codex: "gpt-5.4-pro" },
+  implementation: { codex: "test-codex-implementation" },
 };
 
 describe("loadAndValidateSkills", () => {
@@ -35,7 +36,7 @@ describe("loadAndValidateSkills", () => {
       diagnostics?: {
         enabled?: boolean;
         strict?: boolean;
-        capabilityProfiles?: CapabilityProfiles;
+        modelProfiles?: ModelProfiles;
         toolNames?: ToolNames;
         fileArtifacts?: FileArtifacts;
         reporter?: (diagnostic: ValidationDiagnostic) => void;
@@ -46,7 +47,7 @@ describe("loadAndValidateSkills", () => {
       ...options,
       diagnostics: options?.diagnostics
         ? {
-            capabilityProfiles: CANONICAL_CAPABILITY_PROFILES,
+            modelProfiles: CANONICAL_CAPABILITY_PROFILES,
             ...options.diagnostics,
           }
         : undefined,
@@ -1028,7 +1029,7 @@ describe("loadAndValidateSkills", () => {
         diagnostics: {
           enabled: true,
           strict: false,
-          capabilityProfiles: TEST_CAPABILITY_PROFILES,
+          modelProfiles: TEST_CAPABILITY_PROFILES,
         },
       });
 
@@ -1059,7 +1060,7 @@ describe("loadAndValidateSkills", () => {
         diagnostics: {
           enabled: true,
           strict: false,
-          capabilityProfiles: TEST_CAPABILITY_PROFILES,
+          modelProfiles: TEST_CAPABILITY_PROFILES,
         },
       });
 
@@ -1188,7 +1189,7 @@ describe("loadAndValidateSkills", () => {
           diagnostics: {
             enabled: true,
             strict: true,
-            capabilityProfiles: TEST_CAPABILITY_PROFILES,
+            modelProfiles: TEST_CAPABILITY_PROFILES,
           },
         }),
       ).resolves.toHaveLength(1);
@@ -1226,7 +1227,7 @@ describe("loadAndValidateSkills", () => {
           diagnostics: {
             enabled: true,
             strict: true,
-            capabilityProfiles: TEST_CAPABILITY_PROFILES,
+            modelProfiles: TEST_CAPABILITY_PROFILES,
           },
         }),
       ).resolves.toHaveLength(1);
@@ -1262,7 +1263,7 @@ describe("loadAndValidateSkills", () => {
           diagnostics: {
             enabled: true,
             strict: true,
-            capabilityProfiles: TEST_CAPABILITY_PROFILES,
+            modelProfiles: TEST_CAPABILITY_PROFILES,
           },
         }),
       ).resolves.toHaveLength(1);
@@ -1299,7 +1300,7 @@ describe("loadAndValidateSkills", () => {
           diagnostics: {
             enabled: true,
             strict: true,
-            capabilityProfiles: TEST_CAPABILITY_PROFILES,
+            modelProfiles: TEST_CAPABILITY_PROFILES,
           },
         }),
       ).resolves.toHaveLength(1);
@@ -1334,7 +1335,7 @@ describe("loadAndValidateSkills", () => {
           diagnostics: {
             enabled: true,
             strict: true,
-            capabilityProfiles: TEST_CAPABILITY_PROFILES,
+            modelProfiles: TEST_CAPABILITY_PROFILES,
           },
         }),
       ).resolves.toHaveLength(1);
@@ -1366,7 +1367,7 @@ describe("loadAndValidateSkills", () => {
           diagnostics: {
             enabled: true,
             strict: true,
-            capabilityProfiles: TEST_CAPABILITY_PROFILES,
+            modelProfiles: TEST_CAPABILITY_PROFILES,
           },
         }),
       ).rejects.toThrow(/drift-prone prose token "sonnet"/i);
@@ -1409,7 +1410,7 @@ describe("loadAndValidateSkills", () => {
           diagnostics: {
             enabled: true,
             strict: true,
-            capabilityProfiles: TEST_CAPABILITY_PROFILES,
+            modelProfiles: TEST_CAPABILITY_PROFILES,
           },
         }),
       ).resolves.toHaveLength(1);

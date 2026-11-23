@@ -17,9 +17,10 @@ import {
   createDevcanonRuntimeProviderFixture,
   createTempDir,
 } from "../../__test-helpers__/fixtures.js";
+import { SHIPPED_CAPABILITY_PROFILES } from "../../__test-helpers__/fixtures.js";
 import { installTestLogger } from "../../__test-helpers__/logger.js";
 import type { TestLoggerResult } from "../../__test-helpers__/logger.js";
-import { DEFAULT_CONFIG_YAML } from "../../config/defaults.js";
+import { defaultConfigYaml } from "../../config/defaults.js";
 import { loadConfig } from "../../config/load.js";
 import {
   AgentSourceSchema,
@@ -84,7 +85,7 @@ describe("initAction", () => {
         ),
         "utf-8",
       ),
-    ).resolves.toContain('"schema": "devcanon/runtime-config/v1"');
+    ).resolves.toContain('"schema": "devcanon/runtime-config/v2"');
     expect(
       await pathExists(
         path.join(
@@ -184,19 +185,21 @@ describe("initAction", () => {
     );
   });
 
-  it("emits the exact version 2 capability profile catalog", async () => {
+  it("emits the exact version 3 model profile catalog", async () => {
     await initAction({}, provider);
 
     const raw = await readTextFile(path.join(tempDir, "devcanon.config.yaml"));
     const config = ConfigSchema.parse(parseYaml(raw));
 
-    expect(config.version).toBe(2);
-    expect(config.capabilityProfiles).toEqual(
-      ConfigSchema.parse(parseYaml(DEFAULT_CONFIG_YAML)).capabilityProfiles,
+    expect(config.version).toBe(3);
+    expect(config.modelProfiles).toEqual(
+      ConfigSchema.parse(
+        parseYaml(defaultConfigYaml(SHIPPED_CAPABILITY_PROFILES)),
+      ).modelProfiles,
     );
   });
 
-  it("emits a balanced sample agent without target model or effort fields", async () => {
+  it("emits a balanced sample agent with explicit model profiles and ambient effort", async () => {
     await initAction({}, provider);
 
     const raw = await readTextFile(
@@ -205,8 +208,14 @@ describe("initAction", () => {
     const agent = AgentSourceSchema.parse(parseYaml(raw));
 
     expect(agent.capability).toBe("balanced");
-    expect(agent.claude).toEqual({ tools: ["Read", "Grep"] });
-    expect(agent.codex).toEqual({ sandbox_mode: "read-only" });
+    expect(agent.claude).toEqual({
+      modelProfile: "balanced",
+      tools: ["Read", "Grep"],
+    });
+    expect(agent.codex).toEqual({
+      modelProfile: "balanced",
+      sandbox_mode: "read-only",
+    });
   });
 
   it("checks config collision before runtime preflight", async () => {

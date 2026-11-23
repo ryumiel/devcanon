@@ -37,7 +37,7 @@ describe("newAgentAction", () => {
     await cleanupTempDir(tempDir);
   });
 
-  it("writes a balanced agent scaffold without target model or effort fields", async () => {
+  it("writes a balanced agent scaffold with explicit model profiles and ambient effort", async () => {
     await newAgentAction(
       "reviewer",
       {},
@@ -61,8 +61,14 @@ describe("newAgentAction", () => {
 
     const agent = AgentSourceSchema.parse(parseYaml(content));
     expect(agent.capability).toBe("balanced");
-    expect(agent.claude).toEqual({ tools: ["Read", "Grep"] });
-    expect(agent.codex).toEqual({ sandbox_mode: "read-only" });
+    expect(agent.claude).toEqual({
+      modelProfile: "balanced",
+      tools: ["Read", "Grep"],
+    });
+    expect(agent.codex).toEqual({
+      modelProfile: "balanced",
+      sandbox_mode: "read-only",
+    });
   });
 
   it("renders the scaffold using the balanced profile without inferred effort", async () => {
@@ -123,7 +129,7 @@ describe("newAgentAction", () => {
     const invalidConfigPath = await createConfigFile(
       tempDir,
       makeConfigYaml({
-        capabilityProfiles: {
+        modelProfiles: {
           efficient: CANONICAL_CAPABILITY_PROFILES.efficient,
           balanced: CANONICAL_CAPABILITY_PROFILES.balanced,
           frontier: {

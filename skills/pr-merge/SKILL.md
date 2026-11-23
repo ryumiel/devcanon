@@ -369,11 +369,11 @@ do not spawn, and do not invent inline fallback detail. That reference owns the
 generic dispatch ritual; this skill owns its CI diagnosis and fix route values, prompt inputs,
 and CI-repair disposition.
 
-| Route                                 | `agent_type`   | Capability  | Model marker                                       | `reasoning_effort` | `source_authority` | Prompt                                  |
-| ------------------------------------- | -------------- | ----------- | -------------------------------------------------- | ------------------ | ------------------ | --------------------------------------- |
-| `ci-diagnosis-and-fix` `diagnosis`    | `investigator` | `balanced`  | `CI_DIAGNOSIS_MODEL` = `{{model-codex:balanced}}`  | `medium`           | `source-immutable` | `CI_DIAGNOSIS_SELF_CONTAINED_PROMPT`    |
-| `ci-diagnosis-and-fix` `exact-fix`    | `executor`     | `efficient` | `CI_EXACT_FIX_MODEL` = `{{model-codex:efficient}}` | `medium`           | `source-mutable`   | `CI_EXACT_FIX_SELF_CONTAINED_PROMPT`    |
-| `ci-diagnosis-and-fix` `judgment-fix` | `implementer`  | `balanced`  | `CI_JUDGMENT_FIX_MODEL` = `gpt-6.1-terra`          | `medium`           | `source-mutable`   | `CI_JUDGMENT_FIX_SELF_CONTAINED_PROMPT` |
+| Route                                 | `agent_type`   | Capability  | Model marker                                               | `reasoning_effort` | `source_authority` | Prompt                                  |
+| ------------------------------------- | -------------- | ----------- | ---------------------------------------------------------- | ------------------ | ------------------ | --------------------------------------- |
+| `ci-diagnosis-and-fix` `diagnosis`    | `investigator` | `balanced`  | `CI_DIAGNOSIS_MODEL` = `{{model-codex:balanced}}`          | `medium`           | `source-immutable` | `CI_DIAGNOSIS_SELF_CONTAINED_PROMPT`    |
+| `ci-diagnosis-and-fix` `exact-fix`    | `executor`     | `efficient` | `CI_EXACT_FIX_MODEL` = `{{model-codex:efficient}}`         | `medium`           | `source-mutable`   | `CI_EXACT_FIX_SELF_CONTAINED_PROMPT`    |
+| `ci-diagnosis-and-fix` `judgment-fix` | `implementer`  | `balanced`  | `CI_JUDGMENT_FIX_MODEL` = `{{model-codex:implementation}}` | `medium`           | `source-mutable`   | `CI_JUDGMENT_FIX_SELF_CONTAINED_PROMPT` |
 
 Every branch has `external_authority: none`. The fully substituted prompt names
 the anchored PR head, bounded repository and authorized paths, collected CI
@@ -408,7 +408,7 @@ Codex.spawn_agent({
 })
 # Judgment-bearing fix: source-mutable; output is scoped committed fix/report.
 # Termination returns the committed result to the root for verification/push.
-# CI_JUDGMENT_FIX_MODEL is the literal Codex implementer override
+# CI_JUDGMENT_FIX_MODEL is the rendered implementation Codex model
 Codex.spawn_agent({
   task_name: ci_diagnosis_and_fix_<instance_ordinal>,
   agent_type: "implementer",

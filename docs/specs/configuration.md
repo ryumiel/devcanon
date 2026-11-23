@@ -71,8 +71,8 @@ source configuration, but not loader-only state such as `configDir`.
 
 The fourth choice is the catalog packaged with
 `skills/devcanon-runtime/config/runtime-config.json`. It has literal schema
-`devcanon/runtime-config/v1` and a closed top-level
-`{ schema, capabilityProfiles }` object. Its `capabilityProfiles` value uses
+`devcanon/runtime-config/v2` and a closed top-level
+`{ schema, modelProfiles }` object. Its `modelProfiles` value uses
 the strict existing source authority in
 [`src/config/schema.ts`](../../src/config/schema.ts); this spec does not repeat
 the profile fields. The catalog is not a substitute user configuration and
@@ -117,9 +117,9 @@ generated-root custody, integrity, and the behavior after selection.
 
 ### Catalog projection and runtime consumption
 
-The source `capabilityProfiles` catalog selects model strings while DevCanon
+The source `modelProfiles` catalog selects model strings while DevCanon
 renders a target. For each enabled target selected for that render, the renderer
-projects the same complete paired Claude-and-Codex capability-profile catalog
+projects the same complete model profile catalog
 beside the target's passive runtime scripts. An installed runtime reads only its
 sibling catalog; it does not rediscover the source checkout, the invoking
 directory, or an ambient configuration file. See
@@ -157,11 +157,11 @@ standard error. The command and error-code details remain owned by
 ### Scenarios
 
 - From an unrelated directory with no selected source configuration,
-  `devcanon config get capabilityProfiles.balanced.codex` reads the packaged
-  catalog and prints `gpt-6.2-sol`. `devcanon --json config path` reports an
+  `devcanon config get modelProfiles.balanced.codex` reads the packaged
+  catalog and prints the bundled balanced Codex model ID. `devcanon --json config path` reports an
   absolute `path` and `source: "bundled"`.
 - With `--config` pointing to a valid custom source configuration,
-  `devcanon --config <path> --json config get capabilityProfiles.balanced.codex`
+  `devcanon --config <path> --json config get modelProfiles.balanced.codex`
   reports that path, `source: "explicit"`, the requested key, and the custom
   Codex value. Rendering from that configuration projects its paired Claude and
   Codex values into their respective target runtime bundles.
@@ -194,7 +194,7 @@ standard error. The command and error-code details remain owned by
 ## Example
 
 ```yaml
-version: 2
+version: 3
 
 library:
   skillsDir: ./skills
@@ -225,16 +225,18 @@ platform:
 manifest:
   path: ~/.devcanon/manifest.json
 
-capabilityProfiles:
+modelProfiles:
   efficient:
-    claude: claude-haiku-4-5-20251001
-    codex: gpt-6-luna
+    claude: example-claude-efficient
+    codex: example-codex-efficient
   balanced:
-    claude: claude-sonnet-5
-    codex: gpt-6.2-sol
+    claude: example-claude-balanced
+    codex: example-codex-balanced
+  implementation:
+    codex: example-codex-implementation
   frontier:
-    claude: claude-opus-5
-    codex: gpt-6.2-astra
+    claude: example-claude-frontier
+    codex: example-codex-frontier
 
 toolNames:
   task-tracker:
@@ -263,10 +265,9 @@ fileArtifacts:
   appended to generated Codex skill UI display names in `(<value>)` form
 - unknown top-level config fields produce warnings in normal mode and errors in
   strict mode
-- source configuration accepts only `version: 2`; version 1 is rejected with a
-  dedicated migration diagnostic before ordinary schema validation
-- a version 2 config that still declares `modelTiers` is rejected with a
-  dedicated replacement diagnostic before ordinary schema validation
+- source configuration accepts only `version: 3`; versions 1 and 2 are rejected
+  with a migration diagnostic
+- legacy `modelTiers` and `capabilityProfiles` keys are rejected
 
 ---
 
@@ -289,52 +290,35 @@ for rendered skill sidecar display names.
 
 ---
 
-## capabilityProfiles
+## modelProfiles
 
-Required. This exact strict object is the portable model-capability catalog.
-The executable details live in `CapabilityProfilesSchema`; this spec records
-the user-facing boundary without replacing that source authority.
+Required. The strict catalog has four profiles. The `efficient`, `balanced`, and
+`frontier` entries require `claude` and `codex` model IDs. The `implementation`
+entry requires only `codex`. IDs start with an ASCII letter or digit and contain up to 256 characters.
+The remaining characters may also include `.`, `_`, `:`, `/`, `@`, `+`, and `-`. Additional profile and target keys are rejected.
 
-- The only profile keys are `efficient`, `balanced`, and `frontier`; all three
-  are required and additional keys are rejected.
-- Every profile is a strict `{ claude: <model>, codex: <model> }` object. Both
-  values are required render-safe, non-blank strings capped at 256 characters.
-  Additional profile fields, including effort, are rejected.
-- Provider model identifiers are mutable configuration. The repository catalog
-  is owned by `devcanon.config.yaml`, initialized defaults by
-  `src/config/defaults.ts`, and bundled defaults by
-  `skills/devcanon-runtime/config/runtime-config.json`. Those shipped catalogs
-  must agree; tests verify source consistency without a duplicated real-model
-  allowlist. Model updates do not require ADR amendments.
-- Paired provider values are selected mappings, not provider equivalences.
-  Model changes do not implicitly change route effort or add a benchmark gate.
-- Capability selects a model only. Claude `effort` and Codex
-  `model_reasoning_effort` remain explicit target-native fields and are never
-  inherited from a profile. The agent contract separately defines literal,
-  absent, and explicit-null Codex-model source states; explicit suppression is
-  not configuration syntax or a profile behavior.
-- Skill tokens resolve per target: `{{model:frontier}}` becomes the configured
-  `frontier.claude` or `frontier.codex` string. Agent target model fields do not
-  accept model placeholders.
-- Codex-bound skill tokens such as `{{model-codex:frontier}}` become the
-  configured `frontier.codex` string in both artifact targets because their
-  consumer is an explicit Codex execution primitive.
-- DevCanon provides no custom, compatibility, transitional, or legacy profiles
-  and no automatic translation from v1.
+Edit a model ID in `devcanon.config.yaml` and run `devcanon sync`. The agent
+renderer resolves each target's `modelProfile` selection. Skills resolve
+`{{model:frontier}}` for the artifact target and
+`{{model-codex:implementation}}` for Codex in either artifact target. A profile
+must define the requested target.
 
-Configuration validation is local and syntactic. Acceptance of a model or
-effort does not prove that a provider client recognizes it or that an account
-can run it. Runtime incompatibility must fail closed; DevCanon does not
-substitute a fallback model, alias, family member, or effort.
+The build derives the scaffold models and packaged catalog from the repository
+config. The installed runtime catalog projects the operator's selected config.
+Model selection, routing capability, and reasoning effort are independent.
+Provider availability is evaluated by the provider when a model is used.
 
-See [Agents](agents.md) for capability and model precedence,
-[Skills](skills.md) for model placeholders, and
-[Capability Profiles v2 Migration](../guidelines/capability-profiles-v2-migration.md)
-for the manual cutover and rollback procedure.
+### Cut over to v3
+
+Uninstall managed outputs with the old CLI and original v2 configuration before
+updating the checkout or CLI. Use the same target homes and manifest throughout.
+Update the library config, authored runtime catalog, agents, and workflow sources
+to v3, or select a fresh v3 library. The old uninstall leaves source files in
+place. Run the new CLI's `validate` and `sync` against the updated library.
 
 ### Target-native effort
 
-Effort is not part of `capabilityProfiles`. Where the agent or skill source
+Effort is not part of `modelProfiles`. Where the agent or skill source
 schema supports it, `claude.effort` accepts `low`, `medium`, `high`, `xhigh`,
 or `max`. Agent `codex.model_reasoning_effort` accepts `none`, `minimal`,
 `low`, `medium`, `high`, `xhigh`, or `max`. `ultra` is orchestration, not a
@@ -344,7 +328,7 @@ Local acceptance does not prove a selected provider model, client, or account
 supports the effort. Explicit effort takes effect independently of model
 capability; omission preserves ambient target behavior. Fresh semantic-child
 route effort is owned by the Agent Routing and Mutation Policy, not by
-`capabilityProfiles`.
+`modelProfiles`.
 
 ---
 
@@ -413,7 +397,7 @@ See [Skills](skills.md) for the full list of allowed keys per block.
 
 ---
 
-## Recommended v2 defaults
+## Recommended v3 defaults
 
 - source layout: `skills/`, `agents/`, `generated/`
 - agent format: YAML
@@ -423,7 +407,7 @@ See [Skills](skills.md) for the full list of allowed keys per block.
 - ownership: manifest
 - overwrite policy: overwrite managed only
 - shared skill source, native generated agents
-- required exact `capabilityProfiles` catalog
+- required exact `modelProfiles` catalog
 - new agent scaffolds use top-level `capability: balanced` and omit effort
 
 ---

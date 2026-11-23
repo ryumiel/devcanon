@@ -1,6 +1,5 @@
 import { lstat, readdir } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { parse as parseYaml } from "yaml";
 import {
   parseAgentRoutingPolicyOwner,
   readAgentRoutingPolicyOwner,
@@ -8,10 +7,6 @@ import {
 } from "../__test-helpers__/agent-routing-policy.js";
 import { readRepoFile } from "../__test-helpers__/skill-contracts.js";
 import { loadConfig } from "../config/load.js";
-
-const reviewerModel: string = parseYaml(
-  await readRepoFile("agents/reviewer.yaml"),
-).codex.model;
 
 const OWNER_PATH = "docs/guidelines/agent-routing-and-mutation-policy.md";
 const AGENT_SPEC_PATH = "docs/specs/agents.md";
@@ -342,9 +337,7 @@ describe("agent routing and mutation policy owner", () => {
         const expectedEffort = role?.routeEffort;
         expect(clause.effort).toBe(expectedEffort);
         expect(clause.sourceAuthority).toBe(role?.sourceAuthority);
-        expect(config.capabilityProfiles[clause.capability].codex).toMatch(
-          /\S/,
-        );
+        expect(config.modelProfiles[clause.capability].codex).toMatch(/\S/);
       }
     }
   });
@@ -456,12 +449,19 @@ describe("agent routing and mutation policy owner", () => {
 
       const source = ownerSkills.get(ownerSkill);
       expect(source, `${ownerSkill} source is readable`).toBeDefined();
+      const profile =
+        role === "reviewer"
+          ? "balanced"
+          : role === "implementer"
+            ? "implementation"
+            : capability;
+      const placeholder = `{{model-codex:${profile}}}`;
       expect(source?.replace(/\s+/gu, " ")).toContain(
         role === "reviewer"
-          ? `${model} = "${reviewerModel}"`
-          : `\`${model}\` = \`${role === "implementer" ? "gpt-6.1-terra" : `{{model-codex:${capability}}}`}\``,
+          ? `${model} = "${placeholder}"`
+          : `\`${model}\` = \`${placeholder}\``,
       );
-      expect(config.capabilityProfiles[capability].codex).toMatch(/\S/);
+      expect(config.modelProfiles[profile].codex).toMatch(/\S/);
       const procedureFile = ISSUE_PRIMING_SPAWN_PROCEDURES.get(id);
       const procedure = procedureFile
         ? primingProcedures.get(procedureFile)
@@ -505,7 +505,9 @@ describe("agent routing and mutation policy owner", () => {
       externalAuthority: "none",
     });
     expect(roles).toHaveLength(7);
-    expect(source).toContain(`reviewer Codex model = "${reviewerModel}"`);
+    expect(source.replace(/\s+/gu, " ")).toContain(
+      "Reviewer uses balanced and implementer uses implementation.",
+    );
     for (const { capability } of roles) {
       expect(source.replace(/\s+/gu, " ")).toContain(
         `\`${capability}\` → \`{{model-codex:${capability}}}\``,

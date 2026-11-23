@@ -11,9 +11,9 @@ historical rationale stays accepted.
 [ADR-0035](adr-0035-installed-runtime-configuration-discovery.md) supersedes
 this decision only for the installed-runtime catalog lifecycle and a
 controller's consumption of an already-rendered route binding. This ADR remains
-the decision owner for the capability-profile vocabulary and model-resolution
-mechanism. Specific provider model identifiers are mutable configuration,
-not architectural decisions.
+the historical decision for v2. The [v3 model profile specification](../specs/configuration.md#modelprofiles)
+owns the current catalog and model resolution. Routing retains the three
+capabilities defined here.
 
 ## Context
 

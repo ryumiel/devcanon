@@ -15,7 +15,7 @@ outside the controller-authorized paths.
 
 **Fresh configuration:** The controller validates default implementation's complete fresh tuple
 before capture: `implementer`, `balanced`, the nonblank full model in the
-controller/owner-supplied already-rendered `DEFAULT_IMPLEMENTATION_MODEL` binding (literal `gpt-6.1-terra` on Codex), independent
+controller/owner-supplied already-rendered `DEFAULT_IMPLEMENTATION_MODEL` binding (the rendered implementation profile on Codex), independent
 `medium`, source-mutable/external-none authority, `default_implementation_<instance_ordinal>`,
 `fork_turns: "none"`, this fully substituted prompt, report output, and the
 existing snapshot/status/commit termination. A missing, blank, unresolved, or

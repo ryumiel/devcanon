@@ -34,7 +34,7 @@ const agent: LoadedAgent = {
       "Follow these steps:\n\n## Step One\n\nDo the first thing.\n\n## Step Two\n\nDo the second thing.",
     skills: ["test-skill"],
     claude: {
-      model: "sonnet",
+      modelProfile: "balanced",
       tools: ["Read", "Grep", "Bash"],
     },
     codex: undefined,
@@ -71,10 +71,11 @@ const config = {
   },
   platform: { windowsSymlinkFallback: "copy" as const },
   manifest: { path: "~/.devcanon/manifest.json" },
-  capabilityProfiles: {
+  modelProfiles: {
     efficient: { claude: "claude-haiku-4-5", codex: "gpt-mini" },
     balanced: { claude: "claude-sonnet-4-6", codex: "gpt" },
     frontier: { claude: "claude-opus-4-7", codex: "gpt-frontier" },
+    implementation: { codex: "test-codex-implementation" },
   },
 } satisfies ResolvedConfig;
 
@@ -99,34 +100,40 @@ describe("renderClaudeAgent", () => {
       name: "test-agent",
       description: "A test agent for unit testing.",
       tools: "Read, Grep, Bash",
-      model: "sonnet",
+      model: config.modelProfiles.balanced.claude,
     });
   });
 
   it("renders every supported claude target field", () => {
     const fullAgent = withClaude(agent, {
-      model: "claude-sonnet-4-6",
+      modelProfile: "balanced",
       effort: "high",
       tools: ["Read", "Grep", "Bash"],
     });
     const result = renderClaudeAgent(fullAgent, emptySkills, config);
     const { frontmatter } = parseRenderedMarkdownArtifact(result.content);
     const expectedValues = {
-      model: "claude-sonnet-4-6",
+      modelProfile: config.modelProfiles.balanced.claude,
       effort: "high",
       tools: "Read, Grep, Bash",
     } satisfies Record<(typeof CLAUDE_TARGET_FIELDS)[number], string>;
 
     for (const field of CLAUDE_TARGET_FIELDS) {
-      expect(frontmatter[field]).toBe(expectedValues[field]);
+      expect(frontmatter[field === "modelProfile" ? "model" : field]).toBe(
+        expectedValues[field],
+      );
     }
   });
 
-  it("resolves top-level capability to the target-native model without effort", () => {
+  it("resolves an explicit model profile independently of capability and effort", () => {
     const result = renderClaudeAgent(
       {
         ...agent,
-        source: { ...agent.source, capability: "balanced", claude: undefined },
+        source: {
+          ...agent.source,
+          capability: "frontier",
+          claude: { modelProfile: "balanced" },
+        },
       },
       emptySkills,
       config,
@@ -136,11 +143,11 @@ describe("renderClaudeAgent", () => {
     expect(frontmatter).not.toHaveProperty("effort");
   });
 
-  it("rejects a schema-bypassed custom capability even when its profile is owned", () => {
+  it("rejects a schema-bypassed custom model profile even when its profile is owned", () => {
     const customConfig = {
       ...config,
-      capabilityProfiles: {
-        ...config.capabilityProfiles,
+      modelProfiles: {
+        ...config.modelProfiles,
         experimental: { claude: "custom-claude", codex: "custom-codex" },
       },
     } as ResolvedConfig;
@@ -151,24 +158,23 @@ describe("renderClaudeAgent", () => {
           ...agent,
           source: {
             ...agent.source,
-            capability: "experimental" as "balanced",
-            claude: undefined,
+            claude: { modelProfile: "experimental" as "balanced" },
           },
         },
         emptySkills,
         customConfig,
       ),
-    ).toThrow(/unknown capability "experimental"/);
+    ).toThrow(/experimental/);
   });
 
   it.each(["foo # dropped", "null", "true", "123", 'quote"slash\\'])(
-    "round-trips YAML-significant capability model %j as a string",
+    "round-trips YAML-significant profile model %j as a string",
     (model) => {
       const modelConfig = {
         ...config,
-        capabilityProfiles: {
-          ...config.capabilityProfiles,
-          balanced: { ...config.capabilityProfiles.balanced, claude: model },
+        modelProfiles: {
+          ...config.modelProfiles,
+          balanced: { ...config.modelProfiles.balanced, claude: model },
         },
       } satisfies ResolvedConfig;
       const result = renderClaudeAgent(
@@ -176,8 +182,7 @@ describe("renderClaudeAgent", () => {
           ...agent,
           source: {
             ...agent.source,
-            capability: "balanced",
-            claude: undefined,
+            claude: { modelProfile: "balanced" },
           },
         },
         emptySkills,
@@ -190,44 +195,6 @@ describe("renderClaudeAgent", () => {
       expect(result.content).toContain(`model: ${JSON.stringify(model)}`);
     },
   );
-
-  it.each(["foo # dropped", "null", "true", "123", 'quote"slash\\'])(
-    "round-trips YAML-significant literal model %j as a string",
-    (model) => {
-      const literalAgent = withClaude(agent, { model });
-      const result = renderClaudeAgent(
-        {
-          ...literalAgent,
-          source: { ...literalAgent.source, capability: "balanced" },
-        },
-        emptySkills,
-        config,
-      );
-
-      expect(
-        parseRenderedMarkdownArtifact(result.content).frontmatter.model,
-      ).toBe(model);
-      expect(result.content).toContain(`model: ${JSON.stringify(model)}`);
-    },
-  );
-
-  it("prefers a literal model and emits only explicit effort", () => {
-    const literalAgent = withClaude(agent, {
-      model: "literal-claude",
-      effort: "high",
-    });
-    const result = renderClaudeAgent(
-      {
-        ...literalAgent,
-        source: { ...literalAgent.source, capability: "balanced" },
-      },
-      emptySkills,
-      config,
-    );
-    const { frontmatter } = parseRenderedMarkdownArtifact(result.content);
-    expect(frontmatter.model).toBe("literal-claude");
-    expect(frontmatter.effort).toBe("high");
-  });
 
   it("omits ambient model and effort", () => {
     const result = renderClaudeAgent(
@@ -244,19 +211,20 @@ describe("renderClaudeAgent", () => {
   });
 
   it.each([
-    ["capability", undefined, "balanced"],
-    ["literal", "literal-claude", undefined],
-    ["ambient", undefined, undefined],
+    ["profile", "balanced"],
+    ["ambient", undefined],
   ] as const)(
     "emits explicit effort on the %s model path",
-    (_path, model, capability) => {
+    (_path, modelProfile) => {
       const result = renderClaudeAgent(
         {
           ...agent,
           source: {
             ...agent.source,
-            capability,
-            claude: { model, effort: "high" },
+            claude: {
+              ...(modelProfile === undefined ? {} : { modelProfile }),
+              effort: "high",
+            },
           },
         },
         emptySkills,
@@ -268,19 +236,17 @@ describe("renderClaudeAgent", () => {
   );
 
   it.each([
-    ["capability", undefined, "balanced"],
-    ["literal", "literal-claude", undefined],
-    ["ambient", undefined, undefined],
+    ["profile", "balanced"],
+    ["ambient", undefined],
   ] as const)(
     "does not infer effort on the %s model path",
-    (_path, model, capability) => {
+    (_path, modelProfile) => {
       const result = renderClaudeAgent(
         {
           ...agent,
           source: {
             ...agent.source,
-            capability,
-            claude: model === undefined ? undefined : { model },
+            claude: modelProfile === undefined ? undefined : { modelProfile },
           },
         },
         emptySkills,
@@ -303,7 +269,7 @@ describe("renderClaudeAgent", () => {
       // renderer must refuse placeholders from callers that bypass validation.
       expect(() =>
         renderClaudeAgent(withClaude(agent, { model }), emptySkills, config),
-      ).toThrow(/top-level capability.*literal target model/);
+      ).toThrow(/Legacy claude.model.*modelProfile/);
     },
   );
 

@@ -7,6 +7,7 @@ import {
   readFile,
   readdir,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
@@ -135,6 +136,45 @@ describe("runtime build checker", () => {
           "devcanon-runtime.mjs",
           "runtime-manifest.json",
         ]);
+        const catalogDirectory = path.join(
+          checkout,
+          "skills",
+          "devcanon-runtime",
+          "config",
+        );
+        const catalog = path.join(catalogDirectory, "runtime-config.json");
+        const sentinel = '{"protected":true}\n';
+        await writeFile(catalog, sentinel);
+        await expect(
+          execFileAsync("pnpm", ["run", "dev", "validate"], { cwd: checkout }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringMatching(/invalid.*catalog/i),
+        });
+        expect(await readFile(catalog, "utf8")).toBe(sentinel);
+
+        const external = path.join(checkout, "other-library");
+        await mkdir(external);
+        await writeFile(path.join(external, "runtime-config.json"), sentinel);
+        await rm(catalogDirectory, { recursive: true });
+        await symlink(
+          external,
+          catalogDirectory,
+          process.platform === "win32" ? "junction" : "dir",
+        );
+        await expect(
+          execFileAsync(
+            process.execPath,
+            ["scripts/generate-model-catalog.mjs"],
+            { cwd: checkout },
+          ),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining(
+            "Model catalog requires a real directory",
+          ),
+        });
+        expect(
+          await readFile(path.join(external, "runtime-config.json"), "utf8"),
+        ).toBe(sentinel);
       } finally {
         await rm(checkout, { recursive: true, force: true });
       }

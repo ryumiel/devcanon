@@ -104,9 +104,7 @@ export function useSyncFixture() {
       throw new Error("Installed fixtures require ordinary initial setup");
     }
     await assertInitialPathAbsent(config.manifest.path);
-    expect(config.capabilityProfiles).toEqual(
-      templateConfig.capabilityProfiles,
-    );
+    expect(config.modelProfiles).toEqual(templateConfig.modelProfiles);
     expect(
       await snapshotTree(
         path.join(config.library.skillsDir, "devcanon-runtime"),

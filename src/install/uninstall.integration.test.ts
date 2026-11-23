@@ -152,8 +152,8 @@ async function createLegacyRuntimeFixture(
     path.join(installedPath, "config", "runtime-config.json"),
     `${JSON.stringify(
       {
-        schema: "devcanon/runtime-config/v1",
-        capabilityProfiles: config.capabilityProfiles,
+        schema: "devcanon/runtime-config/v2",
+        modelProfiles: config.modelProfiles,
       },
       null,
       2,
@@ -2098,10 +2098,10 @@ describe("uninstall", () => {
       `${JSON.stringify(manifest, null, 2)}\n`,
       "utf8",
     );
-    config.capabilityProfiles = {
-      ...config.capabilityProfiles,
+    config.modelProfiles = {
+      ...config.modelProfiles,
       balanced: {
-        ...config.capabilityProfiles.balanced,
+        ...config.modelProfiles.balanced,
         codex: "different-current-intent",
       },
     };

@@ -11,7 +11,7 @@ import {
   makeConfigYaml,
 } from "../__test-helpers__/fixtures.js";
 import { UserError } from "../utils/errors.js";
-import { DEFAULT_CONFIG_YAML } from "./defaults.js";
+import { defaultConfigYaml } from "./defaults.js";
 import {
   formatRuntimeConfigScalar,
   getRuntimeConfigScalar,
@@ -29,10 +29,10 @@ describe("shipped model catalog consistency", () => {
         "utf8",
       ),
     );
-    const scaffold = parseYaml(DEFAULT_CONFIG_YAML);
+    const scaffold = parseYaml(defaultConfigYaml(SHIPPED_CAPABILITY_PROFILES));
 
-    expect(repository.capabilityProfiles).toEqual(SHIPPED_CAPABILITY_PROFILES);
-    expect(scaffold.capabilityProfiles).toEqual(SHIPPED_CAPABILITY_PROFILES);
+    expect(repository.modelProfiles).toEqual(SHIPPED_CAPABILITY_PROFILES);
+    expect(scaffold.modelProfiles).toEqual(SHIPPED_CAPABILITY_PROFILES);
   });
 });
 
@@ -89,10 +89,7 @@ describe("runtime configuration selection", () => {
       expect(selected.source).toBe("bundled");
       expect(path.isAbsolute(selected.path)).toBe(true);
       expect(
-        getRuntimeConfigScalar(
-          selected.value,
-          "capabilityProfiles.balanced.codex",
-        ),
+        getRuntimeConfigScalar(selected.value, "modelProfiles.balanced.codex"),
       ).toBe(SHIPPED_CAPABILITY_PROFILES.balanced.codex);
     } finally {
       process.chdir(previousCwd);
@@ -221,7 +218,7 @@ describe("runtime configuration selection", () => {
     const configPath = await createConfigFile(tempDir);
     const selected = await selectRuntimeConfig(configPath);
 
-    expect(getRuntimeConfigScalar(selected.value, "version")).toBe(2);
+    expect(getRuntimeConfigScalar(selected.value, "version")).toBe(3);
     expect(() => getRuntimeConfigScalar(selected.value, "configDir")).toThrow(
       "Configuration key not found: configDir",
     );
@@ -244,8 +241,8 @@ describe("runtime configuration catalog", () => {
     await writeFile(
       catalogPath,
       JSON.stringify({
-        schema: "devcanon/runtime-config/v1",
-        capabilityProfiles: {
+        schema: "devcanon/runtime-config/v2",
+        modelProfiles: {
           efficient: { claude: "a", codex: "b" },
           balanced: { claude: "c", codex: "d" },
           frontier: { claude: "e", codex: "f" },
@@ -265,9 +262,9 @@ describe("runtime configuration catalog", () => {
     await writeFile(
       catalogPath,
       [
-        '{"schema":"devcanon/runtime-config/v1",',
-        '"schema":"devcanon/runtime-config/v1",',
-        '"capabilityProfiles":{"efficient":{"claude":"a","codex":"b"},',
+        '{"schema":"devcanon/runtime-config/v2",',
+        '"schema":"devcanon/runtime-config/v2",',
+        '"modelProfiles":{"efficient":{"claude":"a","codex":"b"},',
         '"balanced":{"claude":"c","codex":"d"},',
         '"frontier":{"claude":"e","codex":"f"}}}',
       ].join(""),
@@ -291,8 +288,8 @@ describe("runtime configuration catalog", () => {
     [
       "a missing required capability profile",
       JSON.stringify({
-        schema: "devcanon/runtime-config/v1",
-        capabilityProfiles: {
+        schema: "devcanon/runtime-config/v2",
+        modelProfiles: {
           efficient: { claude: "a", codex: "b" },
           balanced: { claude: "c", codex: "d" },
         },
@@ -342,16 +339,16 @@ describe("runtime configuration catalog", () => {
 
   it.each([
     "",
-    "capabilityProfiles..codex",
-    "capabilityProfiles[balanced].codex",
+    "modelProfiles..codex",
+    "modelProfiles[balanced].codex",
     "__proto__.polluted",
-    "capabilityProfiles.balanced",
-    "capabilityProfiles.unknown.codex",
+    "modelProfiles.balanced",
+    "modelProfiles.unknown.codex",
   ])("rejects unsafe or non-scalar key %j", (key) => {
     expect(() =>
       getRuntimeConfigScalar(
         {
-          capabilityProfiles: {
+          modelProfiles: {
             balanced: { codex: "test-codex-balanced" },
           },
         },
@@ -377,8 +374,8 @@ describe("runtime configuration catalog", () => {
 
 function validRuntimeCatalog() {
   return {
-    schema: "devcanon/runtime-config/v1",
-    capabilityProfiles: {
+    schema: "devcanon/runtime-config/v2",
+    modelProfiles: {
       efficient: { claude: "a", codex: "b" },
       balanced: { claude: "c", codex: "d" },
       frontier: { claude: "e", codex: "f" },

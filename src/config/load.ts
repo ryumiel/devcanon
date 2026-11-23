@@ -127,20 +127,22 @@ function preflightConfigVersion(parsed: unknown, configPath: string): void {
   }
 
   const parsedRecord = parsed as Record<string, unknown>;
-  if (parsedRecord.version === 1) {
+  if (parsedRecord.version === 1 || parsedRecord.version === 2) {
     throw new UserError(
-      "Config version 1 is no longer supported.",
+      `Config version ${parsedRecord.version} is no longer supported.`,
       configPath,
-      "Migrate to version: 2 and define the required capabilityProfiles catalog.",
+      "Migrate to version: 3 and define the required modelProfiles catalog.",
     );
   }
 
-  if (parsedRecord.version === 2 && Object.hasOwn(parsedRecord, "modelTiers")) {
-    throw new UserError(
-      'Config field "modelTiers" is no longer supported in version 2.',
-      configPath,
-      "Replace modelTiers with the required efficient, balanced, and frontier capabilityProfiles entries using direct Claude and Codex model strings.",
-    );
+  for (const field of ["modelTiers", "capabilityProfiles"]) {
+    if (Object.hasOwn(parsedRecord, field)) {
+      throw new UserError(
+        `Config field "${field}" is no longer supported.`,
+        configPath,
+        "Use modelProfiles with efficient, balanced, frontier, and implementation entries.",
+      );
+    }
   }
 }
 
@@ -244,7 +246,7 @@ function resolveConfig(config: Config, configPath: string): ResolvedConfig {
     manifest: {
       path: resolveFromBase(config.manifest.path, configDir),
     },
-    capabilityProfiles: config.capabilityProfiles,
+    modelProfiles: config.modelProfiles,
     toolNames: config.toolNames,
     fileArtifacts: config.fileArtifacts,
   };

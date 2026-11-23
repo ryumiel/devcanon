@@ -1,10 +1,12 @@
-import { readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
 import { readAgentSemanticRoleOwner } from "../__test-helpers__/agent-routing-policy.js";
 import {
-  SHIPPED_CAPABILITY_PROFILES,
+  cleanupTempDir,
+  createTempDir,
+  makeConfigYaml,
   providerFromRuntimeFixture,
 } from "../__test-helpers__/fixtures.js";
 import {
@@ -12,7 +14,8 @@ import {
   parseRenderedTomlArtifact,
 } from "../__test-helpers__/render.js";
 import { loadConfig } from "../config/load.js";
-import type { ResolvedConfig } from "../config/schema.js";
+import type { ModelProfile, ResolvedConfig } from "../config/schema.js";
+import { sync } from "../install/sync.js";
 import { renderAll as renderAllWithProvider } from "./pipeline.js";
 
 interface AgentSourceFixture {
@@ -21,12 +24,12 @@ interface AgentSourceFixture {
   instructions: string;
   capability: "efficient" | "balanced" | "frontier";
   claude: {
-    model?: string;
+    modelProfile?: ModelProfile;
     effort?: string;
     tools: string[];
   };
   codex: {
-    model?: string | null;
+    modelProfile?: ModelProfile;
     model_reasoning_effort?: string;
     sandbox_mode: string;
   };
@@ -126,18 +129,18 @@ describe("shipped semantic agents", () => {
       expect(source.claude).not.toHaveProperty("model");
       expect(source.claude.effort).toBe(role.claudeEffort);
       expect(source.claude.tools).toEqual(role.claudeTools);
+      expect(source.claude.modelProfile).toBe(role.capability);
       if (PINNED_CODEX_ROLES.has(role.name)) {
-        expect(source.codex.model).toEqual(expect.stringMatching(/\S/));
-        if (role.name === "implementer") {
-          expect(source.codex.model).toBe("gpt-6.1-terra");
-        } else if (role.name !== "reviewer") {
-          expect(source.codex.model).toBe(
-            SHIPPED_CAPABILITY_PROFILES[role.capability].codex,
-          );
-        }
+        const profile =
+          role.name === "implementer"
+            ? "implementation"
+            : role.name === "reviewer"
+              ? "balanced"
+              : role.capability;
+        expect(source.codex.modelProfile).toBe(profile);
         expect(source.codex.model_reasoning_effort).toBe(role.routeEffort);
       } else {
-        expect(source.codex.model).toBeNull();
+        expect(source.codex).not.toHaveProperty("modelProfile");
         expect(source.codex).not.toHaveProperty("model_reasoning_effort");
       }
       expect(source.codex.sandbox_mode).toBe(role.codexSandbox);
@@ -149,6 +152,21 @@ describe("shipped semantic agents", () => {
       readAgentSemanticRoleOwner(),
       loadConfigWithFixedSkillsHome(),
     ]);
+    config.modelProfiles.efficient = {
+      codex: "codex-efficient-check",
+      claude: "claude-efficient-check",
+    };
+    config.modelProfiles.balanced = {
+      codex: "codex-balanced-check",
+      claude: "claude-balanced-check",
+    };
+    config.modelProfiles.frontier = {
+      codex: "codex-frontier-check",
+      claude: "claude-frontier-check",
+    };
+    config.modelProfiles.implementation = {
+      codex: "codex-implementation-check",
+    };
     const { outputs, agents } = await renderAll(config, false, true);
     const agentOutputs = outputs.filter((output) => output.type === "agent");
 
@@ -170,7 +188,7 @@ describe("shipped semantic agents", () => {
         name: role.name,
         description: source.description,
         tools: role.claudeTools.join(", "),
-        model: config.capabilityProfiles[role.capability].claude,
+        model: config.modelProfiles[role.capability].claude,
         ...(role.claudeEffort === undefined
           ? {}
           : { effort: role.claudeEffort }),
@@ -185,7 +203,10 @@ describe("shipped semantic agents", () => {
         description: source.description,
         ...(PINNED_CODEX_ROLES.has(role.name)
           ? {
-              model: source.codex?.model,
+              model:
+                config.modelProfiles[
+                  source.codex?.modelProfile ?? role.capability
+                ].codex,
               model_reasoning_effort: role.routeEffort,
             }
           : {}),
@@ -200,6 +221,97 @@ describe("shipped semantic agents", () => {
       }
       expect(claudeOutput.content).not.toContain("{{model:");
       expect(codexOutput.content).not.toContain("{{model:");
+    }
+  });
+  it("updates installed agents, dispatch bindings, and catalog after only a config edit", async () => {
+    const temp = await createTempDir();
+    const configPath = path.join(temp, "devcanon.config.yaml");
+    const source = await loadConfigWithFixedSkillsHome();
+    const provider = await providerFromRuntimeFixture(
+      path.join(source.library.skillsDir, "devcanon-runtime"),
+    );
+    const claudeSkillsHome = path.join(temp, "claude", "skills");
+    const codexSkillsHome = path.join(temp, "codex", "skills");
+    const codexAgentsHome = path.join(temp, "codex", "agents");
+    const options = { dryRun: false, force: false, strict: true };
+    const writeConfig = (modelProfiles: ResolvedConfig["modelProfiles"]) =>
+      writeFile(
+        configPath,
+        makeConfigYaml({
+          library: {
+            ...source.library,
+            generatedDir: path.join(temp, "generated"),
+          },
+          targets: {
+            claude: {
+              skillsHome: claudeSkillsHome,
+              agentsHome: path.join(temp, "claude", "agents"),
+              installMode: "copy",
+            },
+            codex: {
+              skillsHome: codexSkillsHome,
+              agentsHome: codexAgentsHome,
+              installMode: "copy",
+            },
+          },
+          manifest: { path: path.join(temp, "manifest.json") },
+          toolNames: source.toolNames,
+          fileArtifacts: source.fileArtifacts,
+          modelProfiles,
+        }),
+      );
+    try {
+      await writeConfig(source.modelProfiles);
+      expect(
+        await sync(await loadConfig(configPath), options, provider),
+      ).toMatchObject({
+        errors: [],
+        conflicts: 0,
+      });
+      const updatedProfiles = {
+        ...source.modelProfiles,
+        balanced: {
+          ...source.modelProfiles.balanced,
+          codex: "updated-balanced-model",
+        },
+        implementation: { codex: "updated-implementation-model" },
+      };
+      await writeConfig(updatedProfiles);
+      expect(
+        await sync(await loadConfig(configPath), options, provider),
+      ).toMatchObject({
+        errors: [],
+        conflicts: 0,
+      });
+      for (const [role, model] of [
+        ["reviewer", updatedProfiles.balanced.codex],
+        ["implementer", updatedProfiles.implementation.codex],
+      ]) {
+        const content = await readFile(
+          path.join(codexAgentsHome, `${role}.toml`),
+          "utf8",
+        );
+        expect(parseRenderedTomlArtifact(content).model).toBe(model);
+      }
+      for (const root of [claudeSkillsHome, codexSkillsHome]) {
+        const workflow = await readFile(
+          path.join(root, "play-subagent-execution", "SKILL.md"),
+          "utf8",
+        );
+        const catalog = await readFile(
+          path.join(root, "devcanon-runtime", "config", "runtime-config.json"),
+          "utf8",
+        );
+        expect(workflow).toContain(
+          'TASK_SPEC_REVIEW_MODEL = "updated-balanced-model"',
+        );
+        expect(workflow).toContain(
+          "`DEFAULT_IMPLEMENTATION_MODEL` = `updated-implementation-model`",
+        );
+        expect(JSON.parse(catalog).modelProfiles).toEqual(updatedProfiles);
+      }
+    } finally {
+      await cleanupTempDir(temp);
     }
   });
 });

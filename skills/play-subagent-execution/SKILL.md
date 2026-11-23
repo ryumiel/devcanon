@@ -239,7 +239,7 @@ non-authoritative.
 
 ## Target-specific implementation and review roles
 
-Codex implementer dispatch uses the literal `gpt-6.1-terra`/`medium` override.
+Codex implementer dispatch uses the implementation model profile at `medium`.
 Task specification review, task quality review and whole-implementation quality
 review use `reviewer`, the fixed model bindings below, and `high` on Codex. Wherever this
 skill or its prompt templates name reviewer for those gates, Claude instead
@@ -474,15 +474,14 @@ When model selection is available, choose a capability that matches the role:
 - Integration work or ordinary implementation → `balanced`
 - Architecture, design, or adversarial review → `frontier`
 
-Capability selects only the model. It never implies effort, authority, tools,
-sandbox, approvals, or `**Mode:** mechanical`. Mechanical mode does not select a
-capability.
+The route declares its model profile independently of capability, effort,
+authority, tools, sandbox, approvals, and `**Mode:** mechanical`.
 
-The route owner supplies the capability and independent effort. Every fresh
+The route owner supplies the capability, model binding, and independent effort. Every fresh
 Codex dispatch resolves its full model from its Codex-bound rendered route binding
 and passes both model and effort explicitly. Rendered semantic role TOML
 emits literal model and effort defaults when its source specifies them;
-executor retains explicit-null model suppression and omitted effort. Direct
+executor omits its model selector and reasoning effort. Direct
 dispatch still supplies its complete route tuple independently. Default implementation
 uses `implementer`, balanced/medium; exact task execution uses `executor`, efficient/medium; and
 per-task and whole-implementation reviews use `reviewer`, frontier/high on Codex. On Claude they retain
@@ -504,13 +503,13 @@ spawn, and do not invent inline fallback detail. That reference owns the
 generic dispatch ritual; this workflow owns its route values, prompt and output
 contracts, and termination below.
 
-| Route                                 | `agent_type`  | Capability  | Model marker                                               | `reasoning_effort` | `source_authority` | Prompt                                                      |
-| ------------------------------------- | ------------- | ----------- | ---------------------------------------------------------- | ------------------ | ------------------ | ----------------------------------------------------------- |
-| `default-implementation`              | `implementer` | `balanced`  | `DEFAULT_IMPLEMENTATION_MODEL` = `gpt-6.1-terra`           | `medium`           | `source-mutable`   | `DEFAULT_IMPLEMENTATION_SELF_CONTAINED_PROMPT`              |
-| `exact-task-execution`                | `executor`    | `efficient` | `EXACT_TASK_EXECUTION_MODEL` = `{{model-codex:efficient}}` | `medium`           | `source-mutable`   | `EXACT_TASK_EXECUTION_SELF_CONTAINED_PROMPT`                |
-| `task-spec-review`                    | `reviewer`    | `frontier`  | `TASK_SPEC_REVIEW_MODEL`                                   | `high`             | `source-immutable` | `TASK_SPEC_REVIEW_SELF_CONTAINED_PROMPT`                    |
-| `task-quality-review`                 | `reviewer`    | `frontier`  | `TASK_QUALITY_REVIEW_MODEL`                                | `high`             | `source-immutable` | `TASK_QUALITY_REVIEW_SELF_CONTAINED_PROMPT`                 |
-| `whole-implementation-quality-review` | `reviewer`    | `frontier`  | `WHOLE_IMPLEMENTATION_QUALITY_REVIEW_MODEL`                | `high`             | `source-immutable` | `WHOLE_IMPLEMENTATION_QUALITY_REVIEW_SELF_CONTAINED_PROMPT` |
+| Route                                 | `agent_type`  | Capability  | Model marker                                                      | `reasoning_effort` | `source_authority` | Prompt                                                      |
+| ------------------------------------- | ------------- | ----------- | ----------------------------------------------------------------- | ------------------ | ------------------ | ----------------------------------------------------------- |
+| `default-implementation`              | `implementer` | `balanced`  | `DEFAULT_IMPLEMENTATION_MODEL` = `{{model-codex:implementation}}` | `medium`           | `source-mutable`   | `DEFAULT_IMPLEMENTATION_SELF_CONTAINED_PROMPT`              |
+| `exact-task-execution`                | `executor`    | `efficient` | `EXACT_TASK_EXECUTION_MODEL` = `{{model-codex:efficient}}`        | `medium`           | `source-mutable`   | `EXACT_TASK_EXECUTION_SELF_CONTAINED_PROMPT`                |
+| `task-spec-review`                    | `reviewer`    | `frontier`  | `TASK_SPEC_REVIEW_MODEL`                                          | `high`             | `source-immutable` | `TASK_SPEC_REVIEW_SELF_CONTAINED_PROMPT`                    |
+| `task-quality-review`                 | `reviewer`    | `frontier`  | `TASK_QUALITY_REVIEW_MODEL`                                       | `high`             | `source-immutable` | `TASK_QUALITY_REVIEW_SELF_CONTAINED_PROMPT`                 |
+| `whole-implementation-quality-review` | `reviewer`    | `frontier`  | `WHOLE_IMPLEMENTATION_QUALITY_REVIEW_MODEL`                       | `high`             | `source-immutable` | `WHOLE_IMPLEMENTATION_QUALITY_REVIEW_SELF_CONTAINED_PROMPT` |
 
 | Route                                 | Self-contained prompt and output                                                              | Termination                                                      |
 | ------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
@@ -528,12 +527,14 @@ Use the fixed reviewer model bindings below when validating those routes.
 After validation and the existing route-local capture, create exactly one fresh
 child with the actual Codex fields:
 
-```text
-TASK_SPEC_REVIEW_MODEL = "gpt-6.2-sol"
-TASK_QUALITY_REVIEW_MODEL = "gpt-6.2-sol"
-WHOLE_IMPLEMENTATION_QUALITY_REVIEW_MODEL = "gpt-6.2-sol"
+`TASK_SPEC_REVIEW_MODEL = "{{model-codex:balanced}}"`
 
-# Default implementation: DEFAULT_IMPLEMENTATION_MODEL is the literal Codex implementer override
+`TASK_QUALITY_REVIEW_MODEL = "{{model-codex:balanced}}"`
+
+`WHOLE_IMPLEMENTATION_QUALITY_REVIEW_MODEL = "{{model-codex:balanced}}"`
+
+```text
+# Default implementation: DEFAULT_IMPLEMENTATION_MODEL is the rendered implementation Codex model
 Codex.spawn_agent({
   task_name: default_implementation_<instance_ordinal>,
   agent_type: "implementer",
@@ -551,7 +552,7 @@ Codex.spawn_agent({
   fork_turns: "none",
   message: EXACT_TASK_EXECUTION_SELF_CONTAINED_PROMPT,
 })
-# Task specification review: TASK_SPEC_REVIEW_MODEL is the literal Codex reviewer override
+# Task specification review: TASK_SPEC_REVIEW_MODEL is the rendered balanced Codex model
 Codex.spawn_agent({
   task_name: task_spec_review_<instance_ordinal>,
   agent_type: "reviewer",
@@ -560,7 +561,7 @@ Codex.spawn_agent({
   fork_turns: "none",
   message: TASK_SPEC_REVIEW_SELF_CONTAINED_PROMPT,
 })
-# Task quality review: TASK_QUALITY_REVIEW_MODEL is the literal Codex reviewer override
+# Task quality review: TASK_QUALITY_REVIEW_MODEL is the rendered balanced Codex model
 Codex.spawn_agent({
   task_name: task_quality_review_<instance_ordinal>,
   agent_type: "reviewer",
@@ -569,7 +570,7 @@ Codex.spawn_agent({
   fork_turns: "none",
   message: TASK_QUALITY_REVIEW_SELF_CONTAINED_PROMPT,
 })
-# Whole-implementation quality review: WHOLE_IMPLEMENTATION_QUALITY_REVIEW_MODEL is the literal Codex reviewer override
+# Whole-implementation quality review: WHOLE_IMPLEMENTATION_QUALITY_REVIEW_MODEL is the rendered balanced Codex model
 Codex.spawn_agent({
   task_name: whole_implementation_quality_review_<instance_ordinal>,
   agent_type: "reviewer",

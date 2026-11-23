@@ -1125,10 +1125,10 @@ describe("sync", () => {
     const options = { dryRun: false, force: false, strict: false } as const;
     const first = await sync(config, options);
     expect(first.errors).toEqual([]);
-    config.capabilityProfiles = {
-      ...config.capabilityProfiles,
+    config.modelProfiles = {
+      ...config.modelProfiles,
       balanced: {
-        ...config.capabilityProfiles.balanced,
+        ...config.modelProfiles.balanced,
         codex: "updated-profile-model",
       },
     };
@@ -1169,10 +1169,10 @@ describe("sync", () => {
     );
     expect(crlf).not.toEqual(original);
     await writeFile(shell, crlf);
-    config.capabilityProfiles = {
-      ...config.capabilityProfiles,
+    config.modelProfiles = {
+      ...config.modelProfiles,
       balanced: {
-        ...config.capabilityProfiles.balanced,
+        ...config.modelProfiles.balanced,
         codex: "updated-after-installed-shell-mutation",
       },
     };

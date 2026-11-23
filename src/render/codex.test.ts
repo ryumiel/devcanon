@@ -40,7 +40,7 @@ const agent: LoadedAgent = {
       "Follow these steps:\n\n## Step One\n\nDo the first thing.\n\n## Step Two\n\nDo the second thing.",
     skills: ["test-skill"],
     claude: {
-      model: "sonnet",
+      modelProfile: "balanced",
       tools: ["Read", "Grep", "Bash"],
     },
     codex: { sandbox_mode: "read-only" },
@@ -77,10 +77,11 @@ const config = {
   },
   platform: { windowsSymlinkFallback: "copy" as const },
   manifest: { path: "~/.devcanon/manifest.json" },
-  capabilityProfiles: {
+  modelProfiles: {
     efficient: { claude: "claude-haiku", codex: "gpt-mini" },
     balanced: { claude: "claude-sonnet", codex: "gpt-5.4" },
     frontier: { claude: "claude-opus", codex: "gpt-frontier" },
+    implementation: { codex: "test-codex-implementation" },
   },
 } satisfies ResolvedConfig;
 
@@ -133,7 +134,7 @@ describe("renderCodexAgent", () => {
       source: {
         ...agent.source,
         codex: {
-          model: "gpt-5.4",
+          modelProfile: "balanced",
           model_reasoning_effort: "high",
           sandbox_mode: "danger-full-access",
           nickname_candidates: ["builder", "reviewer"],
@@ -153,7 +154,7 @@ describe("renderCodexAgent", () => {
     const result = renderCodexAgent(fullAgent, emptySkills, config);
     const parsed = parseRenderedTomlArtifact(result.content);
     const expectedValues = {
-      model: "gpt-5.4",
+      modelProfile: config.modelProfiles.balanced.codex,
       model_reasoning_effort: "high",
       sandbox_mode: "danger-full-access",
       nickname_candidates: ["builder", "reviewer"],
@@ -169,7 +170,9 @@ describe("renderCodexAgent", () => {
     } satisfies Record<(typeof CODEX_TARGET_FIELDS)[number], unknown>;
 
     for (const field of CODEX_TARGET_FIELDS) {
-      expect(parsed[field]).toEqual(expectedValues[field]);
+      expect(parsed[field === "modelProfile" ? "model" : field]).toEqual(
+        expectedValues[field],
+      );
     }
   });
 
@@ -189,11 +192,15 @@ describe("renderCodexAgent", () => {
     expect(parsed.approval_policy).toBe("on-failure");
   });
 
-  it("resolves top-level capability without reasoning effort or a codex block", () => {
+  it("resolves an explicit model profile independently of capability and reasoning effort", () => {
     const result = renderCodexAgent(
       {
         ...agent,
-        source: { ...agent.source, capability: "balanced", codex: undefined },
+        source: {
+          ...agent.source,
+          capability: "frontier",
+          codex: { modelProfile: "balanced" },
+        },
       },
       emptySkills,
       config,
@@ -203,11 +210,11 @@ describe("renderCodexAgent", () => {
     expect(parsed).not.toHaveProperty("model_reasoning_effort");
   });
 
-  it("rejects a schema-bypassed custom capability even when its profile is owned", () => {
+  it("rejects a schema-bypassed custom model profile even when its profile is owned", () => {
     const customConfig = {
       ...config,
-      capabilityProfiles: {
-        ...config.capabilityProfiles,
+      modelProfiles: {
+        ...config.modelProfiles,
         experimental: { claude: "custom-claude", codex: "custom-codex" },
       },
     } as ResolvedConfig;
@@ -218,97 +225,13 @@ describe("renderCodexAgent", () => {
           ...agent,
           source: {
             ...agent.source,
-            capability: "experimental" as "balanced",
-            codex: { sandbox_mode: "read-only" },
+            codex: { modelProfile: "experimental" as "balanced" },
           },
         },
         emptySkills,
         customConfig,
       ),
-    ).toThrow(/unknown capability "experimental"/);
-  });
-
-  it("prefers a literal model and emits only explicit reasoning effort", () => {
-    const literalAgent = withCodex(agent, {
-      model: "literal-codex",
-      model_reasoning_effort: "high",
-    });
-    const result = renderCodexAgent(
-      {
-        ...literalAgent,
-        source: { ...literalAgent.source, capability: "balanced" },
-      },
-      emptySkills,
-      config,
-    );
-    const parsed = parseRenderedTomlArtifact(result.content);
-    expect(parsed.model).toBe("literal-codex");
-    expect(parsed.model_reasoning_effort).toBe("high");
-  });
-
-  it("distinguishes explicit-null Codex model suppression from absence", () => {
-    const installed = installTestLogger();
-    try {
-      const suppressedAgent = withCodex(agent, {
-        model: null,
-        nickname_candidates: ["builder"],
-        approval_policy: "on-request",
-      });
-      const { model: _, ...codexWithoutModel } =
-        suppressedAgent.source.codex ?? {};
-      const suppressedAgentWithEffort = withCodex(suppressedAgent, {
-        model_reasoning_effort: "high",
-      });
-      const sourceWithCapability = {
-        ...suppressedAgent.source,
-        capability: "balanced" as const,
-      };
-      const suppressed = renderCodexAgent(
-        {
-          ...suppressedAgent,
-          source: sourceWithCapability,
-        },
-        emptySkills,
-        config,
-      );
-      const derived = renderCodexAgent(
-        {
-          ...suppressedAgent,
-          source: { ...sourceWithCapability, codex: codexWithoutModel },
-        },
-        emptySkills,
-        config,
-      );
-      const suppressedWithEffort = renderCodexAgent(
-        {
-          ...suppressedAgentWithEffort,
-          source: {
-            ...sourceWithCapability,
-            codex: suppressedAgentWithEffort.source.codex,
-          },
-        },
-        emptySkills,
-        config,
-      );
-      const suppressedParsed = parseRenderedTomlArtifact(suppressed.content);
-      const derivedParsed = parseRenderedTomlArtifact(derived.content);
-      const suppressedWithEffortParsed = parseRenderedTomlArtifact(
-        suppressedWithEffort.content,
-      );
-
-      expect(suppressedParsed).not.toHaveProperty("model");
-      expect(derivedParsed.model).toBe("gpt-5.4");
-      expect(derivedParsed).not.toHaveProperty("model_reasoning_effort");
-      expect(suppressedWithEffortParsed).not.toHaveProperty("model");
-      expect(suppressedWithEffortParsed.model_reasoning_effort).toBe("high");
-      expect(suppressedParsed.sandbox_mode).toBe("read-only");
-      expect(suppressedParsed.nickname_candidates).toEqual(["builder"]);
-      expect(suppressedParsed.approval_policy).toBe("on-request");
-      expect(suppressedParsed.developer_instructions).toContain("## Skills");
-      expect(installed.testLogger.warnings).toEqual([]);
-    } finally {
-      installed.restore();
-    }
+    ).toThrow(/experimental/);
   });
 
   it("omits ambient model and reasoning effort", () => {
@@ -323,19 +246,20 @@ describe("renderCodexAgent", () => {
   });
 
   it.each([
-    ["capability", undefined, "balanced"],
-    ["literal", "literal-codex", undefined],
-    ["ambient", undefined, undefined],
+    ["profile", "balanced"],
+    ["ambient", undefined],
   ] as const)(
     "emits explicit reasoning effort on the %s model path",
-    (_path, model, capability) => {
+    (_path, modelProfile) => {
       const result = renderCodexAgent(
         {
           ...agent,
           source: {
             ...agent.source,
-            capability,
-            codex: { model, model_reasoning_effort: "high" },
+            codex: {
+              ...(modelProfile === undefined ? {} : { modelProfile }),
+              model_reasoning_effort: "high",
+            },
           },
         },
         emptySkills,
@@ -347,19 +271,17 @@ describe("renderCodexAgent", () => {
   );
 
   it.each([
-    ["capability", undefined, "balanced"],
-    ["literal", "literal-codex", undefined],
-    ["ambient", undefined, undefined],
+    ["profile", "balanced"],
+    ["ambient", undefined],
   ] as const)(
     "does not infer reasoning effort on the %s model path",
-    (_path, model, capability) => {
+    (_path, modelProfile) => {
       const result = renderCodexAgent(
         {
           ...agent,
           source: {
             ...agent.source,
-            capability,
-            codex: model === undefined ? undefined : { model },
+            codex: modelProfile === undefined ? undefined : { modelProfile },
           },
         },
         emptySkills,
@@ -382,7 +304,7 @@ describe("renderCodexAgent", () => {
       // renderer must refuse placeholders from callers that bypass validation.
       expect(() =>
         renderCodexAgent(withCodex(agent, { model }), emptySkills, config),
-      ).toThrow(/top-level capability.*literal target model/);
+      ).toThrow(/Legacy codex.model.*modelProfile/);
     },
   );
 
@@ -575,7 +497,7 @@ describe("Codex TOML renderer round-trip", () => {
         skills: [],
         claude: undefined,
         codex: makeCodexSource({
-          model: "mo\ndel",
+          modelProfile: "balanced",
           model_reasoning_effort: "hi\tgh",
           sandbox_mode: "sb\tmode",
           approval_policy: 'ap\\prov"al',
@@ -591,7 +513,7 @@ describe("Codex TOML renderer round-trip", () => {
 
     expect(parsed.name).toBe(fixture.source.name);
     expect(parsed.description).toBe(fixture.source.description);
-    expect(parsed.model).toBe(fixture.source.codex?.model);
+    expect(parsed.model).toBe(config.modelProfiles.balanced.codex);
     expect(parsed.model_reasoning_effort).toBe(
       fixture.source.codex?.model_reasoning_effort,
     );

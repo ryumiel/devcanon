@@ -92,7 +92,7 @@ describe("devcanon-runtime typed entrypoint", () => {
         "config",
         "get",
         "--key",
-        "capabilityProfiles.balanced.codex",
+        "modelProfiles.balanced.codex",
       ]);
       expect(JSON.parse(result.stdout)).toMatchObject({
         value: SHIPPED_CAPABILITY_PROFILES.balanced.codex,

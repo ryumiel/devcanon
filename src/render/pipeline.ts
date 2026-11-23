@@ -582,16 +582,6 @@ function validateLoadedInputs(
       agent.filePath,
       `Loaded agent "${agent.name}" file`,
     );
-    validateLoadedAgentLiteralModel(
-      agent.name,
-      "claude.model",
-      agent.source.claude?.model,
-    );
-    validateLoadedAgentLiteralModel(
-      agent.name,
-      "codex.model",
-      agent.source.codex?.model,
-    );
     for (const skillRef of agent.source.skills) {
       if (!validatedSkillNames.has(skillRef)) {
         throw new UserError(
@@ -600,18 +590,6 @@ function validateLoadedInputs(
       }
     }
   }
-}
-
-function validateLoadedAgentLiteralModel(
-  agentName: string,
-  fieldPath: "claude.model" | "codex.model",
-  value: string | null | undefined,
-): void {
-  if (!value?.includes("{{model:")) return;
-
-  throw new UserError(
-    `Loaded agent "${agentName}": ${fieldPath} no longer supports model placeholders (received "${value}"); set top-level capability to efficient, balanced, or frontier, or use a literal target model.`,
-  );
 }
 
 function validateLoadedSkill(

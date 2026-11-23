@@ -165,14 +165,9 @@ procedure from becoming a competing role-envelope owner.
 
 Current semantic role defaults and target-native efforts are owned by
 [`agents/*.yaml`](../../agents/) and the
-[semantic role catalog](../specs/agents.md#semantic-role-catalog). Codex role
-sources use literal model overrides for assessor, investigator, implementer,
-reviewer, architect, and deep-reviewer; executor retains explicit `codex.model: null`.
-Do not copy provider model identifiers into independent authoring guidance or
-test expectations. The catalog defines Codex route effort separately from
-Claude effort. Keep source defaults and direct-route settings consistent when
-changing a model or effort. Literal, absent, and explicit-null Codex model
-states retain their meanings defined by the agent spec.
+[semantic role catalog](../specs/agents.md#semantic-role-catalog). Each target selects its model with
+`modelProfile`. Codex executor omits the selector. Keep the role's model
+profile and explicit effort consistent with its direct routes.
 
 Reusable methods still stay in skills. The owning workflow must guard a
 source-immutable dispatch before consuming the result; the spec-owned

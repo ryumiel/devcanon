@@ -13,12 +13,13 @@ instructions: |
 skills: []
 capability: frontier
 claude:
+  modelProfile: frontier
   effort: xhigh
   tools:
     - Read
     - Grep
     - Bash
 codex:
-  model: gpt-6.2-astra
+  modelProfile: frontier
   model_reasoning_effort: high
   sandbox_mode: workspace-write

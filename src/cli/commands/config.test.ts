@@ -40,7 +40,8 @@ describe("config CLI actions", () => {
       path.join(tempDir, "config"),
       makeConfigYaml({
         defaults: { installMode: "copy" },
-        capabilityProfiles: {
+        modelProfiles: {
+          implementation: { codex: "custom-implementation" },
           efficient: { claude: "custom-haiku", codex: "custom-luna" },
           balanced: { claude: "custom-sonnet", codex: "custom-terra" },
           frontier: { claude: "custom-opus", codex: "custom-sol" },
@@ -50,7 +51,7 @@ describe("config CLI actions", () => {
 
     await configPathAction({}, commandWith({ config: configPath }));
     await configGetAction(
-      "capabilityProfiles.balanced.codex",
+      "modelProfiles.balanced.codex",
       {},
       commandWith({ config: configPath, json: true }),
     );
@@ -60,7 +61,7 @@ describe("config CLI actions", () => {
       {
         path: path.resolve(configPath),
         source: "explicit",
-        key: "capabilityProfiles.balanced.codex",
+        key: "modelProfiles.balanced.codex",
         value: "custom-terra",
       },
     ]);
@@ -72,7 +73,7 @@ describe("config CLI actions", () => {
 
     await expect(
       configGetAction(
-        "capabilityProfiles[balanced].codex",
+        "modelProfiles[balanced].codex",
         {},
         commandWith({ config: configPath }),
       ),

@@ -447,12 +447,12 @@ describe("packaged passive runtime", () => {
           "config",
           "get",
           "--key",
-          "capabilityProfiles.balanced.codex",
+          "modelProfiles.balanced.codex",
         ],
         runtimeOptions,
       );
       expect(JSON.parse(catalog.stdout)).toMatchObject({
-        value: resolved.capabilityProfiles.balanced.codex,
+        value: resolved.modelProfiles.balanced.codex,
       });
       expect(catalog.stdout).toBe(
         `${JSON.stringify(JSON.parse(catalog.stdout))}\n`,

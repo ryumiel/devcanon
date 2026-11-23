@@ -7,7 +7,7 @@ import type {
 } from "../models/types.js";
 import { UserError } from "../utils/errors.js";
 import { sha256 } from "../utils/hash.js";
-import { resolveCapabilityModel } from "./capability-profiles.js";
+import { resolveProfileModel } from "./capability-profiles.js";
 import {
   SAFE_PASSTHROUGH_KEY,
   describeValueShape,
@@ -77,9 +77,9 @@ export function renderClaudeAgent(
   lines.push(`description: ${JSON.stringify(agent.source.description)}`);
 
   const claude = agent.source.claude;
-  if (claude?.model?.includes("{{model:")) {
+  if (claude && Object.hasOwn(claude, "model")) {
     throw new UserError(
-      `Agent "${agent.name}": claude.model no longer supports model placeholders (received "${claude.model}"); set top-level capability to efficient, balanced, or frontier, or use a literal target model.`,
+      "Legacy claude.model is unsupported. Select modelProfile or omit it.",
       agent.filePath,
     );
   }
@@ -87,12 +87,14 @@ export function renderClaudeAgent(
   if (claude?.tools?.length) {
     lines.push(`tools: ${claude.tools.join(", ")}`);
   }
-  const model = resolveCapabilityModel(
-    claude?.model,
-    agent.source.capability,
-    "claude",
-    config.capabilityProfiles,
-  );
+  const model =
+    claude?.modelProfile === undefined
+      ? undefined
+      : resolveProfileModel(
+          claude.modelProfile,
+          "claude",
+          config.modelProfiles,
+        );
   if (model) {
     lines.push(`model: ${JSON.stringify(model)}`);
   }

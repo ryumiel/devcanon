@@ -133,6 +133,8 @@ export async function loadAndValidateAgents(
       }
 
       for (const field of unknownFields) {
+        // The schema reports these removed keys as errors in both modes.
+        if (field === "claude.model" || field === "codex.model") continue;
         if (strict) {
           errors.push(`Agent "${entry.name}": unknown field "${field}".`);
         } else {
@@ -165,19 +167,6 @@ export async function loadAndValidateAgents(
       }
     }
 
-    validateAgentLiteralModel(
-      source.name,
-      "claude.model",
-      source.claude?.model,
-      errors,
-    );
-    validateAgentLiteralModel(
-      source.name,
-      "codex.model",
-      source.codex?.model,
-      errors,
-    );
-
     agents.push({ name: source.name, filePath, source });
   }
 
@@ -207,17 +196,4 @@ export async function loadAndValidateAgents(
   }
 
   return agents;
-}
-
-function validateAgentLiteralModel(
-  agentName: string,
-  fieldPath: "claude.model" | "codex.model",
-  value: string | null | undefined,
-  errors: string[],
-): void {
-  if (!value?.includes("{{model:")) return;
-
-  errors.push(
-    `Agent "${agentName}": ${fieldPath} no longer supports model placeholders (received "${value}"); set top-level capability to efficient, balanced, or frontier, or use a literal target model.`,
-  );
 }

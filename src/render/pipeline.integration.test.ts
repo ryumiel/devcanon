@@ -842,7 +842,7 @@ describe("renderAll", () => {
         "passthrough-claude",
         makeAgentYaml("passthrough-claude", {
           claude: {
-            model: "sonnet",
+            modelProfile: "balanced",
             experimental_mode: "beta",
             mcp_servers: ["fs", "web"],
           },
@@ -857,7 +857,9 @@ describe("renderAll", () => {
       expect(claudeOutput).toBeDefined();
       expect(claudeOutput?.content).toContain('experimental_mode: "beta"');
       expect(claudeOutput?.content).toContain('mcp_servers: ["fs", "web"]');
-      expect(claudeOutput?.content).toContain('model: "sonnet"');
+      expect(claudeOutput?.content).toContain(
+        `model: "${config.modelProfiles.balanced.claude}"`,
+      );
     });
 
     it("preserves unknown codex field end-to-end into rendered .toml", async () => {
@@ -890,7 +892,7 @@ describe("renderAll", () => {
         "passthrough-shape-skip",
         makeAgentYaml("passthrough-shape-skip", {
           claude: {
-            model: "sonnet",
+            modelProfile: "balanced",
             nested_object: { a: 1 },
           },
         }),
@@ -902,7 +904,9 @@ describe("renderAll", () => {
         (o): o is RenderedAgent => o.type === "agent" && o.target === "claude",
       );
       expect(claudeOutput?.content).not.toContain("nested_object");
-      expect(claudeOutput?.content).toContain('model: "sonnet"');
+      expect(claudeOutput?.content).toContain(
+        `model: "${config.modelProfiles.balanced.claude}"`,
+      );
     });
   });
 
@@ -1255,18 +1259,19 @@ describe("renderAll", () => {
     expect(parsed.body).toContain("model: {{model:fast}}");
   });
 
-  it("resolves capability with a one-target literal override and explicit effort", async () => {
+  it("resolves target profiles independently of capability and effort", async () => {
     await createAgentFixture(
       config.library.agentsDir,
       "capability-agent",
       makeAgentYaml("capability-agent", {
         capability: "balanced",
         claude: {
-          model: "literal-claude",
+          modelProfile: "balanced",
           effort: "high",
           tools: ["Read", "Grep"],
         },
         codex: {
+          modelProfile: "implementation",
           model_reasoning_effort: "low",
           sandbox_mode: "read-only",
         },
@@ -1288,12 +1293,12 @@ describe("renderAll", () => {
     );
     const toml = parseRenderedTomlArtifact(codex?.content ?? "");
     expect(frontmatter).toMatchObject({
-      model: "literal-claude",
+      model: config.modelProfiles.balanced.claude,
       effort: "high",
       tools: "Read, Grep",
     });
     expect(toml).toMatchObject({
-      model: config.capabilityProfiles.balanced.codex,
+      model: config.modelProfiles.implementation.codex,
       model_reasoning_effort: "low",
       sandbox_mode: "read-only",
     });
@@ -2349,10 +2354,7 @@ describe("renderLoaded", () => {
         }),
       ).rejects.toSatisfy((err: unknown) => {
         expect(err).toBeInstanceOf(UserError);
-        expect((err as UserError).message).toContain(`${target}.model`);
-        expect((err as UserError).message).toMatch(
-          /top-level capability.*literal target model/,
-        );
+        expect((err as UserError).message).toContain("is not validated");
         return true;
       });
 

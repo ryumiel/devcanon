@@ -19,6 +19,7 @@ skills: []
 capability: balanced
 
 claude:
+  modelProfile: balanced
   effort: high
   tools:
     - Read
@@ -29,6 +30,6 @@ claude:
     - WebSearch
 
 codex:
-  model: gpt-6.2-sol
+  modelProfile: balanced
   model_reasoning_effort: medium
   sandbox_mode: workspace-write

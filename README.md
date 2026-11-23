@@ -73,6 +73,9 @@ configure Git hooks and the commit template. See
 
 ### Refreshing an existing checkout
 
+For a v2 installation, follow the [v3 cutover](docs/specs/configuration.md#cut-over-to-v3)
+before updating the checkout.
+
 Check your [PATH setup](#configure-path), then update the stable checkout,
 refresh dependencies, register the updated CLI, and sync managed outputs.
 

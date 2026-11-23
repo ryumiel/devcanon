@@ -60,7 +60,7 @@ export async function validateAction(
     diagnostics: {
       enabled: true,
       strict,
-      capabilityProfiles: config.capabilityProfiles,
+      modelProfiles: config.modelProfiles,
       toolNames: config.toolNames,
       fileArtifacts: config.fileArtifacts,
       reporter: (diagnostic) => skillDiagnostics.push(diagnostic),

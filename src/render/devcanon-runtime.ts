@@ -661,7 +661,7 @@ function assertRuntimeContract(stdout: string): void {
 
 function renderedRuntimeCatalog(config: ResolvedConfig): Buffer {
   return Buffer.from(
-    `${JSON.stringify({ schema: RUNTIME_CONFIG_SCHEMA, capabilityProfiles: config.capabilityProfiles }, null, 2)}\n`,
+    `${JSON.stringify({ schema: RUNTIME_CONFIG_SCHEMA, modelProfiles: config.modelProfiles }, null, 2)}\n`,
     "utf-8",
   );
 }

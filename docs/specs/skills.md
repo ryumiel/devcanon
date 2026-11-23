@@ -161,10 +161,10 @@ for the rewrite triggers.
 Four placeholder forms resolve at render time against
 glossaries in `devcanon.config.yaml`:
 
-- `{{model:<capability>}}` against `capabilityProfiles` (for example,
+- `{{model:<profile>}}` against `modelProfiles` (for example,
   `{{model:frontier}}`).
-- `{{model-codex:<capability>}}` against the Codex member of
-  `capabilityProfiles` for prose that feeds an explicit Codex execution
+- `{{model-codex:<profile>}}` against the Codex member of
+  `modelProfiles` for prose that feeds an explicit Codex execution
   primitive, regardless of the rendered artifact target.
 - `{{tool:<key>}}` against `toolNames` (e.g.
   `{{tool:task-tracker}}`).
@@ -207,9 +207,9 @@ these invalid forms rather than silently leaving them unresolved.
 ## Shared prose conventions
 
 - Use `{{model:efficient}}`, `{{model:balanced}}`, and
-  `{{model:frontier}}` for model-capability references in shared
+  `{{model:frontier}}` for model profile references in shared
   skill bodies.
-- Use `{{model-codex:<capability>}}` only when the rendered value is passed to
+- Use `{{model-codex:<profile>}}` only when the rendered value is passed to
   an explicit Codex execution primitive in both artifact targets.
 - Use `{{tool:<key>}}` and `{{file:<key>}}` for tool and
   artifact names whose spelling differs across targets. Example:
@@ -222,7 +222,7 @@ these invalid forms rather than silently leaving them unresolved.
 
 In `validate`, drift diagnostics cover configured model IDs, tool names,
 artifact files, and target-specific path segments in
-shared prose. The model token list is auto-derived from `capabilityProfiles`,
+shared prose. The model token list is auto-derived from `modelProfiles`,
 `toolNames`, and `fileArtifacts`; configured values become drift tokens
 automatically. The path check additionally flags `.claude/`,
 `.codex/`, and `.agents/`. Diagnostics are reported as warnings
@@ -312,14 +312,15 @@ passive-runtime spec owns physical custody and overwrite policy.
 - Skill names must be unique.
 - Every active `{{X:Y}}` placeholder must use `X` ∈ {`model`,
   `model-codex`, `tool`, `file`}. Model and model-codex `Y` values must be
-  exactly `efficient`, `balanced`, or `frontier`; tool and file keys must exist
-  in the corresponding glossary.
-- Model and model-codex placeholders use the exact capability enum. `toolNames` and
+  `efficient`, `balanced`, `frontier`, or `implementation`. The implementation
+  profile resolves only for Codex. Tool and file keys must exist in the
+  corresponding glossary.
+- Model and model-codex placeholders use the exact model profile names. `toolNames` and
   `fileArtifacts` keys match `^[a-z0-9][a-z0-9-]*$` (lowercase, digits,
   hyphens; e.g. `task-tracker`, `project-instructions`).
 - Former model tokens, malformed active model tokens, and unknown model
-  capabilities fail validation with the exact source `SKILL.md` path and
-  guidance naming the three canonical tokens and `capabilityProfiles`.
+  profiles fail validation with the exact source `SKILL.md` path and
+  guidance naming the supported profile tokens and `modelProfiles`.
 - The backslash escape and block-code exemption are unchanged. Escaped or
   block-code historical examples remain literal and are not migration
   failures. [Markdown parsing behavior](markdown-parsing.md) owns the syntax

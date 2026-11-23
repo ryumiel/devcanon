@@ -8,8 +8,8 @@ Examples:
 
 - invalid config
 - unsupported source config version
-- removed version 2 `modelTiers` field
-- missing, extra, or malformed `capabilityProfiles`
+- legacy `modelTiers` and `capabilityProfiles` fields
+- missing, extra, or malformed `modelProfiles`
 - unsupported or malformed active skill model capability
 - model placeholder in an agent target model field
 - missing `SKILL.md`
@@ -23,11 +23,11 @@ Behavior:
 - return non-zero exit code
 - preserve the most specific source path available; invalid active skill model
   tokens identify `skills/<name>/SKILL.md`
-- version 1 config and version 2 `modelTiers` use dedicated migration guidance
+- versions 1 and 2 and legacy model catalog fields use migration guidance
   before ordinary strict or non-strict schema handling
 - model-capability errors name the accepted `efficient`, `balanced`, and
-  `frontier` vocabulary and direct authors to `capabilityProfiles`, top-level
-  agent capability, or a literal target model as appropriate
+  `frontier` and `implementation` profiles and direct authors to `modelProfiles`
+  or the agent target selector as appropriate
 
 ---
 

@@ -103,7 +103,7 @@ to inspect or change the plan.
 
 ## Codex planning allocation
 
-Ordinary planning uses explicit Sol High selection under
+Ordinary planning uses explicit balanced Codex selection at high effort under
 [focused specialist selection](../play-agent-dispatch/SKILL.md#risk-based-specialist-selection).
 If planning exposes an unresolved material design risk, return it to the design
 owner for architect consultation rather than choosing new behavior in the plan.
@@ -759,8 +759,9 @@ Use only the fixed `COMBINED_PLANNING_REVIEW_MODEL` below with the
 `reviewer`, frontier/high, source-immutable, response-only tuple, with no
 handoffs or external authority:
 
+`COMBINED_PLANNING_REVIEW_MODEL = "{{model-codex:balanced}}"`
+
 ```text
-COMBINED_PLANNING_REVIEW_MODEL = "gpt-6.2-sol"
 Codex.spawn_agent({
   task_name: combined_planning_review_<instance_ordinal>,
   agent_type: "reviewer",

@@ -1,6 +1,6 @@
 # Example Workflow — `play-subagent-execution`
 
-This example uses Codex reviewer/Sol High for per-task and whole-implementation reviews and Terra Medium for
+This example uses Codex reviewer with the balanced profile at high effort for per-task and whole-implementation reviews and the implementation profile at medium effort for
 Default implementation. Claude retains deep-reviewer and its catalog effort, as specified by the
 enclosing skill.
 

@@ -718,9 +718,10 @@ describe("doctorAction", () => {
       "Config invalid: Config version 1 is no longer supported.",
     ],
     [
-      "v2 missing frontier Codex model",
+      "v3 missing frontier Codex model",
       makeConfigYaml({
-        capabilityProfiles: {
+        modelProfiles: {
+          implementation: { codex: "test-codex-implementation" },
           efficient: CANONICAL_CAPABILITY_PROFILES.efficient,
           balanced: CANONICAL_CAPABILITY_PROFILES.balanced,
           frontier: {

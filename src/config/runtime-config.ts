@@ -6,9 +6,9 @@ import { UserError } from "../utils/errors.js";
 import { pathExists, readTextFile } from "../utils/fs.js";
 import { CONFIG_ENV_VAR, CONFIG_FILE_NAME } from "./identity.js";
 import { loadConfigAtPath } from "./load.js";
-import { CapabilityProfilesSchema } from "./schema.js";
+import { ModelProfilesSchema } from "./schema.js";
 
-export const RUNTIME_CONFIG_SCHEMA = "devcanon/runtime-config/v1";
+export const RUNTIME_CONFIG_SCHEMA = "devcanon/runtime-config/v2";
 export const RUNTIME_CONFIG_RELATIVE_PATH = path.join(
   "config",
   "runtime-config.json",
@@ -17,7 +17,7 @@ export const RUNTIME_CONFIG_RELATIVE_PATH = path.join(
 const RuntimeConfigSchema = z
   .object({
     schema: z.literal(RUNTIME_CONFIG_SCHEMA),
-    capabilityProfiles: CapabilityProfilesSchema,
+    modelProfiles: ModelProfilesSchema,
   })
   .strict();
 
@@ -177,7 +177,7 @@ async function selectSourceConfig(
   return {
     path: path.resolve(selectedPath),
     source,
-    value: { version: 2, ...resolvedConfig },
+    value: { version: 3, ...resolvedConfig },
   };
 }
 

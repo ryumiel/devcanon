@@ -41,9 +41,8 @@ The architectural decision is that shared roles describe stable reusable work
 identity rather than provider models, effort levels, or workflow phases.
 Capability and effort, tools, sandbox, authority, orchestration, retries, and
 escalation remain separate choices. Tool or sandbox availability never grants
-durable source or external mutation. Source-agent explicit-null Codex model
-suppression is a source-to-render choice; it does not replace fresh-route model
-or effort selection.
+durable source or external mutation. The agent model selector controls native output. An omitted selector leaves
+the model unset. Explicit dispatch resolves its own profile and effort.
 
 Skills remain the reusable method owner. They assemble task-local prompts,
 inputs, output contracts, retry and fallback behavior, skip criteria, and
@@ -177,12 +176,11 @@ models or add deployment gates.
   narrow and caller-scoped.
 - Deterministic mechanics remain governed by ADR-0019 and the packaged runtime
   boundary accepted by ADR-0024.
-- ADR-0026 remains the accepted owner of the capability vocabulary,
-  model-resolution mechanism, and capability/effort independence. Current
-  provider model identifiers belong to configuration sources.
-- Generated outputs remain disposable. The agent source schema accepts an
-  explicit-null `codex.model` to suppress rendered model assignment despite a
-  capability; native TOML grammar and install boundaries remain unchanged.
+- ADR-0026 records the routing capability vocabulary and independence from
+  effort. The [configuration specification](../specs/configuration.md#modelprofiles)
+  owns model selection.
+- Generated outputs remain disposable. Native Codex TOML emits a model when
+  its source declares a model profile.
 - No product requirement, extra behavior spec, root workflow, contribution
   policy, PR template, install/sync behavior, or external tracker lifecycle is
   introduced.

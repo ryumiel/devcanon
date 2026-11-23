@@ -2191,8 +2191,8 @@ or source-owned contracts.
 
 The [role allocation](agents.md#codex-specialist-roles) and
 [risk guidance](../guidelines/agent-routing-and-mutation-policy.md#codex-specialist-routing)
-cover Terra implementation, Sol ordinary review and focused Astra specialist
-work. The [Kiki practical trial](workflow-specialist-pilot.md) supplies supporting
+cover the implementation model profile, balanced ordinary review,
+and frontier specialist work. The [Kiki practical trial](workflow-specialist-pilot.md) supplies supporting
 validation, not a new rollout gate. Existing workflow owners retain disposition,
 freshness, source guards and publication boundaries. Source definitions and dispatch consumers implement the allocation; user-home
 installation remains a separate authorized sync operation.

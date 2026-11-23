@@ -88,10 +88,10 @@ the `prepack` lifecycle from a clean source checkout.
 
 - config parsing
 - schema validation
-- strict version 2 capability-profile shape and default catalog
+- strict version 3 model-profile shape and default catalog
 - path resolution
 - renderer mapping
-- literal-model, capability-model, and ambient-omission precedence
+- target-specific model profile resolution and ambient omission
 - explicit target-native effort without capability inheritance
 - manifest update logic
 

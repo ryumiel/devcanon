@@ -51,6 +51,7 @@ instructions: |
 capability: balanced
 
 claude:
+  modelProfile: balanced
   effort: medium
   tools:
     - Read
@@ -59,7 +60,7 @@ claude:
     - Write
 
 codex:
-  model: gpt-6.2-sol
+  modelProfile: balanced
   model_reasoning_effort: low
   sandbox_mode: workspace-write
 ```
@@ -85,14 +86,11 @@ provider models, effort levels, or workflow phases.
 | `reviewer`      | frontier   | high          | high         | `source-immutable` | `none`           | Ordinary synthesis and adversarial review                |
 | `deep-reviewer` | frontier   | xhigh         | high         | `source-immutable` | `none`           | Existing high-assurance review gates                     |
 
-Capability and route effort are explicit for all seven semantic roles and remain
-independent. The ordinary reviewer source defaults to literal
-`gpt-6.2-sol`/`high`, and all its direct-child routes mirror that pair.
-Implementer overrides balanced with `gpt-6.1-terra`/`medium`.
-Assessor uses `low`; investigator and implementer use `medium` on Codex.
-Claude effort remains independently configured as shown above. Neither source
-defaults nor route effort imply tools, sandbox, network, mutation, or escalation
-behavior.
+Capability, model profile, and route effort are independent. Codex reviewers
+select balanced at high effort. Implementers select implementation at medium
+effort. Assessor and investigator use balanced at low and medium effort.
+Architect and deep-reviewer use frontier at high effort. Claude roles retain
+their documented models and efforts.
 
 The executor uses Haiku 4.5 on Claude, which does not support named effort.
 Omit Claude executor effort in both source and dispatch; the recorded `medium`
@@ -175,7 +173,7 @@ evidence, not source authority.
 
 The canonical `assessor` example above must preserve the unchanged Claude
 envelope, retain its command and named-handoff envelope, prohibit durable and
-external mutation, and emit Codex `model: gpt-6.2-sol` and
+external mutation, and emit the balanced Codex model and
 `model_reasoning_effort: low`. A rendered role count other than seven, a Codex
 model or effort that differs from the source role, or broader mutation instructions
 fails the contract.
@@ -209,12 +207,12 @@ model qualification prerequisite.
 | `description`  | string | yes      | ≤ 1024 chars, no `<` / `>`                                               |
 | `instructions` | string | yes      | Non-empty                                                                |
 | `skills`       | list   | no       | List of skill names (must exist in `skills/`); defaults to `[]`          |
-| `capability`   | enum   | no       | `efficient`, `balanced`, or `frontier`; selects only a target model      |
+| `capability`   | enum   | no       | `efficient`, `balanced`, or `frontier`; classifies the route             |
 | `tags`         | list   | no       | Free-form tag strings                                                    |
 | `notes`        | string | no       | Free-form notes                                                          |
 
 The optional `claude:` and `codex:` blocks host per-target overrides — see
-§ Documented target-specific fields in v2 below.
+§ Documented target-specific fields in v3 below.
 
 ---
 
@@ -249,23 +247,23 @@ These are enforced by `AgentSourceSchema` and surfaced by
 The style rules above (third person, capability + trigger) are not
 mechanically validated.
 
-### Documented target-specific fields in v2
+### Documented target-specific fields in v3
 
 Within `claude`:
 
-- `model`
+- `modelProfile`
 - `effort` (see `docs/specs/configuration.md` for allowed values)
 - `tools`
 
 Within `codex`:
 
-- `model`
+- `modelProfile`
 - `model_reasoning_effort` (allowed values are listed below)
 - `sandbox_mode`
 - `nickname_candidates`
 - `approval_policy`
 
-These are the repository's documented target-specific fields in v2. Do not use
+These are the repository's documented target-specific fields in v3. Do not use
 this spec to imply support for other target fields unless they are documented
 here.
 
@@ -289,31 +287,11 @@ A dedicated model capability or effort level is a valid reason to define an agen
 when the role itself is stable and reusable. Those settings are part of the
 role boundary, not just render-time metadata.
 
-Codex `model` selection has three source states:
-
-1. a literal string emits that literal model;
-2. an absent `codex.model` permits normal Codex capability resolution; and
-3. explicit `null` intentionally suppresses target model resolution and model
-   emission.
-
-Explicit `codex.model: null` is known agent-source schema, not passthrough or a
-warning. Claude `model` accepts only a literal string or absence; Claude null is
-rejected. The agent spec owns this target distinction.
-Assessor and investigator retain their capability and Claude envelope and
-pin `codex.model: gpt-6.2-sol` with `low` and `medium` effort, respectively.
-Implementer retains balanced capability and its Claude envelope, but pins
-`codex.model: gpt-6.1-terra` with `medium` effort. Architect uses the frontier
-binding, pins `gpt-6.2-astra` with `high` effort, and is selected only on Codex. Ordinary reviewer retains its
-frontier capability and Claude envelope and pins `codex.model: gpt-6.2-sol`
-with `codex.model_reasoning_effort: high`. Deep-reviewer pins `codex.model: gpt-6.2-astra`
-and `codex.model_reasoning_effort: high`; its direct routes use the frontier
-binding at `high`. Executor retains `codex.model: null` and omits Codex
-effort; its direct routes resolve through the efficient profile at `medium`.
-The Claude executor omits effort; other
-Claude role envelopes remain unchanged.
-Literal target model fields must not
-contain `{{model:*}}`; validation and both render paths reject those former
-agent placeholders with guidance to use top-level capability or a literal model.
+Both targets select a configured model with `modelProfile`. Omission leaves the
+native model field unset. V3 rejects legacy `model` fields, including null.
+Codex executor omits the selector in its source and native TOML. Its explicit
+dispatch resolves efficient at medium effort. Claude executor selects efficient
+and omits named effort.
 
 Effort is independent. An explicit `claude.effort` or
 `codex.model_reasoning_effort` is emitted as written; when absent it remains
@@ -339,7 +317,7 @@ authorize mutation.
 
 ---
 
-## Not supported in v2
+## Not supported in v3
 
 These exclusions concern agent-source composition only; they do not prohibit
 live parent or runtime configuration inheritance.
@@ -386,26 +364,17 @@ The catalog above and source agent definitions govern the active role envelopes.
 
 ### Model allocation
 
-| Responsibility                                                                                                                 | Codex model     | Effort |
-| ------------------------------------------------------------------------------------------------------------------------------ | --------------- | ------ |
-| Ordinary design and planning                                                                                                   | `gpt-6.2-sol`   | high   |
-| Implementer, including review-feedback fixes                                                                                   | `gpt-6.1-terra` | medium |
-| Reviewer, including task specification review, task quality review, whole-implementation quality review and ordinary PR review | `gpt-6.2-sol`   | high   |
-| Architect consultation and significant-risk deep review                                                                        | `gpt-6.2-astra` | high   |
+| Responsibility                                                                                                                 | Codex model profile | Effort |
+| ------------------------------------------------------------------------------------------------------------------------------ | ------------------- | ------ |
+| Ordinary design and planning                                                                                                   | `balanced`          | high   |
+| Implementer, including review-feedback fixes                                                                                   | `implementation`    | medium |
+| Reviewer, including task specification review, task quality review, whole-implementation quality review and ordinary PR review | `balanced`          | high   |
+| Architect consultation and significant-risk deep review                                                                        | `frontier`          | high   |
 
-Balanced remains Sol. Implementer uses a literal Terra override, honored by
-all dispatch consumers including focused specialist dispatch, default implementation, judgment fixes in CI diagnosis and fix and delegated
-review-response paths. This implementation allocation applies to actual
-subagents. Inline implementation and feedback repairs retain the authorized
-owner's current model and effort, subject to explicit user override; child
-overrides never configure the parent session. Updating YAML alone is
-insufficient where a consumer resolves capability
-directly. Assessor, investigator and executor defaults remain unchanged. There
-is no automatic Terra High escalation in this allocation.
-
-Ordinary design must use an explicitly selected Sol High session; a child role
-binding does not change its parent model. Unsupported selection is reported
-rather than silently substituted.
+The implementation profile applies to delegated implementation and repair
+routes. Inline work retains the owner's current session settings. Ordinary
+Codex design and planning select the balanced model at high effort. An
+unsupported model or effort stops the selected route.
 
 ### Architect responsibility
 

@@ -356,8 +356,9 @@ Use the fixed `INDEPENDENT_REVIEW_MODEL` below. Missing, blank, unresolved,
 or mismatched bindings block before capture; no source-checkout lookup or
 fallback model is permitted. After capture, use the spawn fields below:
 
+`INDEPENDENT_REVIEW_MODEL = "{{model-codex:balanced}}"`
+
 ```text
-INDEPENDENT_REVIEW_MODEL = "gpt-6.2-sol"
 Codex.spawn_agent({
   task_name: independent_review_<instance_ordinal>,
   agent_type: "reviewer",
@@ -522,8 +523,9 @@ unselected nits, fix, or delegate. It is falsification-first: seek
 counterevidence, open literal references, assess actual reachable consequences
 or applicable obligations, and independently apply the repository merge gate.
 
+`TARGETED_VERIFICATION_MODEL = "{{model-codex:balanced}}"`
+
 ```text
-TARGETED_VERIFICATION_MODEL = "gpt-6.2-sol"
 Codex.spawn_agent({
   task_name: targeted_verification_<instance_ordinal>,
   agent_type: "reviewer",

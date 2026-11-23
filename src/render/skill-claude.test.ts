@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { parseRenderedMarkdownArtifact } from "../__test-helpers__/render.js";
-import type { CapabilityProfiles, SkillSource } from "../config/schema.js";
+import type { ModelProfiles, SkillSource } from "../config/schema.js";
 import type { PlaceholderGlossary } from "./placeholders.js";
 import { renderClaudeSkill } from "./skill-claude.js";
 
-const CAPABILITY_PROFILES: CapabilityProfiles = {
+const CAPABILITY_PROFILES: ModelProfiles = {
   efficient: { claude: "haiku", codex: "gpt-5.4-mini" },
   balanced: { claude: "sonnet", codex: "gpt-5.4" },
   frontier: { claude: "opus", codex: "gpt-5.4-pro" },
+  implementation: { codex: "test-codex-implementation" },
 };
 
 const GLOSSARY: PlaceholderGlossary = { model: CAPABILITY_PROFILES };

@@ -14,7 +14,11 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { SHIPPED_CAPABILITY_PROFILES } from "../__test-helpers__/fixtures.js";
+import { loadConfig } from "../config/load.js";
+
+const { modelProfiles } = await loadConfig(
+  path.join(process.cwd(), "devcanon.config.yaml"),
+);
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
@@ -90,7 +94,7 @@ describe.runIf(process.platform !== "win32")("setup:cli", () => {
       await mkdir(unrelatedCwd);
       const catalog = await execFileAsync(
         executable,
-        ["--json", "config", "get", "capabilityProfiles.balanced.codex"],
+        ["--json", "config", "get", "modelProfiles.balanced.codex"],
         { cwd: unrelatedCwd, env },
       );
 
@@ -98,8 +102,8 @@ describe.runIf(process.platform !== "win32")("setup:cli", () => {
       expect(help.stdout).toContain("Usage: devcanon");
       expect(JSON.parse(catalog.stdout)).toMatchObject({
         source: "bundled",
-        key: "capabilityProfiles.balanced.codex",
-        value: SHIPPED_CAPABILITY_PROFILES.balanced.codex,
+        key: "modelProfiles.balanced.codex",
+        value: modelProfiles.balanced.codex,
       });
     } finally {
       await rm(xdgDataHome, { recursive: true, force: true });
@@ -235,7 +239,7 @@ describe.runIf(process.platform === "win32")("setup:cli", () => {
       const unrelatedCwd = path.join(root, "unrelated");
       await mkdir(unrelatedCwd);
       const catalog = await execAsync(
-        `"${executable}" --json config get capabilityProfiles.balanced.codex`,
+        `"${executable}" --json config get modelProfiles.balanced.codex`,
         { cwd: unrelatedCwd, env, shell: commandShell },
       );
 
@@ -245,8 +249,8 @@ describe.runIf(process.platform === "win32")("setup:cli", () => {
       expect(help.stdout).toContain("Usage: devcanon");
       expect(JSON.parse(catalog.stdout)).toMatchObject({
         source: "bundled",
-        key: "capabilityProfiles.balanced.codex",
-        value: SHIPPED_CAPABILITY_PROFILES.balanced.codex,
+        key: "modelProfiles.balanced.codex",
+        value: modelProfiles.balanced.codex,
       });
     } finally {
       await rm(root, { recursive: true, force: true });

@@ -17,6 +17,7 @@ skills: []
 capability: frontier
 
 claude:
+  modelProfile: frontier
   effort: high
   tools:
     - Read
@@ -25,6 +26,6 @@ claude:
     - Write
 
 codex:
-  model: gpt-6.2-sol
+  modelProfile: balanced
   model_reasoning_effort: high
   sandbox_mode: workspace-write

@@ -3,15 +3,16 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  DEFAULT_CONFIG_YAML,
   SAMPLE_AGENT_YAML,
   SAMPLE_SKILL_MD,
+  defaultConfigYaml,
 } from "../../config/defaults.js";
 import {
   CLI_COMMAND,
   CONFIG_FILE_NAME,
   PRODUCT_NAME,
 } from "../../config/identity.js";
+import { loadRuntimeConfigCatalog } from "../../config/runtime-config.js";
 import { reconcileDevcanonRuntimeSubtree } from "../../render/devcanon-runtime.js";
 import type { AcceptedProvider } from "../../runtime-build/provider.js";
 import { UserError } from "../../utils/errors.js";
@@ -58,7 +59,10 @@ export async function initAction(
   await preflightRuntimeSkill(cwd, runtimeSourceDir, acceptedProvider);
 
   // Create config
-  await writeTextFile(configPath, DEFAULT_CONFIG_YAML);
+  const catalog = await loadRuntimeConfigCatalog(
+    path.join(runtimeSourceDir, "config", "runtime-config.json"),
+  );
+  await writeTextFile(configPath, defaultConfigYaml(catalog.modelProfiles));
   logger.info(`Created ${CONFIG_FILE_NAME}`);
 
   // Create source directories

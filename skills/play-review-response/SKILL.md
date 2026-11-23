@@ -17,7 +17,7 @@ codex_sidecar:
 Inline review-feedback repairs retain the owner's current model and effort,
 subject to an explicit user override. Do not switch the owner session or add an
 implementation subagent solely to satisfy a delegated model policy. Actual
-delegated repairs retain the `gpt-6.1-terra`/`medium` implementer override and
+delegated repairs retain the implementation model profile and `medium` effort and
 complete dispatch validation through focused specialist dispatch or default implementation; an unsupported delegated
 configuration stops that dispatch. A child override does not change the parent
 session. This changes no repair authority, planning gate or external-system

@@ -498,7 +498,7 @@ function identitiesFor(config: ResolvedConfig) {
       stableJson({
         codexSkillDisplayNameSuffix:
           config.targets.codex.skillDisplayNameSuffix,
-        capabilityProfiles: config.capabilityProfiles,
+        modelProfiles: config.modelProfiles,
         toolNames: config.toolNames,
         fileArtifacts: config.fileArtifacts,
       }),
