@@ -3,9 +3,9 @@ import path from "node:path";
 import type { ZodIssue } from "zod";
 import { CONFIG_FILE_NAME } from "../config/identity.js";
 import {
-  type CapabilityProfiles,
-  CapabilitySchema,
   type FileArtifacts,
+  ModelProfileSchema,
+  type ModelProfiles,
   type SkillSource,
   SkillSourceSchema,
   type ToolNames,
@@ -45,7 +45,7 @@ const TARGET_PATH_TOKENS = [".claude/", ".codex/", ".agents/"] as const;
 export interface SkillValidationDiagnosticsOptions {
   enabled?: boolean;
   strict?: boolean;
-  capabilityProfiles: CapabilityProfiles;
+  modelProfiles: ModelProfiles;
   toolNames?: ToolNames;
   fileArtifacts?: FileArtifacts;
   reporter?: ValidationDiagnosticReporter;
@@ -192,7 +192,7 @@ export async function loadAndValidateSkills(
       const driftDiagnostics = collectDriftDiagnostics(
         [result.data.description, parsed.body],
         {
-          capabilityProfiles: diagnostics.capabilityProfiles,
+          modelProfiles: diagnostics.modelProfiles,
           toolNames: diagnostics.toolNames,
           fileArtifacts: diagnostics.fileArtifacts,
         },
@@ -291,16 +291,25 @@ export function collectActiveModelPlaceholderErrors(
           const namespace = match[1];
           const value = match[2];
           const token = match[0];
-          const capability = CapabilitySchema.safeParse(value);
-          if (capability.success || seenTokens.has(token)) {
+          const profile = ModelProfileSchema.safeParse(value);
+          const modelTarget = namespace === "model-codex" ? "codex" : target;
+          if (
+            seenTokens.has(token) ||
+            (profile.success &&
+              (profile.data !== "implementation" || modelTarget === "codex"))
+          ) {
             continue;
           }
           seenTokens.add(token);
-          const supported = CapabilitySchema.options
+          const supported = ModelProfileSchema.options
+            .filter(
+              (profile) =>
+                profile !== "implementation" || modelTarget === "codex",
+            )
             .map((capability) => `{{${namespace}:${capability}}}`)
             .join(", ");
           errors.push(
-            `Skill "${skillName}" (${target}): unsupported model capability "${value}" in token "${token}" — use ${supported}; the capabilityProfiles catalog in ${CONFIG_FILE_NAME} defines the target model strings (source: ${sourceFilePath})`,
+            `Skill "${skillName}" (${target}): unsupported model profile "${value}" in token "${token}" — use ${supported}; the modelProfiles catalog in ${CONFIG_FILE_NAME} defines the target model strings (source: ${sourceFilePath})`,
           );
         }
       }
@@ -311,7 +320,7 @@ export function collectActiveModelPlaceholderErrors(
 }
 
 interface DriftGlossaries {
-  capabilityProfiles: CapabilityProfiles;
+  modelProfiles: ModelProfiles;
   toolNames?: ToolNames;
   fileArtifacts?: FileArtifacts;
 }
@@ -328,8 +337,8 @@ function collectDriftDiagnostics(
   const found = new Map<string, DriftDiagnostic>();
 
   const modelTokens = new Set<string>(RAW_CLAUDE_ALIASES);
-  for (const profile of Object.values(glossaries.capabilityProfiles)) {
-    modelTokens.add(profile.claude);
+  for (const profile of Object.values(glossaries.modelProfiles)) {
+    if ("claude" in profile) modelTokens.add(profile.claude);
     modelTokens.add(profile.codex);
   }
 

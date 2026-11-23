@@ -28,7 +28,7 @@ and investigate unresolved ones rather than restating settled material.
 
 ## Codex design allocation
 
-Before ordinary design, follow the explicit Sol High selection and material-risk
+Before ordinary design, follow the explicit balanced Codex selection at high effort and material-risk
 consultation guidance in [focused specialist selection](../play-agent-dispatch/SKILL.md#risk-based-specialist-selection).
 Known material design risks receive architect consultation and independent
 risk-focused design review before implementation. This supplements, and does

@@ -107,10 +107,11 @@ describe("devcanon-runtime rendering", () => {
   });
 
   it("uses target catalog projection rather than the protected source catalog", async () => {
-    config.capabilityProfiles = {
+    config.modelProfiles = {
       efficient: { claude: "claude-efficient", codex: "codex-efficient" },
       balanced: { claude: "claude-balanced", codex: "codex-updated" },
       frontier: { claude: "claude-frontier", codex: "codex-frontier" },
+      implementation: { codex: "test-codex-implementation" },
     };
     await renderAll(config, true);
     const sourceCatalog = path.join(

@@ -5,8 +5,8 @@ describe("passive runtime configuration catalog", () => {
   it("rejects an extra catalog envelope field", async () => {
     expect(() =>
       parseRuntimeConfigCatalog({
-        schema: "devcanon/runtime-config/v1",
-        capabilityProfiles: {
+        schema: "devcanon/runtime-config/v2",
+        modelProfiles: {
           efficient: { claude: "a", codex: "b" },
           balanced: { claude: "c", codex: "d" },
           frontier: { claude: "e", codex: "f" },

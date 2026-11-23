@@ -379,7 +379,7 @@ describe("validateAction", () => {
 
     await withRecordingLogger(async ({ infos, warnings }) => {
       await expect(validateAction({}, command)).rejects.toThrow(
-        /model placeholders|top-level capability/i,
+        /Legacy agent model fields.*modelProfile/i,
       );
 
       expect(warnings).toEqual([]);
@@ -436,7 +436,7 @@ describe("validateAction", () => {
 
     await withRecordingLogger(async ({ infos, warnings, jsonPayloads }) => {
       await expect(validateAction({}, command)).rejects.toThrow(
-        /model placeholders|top-level capability/i,
+        /Legacy agent model fields.*modelProfile/i,
       );
 
       expect(infos).toEqual([]);
@@ -513,6 +513,6 @@ describe("validateAction", () => {
           },
         },
       ),
-    ).rejects.toThrow(/model placeholders|top-level capability/i);
+    ).rejects.toThrow(/Legacy agent model fields.*modelProfile/i);
   });
 });

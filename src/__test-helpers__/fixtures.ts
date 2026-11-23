@@ -40,6 +40,7 @@ export const CANONICAL_CAPABILITY_PROFILES = {
     claude: "test-claude-frontier",
     codex: "test-codex-frontier",
   },
+  implementation: { codex: "test-codex-implementation" },
 };
 const DEV_CANON_RUNTIME_SOURCE_DIR = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -53,14 +54,14 @@ export const SHIPPED_CAPABILITY_PROFILES = JSON.parse(
     path.join(DEV_CANON_RUNTIME_SOURCE_DIR, "config", "runtime-config.json"),
     "utf8",
   ),
-).capabilityProfiles as ResolvedConfig["capabilityProfiles"];
+).modelProfiles as ResolvedConfig["modelProfiles"];
 
 export function makeConfigYaml(
   overrides: Record<string, unknown> = {},
 ): string {
   return yamlStringify({
-    version: 2,
-    capabilityProfiles: CANONICAL_CAPABILITY_PROFILES,
+    version: 3,
+    modelProfiles: CANONICAL_CAPABILITY_PROFILES,
     ...overrides,
   });
 }
@@ -69,7 +70,7 @@ export function makeConfigYaml(
 // payloads that would not pass Zod validation (the single downcast at
 // makeCodexSource preserves type-safety for non-enum fields).
 type CodexSourceOverrides = {
-  model?: CodexSource["model"];
+  modelProfile?: CodexSource["modelProfile"];
   model_reasoning_effort?: string;
   sandbox_mode?: string;
   nickname_candidates?: CodexSource["nickname_candidates"];
@@ -231,8 +232,8 @@ const LIGHTWEIGHT_RUNTIME_WRAPPER =
 const LIGHTWEIGHT_RUNTIME_RESOLVER = "export {};\n";
 const LIGHTWEIGHT_RUNTIME_CATALOG = `${JSON.stringify(
   {
-    schema: "devcanon/runtime-config/v1",
-    capabilityProfiles: CANONICAL_CAPABILITY_PROFILES,
+    schema: "devcanon/runtime-config/v2",
+    modelProfiles: CANONICAL_CAPABILITY_PROFILES,
   },
   null,
   2,
@@ -483,10 +484,11 @@ export function makeResolvedConfig(
       path: path.join(tempDir, "manifest.json"),
       ...overrides.manifest,
     },
-    capabilityProfiles: {
+    modelProfiles: {
       efficient: { ...CANONICAL_CAPABILITY_PROFILES.efficient },
       balanced: { ...CANONICAL_CAPABILITY_PROFILES.balanced },
       frontier: { ...CANONICAL_CAPABILITY_PROFILES.frontier },
+      implementation: { ...CANONICAL_CAPABILITY_PROFILES.implementation },
     },
   };
   return config;

@@ -1,13 +1,14 @@
 import { CONFIG_FILE_NAME } from "../config/identity.js";
 import {
-  type CapabilityProfiles,
-  CapabilitySchema,
   type FileArtifacts,
+  ModelProfileSchema,
+  type ModelProfiles,
   PLACEHOLDER_KEY,
   type ResolvedConfig,
   type ToolNames,
 } from "../config/schema.js";
 import { parseMarkdownStructure } from "../utils/markdown-structure.js";
+import { resolveProfileModel } from "./capability-profiles.js";
 
 /**
  * Matches an optional escape (`\`) followed by `{{namespace:value}}`.
@@ -22,7 +23,7 @@ const ACTIVE_PLACEHOLDER =
   /(?:(\\)?\{\{([\w-]+):([\w-]+)\}\}|(?<!\\)\{\{(model|model-codex):([^{}\r\n]*)\}\})/g;
 
 export interface PlaceholderGlossary {
-  model: CapabilityProfiles;
+  model: ModelProfiles;
   tool?: ToolNames;
   file?: FileArtifacts;
 }
@@ -36,8 +37,8 @@ const SUPPORTED_NAMESPACES = ["model", "model-codex", "tool", "file"] as const;
 type SupportedNamespace = (typeof SUPPORTED_NAMESPACES)[number];
 
 const NAMESPACE_CONFIG_KEY: Record<SupportedNamespace, string> = {
-  model: "capabilityProfiles",
-  "model-codex": "capabilityProfiles",
+  model: "modelProfiles",
+  "model-codex": "modelProfiles",
   tool: "toolNames",
   file: "fileArtifacts",
 };
@@ -56,7 +57,7 @@ function isSupportedNamespace(value: string): value is SupportedNamespace {
 
 export function buildGlossary(config: ResolvedConfig): PlaceholderGlossary {
   return {
-    model: config.capabilityProfiles,
+    model: config.modelProfiles,
     tool: config.toolNames,
     file: config.fileArtifacts,
   };
@@ -157,16 +158,16 @@ function substituteActiveSource(
 function resolveModelPlaceholder(
   value: string,
   target: "claude" | "codex",
-  profiles: CapabilityProfiles,
+  profiles: ModelProfiles,
   context: PlaceholderRenderContext | undefined,
   namespace = "model",
 ): string {
-  const capability = CapabilitySchema.safeParse(value);
-  if (!capability.success || !Object.hasOwn(profiles, capability.data)) {
+  const profile = ModelProfileSchema.safeParse(value);
+  if (!profile.success || !Object.hasOwn(profiles, profile.data)) {
     throw unsupportedModelPlaceholderError(value, context, namespace);
   }
 
-  return profiles[capability.data][target];
+  return resolveProfileModel(profile.data, target, profiles);
 }
 
 function unsupportedModelPlaceholderError(
@@ -175,11 +176,11 @@ function unsupportedModelPlaceholderError(
   namespace = "model",
 ): Error {
   const token = `{{${namespace}:${value}}}`;
-  const supported = CapabilitySchema.options
+  const supported = ModelProfileSchema.options
     .map((capability) => `{{${namespace}:${capability}}}`)
     .join(", ");
   return renderError(
-    `unsupported model capability "${value}" in token "${token}" — use ${supported}; the ${NAMESPACE_CONFIG_KEY.model} catalog in ${CONFIG_FILE_NAME} defines the target model strings`,
+    `unsupported model profile "${value}" in token "${token}" — use ${supported}; the ${NAMESPACE_CONFIG_KEY.model} catalog in ${CONFIG_FILE_NAME} defines the target model strings`,
     context,
   );
 }

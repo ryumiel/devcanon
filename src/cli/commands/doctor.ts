@@ -159,7 +159,7 @@ export async function doctorAction(
       const skills = await loadAndValidateSkills(config.library.skillsDir, {
         diagnostics: {
           enabled: false,
-          capabilityProfiles: config.capabilityProfiles,
+          modelProfiles: config.modelProfiles,
           toolNames: config.toolNames,
           fileArtifacts: config.fileArtifacts,
         },

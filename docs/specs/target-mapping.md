@@ -11,34 +11,20 @@ Because Claude and Codex do not use the same native agent format,
 behavior. Unsupported target fields are ignored with warning.**
 
 The source schema does not define first-class delegation or orchestration
-controls in v2. If authors describe coordination behavior, that guidance lives
+controls in v3. If authors describe coordination behavior, that guidance lives
 in the role's prose instructions and remains target-dependent rather than a
 validated source-schema field.
 
 ### Agent model and effort mapping
 
-Claude target `model` is literal or absent: a literal emits as supplied; when
-absent, the shared resolver maps the top-level `capability` through
-`capabilityProfiles`, or leaves the field omitted when there is no capability.
+For both targets, `modelProfile` selects a model ID from `modelProfiles`. Native
+output omits the model when the source selector is absent. Claude `effort`
+and Codex `model_reasoning_effort` are explicit independent fields. Model
+selection has no effect on tools, sandbox, approvals, or mutation authority.
 
-Codex target `model` is literal, absent, or explicit `null`: a literal emits as
-supplied; when absent, the shared resolver maps the top-level `capability`
-through `capabilityProfiles`, or leaves the field omitted when there is no
-capability; explicit `null` suppresses both capability resolution and model
-emission. `src/render/codex.ts` owns that explicit-null suppression, while
-`src/render/capability-profiles.ts` owns the shared literal/absent mapping.
-Neither resolver owns effort. Claude `effort` and Codex
-`model_reasoning_effort` are emitted only when explicitly present in the
-corresponding target block; otherwise they remain omitted. Tools, sandbox,
-approval policy, context, authority, orchestration, retries, and escalation do
-not derive from capability.
-
-Skills use the same catalog only through canonical model placeholders in prose
-and supported top-level override strings. Agent target `model` fields accept
-literal strings, not placeholders. `{{model:<capability>}}` follows the
-artifact target. `{{model-codex:<capability>}}` selects the Codex member in
-both artifact targets and is reserved for a value passed to an explicit Codex
-execution primitive.
+Skill placeholders resolve through the same catalog. `{{model:<profile>}}`
+follows the artifact target. `{{model-codex:<profile>}}` selects Codex in either
+artifact target and supplies a binding for explicit Codex execution.
 
 ### Claude mapping
 

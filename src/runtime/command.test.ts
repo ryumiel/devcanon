@@ -31,8 +31,8 @@ describe("runtime command helpers", () => {
   });
 
   it.each([
-    ["--key", "capabilityProfiles.balanced.codex", "--key", "other"],
-    ["--key", "capabilityProfiles.balanced.codex", "extra"],
+    ["--key", "modelProfiles.balanced.codex", "--key", "other"],
+    ["--key", "modelProfiles.balanced.codex", "extra"],
     ["--key", ""],
   ])("rejects non-exact config get arguments: %j", async (...args) => {
     await expect(

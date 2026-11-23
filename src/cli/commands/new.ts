@@ -54,7 +54,7 @@ export async function newAgentAction(
 
   await writeTextFile(
     agentPath,
-    `name: ${name}\ndescription: Describe this agent.\ninstructions: |\n  Describe what this agent does.\n\nskills: []\ncapability: balanced\n\nclaude:\n  tools:\n    - Read\n    - Grep\n\ncodex:\n  sandbox_mode: read-only\n`,
+    `name: ${name}\ndescription: Describe this agent.\ninstructions: |\n  Describe what this agent does.\n\nskills: []\ncapability: balanced\n\nclaude:\n  modelProfile: balanced\n  tools:\n    - Read\n    - Grep\n\ncodex:\n  modelProfile: balanced\n  sandbox_mode: read-only\n`,
   );
 
   logger.info(`Created agent: ${agentPath}`);

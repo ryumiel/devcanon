@@ -17,6 +17,7 @@ skills:
   - play-verification
 capability: balanced
 claude:
+  modelProfile: balanced
   effort: high
   tools:
     - Read
@@ -25,6 +26,6 @@ claude:
     - Edit
     - Write
 codex:
-  model: gpt-6.1-terra
+  modelProfile: implementation
   model_reasoning_effort: medium
   sandbox_mode: workspace-write

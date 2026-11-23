@@ -28,7 +28,7 @@ export async function listAction(
   const skills = await loadAndValidateSkills(config.library.skillsDir, {
     diagnostics: {
       enabled: false,
-      capabilityProfiles: config.capabilityProfiles,
+      modelProfiles: config.modelProfiles,
       toolNames: config.toolNames,
       fileArtifacts: config.fileArtifacts,
     },

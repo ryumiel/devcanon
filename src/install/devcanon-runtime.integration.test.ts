@@ -172,7 +172,7 @@ describe("devcanon-runtime sync", () => {
         path.join(installedRuntime, "config", "runtime-config.json"),
         "utf-8",
       ),
-    ).resolves.toContain('"schema": "devcanon/runtime-config/v1"');
+    ).resolves.toContain('"schema": "devcanon/runtime-config/v2"');
     expect(await readdir(installedRuntime)).toEqual(["config", "scripts"]);
     expect(await readdir(path.join(installedRuntime, "config"))).toEqual([
       "runtime-config.json",
@@ -573,7 +573,7 @@ describe("devcanon-runtime sync", () => {
           path.join(installedRuntime, "config", "runtime-config.json"),
           "utf-8",
         ),
-      ).resolves.toContain('"schema": "devcanon/runtime-config/v1"');
+      ).resolves.toContain('"schema": "devcanon/runtime-config/v2"');
       await expect(
         sync(config, {
           dryRun: false,
@@ -610,7 +610,7 @@ describe("devcanon-runtime sync", () => {
           path.join(installedRuntime, "config", "runtime-config.json"),
           "utf-8",
         ),
-      ).resolves.toContain('"schema": "devcanon/runtime-config/v1"');
+      ).resolves.toContain('"schema": "devcanon/runtime-config/v2"');
       await rm(path.join(config.library.skillsDir, "devcanon-runtime"), {
         recursive: true,
         force: true,

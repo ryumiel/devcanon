@@ -2,6 +2,7 @@
 dist/
 node_modules/
 skills/devcanon-runtime/scripts/runtime/
+skills/devcanon-runtime/config/runtime-config.json
 
 # Environment and secrets
 .env

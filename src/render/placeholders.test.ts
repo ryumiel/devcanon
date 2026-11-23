@@ -1,15 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type {
-  CapabilityProfiles,
   FileArtifacts,
+  ModelProfiles,
   ToolNames,
 } from "../config/schema.js";
 import { resolvePlaceholders } from "./placeholders.js";
 
-const CAPABILITY_PROFILES: CapabilityProfiles = {
+const CAPABILITY_PROFILES: ModelProfiles = {
   efficient: { claude: "haiku", codex: "gpt-5.4-mini" },
   balanced: { claude: "sonnet", codex: "gpt-5.4" },
   frontier: { claude: "opus", codex: "gpt-5.4-pro" },
+  implementation: { codex: "test-codex-implementation" },
 };
 
 const TOOLS: ToolNames = {
@@ -298,13 +299,13 @@ describe("resolvePlaceholders", () => {
   it("throws on {{model:__proto__}} rather than resolving via prototype chain", () => {
     expect(() =>
       resolvePlaceholders("{{model:__proto__}}", "claude", MODEL_ONLY),
-    ).toThrow(/unsupported model capability "__proto__"/i);
+    ).toThrow(/unsupported model profile "__proto__"/i);
   });
 
   it("throws on {{model:constructor}} rather than resolving via prototype chain", () => {
     expect(() =>
       resolvePlaceholders("{{model:constructor}}", "claude", MODEL_ONLY),
-    ).toThrow(/unsupported model capability "constructor"/i);
+    ).toThrow(/unsupported model profile "constructor"/i);
   });
 
   it("throws on {{tool:constructor}} rather than resolving via prototype chain", () => {

@@ -23,15 +23,16 @@ const CAPABILITY_PROFILES = {
     claude: "test-claude-frontier",
     codex: "test-codex-frontier",
   },
+  implementation: { codex: "test-codex-implementation" },
 };
 
 const VALID_CONFIG = {
-  version: 2 as const,
-  capabilityProfiles: CAPABILITY_PROFILES,
+  version: 3 as const,
+  modelProfiles: CAPABILITY_PROFILES,
 };
 
 describe("ConfigSchema", () => {
-  it("parses the minimal version 2 config with the fixed catalog", () => {
+  it("parses the minimal version 3 config with the fixed catalog", () => {
     const result = ConfigSchema.safeParse(VALID_CONFIG);
     expect(result.success).toBe(true);
   });
@@ -255,12 +256,12 @@ describe("AgentSourceSchema", () => {
     );
     expect(AGENT_SOURCE_FIELDS).toHaveLength(9);
     expect(new Set(CLAUDE_TARGET_FIELDS)).toEqual(
-      new Set(["model", "effort", "tools"]),
+      new Set(["modelProfile", "effort", "tools"]),
     );
     expect(CLAUDE_TARGET_FIELDS).toHaveLength(3);
     expect(new Set(CODEX_TARGET_FIELDS)).toEqual(
       new Set([
-        "model",
+        "modelProfile",
         "model_reasoning_effort",
         "sandbox_mode",
         "nickname_candidates",
@@ -288,7 +289,7 @@ describe("AgentSourceSchema", () => {
     const result = AgentSourceSchema.parse({
       ...validAgent,
       claude: {
-        model: "sonnet",
+        modelProfile: "balanced",
         tools: ["Read", "Grep"],
         tols: ["Read"],
       },
@@ -299,7 +300,7 @@ describe("AgentSourceSchema", () => {
     });
 
     expect(result.claude).toEqual({
-      model: "sonnet",
+      modelProfile: "balanced",
       tools: ["Read", "Grep"],
       tols: ["Read"],
     });
@@ -342,7 +343,9 @@ describe("AgentSourceSchema", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       const messages = result.error.issues.map((i) => i.message).join(" ");
-      expect(messages).toMatch(/control characters or line breaks/i);
+      expect(messages).toMatch(
+        /Legacy agent model fields|control characters or line breaks/i,
+      );
     }
   });
 
@@ -357,24 +360,32 @@ describe("AgentSourceSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("preserves literal, absent, and explicit-null Codex model states", () => {
-    const literal = AgentSourceSchema.parse({
+  it("accepts target profile selections and omission", () => {
+    const selected = AgentSourceSchema.parse({
       ...validAgent,
-      codex: { model: "test-codex-balanced" },
+      codex: { modelProfile: "implementation" },
     });
-    const absent = AgentSourceSchema.parse({
-      ...validAgent,
-      codex: { sandbox_mode: "read-only" },
-    });
-    const suppressed = AgentSourceSchema.parse({
-      ...validAgent,
-      codex: { model: null },
-    });
-
-    expect(literal.codex?.model).toBe("test-codex-balanced");
-    expect(absent.codex).not.toHaveProperty("model");
-    expect(suppressed.codex?.model).toBeNull();
+    expect(selected.codex?.modelProfile).toBe("implementation");
+    expect(AgentSourceSchema.parse(validAgent).codex).toBeUndefined();
+    expect(
+      AgentSourceSchema.safeParse({
+        ...validAgent,
+        claude: { modelProfile: "implementation" },
+      }).success,
+    ).toBe(false);
   });
+
+  it.each(["claude", "codex"])(
+    "rejects a legacy null model key under %s",
+    (target) => {
+      expect(
+        AgentSourceSchema.safeParse({
+          ...validAgent,
+          [target]: { model: null },
+        }).success,
+      ).toBe(false);
+    },
+  );
 
   it.each(["", false, 42, [], {}])(
     "rejects invalid codex.model value %j",
@@ -399,7 +410,9 @@ describe("AgentSourceSchema", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       const messages = result.error.issues.map((i) => i.message).join(" ");
-      expect(messages).toMatch(/control characters or line breaks/i);
+      expect(messages).toMatch(
+        /Legacy agent model fields|control characters or line breaks/i,
+      );
     }
   });
 
@@ -574,30 +587,30 @@ describe("AgentSourceSchema", () => {
   });
 });
 
-describe("ConfigSchema.capabilityProfiles", () => {
+describe("ConfigSchema.modelProfiles", () => {
   it("parses the canonical direct-string catalog", () => {
     const result = ConfigSchema.safeParse(VALID_CONFIG);
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.capabilityProfiles).toEqual(CAPABILITY_PROFILES);
+      expect(result.data.modelProfiles).toEqual(CAPABILITY_PROFILES);
     }
   });
 
   it("rejects a missing catalog", () => {
-    const result = ConfigSchema.safeParse({ version: 2 });
+    const result = ConfigSchema.safeParse({ version: 3 });
     expect(result.success).toBe(false);
   });
 
   it.each(["efficient", "balanced", "frontier"] as const)(
     "rejects a catalog missing the %s profile",
     (profile) => {
-      const capabilityProfiles = { ...CAPABILITY_PROFILES };
-      delete capabilityProfiles[profile];
+      const modelProfiles = { ...CAPABILITY_PROFILES };
+      delete modelProfiles[profile];
 
       const result = ConfigSchema.safeParse({
         ...VALID_CONFIG,
-        capabilityProfiles,
+        modelProfiles,
       });
       expect(result.success).toBe(false);
     },
@@ -606,7 +619,7 @@ describe("ConfigSchema.capabilityProfiles", () => {
   it("rejects an extra profile", () => {
     const result = ConfigSchema.safeParse({
       ...VALID_CONFIG,
-      capabilityProfiles: {
+      modelProfiles: {
         ...CAPABILITY_PROFILES,
         experimental: { claude: "claude-test", codex: "gpt-test" },
       },
@@ -622,7 +635,7 @@ describe("ConfigSchema.capabilityProfiles", () => {
 
       const result = ConfigSchema.safeParse({
         ...VALID_CONFIG,
-        capabilityProfiles: {
+        modelProfiles: {
           ...CAPABILITY_PROFILES,
           balanced,
         },
@@ -634,11 +647,11 @@ describe("ConfigSchema.capabilityProfiles", () => {
   it("rejects an extra target key", () => {
     const result = ConfigSchema.safeParse({
       ...VALID_CONFIG,
-      capabilityProfiles: {
+      modelProfiles: {
         ...CAPABILITY_PROFILES,
         balanced: {
           ...CAPABILITY_PROFILES.balanced,
-          other: "model",
+          other: "modelProfile",
         },
       },
     });
@@ -648,7 +661,7 @@ describe("ConfigSchema.capabilityProfiles", () => {
   it("rejects a nested model object", () => {
     const result = ConfigSchema.safeParse({
       ...VALID_CONFIG,
-      capabilityProfiles: {
+      modelProfiles: {
         ...CAPABILITY_PROFILES,
         balanced: {
           ...CAPABILITY_PROFILES.balanced,
@@ -662,7 +675,7 @@ describe("ConfigSchema.capabilityProfiles", () => {
   it("rejects effort metadata", () => {
     const result = ConfigSchema.safeParse({
       ...VALID_CONFIG,
-      capabilityProfiles: {
+      modelProfiles: {
         ...CAPABILITY_PROFILES,
         balanced: {
           ...CAPABILITY_PROFILES.balanced,
@@ -676,7 +689,7 @@ describe("ConfigSchema.capabilityProfiles", () => {
   it.each(["", "   "])("rejects an empty or blank model string", (claude) => {
     const result = ConfigSchema.safeParse({
       ...VALID_CONFIG,
-      capabilityProfiles: {
+      modelProfiles: {
         ...CAPABILITY_PROFILES,
         balanced: { ...CAPABILITY_PROFILES.balanced, claude },
       },
@@ -687,7 +700,7 @@ describe("ConfigSchema.capabilityProfiles", () => {
   it("rejects values exceeding the 256-character cap", () => {
     const result = ConfigSchema.safeParse({
       ...VALID_CONFIG,
-      capabilityProfiles: {
+      modelProfiles: {
         ...CAPABILITY_PROFILES,
         frontier: {
           ...CAPABILITY_PROFILES.frontier,
@@ -709,7 +722,7 @@ describe("ConfigSchema.capabilityProfiles", () => {
   ])("rejects a model containing $name", ({ code }) => {
     const result = ConfigSchema.safeParse({
       ...VALID_CONFIG,
-      capabilityProfiles: {
+      modelProfiles: {
         ...CAPABILITY_PROFILES,
         frontier: {
           ...CAPABILITY_PROFILES.frontier,
@@ -747,7 +760,9 @@ describe("AgentSourceSchema render-safe code-point coverage", () => {
       expect(result.success).toBe(false);
       if (!result.success) {
         const messages = result.error.issues.map((i) => i.message).join(" ");
-        expect(messages).toMatch(/control characters or line breaks/i);
+        expect(messages).toMatch(
+          /Legacy agent model fields|control characters or line breaks/i,
+        );
       }
     });
 
@@ -759,7 +774,9 @@ describe("AgentSourceSchema render-safe code-point coverage", () => {
       expect(result.success).toBe(false);
       if (!result.success) {
         const messages = result.error.issues.map((i) => i.message).join(" ");
-        expect(messages).toMatch(/control characters or line breaks/i);
+        expect(messages).toMatch(
+          /Legacy agent model fields|control characters or line breaks/i,
+        );
       }
     });
   }

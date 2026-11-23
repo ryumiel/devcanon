@@ -497,12 +497,12 @@ describe("CLI entrypoint", () => {
       { cwd: process.cwd() },
     );
 
-    expect(plain.stdout).toBe("2\n");
+    expect(plain.stdout).toBe("3\n");
     expect(JSON.parse(json.stdout)).toMatchObject({
       path: configPath,
       source: "explicit",
       key: "version",
-      value: 2,
+      value: 3,
     });
   });
 
@@ -610,7 +610,7 @@ describe("CLI entrypoint", () => {
           "--json",
           "config",
           "get",
-          "capabilityProfiles.balanced.codex",
+          "modelProfiles.balanced.codex",
         ],
         {
           cwd: tempDir,
@@ -620,7 +620,7 @@ describe("CLI entrypoint", () => {
 
       expect(JSON.parse(result.stdout)).toMatchObject({
         source: "bundled",
-        key: "capabilityProfiles.balanced.codex",
+        key: "modelProfiles.balanced.codex",
         value: SHIPPED_CAPABILITY_PROFILES.balanced.codex,
       });
     } finally {
@@ -667,11 +667,12 @@ describe("CLI entrypoint", () => {
       await writeFile(
         configPath,
         [
-          "version: 2",
-          "capabilityProfiles:",
+          "version: 3",
+          "modelProfiles:",
           "  efficient: { claude: test-claude-efficient, codex: test-codex-efficient }",
           "  balanced: { claude: test-claude-balanced, codex: test-codex-balanced }",
           "  frontier: { claude: test-claude-frontier, codex: test-codex-frontier }",
+          "  implementation: { codex: test-codex-implementation }",
           "library:",
           `  skillsDir: ${path.join(tempDir, "skills")}`,
           `  agentsDir: ${agentsDir}`,
@@ -807,11 +808,12 @@ describe("CLI entrypoint", () => {
         await writeFile(
           configPath,
           [
-            "version: 2",
-            "capabilityProfiles:",
+            "version: 3",
+            "modelProfiles:",
             "  efficient: { claude: test-claude-efficient, codex: test-codex-efficient }",
             "  balanced: { claude: test-claude-balanced, codex: test-codex-balanced }",
             "  frontier: { claude: test-claude-frontier, codex: test-codex-frontier }",
+            "  implementation: { codex: test-codex-implementation }",
             "library:",
             `  skillsDir: ${path.join(tempDir, "skills")}`,
             `  agentsDir: ${path.join(tempDir, "agents")}`,

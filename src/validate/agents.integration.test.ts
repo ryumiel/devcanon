@@ -150,7 +150,7 @@ describe("loadAndValidateAgents", () => {
         expect(err).toBeInstanceOf(UserError);
         expect((err as UserError).message).toContain(`${target}.model`);
         expect((err as UserError).message).toMatch(
-          /top-level capability.*literal target model/,
+          /Legacy agent model fields.*modelProfile/,
         );
         return true;
       });
@@ -294,7 +294,7 @@ describe("loadAndValidateAgents", () => {
   it("warns for unknown target-specific fields in non-strict mode", async () => {
     const yaml = makeAgentYaml("warn-target-agent", {
       claude: {
-        model: "sonnet",
+        modelProfile: "balanced",
         tols: ["Read"],
       },
       codex: {
@@ -311,7 +311,7 @@ describe("loadAndValidateAgents", () => {
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("warn-target-agent");
     expect(result[0].source.claude).toEqual({
-      model: "sonnet",
+      modelProfile: "balanced",
       tols: ["Read"],
     });
     expect(result[0].source.codex).toEqual({
@@ -371,7 +371,7 @@ describe("loadAndValidateAgents", () => {
   it("throws UserError for unknown target-specific fields in strict mode", async () => {
     const yaml = makeAgentYaml("strict-target-agent", {
       claude: {
-        model: "sonnet",
+        modelProfile: "balanced",
         tols: ["Read"],
       },
       codex: {
@@ -422,12 +422,12 @@ describe("loadAndValidateAgents", () => {
   it("accepts all supported target-specific fields without warnings", async () => {
     const yaml = makeAgentYaml("all-target-fields", {
       claude: {
-        model: "claude-sonnet-4-6",
+        modelProfile: "balanced",
         effort: "high",
         tools: ["Read", "Grep"],
       },
       codex: {
-        model: "gpt-5.4",
+        modelProfile: "balanced",
         model_reasoning_effort: "high",
         sandbox_mode: "danger-full-access",
         nickname_candidates: ["builder", "reviewer"],
@@ -451,12 +451,12 @@ describe("loadAndValidateAgents", () => {
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("all-target-fields");
     expect(result[0].source.claude).toEqual({
-      model: "claude-sonnet-4-6",
+      modelProfile: "balanced",
       effort: "high",
       tools: ["Read", "Grep"],
     });
     expect(result[0].source.codex).toEqual({
-      model: "gpt-5.4",
+      modelProfile: "balanced",
       model_reasoning_effort: "high",
       sandbox_mode: "danger-full-access",
       nickname_candidates: ["builder", "reviewer"],
@@ -508,7 +508,7 @@ describe("loadAndValidateAgents", () => {
   it("accepts model_reasoning_effort max", async () => {
     const yaml = makeAgentYaml("max-reasoning-effort", {
       codex: {
-        model: "gpt-5.6-sol",
+        modelProfile: "balanced",
         model_reasoning_effort: "max",
       },
     });
@@ -518,7 +518,7 @@ describe("loadAndValidateAgents", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].source.codex).toEqual({
-      model: "gpt-5.6-sol",
+      modelProfile: "balanced",
       model_reasoning_effort: "max",
     });
   });
@@ -526,12 +526,12 @@ describe("loadAndValidateAgents", () => {
   it("accepts all supported target-specific fields in strict mode", async () => {
     const yaml = makeAgentYaml("all-target-fields-strict", {
       claude: {
-        model: "claude-sonnet-4-6",
+        modelProfile: "balanced",
         effort: "high",
         tools: ["Read", "Grep"],
       },
       codex: {
-        model: "gpt-5.4",
+        modelProfile: "balanced",
         model_reasoning_effort: "high",
         sandbox_mode: "danger-full-access",
         nickname_candidates: ["builder", "reviewer"],
@@ -557,12 +557,12 @@ describe("loadAndValidateAgents", () => {
         name: "all-target-fields-strict",
         source: expect.objectContaining({
           claude: {
-            model: "claude-sonnet-4-6",
+            modelProfile: "balanced",
             effort: "high",
             tools: ["Read", "Grep"],
           },
           codex: {
-            model: "gpt-5.4",
+            modelProfile: "balanced",
             model_reasoning_effort: "high",
             sandbox_mode: "danger-full-access",
             nickname_candidates: ["builder", "reviewer"],
@@ -637,7 +637,7 @@ describe("loadAndValidateAgents", () => {
   it("throws UserError for model_reasoning_effort ultra", async () => {
     const yaml = makeAgentYaml("ultra-reasoning-effort", {
       codex: {
-        model: "gpt-5.6-sol",
+        modelProfile: "balanced",
         model_reasoning_effort: "ultra",
       },
     });

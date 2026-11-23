@@ -1,6 +1,9 @@
+import { stringify as stringifyYaml } from "yaml";
 import { DEFAULT_MANIFEST_PATH } from "./identity.js";
+import type { ModelProfiles } from "./schema.js";
 
-export const DEFAULT_CONFIG_YAML = `version: 2
+export function defaultConfigYaml(modelProfiles: ModelProfiles): string {
+  return `version: 3
 
 library:
   skillsDir: ./skills
@@ -31,17 +34,8 @@ platform:
 manifest:
   path: ${DEFAULT_MANIFEST_PATH}
 
-capabilityProfiles:
-  efficient:
-    claude: claude-haiku-4-5-20251001
-    codex: gpt-6-luna
-  balanced:
-    claude: claude-sonnet-5
-    codex: gpt-6.2-sol
-  frontier:
-    claude: claude-opus-5
-    codex: gpt-6.2-astra
-`;
+${stringifyYaml({ modelProfiles })}`;
+}
 
 export const SAMPLE_SKILL_MD = `---
 name: example-skill
@@ -72,10 +66,12 @@ skills: []
 capability: balanced
 
 claude:
+  modelProfile: balanced
   tools:
     - Read
     - Grep
 
 codex:
+  modelProfile: balanced
   sandbox_mode: read-only
 `;

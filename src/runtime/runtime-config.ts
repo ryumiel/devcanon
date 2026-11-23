@@ -2,25 +2,31 @@ import { lstat, readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const RUNTIME_CONFIG_SCHEMA = "devcanon/runtime-config/v1";
+export const RUNTIME_CONFIG_SCHEMA = "devcanon/runtime-config/v2";
 
-const PROFILE_NAMES = ["efficient", "balanced", "frontier"] as const;
+const PROFILE_NAMES = [
+  "efficient",
+  "balanced",
+  "frontier",
+  "implementation",
+] as const;
 const TARGET_NAMES = ["claude", "codex"] as const;
 
-export interface RuntimeCapabilityProfiles {
-  efficient: RuntimeCapabilityProfile;
-  balanced: RuntimeCapabilityProfile;
-  frontier: RuntimeCapabilityProfile;
+export interface RuntimeModelProfiles {
+  efficient: RuntimeModelProfile;
+  balanced: RuntimeModelProfile;
+  frontier: RuntimeModelProfile;
+  implementation: Pick<RuntimeModelProfile, "codex">;
 }
 
-export interface RuntimeCapabilityProfile {
+export interface RuntimeModelProfile {
   claude: string;
   codex: string;
 }
 
 export interface RuntimeConfigCatalog {
   schema: typeof RUNTIME_CONFIG_SCHEMA;
-  capabilityProfiles: RuntimeCapabilityProfiles;
+  modelProfiles: RuntimeModelProfiles;
 }
 
 export function runtimeConfigPath(): string {
@@ -98,9 +104,9 @@ export function getRuntimeConfigValue(
 export function parseRuntimeConfigCatalog(
   value: unknown,
 ): RuntimeConfigCatalog {
-  if (!isExactObject(value, ["schema", "capabilityProfiles"])) {
+  if (!isExactObject(value, ["schema", "modelProfiles"])) {
     throw new Error(
-      "catalog envelope must contain only schema and capabilityProfiles",
+      "catalog envelope must contain only schema and modelProfiles",
     );
   }
   if (value.schema !== RUNTIME_CONFIG_SCHEMA) {
@@ -108,18 +114,19 @@ export function parseRuntimeConfigCatalog(
       `unsupported runtime configuration schema: ${String(value.schema)}`,
     );
   }
-  if (!isExactObject(value.capabilityProfiles, PROFILE_NAMES)) {
+  if (!isExactObject(value.modelProfiles, PROFILE_NAMES)) {
     throw new Error(
-      "capabilityProfiles must contain efficient, balanced, and frontier",
+      "modelProfiles must contain efficient, balanced, frontier, and implementation",
     );
   }
 
   for (const profileName of PROFILE_NAMES) {
-    const profile = value.capabilityProfiles[profileName];
-    if (!isExactObject(profile, TARGET_NAMES)) {
-      throw new Error(`${profileName} must contain claude and codex`);
+    const profile = value.modelProfiles[profileName];
+    const targets = profileName === "implementation" ? ["codex"] : TARGET_NAMES;
+    if (!isExactObject(profile, targets)) {
+      throw new Error(`${profileName} must contain ${targets.join(" and ")}`);
     }
-    for (const targetName of TARGET_NAMES) {
+    for (const targetName of targets) {
       if (!isRuntimeModel(profile[targetName])) {
         throw new Error(
           `${profileName}.${targetName} must be a nonblank render-safe model identifier`,

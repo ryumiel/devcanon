@@ -61,14 +61,10 @@ async function renderAll(
   );
 }
 
-const reviewerSource = parseYaml(
-  await readFile(path.join(process.cwd(), "agents/reviewer.yaml"), "utf8"),
-);
-const reviewerModel: string = reviewerSource.codex.model;
-
 const shippedSkillsConfig = await loadConfig(
   path.join(process.cwd(), "devcanon.config.yaml"),
 );
+const reviewerModel = shippedSkillsConfig.modelProfiles.balanced.codex;
 const shippedSkillsRender = await renderAll(shippedSkillsConfig, false, true);
 
 function normalizeContractText(content: string): string {
@@ -77,9 +73,9 @@ function normalizeContractText(content: string): string {
 
 function expectNoForbiddenRouteModelTokens(content: string): void {
   expect(content).not.toContain("devcanon.config.yaml");
-  expect(content).not.toContain("capabilityProfiles.");
+  expect(content).not.toContain("modelProfiles.");
   expect(content).not.toMatch(/\{\{model(?:-codex)?:/u);
-  expect(content).not.toMatch(/model\s*[=:]\s*capabilityProfiles\.[\w.]+/u);
+  expect(content).not.toMatch(/model\s*[=:]\s*modelProfiles\.[\w.]+/u);
 }
 
 function expectedMirroredBytes(
@@ -214,31 +210,37 @@ describe("shipped skill rendering", () => {
     }
   });
 
-  it("materializes capability bindings and explicit Codex role overrides under custom profiles", async () => {
+  it("materializes each configured Codex model profile in both targets", async () => {
     const config = await loadConfig("devcanon.config.yaml");
-    config.capabilityProfiles.balanced.codex = "custom-balanced-model";
-    config.capabilityProfiles.frontier.codex = "custom-frontier-model";
+    config.modelProfiles.balanced.codex = "custom-balanced-model";
+    config.modelProfiles.frontier.codex = "custom-frontier-model";
+    config.modelProfiles.efficient.codex = "custom-efficient-model";
+    config.modelProfiles.implementation.codex = "custom-implementation-model";
     const { outputs } = await renderAll(config, false, true);
     const bindings = [
       ["issue-priming-workflow", "ISSUE_GATE_ASSESSMENT_MODEL", "balanced"],
       ["issue-priming-workflow", "INTERNAL_RESEARCH_MODEL", "balanced"],
       ["issue-priming-workflow", "EXTERNAL_RESEARCH_MODEL", "balanced"],
-      ["play-planning", "COMBINED_PLANNING_REVIEW_MODEL", "frontier"],
-      ["play-review", "INDEPENDENT_REVIEW_MODEL", "frontier"],
-      ["play-review", "TARGETED_VERIFICATION_MODEL", "frontier"],
+      ["play-planning", "COMBINED_PLANNING_REVIEW_MODEL", "balanced"],
+      ["play-review", "INDEPENDENT_REVIEW_MODEL", "balanced"],
+      ["play-review", "TARGETED_VERIFICATION_MODEL", "balanced"],
       ["play-skill-authoring", "SKILL_PRESSURE_SCENARIO_MODEL", "balanced"],
-      ["play-subagent-execution", "DEFAULT_IMPLEMENTATION_MODEL", "balanced"],
+      [
+        "play-subagent-execution",
+        "DEFAULT_IMPLEMENTATION_MODEL",
+        "implementation",
+      ],
       ["play-subagent-execution", "EXACT_TASK_EXECUTION_MODEL", "efficient"],
-      ["play-subagent-execution", "TASK_SPEC_REVIEW_MODEL", "frontier"],
-      ["play-subagent-execution", "TASK_QUALITY_REVIEW_MODEL", "frontier"],
+      ["play-subagent-execution", "TASK_SPEC_REVIEW_MODEL", "balanced"],
+      ["play-subagent-execution", "TASK_QUALITY_REVIEW_MODEL", "balanced"],
       [
         "play-subagent-execution",
         "WHOLE_IMPLEMENTATION_QUALITY_REVIEW_MODEL",
-        "frontier",
+        "balanced",
       ],
       ["pr-merge", "CI_DIAGNOSIS_MODEL", "balanced"],
       ["pr-merge", "CI_EXACT_FIX_MODEL", "efficient"],
-      ["pr-merge", "CI_JUDGMENT_FIX_MODEL", "balanced"],
+      ["pr-merge", "CI_JUDGMENT_FIX_MODEL", "implementation"],
       ["play-review", "SEMANTIC_REVIEW_CONTEXT_MODEL", "balanced"],
     ] as const;
 
@@ -248,30 +250,11 @@ describe("shipped skill rendering", () => {
           getSkillOutput(outputs, skill, target).content,
         );
         const normalizedBody = normalizeContractText(body);
-        const usesReviewerOverride = [
-          "COMBINED_PLANNING_REVIEW_MODEL",
-          "INDEPENDENT_REVIEW_MODEL",
-          "TARGETED_VERIFICATION_MODEL",
-          "TASK_SPEC_REVIEW_MODEL",
-          "TASK_QUALITY_REVIEW_MODEL",
-          "WHOLE_IMPLEMENTATION_QUALITY_REVIEW_MODEL",
-        ].includes(binding);
-        const configuredModel = usesReviewerOverride
-          ? reviewerModel
-          : ["DEFAULT_IMPLEMENTATION_MODEL", "CI_JUDGMENT_FIX_MODEL"].includes(
-                binding,
-              )
-            ? "gpt-6.1-terra"
-            : config.capabilityProfiles[capability].codex;
-
-        expect(normalizedBody).toContain(
-          usesReviewerOverride
-            ? `${binding} = "${configuredModel}"`
-            : `\`${binding}\` = \`${configuredModel}\``,
-        );
-        expect(normalizedBody).not.toContain(
-          `\`${binding}\` resolves to \`${config.capabilityProfiles[capability].claude}\``,
-        );
+        const configuredModel = config.modelProfiles[capability].codex;
+        expect(
+          normalizedBody.includes(`${binding} = "${configuredModel}"`) ||
+            normalizedBody.includes(`\`${binding}\` = \`${configuredModel}\``),
+        ).toBe(true);
       }
     }
 
@@ -281,16 +264,17 @@ describe("shipped skill rendering", () => {
       );
       const normalizedBody = normalizeContractText(body);
       expect(normalizedBody).toContain("Codex-bound model bindings");
-      expect(body).toContain(`reviewer Codex model = "${reviewerModel}"`);
-      expect(body).toContain(
-        `model = "${reviewerModel}"\nreasoning_effort = "high"`,
+      expect(normalizedBody).toContain(
+        'Use model `custom-balanced-model` with `reasoning_effort = "high"`',
       );
-      for (const capability of ["efficient", "balanced", "frontier"] as const) {
+      for (const profile of [
+        "efficient",
+        "balanced",
+        "frontier",
+        "implementation",
+      ] as const) {
         expect(normalizedBody).toContain(
-          `\`${capability}\` → \`${config.capabilityProfiles[capability].codex}\``,
-        );
-        expect(normalizedBody).not.toContain(
-          `\`${capability}\` → \`${config.capabilityProfiles[capability].claude}\``,
+          `\`${profile}\` → \`${config.modelProfiles[profile].codex}\``,
         );
       }
     }
@@ -424,7 +408,7 @@ describe("shipped skill rendering", () => {
     }
   });
 
-  it("renders ordinary reviewer routes at Sol/high with explicit Claude compatibility", async () => {
+  it("renders ordinary reviewer routes with balanced/high with explicit Claude compatibility", async () => {
     const { outputs } = shippedSkillsRender;
     const targetedVerificationSpawn = [
       "Codex.spawn_agent({",
@@ -510,7 +494,9 @@ describe("shipped skill rendering", () => {
       expect(execution).toContain(
         "retains `deep-reviewer`, frontier capability and its catalog Claude effort",
       );
-      expect(execution).toContain("gpt-6.1-terra");
+      expect(execution).toContain(
+        shippedSkillsConfig.modelProfiles.implementation.codex,
+      );
       for (const [id, displayName] of [
         ["task-spec-review", "Task specification review"],
         ["task-quality-review", "Task quality review"],
@@ -523,7 +509,7 @@ describe("shipped skill rendering", () => {
         const binding = taskPrefix.toUpperCase();
         expect(execution).toContain(
           [
-            `# ${displayName}: ${binding}_MODEL is the literal Codex reviewer override`,
+            `# ${displayName}: ${binding}_MODEL is the rendered balanced Codex model`,
             "Codex.spawn_agent({",
             `  task_name: ${taskPrefix}_<instance_ordinal>,`,
             '  agent_type: "reviewer",',
@@ -538,9 +524,9 @@ describe("shipped skill rendering", () => {
     }
   });
 
-  it("keeps Terra implementation overrides when the balanced model changes", async () => {
+  it("keeps the implementer on its own profile when the balanced model changes", async () => {
     const config = await loadConfig("devcanon.config.yaml", true);
-    config.capabilityProfiles.balanced.codex = "custom-balanced-model";
+    config.modelProfiles.balanced.codex = "custom-balanced-model";
     const { outputs } = await renderAll(config, false, true);
     for (const target of TARGETS) {
       const execution = normalizeContractText(
@@ -556,14 +542,16 @@ describe("shipped skill rendering", () => {
         getSkillOutput(outputs, "play-agent-dispatch", target).content,
       );
       expect(execution).toContain(
-        "`DEFAULT_IMPLEMENTATION_MODEL` = `gpt-6.1-terra`",
+        `\`DEFAULT_IMPLEMENTATION_MODEL\` = \`${config.modelProfiles.implementation.codex}\``,
       );
-      expect(merge).toContain("`CI_JUDGMENT_FIX_MODEL` = `gpt-6.1-terra`");
+      expect(merge).toContain(
+        `\`CI_JUDGMENT_FIX_MODEL\` = \`${config.modelProfiles.implementation.codex}\``,
+      );
       expect(research).toContain(
         "`INTERNAL_RESEARCH_MODEL` = `custom-balanced-model`",
       );
       expect(dispatch).toContain(
-        "For `implementer`, select `gpt-6.1-terra` instead of the balanced binding",
+        "Reviewer uses balanced and implementer uses implementation",
       );
       expect(dispatch).toContain(
         "On Claude, reject `architect` selection before capture or spawn",
@@ -576,7 +564,9 @@ describe("shipped skill rendering", () => {
         "play-review-response",
         target,
       ).content;
-      expect(repairs).toContain("`gpt-6.1-terra`/`medium`");
+      expect(repairs).toContain(
+        "implementation model profile and `medium` effort",
+      );
     }
     const implementer = outputs.find(
       (output) =>
@@ -584,7 +574,9 @@ describe("shipped skill rendering", () => {
         output.name === "implementer" &&
         output.target === "codex",
     );
-    expect(implementer?.content).toContain('model = "gpt-6.1-terra"');
+    expect(implementer?.content).toContain(
+      `model = "${config.modelProfiles.implementation.codex}"`,
+    );
     expect(implementer?.content).not.toContain("custom-balanced-model");
   });
 
@@ -608,7 +600,7 @@ describe("shipped skill rendering", () => {
       );
 
       expect(body).toContain(semanticReviewContextSpawn);
-      expect(body).toContain(config.capabilityProfiles.balanced.codex);
+      expect(body).toContain(config.modelProfiles.balanced.codex);
     }
   });
 
@@ -722,7 +714,7 @@ describe("shipped skill rendering", () => {
 
   it("packages inline consumers and delegated repair tokens for both targets", async () => {
     const config = await loadConfig("devcanon.config.yaml", true);
-    config.capabilityProfiles.balanced.codex = "custom-balanced-model";
+    config.modelProfiles.balanced.codex = "custom-balanced-model";
     const generatedDir = await mkdtemp(
       path.join(tmpdir(), "devcanon-inline-allocation-"),
     );
@@ -756,7 +748,7 @@ describe("shipped skill rendering", () => {
         );
         expect(repair).toBe(repairSource);
         expect(repair).toContain("focused specialist dispatch `implementer`");
-        expect(repair).toContain("`gpt-6.1-terra`/`medium`");
+        expect(repair).toContain("implementation profile and `medium` effort");
         expect(repair).not.toContain("custom-balanced-model");
         const response = getSkillOutput(
           outputs,
@@ -766,7 +758,9 @@ describe("shipped skill rendering", () => {
         expect(response).toContain(
           "focused specialist dispatch or default implementation",
         );
-        expect(response).toContain("`gpt-6.1-terra`/`medium`");
+        expect(response).toContain(
+          "implementation model profile and `medium` effort",
+        );
       }
     } finally {
       await rm(generatedDir, { recursive: true, force: true });

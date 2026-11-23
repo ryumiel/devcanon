@@ -1,4 +1,4 @@
-version: 2
+version: 3
 
 library:
   skillsDir: ./skills
@@ -30,13 +30,15 @@ platform:
 manifest:
   path: ~/.devcanon/manifest.json
 
-capabilityProfiles:
+modelProfiles:
   efficient:
     claude: claude-haiku-4-5-20251001
     codex: gpt-6-luna
   balanced:
     claude: claude-sonnet-5
     codex: gpt-6.2-sol
+  implementation:
+    codex: gpt-6.1-terra
   frontier:
     claude: claude-opus-5
     codex: gpt-6.2-astra

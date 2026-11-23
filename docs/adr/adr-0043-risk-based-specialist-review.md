@@ -4,6 +4,8 @@
 
 Accepted. Source definitions and dispatch consumers implement the allocation
 together; installed outputs receive it through the normal explicit sync workflow.
+The [current model profile allocation](../specs/agents.md#model-allocation)
+preserves the effort and risk policy and owns the active model selection.
 
 ## Context
 

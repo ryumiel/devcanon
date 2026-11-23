@@ -118,7 +118,7 @@ describe("loadConfig", () => {
     expect(result.library.agentsDir).toBeTruthy();
     expect(result.library.generatedDir).toBeTruthy();
     expect(result.defaults.installMode).toBe("symlink");
-    expect(result.capabilityProfiles.balanced).toEqual({
+    expect(result.modelProfiles.balanced).toEqual({
       claude: "test-claude-balanced",
       codex: "test-codex-balanced",
     });
@@ -356,9 +356,7 @@ describe("loadConfig", () => {
           expect((err as UserError).message).toMatch(
             /version 1.*no longer supported/i,
           );
-          expect((err as UserError).hint).toMatch(
-            /version: 2.*capabilityProfiles/i,
-          );
+          expect((err as UserError).hint).toMatch(/version: 3.*modelProfiles/i);
           return true;
         },
       );
@@ -367,7 +365,7 @@ describe("loadConfig", () => {
   );
 
   it.each([false, true])(
-    "rejects version 2 modelTiers before ordinary/strict validation (strict=%s)",
+    "rejects legacy modelTiers before ordinary/strict validation (strict=%s)",
     async (strict) => {
       const yaml = makeConfigYaml({
         modelTiers: {
@@ -386,7 +384,7 @@ describe("loadConfig", () => {
           expect((err as UserError).message).toMatch(
             /modelTiers.*no longer supported/i,
           );
-          expect((err as UserError).hint).toMatch(/capabilityProfiles/i);
+          expect((err as UserError).hint).toMatch(/modelProfiles/i);
           return true;
         },
       );
@@ -505,7 +503,7 @@ describe("loadConfig", () => {
       const configPath = await createConfigFile(tempDir, makeConfigYaml());
       const result = await loadConfig(configPath, strict);
 
-      expect(result.capabilityProfiles).toEqual(CANONICAL_CAPABILITY_PROFILES);
+      expect(result.modelProfiles).toEqual(CANONICAL_CAPABILITY_PROFILES);
     },
   );
 
@@ -585,7 +583,7 @@ describe("loadConfig", () => {
     ])(`rejects $name when strict=${strict}`, async ({ value }) => {
       const configPath = await createConfigFile(
         tempDir,
-        makeConfigYaml({ capabilityProfiles: value }),
+        makeConfigYaml({ modelProfiles: value }),
       );
 
       await expect(loadConfig(configPath, strict)).rejects.toThrow(UserError);

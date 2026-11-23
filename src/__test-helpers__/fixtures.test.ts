@@ -19,24 +19,24 @@ describe("lightweight devcanon-runtime fixture validation", () => {
   it.each([
     [
       "missing capability profiles",
-      `${JSON.stringify({ schema: "devcanon/runtime-config/v1" })}\n`,
+      `${JSON.stringify({ schema: "devcanon/runtime-config/v2" })}\n`,
     ],
     [
       "invalid capability profiles",
       `${JSON.stringify({
-        schema: "devcanon/runtime-config/v1",
-        capabilityProfiles: {},
+        schema: "devcanon/runtime-config/v2",
+        modelProfiles: {},
       })}\n`,
     ],
     [
       "duplicate capability profile keys",
-      `{"schema":"devcanon/runtime-config/v1","capabilityProfiles":${JSON.stringify(CANONICAL_CAPABILITY_PROFILES)},"capabilityProfiles":{}}\n`,
+      `{"schema":"devcanon/runtime-config/v2","modelProfiles":${JSON.stringify(CANONICAL_CAPABILITY_PROFILES)},"modelProfiles":{}}\n`,
     ],
     [
       "extra catalog keys",
       `${JSON.stringify({
-        schema: "devcanon/runtime-config/v1",
-        capabilityProfiles: CANONICAL_CAPABILITY_PROFILES,
+        schema: "devcanon/runtime-config/v2",
+        modelProfiles: CANONICAL_CAPABILITY_PROFILES,
         extra: true,
       })}\n`,
     ],

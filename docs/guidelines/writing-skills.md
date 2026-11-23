@@ -213,7 +213,7 @@ Rules:
 - Override-block top-level string values are substituted; nested
   values (for example `codex.metadata.*`) pass through unchanged.
 
-`capabilityProfiles` has exactly three required model-only keys. `toolNames`
+`modelProfiles` has four required model profiles. `toolNames`
 and `fileArtifacts` remain configurable glossaries. Capability names are not
 customizable and do not carry effort.
 

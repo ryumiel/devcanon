@@ -7,7 +7,7 @@ import type {
 } from "../models/types.js";
 import { UserError } from "../utils/errors.js";
 import { sha256 } from "../utils/hash.js";
-import { resolveCapabilityModel } from "./capability-profiles.js";
+import { resolveProfileModel } from "./capability-profiles.js";
 import {
   SAFE_PASSTHROUGH_KEY,
   describeValueShape,
@@ -156,22 +156,17 @@ export function renderCodexAgent(
 
   // Optional codex-specific fields
   const codex = agent.source.codex;
-  if (codex?.model?.includes("{{model:")) {
+  if (codex && Object.hasOwn(codex, "model")) {
     throw new UserError(
-      `Agent "${agent.name}": codex.model no longer supports model placeholders (received "${codex.model}"); set top-level capability to efficient, balanced, or frontier, or use a literal target model.`,
+      "Legacy codex.model is unsupported. Select modelProfile or omit it.",
       agent.filePath,
     );
   }
 
   const model =
-    codex?.model === null
+    codex?.modelProfile === undefined
       ? undefined
-      : resolveCapabilityModel(
-          codex?.model,
-          agent.source.capability,
-          "codex",
-          config.capabilityProfiles,
-        );
+      : resolveProfileModel(codex.modelProfile, "codex", config.modelProfiles);
   if (model) lines.push(`model = ${tomlQuote(model)}`);
 
   if (codex) {

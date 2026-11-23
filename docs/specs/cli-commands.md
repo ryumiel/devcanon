@@ -106,8 +106,8 @@ and `value`. Containers and arrays, missing keys, unsafe key syntax, and
 inherited-key paths are errors.
 
 When no source configuration is selected, the command reads the packaged
-`devcanon/runtime-config/v1` catalog. Its closed top-level object is
-`{ schema, capabilityProfiles }`; `capabilityProfiles` remains owned by the
+`devcanon/runtime-config/v2` catalog. Its closed top-level object is
+`{ schema, modelProfiles }`; `modelProfiles` remains owned by the
 strict source schema rather than this command specification.
 
 Selection, catalog-validation, and key errors use the CLI's ordinary error
@@ -149,7 +149,7 @@ Scaffold behavior:
 
 - writes top-level `capability: balanced`
 - omits target model placeholders and target effort fields
-- relies on the required version 2 `capabilityProfiles` catalog during render
+- relies on the required version 3 `modelProfiles` catalog during render
 
 ---
 
@@ -169,14 +169,14 @@ Current implemented behavior:
   are validated separately
   before declaration-bearing source skills and is not included in the
   source-skill count
-- version 1 config fails with a dedicated migration diagnostic; version 2
-  `modelTiers` fails with a dedicated `capabilityProfiles` replacement
+- versions 1 and 2 fail with a migration diagnostic; legacy model catalog keys
+  fail with a `modelProfiles` replacement
   diagnostic before ordinary schema validation
 - active skill model placeholders accept only `efficient`, `balanced`, and
   `frontier`; former or malformed model tokens fail with the source
   `SKILL.md` path and canonical migration guidance
 - agent target `model` fields reject model placeholders and direct authors to
-  top-level capability or literal target models
+  target `modelProfile` selectors
 - skill drift diagnostics are emitted as warnings in normal mode
 - oversized `SKILL.md` prompt diagnostics are emitted as advisory warnings
   when the raw file is estimated above the `5,000` GPT-token soft upper
@@ -190,7 +190,7 @@ Current implemented behavior:
   except for the oversized `SKILL.md` prompt diagnostic, which remains
   warning-only in this first implementation
 - the current skill drift checks cover configured model tokens and
-  target-specific path segments in shared prose; configured capability model
+  target-specific path segments in shared prose; configured profile model
   strings are included in the model drift set
 
 Validation accepts the explicit provider and its prebuilt runtime artifact

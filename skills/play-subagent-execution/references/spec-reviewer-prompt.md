@@ -1,6 +1,6 @@
 # Spec Compliance Reviewer Prompt Template
 
-**Target selection:** Codex uses reviewer/Sol High. Claude retains deep-reviewer
+**Target selection:** Codex uses reviewer with the balanced profile at high effort. Claude retains deep-reviewer
 with frontier capability and its catalog Claude effort. The enclosing execution
 skill owns this target-specific selection; scope, guards and result contracts
 are identical. Validate the selected target role, not the other target's role.

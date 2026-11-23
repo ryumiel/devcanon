@@ -66,7 +66,7 @@ describe("devcanon-runtime diff", () => {
     );
     await writeFile(
       installedCatalog,
-      '{"schema":"devcanon/runtime-config/v1","capabilityProfiles":{"efficient":{"claude":"a","codex":"b"},"balanced":{"claude":"c","codex":"d"},"frontier":{"claude":"e","codex":"f"}}}\n',
+      '{"schema":"devcanon/runtime-config/v2","modelProfiles":{"efficient":{"claude":"a","codex":"b"},"balanced":{"claude":"c","codex":"d"},"frontier":{"claude":"e","codex":"f"}}}\n',
       "utf-8",
     );
 
@@ -104,7 +104,7 @@ describe("devcanon-runtime diff", () => {
           "config",
           "runtime-config.json",
         ),
-        '{"schema":"devcanon/runtime-config/v1","capabilityProfiles":{"efficient":{"claude":"a","codex":"b"},"balanced":{"claude":"c","codex":"d"},"frontier":{"claude":"e","codex":"f"}}}\n',
+        '{"schema":"devcanon/runtime-config/v2","modelProfiles":{"efficient":{"claude":"a","codex":"b"},"balanced":{"claude":"c","codex":"d"},"frontier":{"claude":"e","codex":"f"}}}\n',
         "utf-8",
       );
 
