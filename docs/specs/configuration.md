@@ -158,7 +158,7 @@ standard error. The command and error-code details remain owned by
 
 - From an unrelated directory with no selected source configuration,
   `devcanon config get modelProfiles.balanced.codex` reads the packaged
-  catalog and prints `gpt-6.2-sol`. `devcanon --json config path` reports an
+  catalog and prints the bundled balanced Codex model ID. `devcanon --json config path` reports an
   absolute `path` and `source: "bundled"`.
 - With `--config` pointing to a valid custom source configuration,
   `devcanon --config <path> --json config get modelProfiles.balanced.codex`
@@ -227,16 +227,16 @@ manifest:
 
 modelProfiles:
   efficient:
-    claude: claude-haiku-4-5-20251001
-    codex: gpt-6-luna
+    claude: example-claude-efficient
+    codex: example-codex-efficient
   balanced:
-    claude: claude-sonnet-5
-    codex: gpt-6.2-sol
+    claude: example-claude-balanced
+    codex: example-codex-balanced
   implementation:
-    codex: gpt-6.1-terra
+    codex: example-codex-implementation
   frontier:
-    claude: claude-opus-5
-    codex: gpt-6.2-astra
+    claude: example-claude-frontier
+    codex: example-codex-frontier
 
 toolNames:
   task-tracker:
@@ -294,8 +294,8 @@ for rendered skill sidecar display names.
 
 Required. The strict catalog has four profiles. The `efficient`, `balanced`, and
 `frontier` entries require `claude` and `codex` model IDs. The `implementation`
-entry requires only `codex`. IDs are nonblank, render-safe strings up to 256
-characters. Additional profile and target keys are rejected.
+entry requires only `codex`. IDs start with an ASCII letter or digit and contain up to 256 characters.
+The remaining characters may also include `.`, `_`, `:`, `/`, `@`, `+`, and `-`. Additional profile and target keys are rejected.
 
 Edit a model ID in `devcanon.config.yaml` and run `devcanon sync`. The agent
 renderer resolves each target's `modelProfile` selection. Skills resolve

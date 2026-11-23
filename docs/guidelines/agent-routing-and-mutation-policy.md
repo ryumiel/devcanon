@@ -304,14 +304,12 @@ catalog's route effort and Claude uses its Claude effort. For a Claude
 arguments; validate this required absence against the role catalog. All Codex
 roles (including executor at `medium`) and the other five Claude roles still
 require their exact catalog effort. Do not replace omission with an ambient
-value or a thinking budget. A fresh Codex focused specialist dispatch model is the rendered full model from
-the selected route capability's Codex-bound binding; its effort is the
-independent selected route effort. The selected source must match the selected
-role's capability before that render-time binding is used; a capability-less or
-mismatched source fails that parity check rather than entering model resolution.
-Source-level explicit-null suppression remains a source-to-render contract and
-does not override the fresh-route tuple. The controller does not reload source
-configuration or use the sibling passive runtime to supply this binding.
+value or a thinking budget. The owning workflow renders the selected role's Codex model profile for a
+fresh focused dispatch. Route effort and capability parity are separate checks.
+The selected source must declare the role's capability before using the
+binding. Executor omits its source model selector and uses the rendered
+efficient binding for explicit dispatch. The controller consumes the rendered
+model without reloading source configuration or the sibling passive runtime.
 
 `agents/*.yaml` are governed declarations/instances and parity inputs, never
 peer semantic authorities. Cognitive demand and stance remain planner
@@ -417,6 +415,6 @@ result that is unavailable or inconclusive leaves the affected decision unresolv
 failed checks and unresolved blockers cannot be approved by model choice.
 
 The [Kiki practical trial](../specs/workflow-specialist-pilot.md) supplies supporting
-feedback on detection, repairs and unnecessary Astra usage. It is not a mandatory
+feedback on detection, repairs and unnecessary specialist dispatches. It is not a mandatory
 publication or installation gate. Normal review, verification and authorization
 requirements continue to apply.

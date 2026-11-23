@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { FILESYSTEM_SAFE } from "../utils/naming.js";
 import { DEFAULT_MANIFEST_PATH, MANIFEST_MANAGED_BY } from "./identity.js";
+import { isModelId } from "./model-id.js";
 
 // --- Install mode ---
 export const InstallModeSchema = z.enum(["symlink", "copy"]);
@@ -94,11 +95,8 @@ const TargetEntrySchema = z.object({
 
 export const PLACEHOLDER_KEY = /^[a-z0-9][a-z0-9-]*$/;
 
-const ModelIdentifierSchema = renderSafeString(
-  1,
-  TARGET_ENTRY_VALUE_MAX,
-).refine((value) => value.trim().length > 0, {
-  message: "model identifier must not be blank",
+const ModelIdentifierSchema = z.string().refine(isModelId, {
+  message: "model identifier must be a render-safe ID of 1–256 characters",
 });
 
 const ModelProfileEntrySchema = z

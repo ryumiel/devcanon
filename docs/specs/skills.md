@@ -312,13 +312,14 @@ passive-runtime spec owns physical custody and overwrite policy.
 - Skill names must be unique.
 - Every active `{{X:Y}}` placeholder must use `X` ∈ {`model`,
   `model-codex`, `tool`, `file`}. Model and model-codex `Y` values must be
-  exactly `efficient`, `balanced`, or `frontier`; tool and file keys must exist
-  in the corresponding glossary.
+  `efficient`, `balanced`, `frontier`, or `implementation`. The implementation
+  profile resolves only for Codex. Tool and file keys must exist in the
+  corresponding glossary.
 - Model and model-codex placeholders use the exact model profile names. `toolNames` and
   `fileArtifacts` keys match `^[a-z0-9][a-z0-9-]*$` (lowercase, digits,
   hyphens; e.g. `task-tracker`, `project-instructions`).
 - Former model tokens, malformed active model tokens, and unknown model
-  capabilities fail validation with the exact source `SKILL.md` path and
+  profiles fail validation with the exact source `SKILL.md` path and
   guidance naming the supported profile tokens and `modelProfiles`.
 - The backslash escape and block-code exemption are unchanged. Escaped or
   block-code historical examples remain literal and are not migration

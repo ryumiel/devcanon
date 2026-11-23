@@ -97,8 +97,8 @@ Never derive effort from capability, inherit an ambient value, or substitute a
 thinking budget for omission. Validate `source_authority` separately against
 that same catalog; effort does not imply authority.
 `agents/*.yaml` are governed declarations and parity inputs,
-never semantic authorities; their target-local literal fields are governed
-values under the agent spec. Focused specialist dispatch uses the rendered Codex model profile selected for each role.
+never semantic authorities. The agent spec governs their target model
+profiles. Focused specialist dispatch uses the rendered Codex model profile selected for each role.
 
 For the selected focused specialist dispatch role, the complete Codex-bound model bindings are
 `efficient` → `{{model-codex:efficient}}`, `balanced` →

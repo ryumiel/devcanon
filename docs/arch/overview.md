@@ -69,27 +69,18 @@ not as a claim that the dependency direction is ideal:
 - `install/` currently imports `KNOWN_SUBDIRS` from `validate/skills.ts` when
   checking mirrored skill subdirectories for copy-mode executable drift.
 
-### Capability Profile Boundary
+### Model Profile Boundary
 
-`src/config/schema.ts` owns the strict version 2 source contract and required
-`capabilityProfiles` shape. `src/render/codex.ts` owns explicit
-`codex.model: null` suppression, so that target emits no Codex model. The
-shared `src/render/capability-profiles.ts` resolver maps a literal target model
-or an absent target model through the normal capability/omission path used by
-both renderers; it does not decide explicit-null suppression. Claude model
-selection remains literal-or-absent; the agent spec rejects Claude null and
-owns both target-specific source rules.
+`src/config/schema.ts` owns the strict v3 source contract and the required
+`modelProfiles` catalog. Each agent target selects a profile with
+`modelProfile`. Omission leaves the native model unset. Agent renderers and
+active skill placeholders share a model resolver. A Codex-bound token resolves
+the Codex model in either artifact target.
 
-Capability resolution does not own target-native effort, tools, sandbox,
-approval policy, context, authority, orchestration, retries, or escalation.
-Those fields remain explicit in their source or workflow owners. Skill model
-tokens are resolved separately by `src/render/placeholders.ts` against the same
-catalog, within the existing prose, escape, and fence boundaries.
-
-[ADR-0026](../adr/adr-0026-capability-profiles.md) owns the policy decision,
-[Configuration](../specs/configuration.md) owns the user-facing behavior, and
-[Capability Profiles v2 Migration](../guidelines/capability-profiles-v2-migration.md)
-owns the manual operator cutover and rollback procedure.
+Routing capability, target-native effort, authority, and execution constraints
+remain independent of model selection. See [Configuration](../specs/configuration.md#modelprofiles)
+for the catalog and the [v3 cutover](../specs/configuration.md#cut-over-to-v3)
+for upgrading a managed installation.
 
 ### Configuration Discovery and Runtime Catalog Boundary
 
@@ -100,11 +91,11 @@ separate read-only selection used by public `config path` and `config get`.
 That selector uses the same source precedence and, only when no source
 configuration is selected, reads the bundled runtime catalog.
 
-The runtime catalog is an exact `schema` plus `capabilityProfiles` JSON
+The runtime catalog is an exact `schema` plus `modelProfiles` JSON
 transport object. It is not a second user configuration: source configuration
 continues to own library paths, targets, manifest settings, and the catalog
 that drives rendering. During source-driven rendering,
-`src/render/devcanon-runtime.ts` projects the selected source capability
+`src/render/devcanon-runtime.ts` projects the selected source model
 profiles into each enabled target selected for that render;
 `src/validate/devcanon-runtime.ts` validates the exact `config/` and `scripts/`
 payload before source-driven render or transport. The generated and installed
@@ -141,22 +132,19 @@ this section is only the current module-boundary summary.
 
 ### Semantic Agent Routing Boundary
 
-The current architecture has seven semantic source roles under `agents/` and
-both-target render convergence for that catalog. Architect, assessor, investigator,
-implementer, reviewer, and deep-reviewer sources specify literal Codex model
-and effort defaults, which are emitted in their rendered TOML. Executor uses
-`codex.model: null` and omitted source Codex effort to suppress both rendered
-fields. The Claude executor omits unsupported Haiku effort; the other
-five existing Claude role envelopes remain unchanged; the new architect is
-renderable but excluded from Claude workflow dispatch. The
+The seven semantic roles under `agents/` select explicit target model profiles
+and efforts. Codex executor omits its native model and effort. Its explicit
+dispatch uses efficient at medium effort. Claude executor selects efficient and
+omits named effort. The architect has a Claude artifact and is eligible for
+focused dispatch on Codex. The
 [agent spec](../specs/agents.md#semantic-role-catalog) is the sole exact catalog
 owner; source definitions are authoritative for implementation state, while
 generated outputs and fresh renders are convergence evidence, not authority.
 ADR-0027 accepts this architecture with ordinary repository checks; its dated
 runtime trials are historical evidence, not a deployment prerequisite.
 
-Agent definitions own stable identity plus capability, Claude
-effort, tools, and sandbox constraints. Skills own task-local prompts, phase
+Agent definitions own stable identity plus capability, model profiles, effort,
+tools, and sandbox constraints. Skills own task-local prompts, phase
 logic, schemas, route-local failure, retries, and termination.
 
 Direct dispatch resolves cognitive demand and stance before selecting a
@@ -169,7 +157,7 @@ owns the stable decision.
 
 Fresh child controllers consume the full Codex model from the route's
 Codex-bound rendered binding and effort from the independent route tuple.
-Source capability profiles supply the binding only during rendering. The
+Source model profiles supply the binding only during rendering. The
 running-session configuration is fixed by ADR-0027; changed required tuple or
 task identity needs a new session. The shared lifecycle procedure owns the
 transition mechanics, while route skills own permitted task-local continuation.
@@ -351,7 +339,7 @@ formats (Claude `.md`, Codex `.toml`).
 
 ### Target
 
-A supported output environment. Version 2 supports `claude` and `codex`.
+A supported output environment. DevCanon supports `claude` and `codex`.
 
 ### Managed Output
 

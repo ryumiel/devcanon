@@ -2,13 +2,14 @@
 
 ## Status
 
-Accepted
+Accepted. The [configuration specification](../specs/configuration.md#modelprofiles)
+owns the current catalog shape and explicit model profile selection.
 
 ## Context
 
 DevCanon has two configuration needs that must not be conflated. Library
 commands need a selected source configuration to locate source directories,
-target homes, manifest state, and the capability-profile catalog. Operators
+target homes, manifest state, and the model profile catalog. Operators
 also need a read-only way to inspect configuration from an arbitrary current
 directory. Installed runtime-backed skills need the profile values that were
 selected for their target, but cannot safely rediscover an arbitrary source
@@ -29,11 +30,11 @@ runtime catalog. A selected missing or invalid source configuration fails; it
 does not fall through to the catalog or another source.
 
 The source configuration and the runtime catalog have separate authority. The
-source schema owns library configuration and the capability profiles used for
+source schema owns library configuration and the model profiles used for
 rendering. The runtime catalog is an exact, validated transport object that
-contains only its schema identifier and capability profiles. During rendering,
-each enabled target selected for that render receives the same complete paired
-Claude-and-Codex catalog projected from the selected source profiles alongside
+contains only its schema identifier and model profiles. During rendering,
+each enabled target selected for that render receives the complete catalog
+projected from the selected source profiles alongside
 its runtime scripts. Generated previews and installed payloads are derived
 transport outputs, not user configuration or independent model-selection
 authority.
@@ -55,7 +56,7 @@ schema, semantics, projection-input, and selection partition described above.
 This ADR also partially supersedes
 [ADR-0005](adr-0005-per-target-skill-rendering.md)'s namespace scope-lock by
 adding the execution-target-bound `model-codex` namespace. Route skills use
-that namespace for full-model bindings: the source capability names the profile
+that namespace for full-model bindings: the route names the model profile
 during rendering; an explicit Codex spawn uses the Codex-bound placeholder in
 both artifact targets, and a controller later consumes that literal binding and
 fails closed if it is missing or invalid. It does not rediscover source

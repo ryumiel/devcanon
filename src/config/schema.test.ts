@@ -343,9 +343,7 @@ describe("AgentSourceSchema", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       const messages = result.error.issues.map((i) => i.message).join(" ");
-      expect(messages).toMatch(
-        /Legacy agent model fields|control characters or line breaks/i,
-      );
+      expect(messages).toMatch(/Legacy agent model fields/i);
     }
   });
 
@@ -410,9 +408,7 @@ describe("AgentSourceSchema", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       const messages = result.error.issues.map((i) => i.message).join(" ");
-      expect(messages).toMatch(
-        /Legacy agent model fields|control characters or line breaks/i,
-      );
+      expect(messages).toMatch(/control characters or line breaks/i);
     }
   });
 
@@ -602,7 +598,7 @@ describe("ConfigSchema.modelProfiles", () => {
     expect(result.success).toBe(false);
   });
 
-  it.each(["efficient", "balanced", "frontier"] as const)(
+  it.each(["efficient", "balanced", "frontier", "implementation"] as const)(
     "rejects a catalog missing the %s profile",
     (profile) => {
       const modelProfiles = { ...CAPABILITY_PROFILES };
@@ -686,16 +682,19 @@ describe("ConfigSchema.modelProfiles", () => {
     expect(result.success).toBe(false);
   });
 
-  it.each(["", "   "])("rejects an empty or blank model string", (claude) => {
-    const result = ConfigSchema.safeParse({
-      ...VALID_CONFIG,
-      modelProfiles: {
-        ...CAPABILITY_PROFILES,
-        balanced: { ...CAPABILITY_PROFILES.balanced, claude },
-      },
-    });
-    expect(result.success).toBe(false);
-  });
+  it.each(["", "   ", "model|suffix", "model`suffix", 'model"suffix'])(
+    "rejects an unsafe model ID %j",
+    (claude) => {
+      const result = ConfigSchema.safeParse({
+        ...VALID_CONFIG,
+        modelProfiles: {
+          ...CAPABILITY_PROFILES,
+          balanced: { ...CAPABILITY_PROFILES.balanced, claude },
+        },
+      });
+      expect(result.success).toBe(false);
+    },
+  );
 
   it("rejects values exceeding the 256-character cap", () => {
     const result = ConfigSchema.safeParse({
@@ -760,9 +759,7 @@ describe("AgentSourceSchema render-safe code-point coverage", () => {
       expect(result.success).toBe(false);
       if (!result.success) {
         const messages = result.error.issues.map((i) => i.message).join(" ");
-        expect(messages).toMatch(
-          /Legacy agent model fields|control characters or line breaks/i,
-        );
+        expect(messages).toMatch(/Legacy agent model fields/i);
       }
     });
 
@@ -774,9 +771,7 @@ describe("AgentSourceSchema render-safe code-point coverage", () => {
       expect(result.success).toBe(false);
       if (!result.success) {
         const messages = result.error.issues.map((i) => i.message).join(" ");
-        expect(messages).toMatch(
-          /Legacy agent model fields|control characters or line breaks/i,
-        );
+        expect(messages).toMatch(/Legacy agent model fields/i);
       }
     });
   }

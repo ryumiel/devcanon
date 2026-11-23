@@ -481,7 +481,7 @@ The route owner supplies the capability, model binding, and independent effort. 
 Codex dispatch resolves its full model from its Codex-bound rendered route binding
 and passes both model and effort explicitly. Rendered semantic role TOML
 emits literal model and effort defaults when its source specifies them;
-executor retains explicit-null model suppression and omitted effort. Direct
+executor omits its model selector and reasoning effort. Direct
 dispatch still supplies its complete route tuple independently. Default implementation
 uses `implementer`, balanced/medium; exact task execution uses `executor`, efficient/medium; and
 per-task and whole-implementation reviews use `reviewer`, frontier/high on Codex. On Claude they retain

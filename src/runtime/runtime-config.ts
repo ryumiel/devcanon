@@ -1,6 +1,7 @@
 import { lstat, readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { isModelId } from "../config/model-id.js";
 
 export const RUNTIME_CONFIG_SCHEMA = "devcanon/runtime-config/v2";
 
@@ -127,7 +128,7 @@ export function parseRuntimeConfigCatalog(
       throw new Error(`${profileName} must contain ${targets.join(" and ")}`);
     }
     for (const targetName of targets) {
-      if (!isRuntimeModel(profile[targetName])) {
+      if (!isModelId(profile[targetName])) {
         throw new Error(
           `${profileName}.${targetName} must be a nonblank render-safe model identifier`,
         );
@@ -148,26 +149,6 @@ function isExactObject(
     Object.keys(value).length === expectedKeys.length &&
     expectedKeys.every((key) => Object.hasOwn(value, key))
   );
-}
-
-function isRuntimeModel(value: unknown): value is string {
-  if (typeof value !== "string" || value.length === 0 || value.length > 256) {
-    return false;
-  }
-  if (value.trim().length === 0) return false;
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    if (
-      code <= 0x1f ||
-      code === 0x7f ||
-      code === 0x85 ||
-      code === 0x2028 ||
-      code === 0x2029
-    ) {
-      return false;
-    }
-  }
-  return true;
 }
 
 function isSafeKey(key: string): boolean {
