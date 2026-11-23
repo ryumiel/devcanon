@@ -1,6 +1,6 @@
 # GitHub push operation
 
-At GitHub batch startup and issue admission on local macOS Codex Desktop, the coordinator
+At GitHub batch startup and issue admission on a local Codex Desktop host (including macOS and Windows), the coordinator
 includes relay setup, webhook registration and recipient notices in its upfront
 permission check by default. Reuse a verified receiver and subscription for the same
 batch. Validate new issue and owner bindings in the live ledger, preserve disjoint
@@ -12,10 +12,10 @@ owns the event and authority rules.
 
 1. Verify authorization for the repository subscription and notices to the
    existing coordinator and registered owners. Verify a supported local
-   _queue-to-turn_ test in a disposable loaded Desktop chat on this Mac.
+   _queue-to-turn_ test in a disposable loaded Desktop chat on the receiver host.
    Confirm the same UUID and a distinct turn. A successful queue command
    establishes submission only.
-2. Use the coordinator's live ledger at a stable absolute path on the Mac. It
+2. Use the coordinator's live ledger at a stable absolute path on that host. It
    must identify the expected repository and local coordinator. Put
    `"mode": "github_push"` into its existing `monitor` object under the
    coordinator's authority. Preserve the other monitor facts and applicable
@@ -82,8 +82,8 @@ incompatible required ledger field produces an actionable setup or
 delivery error.
 
 Create the secret and start the receiver using the
-[relay CLI usage](github-push-relay-usage.md). Run it as the same macOS user
-as Desktop. For launchd, invoke the absolute path to `devcanon` with
+[relay CLI usage](github-push-relay-usage.md). Run it under the same user account as Codex Desktop.
+For a persistent receiver, invoke the absolute path to `devcanon` with
 `github-push-relay serve` and absolute paths to the ledger, the state directory,
 `gh`, and `codex`. Ensure Node.js 24 or later is on the service's `PATH`.
 

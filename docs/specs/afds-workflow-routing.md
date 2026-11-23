@@ -930,7 +930,7 @@ schedules through the [retirement procedure](../../skills/issue-batch-coordinati
 
 #### ROUTE-007-PUSH: GitHub push delivery
 
-At GitHub batch startup and issue admission on local macOS Codex Desktop, include
+At GitHub batch startup and issue admission on a local Codex Desktop host (including macOS and Windows), include
 relay setup, repository webhook registration and notices to the bound recipients
 in the permission check by default. Verify that the running receiver covers each admitted issue. For an added issue outside
 its loaded allowlist, extend the disjoint scope, restart the same receiver with
