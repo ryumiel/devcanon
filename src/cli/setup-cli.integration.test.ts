@@ -14,7 +14,11 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { SHIPPED_CAPABILITY_PROFILES } from "../__test-helpers__/fixtures.js";
+import { loadConfig } from "../config/load.js";
+
+const { modelProfiles } = await loadConfig(
+  path.join(process.cwd(), "devcanon.config.yaml"),
+);
 
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
@@ -99,7 +103,7 @@ describe.runIf(process.platform !== "win32")("setup:cli", () => {
       expect(JSON.parse(catalog.stdout)).toMatchObject({
         source: "bundled",
         key: "modelProfiles.balanced.codex",
-        value: SHIPPED_CAPABILITY_PROFILES.balanced.codex,
+        value: modelProfiles.balanced.codex,
       });
     } finally {
       await rm(xdgDataHome, { recursive: true, force: true });
@@ -246,7 +250,7 @@ describe.runIf(process.platform === "win32")("setup:cli", () => {
       expect(JSON.parse(catalog.stdout)).toMatchObject({
         source: "bundled",
         key: "modelProfiles.balanced.codex",
-        value: SHIPPED_CAPABILITY_PROFILES.balanced.codex,
+        value: modelProfiles.balanced.codex,
       });
     } finally {
       await rm(root, { recursive: true, force: true });
