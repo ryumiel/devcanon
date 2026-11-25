@@ -40,7 +40,6 @@ function readJson(file) {
 }
 
 function validateConfig(config) {
-  const issues = config.issues;
   if (
     !matches(/^[\w.-]+\/[\w.-]+$/, config.repository) ||
     config.repository
@@ -48,10 +47,6 @@ function validateConfig(config) {
       .some((part) => part === "." || part === "..") ||
     !positive(config.repository_id) ||
     !matches(uuid, config.coordinator_thread) ||
-    !Array.isArray(issues) ||
-    issues.length === 0 ||
-    !issues.every(positive) ||
-    new Set(issues).size !== issues.length ||
     !text(config.base_branch) ||
     !positive(config.connector_id) ||
     !text(config.connector_login) ||
@@ -90,12 +85,6 @@ export class Relay {
     this.secret = secret;
     this.gitHub = gitHub;
     this.send = send;
-    this.scope = new Map(
-      config.issues.map((issue) => [
-        `github:${config.repository}#${issue}`,
-        issue,
-      ]),
-    );
     this.database.exec(
       "PRAGMA busy_timeout = 2000;" +
         "CREATE TABLE IF NOT EXISTS binding (id INTEGER PRIMARY KEY CHECK (id = 1), identity TEXT NOT NULL);" +
@@ -135,14 +124,16 @@ export class Relay {
     for (const item of ledger.items) {
       if (!text(item?.source_issue_identifier))
         throw new Error("Ledger item is missing its issue identity");
-      if (!this.scope.has(item.source_issue_identifier)) continue;
-      if (!text(item.source_state))
-        throw new Error("Opted-in ledger item is missing its source state");
-      if (item.owner_thread_id && !text(item.owner_host_id)) {
-        throw new Error("Registered ledger owner is missing its host");
-      }
     }
     return ledger;
+  }
+
+  issueNumber(identifier) {
+    const prefix = `github:${this.config.repository}#`;
+    if (!identifier.startsWith(prefix)) return;
+    const suffix = identifier.slice(prefix.length);
+    const issue = Number(suffix);
+    if (positive(issue) && String(issue) === suffix) return issue;
   }
 
   async pull(number) {
@@ -182,12 +173,12 @@ export class Relay {
     if (linked.size > 1) return;
     const expectedPr = `github:${repo}#${number}`;
     const batch = ledger.items.filter((item) =>
-      this.scope.has(item.source_issue_identifier),
+      this.issueNumber(item.source_issue_identifier),
     );
     let items = batch.filter(
       (item) =>
         item.pr_identifier === expectedPr ||
-        linked.has(this.scope.get(item.source_issue_identifier)),
+        linked.has(this.issueNumber(item.source_issue_identifier)),
     );
     if (
       items.length === 0 &&
@@ -198,8 +189,16 @@ export class Relay {
     }
     if (items.length !== 1) return;
     const [item] = items;
-    const issue = this.scope.get(item.source_issue_identifier);
+    if (!text(item.source_state))
+      throw new Error("Opted-in ledger item is missing its source state");
+    if (item.owner_thread_id && !text(item.owner_host_id))
+      throw new Error("Registered ledger owner is missing its host");
+    const issue = this.issueNumber(item.source_issue_identifier);
     if (
+      batch.filter(
+        (entry) =>
+          entry.source_issue_identifier === item.source_issue_identifier,
+      ).length !== 1 ||
       (linked.size === 1 && !linked.has(issue)) ||
       item.source_state !== "OPEN" ||
       item.owner_host_id !== "local" ||

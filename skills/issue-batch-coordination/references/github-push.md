@@ -35,16 +35,23 @@ owns the event and authority rules.
 ### Admit another issue
 
 For an accepted GitHub issue, verify the repository, ledger membership, owner
-recipient and non-overlap with other receivers on the same repository. The
-running receiver loads the issue IDs from `config.json` at startup and reads
-owner bindings from the ledger on each delivery. If the running receiver
-already covers the issue, reuse it. Otherwise add the issue ID to `issues`
-while preserving the existing IDs and settings. Restart the same receiver with
-its existing ledger, state directory, receipts, secret, endpoint and webhook.
-Confirm it loaded the intended configuration and can deliver to the bound
-recipient before relying on notices. If restart or coverage is uncertain,
-report the affected delivery gap and reconcile pending deliveries through the
-existing receipts before replay.
+recipient and non-overlap with other receivers on the same repository. Add the
+issue and its verified binding to the live ledger. The receiver reads them on
+the next delivery; no configuration change or restart is needed. Verify delivery
+to the bound recipient before relying on notices. If coverage is uncertain,
+report the delivery gap and reconcile pending deliveries through existing
+receipts before replay.
+
+### Migrate an existing receiver
+
+Before upgrading, compare its old `config.json.issues` list with the GitHub
+items and owner bindings in its ledger. Resolve unintended additions or omissions
+and check every receiver watching the repository for overlapping issue ownership.
+Remove `issues` from the configuration, deploy the new code and restart the same
+receiver once with its existing ledger, state directory, receipts, secret,
+endpoint and webhook. Verify a matching delivery reaches the intended recipient
+and inspect receipts before relying on notices. Ledger updates do not replay
+previous deliveries; reconcile any delivery gap before manually replaying.
 
 ### Ledger fields
 
