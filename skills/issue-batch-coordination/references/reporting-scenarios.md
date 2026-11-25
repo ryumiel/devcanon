@@ -62,13 +62,56 @@ recipient resolves that reference and validates current identity, authority,
 freshness and replay bindings before acting; an unreadable or stale reference
 holds that action. Full evidence remains with its owner.
 
-These hypothetical cases exercise the existing Record and yield procedure and
-router [operational retention](../../issue-batch-routing/SKILL.md#operational-retention).
-Use disposable ledgers; do not resume a completed batch, contact its owners,
-change provider state or create a timer. Ordinary updates cover the affected
-item and dependent facts; the terminal-report case includes every accepted item.
-This is bounded scenario coverage, not a new ledger schema or reconciliation
-checklist.
+Exercise the coordinator's [ledger write procedure](../SKILL.md#ledger-write-procedure)
+through Record and yield, controller recovery, and batch closeout. Use
+disposable ledgers and controlled observations. For each case, retain the
+before file, apply the ordinary coordinator write instructions, and reopen the
+saved file before delivering the next observation. Record the recovered
+decision, derived summary and selected effect, including when none is eligible.
+Keep required outcomes out of the evaluator's inputs. Ordinary updates cover
+the affected item and dependent facts; terminal reporting covers every accepted
+item. These scenarios authorize no provider writes, owner contact or timers.
+
+### Head replacement and legacy recovery
+
+Use these sanitized starting records and events:
+
+| Case                   | Starting record and observations                                                                                                                                                                                                                                                                                        |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Head replacement       | Item 661 has local candidate A with validation and independent review passed. Its PR still points to verified published P. Receive a verified local replacement B, a delayed validation pass for A, then the required validation and review passes for B. Replay B's success after its publication action was recorded. |
+| Unresolved effect at A | Use the same replacement, but the recorded publication attempt for A has an unknown result and retains its exact route, authority reference, owner/host, repository, branch and result reference. Resolve it through a verified provider result at A. Replay the old result after reconciliation.                       |
+| Conflicting head       | In a reopened ledger with local B and published P, deliver an owner report claiming a different published head without matching provider evidence. Repeat it, then provide the verified provider result.                                                                                                                |
+| Legacy resume          | Load item 661 with terminal evidence and previous-candidate validation, independent review, publication readiness and a review blocker with no remaining consumer. Also load a pending item with standing scope, an unknown effect, evidence references and an independently current published revision.                |
+| Cleanup release        | Item 731 has a verified merge with current gate evidence, an obsolete merge wait and a worktree awaiting cleanup. The exact worktree is still needed by an integration consumer. Supply the verified consumer release, then the verified checkout removal. Replay the older merge and cleanup reports.                  |
+
+For relay lookup in the unresolved-effect case, use an open opted-in GitHub
+item, a valid local owner UUID distinct from the coordinator's, a matching
+branch and linked PR, and a relay-eligible wait. Point the read-only relay at
+the saved ledger in a disposable instance with fixture GitHub/Codex adapters.
+Use a current published-head delivery so resolution exercises the live lookup,
+including after local replacement and old-effect reconciliation.
+
+#### Expected recovery
+
+- Head replacement clears A's current readiness, gate and action together.
+  The late A pass leaves B ineligible until B qualifies. P's verified
+  publication evidence remains current until the provider replaces it.
+  Reopening after duplicate B success exposes a single publication action.
+- An unresolved A effect preserves the exact original binding and holds a
+  competing publication. Its verified result updates only the affected
+  operation and published revision. The replay guard remains and suppresses
+  a second effect. The relay resolves the same verified owner from each saved
+  ledger while its lookup remains applicable.
+- Conflicting published-head claims hold only dependent actions until verified
+  provider evidence reconciles the published revision. Repeated conflict
+  neither changes the verified head nor dispatches another effect.
+- Resume drops 661's displaced observations and blocker, preserves the terminal
+  evidence reference, and leaves the pending item's standing authority,
+  unresolved binding, required references and current published facts usable.
+- The reopened 731 record recovers verified merge and gate evidence, the exact
+  checkout, the cleanup actor and the consumer release condition. After
+  verified cleanup, it retains the outcome and clears the obsolete wait and
+  action. Older reports do not recreate them. Summaries follow the saved items.
 
 ### Consumer inputs
 
