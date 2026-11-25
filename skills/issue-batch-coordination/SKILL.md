@@ -318,6 +318,65 @@ Bounded purpose-specific owner reads are allowed:
   stop at the established outcome or exhausted supported recovery/gap. Do not
   use recovery as a pretext to watch ordinary progress.
 
+## Review-driven repairs
+
+Before routing review-driven repairs, read the existing
+[finding proportionality reference](../play-review-response/references/finding-proportionality.md)
+and apply its classifications and dispositions without duplicating them here.
+Do not create another review layer or turn severity, a technically possible
+fix, or a successful experiment into scope authority. Keep acceptance and
+validation proportional to the approved behavior; do not add a general repair
+or proof framework to clear a batch.
+
+## Dependency and capacity scheduling
+
+On authorized admission or a verified prerequisite change, reconcile tracker
+and routing effects. Reassess the affected issue's prerequisites and existing
+consumers, recording each required output and affected gate. Verify tracker
+identity and membership, reconcile uncertain creation, and reuse equivalent
+issues; pass the canonical identity to the router for owner reuse or dispatch.
+A named-issues-only grant requires an admission decision for the addition; let
+eligible authorized siblings continue while it waits.
+
+Default to four active issue jobs. Retain an explicit positive-integer override
+and its authority provenance in the ledger. Reserve one slot per admitted job
+that can run or resume independently, including CI/review waits and unresolved
+starts or resumes; queued jobs consume none. Apply resource-specific limits
+separately. As sole ledger writer, serialize the capacity check and reservation
+before routing each start or resume. Retain the original binding and reservation
+for pending or unknown effects; reconcile before retry or release. Release a
+failed start only when the router establishes that no owner started.
+
+On a verified terminal owner report, reconcile the original effect and release
+its settled reservation before selecting effects. Reconsider already eligible
+queued jobs in the same pass when capacity opens; no unrelated new notice is
+needed. Preserve pending or unknown effects and their reservations.
+
+On resume recover the effective limit, its provenance and reservations before
+selecting starts. Use the default only when absence of an override is established;
+missing or conflicting override or occupancy evidence holds dependent starts.
+If recovered work exceeds the limit, let it drain without stopping active jobs.
+
+When all slots are occupied by owners blocked on a new prerequisite, release a
+parked owner's reservation only on positive current evidence bound to that owner
+and assignment: the owner is quiescent, any already delivered wake has settled
+without independent continuation, and every enabled queued or future wake path
+requires coordinator release. Idle status or silence is not proof. If any path
+cannot be verified, retain the reservation and surface the missing proof. Acquire
+capacity before re-enabling a wake path or releasing the parked owner.
+
+A shared validation investigation is an ordinary follow-up. Reuse a matching
+investigation under admission and routing rules; record each consumer's affected
+gate, what the next diagnostic distinguishes, and review or implementation that
+can proceed independently. Do not infer a diagnostic result. Each PR keeps its
+own publication gates.
+
+After a verified prerequisite merge, evaluate eligible successors and separately
+authorized cleanup in the same pass. Reconcile each effect under its existing
+owner and identity. A duplicate notice neither repeats a verified effect nor
+releases an unknown reservation; recover unfinished effects before retry. A
+cleanup hold protects its affected resource, not unrelated eligible work.
+
 ## Coordination cycle
 
 1. **Refresh.** On entry, event delivery, resume, or controller handoff, reread
@@ -326,7 +385,7 @@ Bounded purpose-specific owner reads are allowed:
    local state. Validate affected received owner reports and provider evidence through the
    router, within the bounded observation purposes above. Before a material routing action, recheck the applicable policy and
    live bindings.
-2. **Classify.** Keep running work, verified unfinished non-gate work, genuine
+2. **Classify.** Apply dependency and capacity scheduling above to verified admission, prerequisite changes, and terminal owner reports before selecting effects. Keep running work, verified unfinished non-gate work, genuine
    gates, and terminal outcomes distinct. An idle owner is not automatically
    unfinished or complete. Let running owners work; use the router's receipt
    procedure for eligible unfinished continuation and its gate path for real
@@ -388,14 +447,6 @@ unavailable, hold the affected handoff rather than reconstructing permission.
 Refreshing the controller does not refresh active owners' contexts.
 
 ## Scope and combined readiness
-
-Before routing review-driven repairs, read the existing
-[finding proportionality reference](../play-review-response/references/finding-proportionality.md)
-and apply its classifications and dispositions without duplicating them here.
-Do not create another review layer or turn severity, a technically possible
-fix, or a successful experiment into scope authority. Keep acceptance and
-validation proportional to the approved behavior; do not add a general repair
-or proof framework to clear a batch.
 
 Apply Connector-first selection under the accepted conditional policy in
 ROUTE-007-REVIEW to both initial and corrected published heads. Applicable

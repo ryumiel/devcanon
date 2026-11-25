@@ -29,6 +29,18 @@ the named dimension; other facts remain consistent.
 | Host denies the otherwise eligible action                                                 | Report the specific unavailable action; no alternate host or workflow workaround.                                                                                                                                                                                                                                                                                                                                                   | [Covered Same-Owner Delivery](../SKILL.md#covered-same-owner-delivery), [Owner dispatch boundary](../SKILL.md#owner-dispatch-boundary)                                                         |
 | Verified merge has unrelated unfinished work present during scoped cleanup                | Existing cleanup guards retain that work and report the remaining obligation; merge success does not authorize deletion or terminal archival.                                                                                                                                                                                                                                                                                       | [Post-delivery lifecycle reconciliation](../SKILL.md#post-delivery-lifecycle-reconciliation), [Archival Rules](../SKILL.md#archival-rules)                                                     |
 
+## Coordinator capacity handoff
+
+These cases verify router boundaries; they do not themselves perform host effects.
+For an owner start or resume, the coordinator passes a capacity-reserved eligible
+item with its unchanged scope and complete route binding. Independent cleanup
+does not consume an issue-job slot. For a repeated admission, reuse the compatible
+owner and suppress a completed route. For a pending or unknown dispatch, retain
+its original identity and reconcile it before retry; do not infer a denial or
+release its reservation. A verified merge may independently enable successor
+routing and authorized cleanup, each under its existing effect owner and replay
+guards. A duplicate notice must not repeat either verified effect.
+
 ## Owner dispatch and checkout adoption
 
 The following bounded fixture families are the self-check surface for the owner

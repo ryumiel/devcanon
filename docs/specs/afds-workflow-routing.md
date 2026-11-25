@@ -329,6 +329,35 @@ destructive cleanup, and scope expansion retain separate applicable decisions,
 including still-current prior authority; routine orchestration grants none of
 them. Source-status effects and archival retain their existing owner gates.
 
+On authorized admission or verified prerequisite change, coordination reassesses
+both the affected issue's prerequisites and existing consumers of its output,
+identifying the gate affected by each required output. It admits equivalent
+follow-ups once, and the router retains owner reuse and effect deduplication.
+A named-issues-only grant holds the new admission for the missing decision while
+eligible authorized siblings continue. A shared validation investigation is an
+ordinary follow-up: identify each affected gate, the distinction the next
+run tests, and independent work that may proceed; preserve each PR's gates.
+
+Coordination defaults to four active issue jobs unless the user explicitly
+sets another positive-integer limit. A serialized ledger reservation precedes any start
+or resume. Count independently resumable owners and uncertain starts once,
+including CI/review waits; queued work does not count. Resource-specific limits
+apply independently. Recover the effective limit, provenance and reservations
+before scheduling on resume; uncertain evidence holds dependent starts and an
+over-limit batch drains. A verified terminal owner report releases its settled
+reservation and triggers same-pass reconsideration of eligible queued jobs when
+capacity opens. Preserve pending or unknown effect bindings and reservations until
+reconciled. Release a parked owner's reservation only with current proof for the
+exact owner and assignment that it is quiescent, delivered wakes have settled,
+and all wake paths require coordinator release. Otherwise retain the reservation
+and surface the missing proof. Reacquire capacity before enabling wakes or
+releasing the owner.
+
+A verified merge can make successor dispatch and separately authorized cleanup
+eligible in the same pass. Reconcile each effect under its existing owner and
+identity; duplicate notices do not repeat verified effects, and an unresolved
+effect holds only dependent work.
+
 A concrete accepted execution request defaults eligible new provider-owner
 invocations to `--auto`. Preserve bound owner modes on resume. A status request
 remains read-only. At startup and issue admission, use the coordinator's
