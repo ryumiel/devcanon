@@ -301,6 +301,11 @@ Preserve the original router binding and reservation while an effect is pending
 or unknown; reconcile it before retry or release. Release a failed start only
 when the router establishes that no owner started.
 
+On a verified terminal owner report, reconcile the original effect and release
+its settled reservation before selecting effects. Reconsider already eligible
+queued jobs in the same pass when capacity opens; no unrelated new notice is
+needed. Preserve pending or unknown effects and their reservations.
+
 On resume recover the effective limit, its provenance and reservations before
 selecting starts. Use the default only when absence of an override is established;
 missing or conflicting override or occupancy evidence holds dependent starts.
@@ -334,7 +339,7 @@ cleanup hold protects its affected resource, not unrelated eligible work.
    local state. Validate affected received owner reports and provider evidence through the
    router, within the bounded observation purposes above. Before a material routing action, recheck the applicable policy and
    live bindings.
-2. **Classify.** Apply dependency and capacity scheduling above to verified admission and prerequisite changes before selecting effects. Keep running work, verified unfinished non-gate work, genuine
+2. **Classify.** Apply dependency and capacity scheduling above to verified admission, prerequisite changes, and terminal owner reports before selecting effects. Keep running work, verified unfinished non-gate work, genuine
    gates, and terminal outcomes distinct. An idle owner is not automatically
    unfinished or complete. Let running owners work; use the router's receipt
    procedure for eligible unfinished continuation and its gate path for real
