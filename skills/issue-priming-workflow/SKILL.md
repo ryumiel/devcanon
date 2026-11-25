@@ -622,8 +622,11 @@ With current publication authority, invoke `play-branch-finish` using
 with the handoff arguments that reference defines: `assignee=@me`,
 `branch_review_required=true`, the final Phase 7 approval-summary path as
 `approval_summary_file`, the same `BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN` when
-Phase 7 branch-review ran with one, and `assumptions_comment_file` or
-`nits_file` only when the corresponding artifact exists. Do NOT merge:
+Phase 7 branch-review ran with one. Pass `assumptions_comment_file` or
+`nits_file` only when the artifact exists **and current authority covers its
+specific posting effect**, as defined in the Phase 8 handoff reference.
+If authority covers only push and PR creation, proceed with those effects and
+report any retained feedback in the user-facing result. Do NOT merge:
 priming's effect endpoint is the reviewed PR. For an eligible unchanged
 controller handoff, apply the router's
 [Covered Same-Owner Delivery](../issue-batch-routing/SKILL.md#covered-same-owner-delivery):

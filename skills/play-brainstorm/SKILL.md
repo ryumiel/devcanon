@@ -216,7 +216,9 @@ digraph brainstorming {
 }
 ```
 
-**Executable implementation designs either stop as saved designs for later or proceed by invoking play-planning.** Do NOT invoke any other implementation skill. If the user approves planning, `play-planning` is the only valid next skill. If durable owner referral classification finds non-executable shaping work or unclear ownership that must route to product requirements, a behavior spec, roadmap, guideline, ADR, source owner, or capability classification before execution can safely continue, emit the durable owner referral notice and stop before design or implementation planning instead of forcing an implementation plan.
+**Executable designs stop as saved designs, return to the interactive
+issue-priming parent that owns the delivery choice, or proceed to
+`play-planning` when this skill owns the approved planning handoff.** If durable owner referral classification finds non-executable shaping work or unclear ownership that must route to product requirements, a behavior spec, roadmap, guideline, ADR, source owner, or capability classification before execution can safely continue, emit the durable owner referral notice and stop before design or implementation planning instead of forcing an implementation plan.
 
 ## The Process
 

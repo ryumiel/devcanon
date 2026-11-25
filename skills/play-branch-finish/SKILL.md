@@ -74,7 +74,9 @@ Or ask the user, substituting the resolved value of `$DEFAULT_BRANCH`: "This bra
 
 ### Step 3: Present Options
 
-Present exactly these 4 options:
+When the caller supplies a current, explicitly authorized Option 2 choice,
+proceed to that option with its existing validation and publication gates.
+Present exactly these 4 options when the finish action is undecided:
 
 ```
 Implementation complete. What would you like to do?
@@ -149,6 +151,12 @@ implementation, local validation or prepublication review stops publication.
 Do not weaken the explicit branch-review approval gate to create a draft.
 Expose the draft reason and clearing condition in sanitized reviewer-facing
 handoff context; keep title/body composition with `pr-authoring`.
+
+Optional review and assumptions comments are separate effects. Before acting
+on either posting input, verify that the caller has supplied current authority
+for that specific effect. If authority is missing, leave the affected
+comments unposted and report that result while continuing authorized PR
+creation.
 
 **Optional input — review nits.** Callers (e.g., `issue-priming-workflow` Phase 8, invoked via `github-issue-priming` or `linear-issue-priming`) may pass a `nits_file` argument: a repo-relative path to a file containing a `play-review/findings/v3` envelope. The detailed envelope, transport, and derived nits-file contract lives in `skills/play-review/references/findings-envelope-contract.md`; `skills/play-review/SKILL.md` owns the workflow and `Findings written to <path>.` notice. When `nits_file` is set, this skill consumes the validated presentation projection, partitions anchorable from unanchorable, and posts them as PR review comments after `{{tool:github-cli}} pr create` succeeds — they MUST NOT be embedded in the PR description body.
 

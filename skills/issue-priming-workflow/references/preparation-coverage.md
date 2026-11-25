@@ -58,6 +58,7 @@ needed to observe edits, validation, push, or PR creation.
 | H8  | Actionable standalone review blocker or spec readiness Needs revision / Blocked    | Name the concrete follow-up and responsible actor, or the evidence needed to establish ownership. A Ready verdict can conclude the review.                                                                                                                                 |
 | H9  | Interactive issue needs design before implementation                               | Preserve design approval. Return the accepted design to issue priming, ask only if the delivery endpoint is unresolved, and obtain reviewed planning before edits on a selected implementation route. Preserve the inline plan evidence and stop at the selected endpoint. |
 | H10 | A delivery workflow must wait for an external event                                | In an already-due report, name the event and say whether the user needs to act. Preserve the workflow's existing notification policy.                                                                                                                                      |
+| H11 | A passing Phase 7 leaves nits, with authority limited to push and PR creation      | Publish once the prepublication gates pass. Retain and report unposted nits. Supplying a separately authorized posting input enables its existing post-creation checks.                                                                                                    |
 
 ## Inline model allocation scenario
 

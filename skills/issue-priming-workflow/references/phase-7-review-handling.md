@@ -53,8 +53,8 @@ VALID evidence; ordinary claims may qualify only with the contract's current,
 fresh, complete-review, exact-authority, and trigger-recheck predicates. Every
 remaining Nit is report-only, including typos, unambiguous broken links, and
 other apparently mechanical corrections; every `DOWNGRADE` is also nonblocking
-handoff feedback. Phase 7 passes all of them through the existing `nits_file`
-handoff to Phase 8, not only subjective findings. Verification-based exclusion
+handoff feedback. Phase 7 includes all of them in the remaining-nits evidence
+for Phase 8, including apparently mechanical nits. Verification-based exclusion
 and proportionality withholding never make a nit disappear or authorize a
 caller-owned fix. Findings and `--fix` do not establish authority.
 Use `nit-classification.md` and `auto-mode-discipline.md` to describe the
@@ -93,6 +93,7 @@ the helper. Leave source files unchanged during this handoff.
 
 ## Phase 8 Handoff
 
-Pass the produced `nits_file` to `play-branch-finish` Option 2 only when it
-exists. Phase 8 begins only after the final-run conditions above; manual
-operators decide nits case by case.
+Return the produced remaining-nits path to the Phase 8 owner if it exists.
+Phase 8 begins after the final-run conditions above and separately checks
+[authority to post](phase-8-pr-handoff.md#optional-comment-authority) before
+giving the path to `play-branch-finish`.

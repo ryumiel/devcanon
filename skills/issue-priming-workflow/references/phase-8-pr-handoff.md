@@ -96,12 +96,22 @@ The description body must contain only durable final-state content accepted by
 commit-by-commit changelogs, "originally / now" chronology, "Notes from
 review" sections, or any logbook content.
 
+## Optional comment authority
+
+Push and PR creation, a passing review, and the presence of an artifact do
+not authorize posting a PR comment. Before passing either optional comment
+input to `play-branch-finish`, verify current authority for that specific
+posting effect. Use existing explicit or validated standing authority when
+it covers the posting. Otherwise omit the input, retain the local evidence,
+and report what remains unposted. Continue with independently authorized
+push and PR creation.
+
 ## Assumptions
 
 When Phase 4 made reasonable auto-mode assumptions that reviewers need to see,
 write only those resolved, reviewer-relevant assumptions to the
-`assumptions_comment_file` prepared through its usage contract, then pass that
-path to `play-branch-finish`.
+`assumptions_comment_file` prepared through its usage contract. Pass that path
+only when current authority covers posting the assumptions comment.
 
 If there are no auto-mode assumptions to surface, omit
 `assumptions_comment_file` entirely. Absence means "no assumptions comment,"
@@ -116,8 +126,9 @@ use `assumptions_comment_file` as approval-summary evidence.
 
 ## Nits
 
-Pass `nits_file` only when Phase 7 prepared a remaining-nits envelope
-from findings that remained after the final branch-review run. The value is the
+Pass `nits_file` only when current authority covers posting PR review
+comments and Phase 7 prepared a remaining-nits envelope from the final
+branch-review run. The value is the
 repo-relative path to the envelope Phase 7 wrote, with schema and side-channel
 transport owned by `skills/play-review/SKILL.md` and preparation owned by
 `references/phase-7-review-handling.md`.
@@ -126,10 +137,10 @@ If Phase 7 produced no remaining nits, omit `nits_file` entirely.
 `play-branch-finish` skips post-creation nit posting when the input is absent.
 
 Do not pass resolved feedback to Phase 8. Do not pass
-`critic: "INVALID"` findings. Do not classify findings in Phase 8. All
-remaining report-only nits are routed to `play-branch-finish` and posted as PR
-review comments after PR creation; they must not be embedded in the PR
-description body.
+`critic: "INVALID"` findings. Do not classify findings in Phase 8. When
+posting is authorized, `play-branch-finish` posts the remaining report-only
+nits as PR review comments after creation. Keep nits out of the PR description
+body.
 
 `approval_summary_file` is separate from `nits_file`; do not use `nits_file`
 as approval-summary evidence, and do not conflate review approval with
