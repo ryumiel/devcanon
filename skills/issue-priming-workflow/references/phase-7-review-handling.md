@@ -42,7 +42,8 @@ a branch-review rerun. Missing final approval-summary evidence stops Phase 8.
 
 `INVALID` findings are ignored; `DOWNGRADE` findings are non-blocking but
 judgment-required. Any remaining Blocking finding with another critic result
-stops auto mode. Only then may Phase 7 classify remaining Nits.
+blocks PR delivery. Once blocking findings are resolved, Phase 7 can classify
+the remaining nits.
 
 ## Remaining Nit Classification
 

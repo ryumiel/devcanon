@@ -73,7 +73,8 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
 - **Problem:** Size is mistaken for settled scope, ownership, approach and proof.
 - **Fix:** Apply Preparation Selection. Use a guarded Execution Note only when
   the facts are complete and authorized; otherwise retain needed preparation.
-  Both routes reach candidate closure, full checks and independent Phase 7.
+  For PR delivery, both routes reach candidate closure, full checks and
+  independent Phase 7.
 
 ## Dropping remaining nits or reposting resolved feedback
 
@@ -92,7 +93,7 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
   branch-review-owned fix commit or other rerun invalidates earlier paths for
   Phase 8 handoff
 
-## Entering validation or review before closing source impact
+## Entering PR validation or review before closing source impact
 
 - **Problem:** Phase 6 completion goes directly to acceptance, full validation,
   or Branch Review while a known direct consumer, focused proof, governance
@@ -103,7 +104,7 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
   and retain a clean exact `HEAD`. Only then run applicable acceptance, full
   validation, and Phase 7.
 
-## Reusing downstream evidence after a source mutation
+## Reusing PR delivery evidence after a source mutation
 
 - **Problem:** An implementation or Branch Review fix commit is treated as a
   small continuation and the prior acceptance, full-validation, review, or

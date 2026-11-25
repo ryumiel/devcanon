@@ -174,9 +174,9 @@ is a handoff blocker: wait or report instead of invoking the shared workflow.
 
 The workflow owns subsequent preparation and continuation under its
 [Preparation Selection](../issue-priming-workflow/SKILL.md#preparation-selection).
-Interactive mode returns preparation for the existing implementation authority
-decision; `--auto` continues through implementation, verification, independent
-review and authorized PR creation. Do not duplicate workflow policy here.
+The shared [Delivery Endpoint](../issue-priming-workflow/SKILL.md#delivery-endpoint)
+owns the interactive choice and continuation. Explicit `--auto` skips the
+endpoint question and retains the existing execution and publication gates.
 
 The adapter and shared priming workflow retain their publication-only effects.
 An eligible controller-established handoff may continue in the same owner through

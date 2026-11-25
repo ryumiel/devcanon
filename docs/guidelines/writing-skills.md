@@ -376,6 +376,21 @@ change is required; capability/effort, tools, sandbox, approvals, context,
 scope, termination, authority, orchestration, retries, and escalation remain
 separate concerns; controller orchestration remains skill prose.
 
+### User-Facing Workflow Handoffs
+
+**When yielding, say what finished, what happens next, and who needs to act.**
+
+Use the final user-facing reply or the workflow's existing status surface.
+Put a pending decision and its choices in the conversation. If another actor
+or event must act first, name it and state whether the user needs to act. A
+completed endpoint can end with the result. Continue when the next action is
+already authorized and runnable.
+
+The owning workflow determines when to yield and which action requires
+authority. Preserve exact consumer notices and internal handoff formats.
+Event-driven workflows apply this rule to reports due under their existing
+notification policy.
+
 ## Documentation Abstraction Ceiling
 
 This section is the sole complete operational rule for the boundary between

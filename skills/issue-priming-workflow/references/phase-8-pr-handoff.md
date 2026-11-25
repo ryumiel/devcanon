@@ -32,7 +32,7 @@ surface, and non-owner responsibilities in source prose or tests.
 
 ## PR Creation Handoff
 
-Invoke `play-branch-finish` Option 2 in `--auto` mode after current implementation,
+Invoke `play-branch-finish` Option 2 for authorized PR delivery after implementation,
 validation and independent review pass and exact publication authority is bound.
 For batch work, reuse recipient-verifiable standing human delivery authority from
 initial setup; refresh current issue/PR/head/readiness and exact owner/action

@@ -16,14 +16,14 @@ Behavioral signals that this skill is being violated.
 - You passed branch-review-resolved or fixable feedback to Phase 8 instead of
   leaving it inside the `branch-review --fix` loop
 - You silently picked an option when two approaches had genuinely different trade-offs in `--auto` mode
-- You treated successful Phase 6 implementation completion as terminal instead
+- On a PR delivery route, you treated Phase 6 implementation as terminal instead
   of entering Candidate Closure and Source Freeze before downstream evidence
   and eventually continuing to Phase 7 branch review and Phase 8 PR creation
-  unless a concrete blocker stops `--auto`
-- You ran acceptance, full validation, or Branch Review while known source
+  unless a concrete blocker stops delivery
+- You ran PR delivery acceptance, full validation, or Branch Review while known source
   impact reconciliation, focused proof/render parity, a required commit, or a
   clean exact candidate `HEAD` was still missing
-- You reused acceptance, validation, review, or approval evidence after any
+- You reused PR delivery acceptance, validation, review, or approval evidence after any
   source mutation instead of returning through Candidate Closure and Source
   Freeze
 - You composed a PR title/description directly in Phase 8 instead of relying on `play-branch-finish` to invoke `pr-authoring`
