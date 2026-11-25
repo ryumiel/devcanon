@@ -127,38 +127,54 @@ checkout outside the target.
    surviving checkout to verify that no registration resolves to that path.
    If the path is already absent, verify absence and finish without issuing a
    removal command. Treat inspection errors as unresolved.
-2. Use `Get-Item -LiteralPath $checkoutPath -Force -ErrorAction Stop` to inspect
+2. Establish exclusive control of the target path from inspection through
+   removal. Check workspace ownership and Windows permissions for the target
+   and its parent path to identify who can add entries or rename or replace
+   the directory. Confirm that the checkout owner has released it and that
+   jobs, editors, and other processes with that access are stopped or excluded
+   for the duration. Use a private, isolated workspace with no other writers
+   when verifying this procedure. Git registration absence and repeated empty
+   listings cannot establish this control. If control is uncertain, retain and
+   report the residual path without issuing removal.
+3. Use `Get-Item -LiteralPath $checkoutPath -Force -ErrorAction Stop` to inspect
    the target itself. Require an ordinary filesystem directory with no
    `ReparsePoint` attribute and no redirection through a reparse point in its
    path. Count all immediate entries, including hidden and system entries,
    with `@(Get-ChildItem -LiteralPath $checkoutPath -Force -ErrorAction Stop).Count`.
    Proceed only when the count is zero. If any entry appears or enumeration
    fails, stop and report the residual path.
-3. With the guards still current, run this as a standalone PowerShell command.
-   Never add `-Force` or `-Recurse` to the removal command.
+4. With exclusive control and the other guards still current, run this as a
+   standalone PowerShell command. Never add `-Force` or `-Recurse` to the
+   removal command. PowerShell can delete an entry created after its internal
+   child check without prompting, so a prompt cannot substitute for control
+   of the path.
 
    ```powershell
    Remove-Item -LiteralPath $checkoutPath -ErrorAction Stop
    ```
 
-4. Decline or cancel any PowerShell prompt. A prompt, a removal failure, or a
+5. Decline or cancel any PowerShell prompt. A prompt, a removal failure, or a
    remaining directory requires stopping and reporting the residual path.
    Verify filesystem absence before recording directory cleanup as complete.
 
 #### Windows regression scenario
 
-In a disposable Windows Git repository, create two linked worktrees and
-remove them with Git from the surviving checkout. Verify both registrations
-are absent, then recreate the two directories at their former paths to model
-residual directories. Leave one empty and place a single file with the Windows
-`Hidden` attribute in the other.
+In a disposable Windows Git repository, create three linked worktrees and
+remove them with Git from the surviving checkout. Verify the registrations
+are absent, then recreate the directories at their former paths to model
+residual directories. Leave two empty and place a single file with the Windows
+`Hidden` attribute in the third.
 
-- Apply the follow-up to the empty directory. Record the zero entry count,
-  successful removal, and verified absence.
+- Apply the follow-up to one empty directory under exclusive control. Record
+  the control evidence, zero entry count, successful removal, and verified
+  absence.
 - Apply it to the directory containing the hidden file. Record the count of
   one and the residual path. Verify that no removal command was issued for that
   target and that the directory and the hidden file, including its contents,
   are intact.
+- Withhold confirmation of checkout release for the other empty directory.
+  Record that exclusive control could not be established. Verify that no
+  removal command was issued and the directory remains.
 
 ## Inputs
 
