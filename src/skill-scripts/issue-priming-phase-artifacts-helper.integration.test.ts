@@ -1,9 +1,10 @@
-import { execFile } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
 import {
   chmod,
   mkdir,
   mkdtemp,
   readFile,
+  rename,
   rm,
   symlink,
   writeFile,
@@ -66,6 +67,75 @@ async function runHelper(cwd: string, kind: string, artifactPath: string) {
 }
 
 describe("issue-priming phase-artifacts helper", () => {
+  it("replaces directory links at both tracker artifact locations and preserves the supplied bytes", async () => {
+    const cwd = await makeWorkspace();
+    const outside = await mkdtemp(
+      path.join(os.tmpdir(), "devcanon-tracker-target-"),
+    );
+    const directory = path.join(cwd, ".ephemeral");
+    const bodyPath = ".ephemeral/2026-05-25-123-issue-body.md";
+    const commentPath = ".ephemeral/2026-05-25-124-comment-evidence.md";
+    const content = Buffer.from("# 한글\r\n\r\nBody without a final newline");
+    const sentinel = path.join(outside, path.basename(bodyPath));
+    const linkType = process.platform === "win32" ? "junction" : "dir";
+    const write = (kind: string, target: string) =>
+      spawnSync(
+        process.execPath,
+        [helperScript, "write-tracker-artifact", kind, target],
+        {
+          cwd,
+          input: content,
+          encoding: "utf8",
+        },
+      );
+    try {
+      await rename(directory, path.join(cwd, "original-artifacts"));
+      await writeFile(sentinel, "sentinel");
+      await symlink(outside, directory, linkType);
+      expect(write("issue-body", bodyPath)).toMatchObject({
+        status: 0,
+        stdout: "",
+        stderr: "",
+      });
+      expect(await readFile(path.join(cwd, bodyPath))).toEqual(content);
+      expect(await readFile(sentinel, "utf8")).toBe("sentinel");
+      if (symlinkAvailable) {
+        const danglingPath = ".ephemeral/2026-05-25-125-issue-body.md";
+        const missingTarget = path.join(outside, "missing.md");
+        await symlink(missingTarget, path.join(cwd, danglingPath), "file");
+        expect(write("issue-body", danglingPath)).toMatchObject({ status: 0 });
+        expect(await readFile(path.join(cwd, danglingPath))).toEqual(content);
+        await expect(readFile(missingTarget)).rejects.toMatchObject({
+          code: "ENOENT",
+        });
+      }
+      await symlink(outside, path.join(cwd, commentPath), linkType);
+      expect(write("comment-evidence", commentPath)).toMatchObject({
+        status: 0,
+        stdout: "",
+        stderr: "",
+      });
+      expect(await readFile(path.join(cwd, commentPath))).toEqual(content);
+      expect(await readFile(sentinel, "utf8")).toBe("sentinel");
+      await mkdir(path.join(cwd, ".ephemeral/directory-issue-body.md"));
+      expect(
+        write("issue-body", ".ephemeral/directory-issue-body.md"),
+      ).toMatchObject({
+        status: 1,
+        stderr: expect.stringContaining("path is a directory"),
+      });
+      expect(
+        write("issue-body", ".ephemeral/stream:other-issue-body.md"),
+      ).toMatchObject({
+        status: 1,
+        stderr: expect.stringContaining("path validation failed"),
+      });
+    } finally {
+      await cleanupTempDir(cwd);
+      await cleanupTempDir(outside);
+    }
+  });
+
   it("validates direct-child phase artifact paths for each expected kind", async () => {
     const cwd = await makeWorkspace();
     try {

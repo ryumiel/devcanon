@@ -234,7 +234,7 @@ Resolve `ISSUE_PRIMING_WORKFLOW_DIR` to the installed `issue-priming-workflow` s
 
 The script-owned deterministic surfaces and usage references are:
 
-- `scripts/phase-artifacts.mjs` for [read guards](references/phase-artifacts-usage.md) on issue-priming-owned phase artifacts.
+- `scripts/phase-artifacts.mjs` for [read guards and tracker artifact writes](references/phase-artifacts-usage.md).
 - `scripts/source-immutability.mjs` for the [source-immutable
   lifecycle](references/source-immutability-usage.md) around issue gate assessment and research leaves.
 - `scripts/write-research-brief.mjs` for [preparing the Phase 3 write target](references/write-research-brief-usage.md).

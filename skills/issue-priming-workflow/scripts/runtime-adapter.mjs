@@ -74,6 +74,7 @@ export function runRuntimeBackedHelper(
   scriptPath,
   runtimeArgs,
   validateStdout,
+  { forwardStdin = false } = {},
 ) {
   const runtimeDir = resolveRuntimeDir(scriptPath);
   const child = spawnSync(
@@ -83,7 +84,7 @@ export function runRuntimeBackedHelper(
       cwd: process.cwd(),
       encoding: "utf8",
       env: process.env,
-      input: "",
+      ...(forwardStdin ? { stdio: [0, "pipe", "pipe"] } : { input: "" }),
       maxBuffer: 16 * 1024 * 1024,
       windowsHide: true,
     },

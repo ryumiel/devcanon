@@ -121,12 +121,9 @@ Windows-hosted Codex/PowerShell caution), fallback helper invocation,
 
 Compute the issue-body artifact path inside `WORKTREE_PATH`:
 `.ephemeral/<YYYY-MM-DD>-<id>-issue-body.md` (today's date; GitHub issue
-number without `#`). Validate the repo-relative path and apply the
-write-target guard per the setup-worktree usage's issue-body guard example
-before writing.
-
-Write the fetched `{{tool:github-cli}} issue view` `.body` text verbatim to
-`$WORKTREE_PATH/$ISSUE_BODY_PATH`.
+number without `#`).
+Use the shared [artifact writer](../issue-worktree-setup/references/setup-worktree-usage.md#artifact-write-guards)
+to save the fetched GitHub issue body verbatim.
 
 ### Persist substantive comment evidence
 
@@ -137,9 +134,7 @@ and apply it to the fetched GitHub comments.
 When the reference yields substantive evidence, compute the artifact path
 inside `WORKTREE_PATH`: `.ephemeral/<YYYY-MM-DD>-<id>-comment-evidence.md`
 (today's date; GitHub issue number without `#`).
-Validate the repo-relative path and apply the write-target guard per the
-setup-worktree usage's comment-evidence guard example before writing the
-selected evidence to that path.
+Use the shared artifact writer to save the selected evidence.
 
 ## Hand off to `issue-priming-workflow`
 

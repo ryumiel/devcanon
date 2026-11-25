@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { access, lstat, mkdir, realpath } from "node:fs/promises";
+import { access, lstat, mkdir, realpath, unlink } from "node:fs/promises";
 import path from "node:path";
 import { writeTextAtomically } from "./artifacts.js";
 import type { RuntimeCommandOutcome } from "./command.js";
@@ -32,7 +32,9 @@ export async function runIssuePrimingCommand(
     const [command, ...rest] = args;
     switch (command) {
       case "phase-artifacts":
-        return await validatePhaseArtifact(rest);
+        return rest[0] === "write-tracker-artifact"
+          ? await writeTrackerArtifact(rest.slice(1))
+          : await validatePhaseArtifact(rest);
       case "write-research-brief":
         return await prepareResearchBrief(rest, env);
       case "write-auto-handoff":
@@ -47,6 +49,47 @@ export async function runIssuePrimingCommand(
   } catch (err) {
     return plainFail(singleLineMessage(err));
   }
+}
+
+async function writeTrackerArtifact(
+  args: readonly string[],
+): Promise<RuntimeCommandOutcome> {
+  const [kind, artifactPath] = args;
+  if (
+    args.length !== 2 ||
+    (kind !== "issue-body" && kind !== "comment-evidence")
+  ) {
+    return plainFail(
+      "usage: phase-artifacts write-tracker-artifact <issue-body|comment-evidence> <repo-relative-path>",
+    );
+  }
+  const { label, suffix } = ARTIFACT_KINDS[kind];
+  requireOwnedPath(artifactPath, suffix, label);
+  if (!/^\.ephemeral\/[a-zA-Z0-9._-]+\.md$/u.test(artifactPath)) {
+    throw new Error(`${label} path validation failed: ${artifactPath}`);
+  }
+  const cwd = await requireRepositoryRoot("phase-artifacts");
+  if (process.stdin.isTTY)
+    throw new Error("tracker artifact content must be supplied on stdin");
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) chunks.push(chunk);
+
+  const directory = path.join(cwd, ".ephemeral");
+  await unlinkTrackerArtifactLink(directory);
+  await assertSafeEphemeralDirectory(true);
+  const target = path.join(cwd, artifactPath);
+  await unlinkTrackerArtifactLink(target);
+  await prepareWriteTarget(artifactPath, label);
+  await writeTextAtomically(target, Buffer.concat(chunks));
+  return plainOk("");
+}
+
+async function unlinkTrackerArtifactLink(candidate: string): Promise<void> {
+  const stat = await lstat(candidate).catch((err: unknown) => {
+    if (isNodeError(err, "ENOENT")) return undefined;
+    throw err;
+  });
+  if (stat?.isSymbolicLink()) await unlink(candidate);
 }
 
 async function validatePhaseArtifact(
@@ -262,7 +305,16 @@ async function assertSafeEphemeralDirectory(create: boolean): Promise<void> {
   } catch (err) {
     if (!isNodeError(err, "ENOENT")) throw err;
     if (!create) return;
-    await mkdir(ephemeral);
+    try {
+      await mkdir(ephemeral);
+    } catch (mkdirError) {
+      if (!isNodeError(mkdirError, "EEXIST")) throw mkdirError;
+      // Another writer may have created the directory. Check the entry again.
+      const stat = await lstat(ephemeral);
+      if (stat.isSymbolicLink() || !stat.isDirectory()) {
+        throw new Error(".ephemeral must be a directory, not a symlink");
+      }
+    }
   }
 }
 
