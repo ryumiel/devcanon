@@ -122,24 +122,27 @@ directory-only follow-up requires existing cleanup authority for that exact
 checkout and reconciliation of any pending removal. Run it from a surviving
 checkout outside the target.
 
-1. Verify that the absolute, resolved target path matches the authorized
-   checkout. Use a successful, fresh `git worktree list --porcelain` from the
-   surviving checkout to verify that no registration resolves to that path.
-   If the path is already absent, verify absence and finish without issuing a
-   removal command. Treat inspection errors as unresolved.
-2. Establish exclusive control of the target path from inspection through
-   removal. Check workspace ownership and Windows permissions for the target
-   and its parent path to identify who can add entries or rename or replace
-   the directory. Confirm that the checkout owner has released it and that
-   jobs, editors, and other processes with that access are stopped or excluded
-   for the duration. Use a private, isolated workspace with no other writers
-   when verifying this procedure. Git registration absence and repeated empty
-   listings cannot establish this control. If control is uncertain, retain and
-   report the residual path without issuing removal.
-3. Use `Get-Item -LiteralPath $checkoutPath -Force -ErrorAction Stop` to inspect
-   the target itself. Require an ordinary filesystem directory with no
-   `ReparsePoint` attribute and no redirection through a reparse point in its
-   path. Count all immediate entries, including hidden and system entries,
+If the path is already absent, verify filesystem and Git registration absence
+from the surviving checkout and finish without issuing removal. Treat
+inspection errors as unresolved. For a remaining directory, follow these steps.
+
+1. Establish exclusive control before the checks below and maintain it through
+   removal. Check ownership and Windows permissions for the target and every
+   ancestor up to the filesystem root. Identify who can add entries to the
+   target or rename, replace, or redirect any directory in its path. Confirm
+   that the checkout owner has released it and that jobs, editors, and other
+   processes with that access are stopped or excluded for the duration. Git
+   registration absence and repeated empty listings cannot establish this
+   control. If control is uncertain, retain and report the residual path
+   without issuing removal.
+2. Verify that the absolute, resolved target path matches the authorized
+   checkout. Use `Get-Item -LiteralPath $checkoutPath -Force -ErrorAction Stop`
+   to inspect the target itself. Require an ordinary filesystem directory and
+   check that every directory in its path has no `ReparsePoint` attribute.
+   Use a successful, fresh `git worktree list --porcelain` from the surviving
+   checkout to verify that no registration resolves to the target path. If
+   identity or registration is unresolved, stop and report the residual path.
+3. Count all immediate entries, including hidden and system entries,
    with `@(Get-ChildItem -LiteralPath $checkoutPath -Force -ErrorAction Stop).Count`.
    Proceed only when the count is zero. If any entry appears or enumeration
    fails, stop and report the residual path.
@@ -159,11 +162,11 @@ checkout outside the target.
 
 #### Windows regression scenario
 
-In a disposable Windows Git repository, create three linked worktrees and
-remove them with Git from the surviving checkout. Verify the registrations
-are absent, then recreate the directories at their former paths to model
-residual directories. Leave two empty and place a single file with the Windows
-`Hidden` attribute in the third.
+In a private, isolated Windows workspace with no other writers, create three
+linked worktrees in a disposable Git repository and remove them with Git from
+the surviving checkout. Verify the registrations are absent, then recreate the
+directories at their former paths to model residual directories. Leave two
+empty and place a single file with the Windows `Hidden` attribute in the third.
 
 - Apply the follow-up to one empty directory under exclusive control. Record
   the control evidence, zero entry count, successful removal, and verified
@@ -172,9 +175,9 @@ residual directories. Leave two empty and place a single file with the Windows
   one and the residual path. Verify that no removal command was issued for that
   target and that the directory and the hidden file, including its contents,
   are intact.
-- Withhold confirmation of checkout release for the other empty directory.
-  Record that exclusive control could not be established. Verify that no
-  removal command was issued and the directory remains.
+- Withhold confirmation of checkout release or control of an ancestor for the
+  other empty directory. Record that exclusive control could not be established.
+  Verify that no removal command was issued and the directory remains.
 
 ## Inputs
 
