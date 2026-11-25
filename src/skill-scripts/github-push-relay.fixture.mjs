@@ -306,6 +306,22 @@ test("live ledger admission routes the next delivery without replay and rejects 
   assert.equal(instance.sent.length, 1);
 });
 
+test("an incomplete sibling binding does not block an eligible delivery", async (t) => {
+  const instance = fixture(t, 109, "sibling-fixture-key");
+  const url = await endpoint(t, instance);
+  instance.ledgerContents.items.push({
+    source_issue_identifier: `github:${repo}#110`,
+    source_state: "OPEN",
+    owner_thread_id: id(1101),
+    branch_name: "feat/110-example",
+    pr_identifier: `github:${repo}#210`,
+  });
+  instance.saveLedger();
+  assert.equal(await post(url, instance, "issue_comment", 65, instance.reviewEvent()), 202);
+  assert.equal(instance.sent.length, 1);
+  assert.equal(instance.sent[0].target, instance.owner);
+});
+
 test("review skips stale heads, nonterminal verdicts, unrelated authors and inactive ledgers", async (t) => {
   const instance = fixture(t, 103, "review-fixture-key");
   instance.pull.headRefOid = nextHead;

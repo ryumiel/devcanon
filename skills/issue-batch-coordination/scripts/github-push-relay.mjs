@@ -124,12 +124,6 @@ export class Relay {
     for (const item of ledger.items) {
       if (!text(item?.source_issue_identifier))
         throw new Error("Ledger item is missing its issue identity");
-      if (!this.issueNumber(item.source_issue_identifier)) continue;
-      if (!text(item.source_state))
-        throw new Error("Opted-in ledger item is missing its source state");
-      if (item.owner_thread_id && !text(item.owner_host_id)) {
-        throw new Error("Registered ledger owner is missing its host");
-      }
     }
     return ledger;
   }
@@ -195,6 +189,10 @@ export class Relay {
     }
     if (items.length !== 1) return;
     const [item] = items;
+    if (!text(item.source_state))
+      throw new Error("Opted-in ledger item is missing its source state");
+    if (item.owner_thread_id && !text(item.owner_host_id))
+      throw new Error("Registered ledger owner is missing its host");
     const issue = this.issueNumber(item.source_issue_identifier);
     if (
       batch.filter(
