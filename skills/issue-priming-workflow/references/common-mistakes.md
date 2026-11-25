@@ -78,11 +78,14 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
 
 ## Dropping remaining nits or reposting resolved feedback
 
-- **Problem:** Apparently mechanical nits are omitted from Phase 8, or resolved
-  feedback is posted again even though the final evidence no longer retains it.
-- **Fix:** After the final `branch-review --fix` run, pass every remaining Nit
-  and DOWNGRADE through `nits_file`, excluding INVALID and resolved evidence.
-  Do not create caller-owned fix commits in issue priming.
+- **Problem:** Apparently mechanical nits disappear from the local review
+  evidence, or feedback is posted without current authority for that effect.
+- **Fix:** Phase 7 retains every remaining Nit and DOWNGRADE, excluding INVALID
+  and resolved findings. Phase 8 forwards the evidence as `nits_file` only
+  when [current authority covers posting review
+  comments](phase-8-pr-handoff.md#optional-comment-authority). Otherwise keep the
+  evidence local and report what remains unposted. Issue priming leaves review
+  fix commits to Branch Review.
 
 ## Reusing stale approval-summary evidence
 
