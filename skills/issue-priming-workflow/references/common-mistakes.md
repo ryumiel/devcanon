@@ -73,15 +73,19 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
 - **Problem:** Size is mistaken for settled scope, ownership, approach and proof.
 - **Fix:** Apply Preparation Selection. Use a guarded Execution Note only when
   the facts are complete and authorized; otherwise retain needed preparation.
-  Both routes reach candidate closure, full checks and independent Phase 7.
+  For PR delivery, both routes reach candidate closure, full checks and
+  independent Phase 7.
 
 ## Dropping remaining nits or reposting resolved feedback
 
-- **Problem:** Apparently mechanical nits are omitted from Phase 8, or resolved
-  feedback is posted again even though the final evidence no longer retains it.
-- **Fix:** After the final `branch-review --fix` run, pass every remaining Nit
-  and DOWNGRADE through `nits_file`, excluding INVALID and resolved evidence.
-  Do not create caller-owned fix commits in issue priming.
+- **Problem:** Apparently mechanical nits disappear from the local review
+  evidence, or feedback is posted without current authority for that effect.
+- **Fix:** Phase 7 retains every remaining Nit and DOWNGRADE, excluding INVALID
+  and resolved findings. Phase 8 forwards the evidence as `nits_file` only
+  when [current authority covers posting review
+  comments](phase-8-pr-handoff.md#optional-comment-authority). Otherwise keep the
+  evidence local and report what remains unposted. Issue priming leaves review
+  fix commits to Branch Review.
 
 ## Reusing stale approval-summary evidence
 
@@ -92,7 +96,7 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
   branch-review-owned fix commit or other rerun invalidates earlier paths for
   Phase 8 handoff
 
-## Entering validation or review before closing source impact
+## Entering PR validation or review before closing source impact
 
 - **Problem:** Phase 6 completion goes directly to acceptance, full validation,
   or Branch Review while a known direct consumer, focused proof, governance
@@ -103,7 +107,7 @@ procedural step in `SKILL.md` from a "what goes wrong if you skip it" angle.
   and retain a clean exact `HEAD`. Only then run applicable acceptance, full
   validation, and Phase 7.
 
-## Reusing downstream evidence after a source mutation
+## Reusing PR delivery evidence after a source mutation
 
 - **Problem:** An implementation or Branch Review fix commit is treated as a
   small continuation and the prior acceptance, full-validation, review, or

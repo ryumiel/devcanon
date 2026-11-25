@@ -335,6 +335,19 @@ workflows or `play-branch-finish` may validate caller-supplied
 approval-summary evidence when an explicit gate requires it, but branch-review
 still does not create PRs or own branch-finish gating.
 
+### Standalone user handoff
+
+When a standalone review ends the user-facing turn, summarize the result,
+then name the next action and who owns it. If the user is pursuing delivery
+and the reviewed candidate is ready but publication permission is pending,
+ask for that decision in the reply. If the authorized delivery workflow can
+continue, pass it the current review evidence. For an actionable blocker, name
+the correction or missing evidence and the actor who can provide it. A
+review-only request can conclude with the review result.
+
+Keep the exact notices above. On delegated review, return the existing
+evidence to the caller, which owns delivery and any user-facing decision.
+
 ## Phase 2: Invoke the play-review skill workflow
 
 Hand off to `play-review` with these inputs (compose them into the briefing prose that invokes the skill):

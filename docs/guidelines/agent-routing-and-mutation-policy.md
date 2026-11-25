@@ -96,13 +96,13 @@ child role.
 | `branch-review`                    | inherited / adversarial | source-mutable   | none               | Mutable only in explicit fix mode                                                                  |
 | `doc-gardening`                    | synthesis / adversarial | source-mutable   | none               | Audit immutable; selected fixes mutable                                                            |
 | `git-workspace-cleanup`            | mechanical / normal     | source-mutable   | none               | Destructive local Git only after approval                                                          |
-| `github-issue-priming`             | inherited / normal      | source-mutable   | external-mutable   | Worktree setup plus required auto-workflow handoff; downstream owns effects                        |
+| `github-issue-priming`             | inherited / normal      | source-mutable   | external-mutable   | Worktree setup plus shared priming handoff; downstream owns effects                                |
 | `issue-batch-coordination`         | synthesis / normal      | source-immutable | external-mutable   | Event-driven coordination through owner reports and authorized provider notices; routing delegated |
 | `issue-batch-routing`              | synthesis / normal      | source-immutable | external-mutable   | Explicit routing/messages/archival only; implementation and merge delegated                        |
-| `issue-priming-workflow`           | synthesis / normal      | source-mutable   | external-mutable   | Auto flow may implement and create a gated PR; never merges                                        |
+| `issue-priming-workflow`           | synthesis / normal      | source-mutable   | external-mutable   | Selected endpoint may implement and create a gated PR; never merges                                |
 | `issue-slicing`                    | synthesis / normal      | source-immutable | none               | Draft only; live issue mutation excluded                                                           |
 | `issue-worktree-setup`             | mechanical / normal     | source-mutable   | none               | Local worktree/ref mutation                                                                        |
-| `linear-issue-priming`             | inherited / normal      | source-mutable   | external-mutable   | Worktree setup plus required auto-workflow handoff; Linear status excluded                         |
+| `linear-issue-priming`             | inherited / normal      | source-mutable   | external-mutable   | Worktree setup plus shared priming handoff; Linear status excluded                                 |
 | `play-agent-dispatch`              | inherited / normal      | source-mutable   | none               | Each child independently classified; current integration may edit source                           |
 | `play-brainstorm`                  | synthesis / normal      | source-immutable | none               | Named `.ephemeral` design only                                                                     |
 | `play-branch-finish`               | synthesis / normal      | source-mutable   | external-mutable   | Chosen local or gated push/PR action                                                               |

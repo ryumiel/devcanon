@@ -1514,23 +1514,31 @@ issue/source/root/base/head/working-tree identities before use. Missing,
 malformed, stale, unreadable or contradictory inputs stop dependent execution.
 No new schema, helper, digest artifact or eligibility certificate is introduced.
 
-Auto execution stays inline with the same authorized issue owner in the isolated
+Execution Note implementation stays inline with the same authorized issue owner in the isolated
 checkout, retaining its current model and effort unless an explicit user override
 applies. Inline execution requires no model/effort reselection and must not
 switch the owner session, replace the owner or introduce an implementation
 subagent to satisfy delegated model policy. Actual implementation subagents
 retain their target-native model/effort selection and validation; a child
-override never changes its parent session. Interactive execution returns the
-note for the existing implementation authority decision. Changed inputs require
-affected-claim revalidation; new
-uncertainty stops dependent edits for needed preparation, and permission gaps
-take the genuine gate. A note supplies no Plan notice, reviewed digest, combined planning review PASS,
+override never changes its parent session. Before editing, including on
+resume, the owner revalidates the note and compares current issue, source and
+checkout evidence with the prepared baseline. Material changes refresh affected
+preparation. New uncertainty stops dependent edits and permission gaps take
+the genuine gate. A note supplies no Plan notice, reviewed digest, combined planning review PASS,
 reviewed tier, contract tag or auto-handoff. Plan-only consumers reject it,
 including direct FULL, mechanical and reduced routes.
 
-Both issue routes enter Candidate Closure and Source Freeze, applicable
-acceptance, full checks, independent Phase 7 branch review and exact publication
-approval. Full validation uses the target repository's command or required
+GitHub and Linear priming use one delivery choice after validated preparation.
+If no endpoint was selected, the user-facing handoff offers **Stop after
+preparation**, **Implement and test locally**, and **Implement, review, and
+publish a PR**. An unanswered choice leaves the work prepared. A prior choice
+or explicit `--auto` skips the menu. Preparation-only returns the handoff.
+Local implementation runs applicable acceptance and required repository checks
+and stops before push or PR creation.
+
+PR delivery on either preparation route enters Candidate Closure and Source
+Freeze on a clean, committed candidate, then applicable acceptance, full
+checks, independent Phase 7 branch review and exact publication authority. Full validation uses the target repository's command or required
 command set from applicable repository instructions, corroborated by build
 scripts and CI, with every required command accounted for. No language or
 package-manager heuristic supplies a default; DevCanon retains `pnpm run check`.
@@ -1846,14 +1854,14 @@ automatic budget-limit approval or user-home installation is introduced.
 
 ### Acceptance scenarios for proportional issue preparation
 
-| Scenario                                                                                 | Required behavior                                                                                                                                                                 |
-| ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Settled instruction edit names source owner, accepted intent, consumers and verification | One guarded Execution Note, same-owner inline implementation, candidate closure/full checks/independent Phase 7; no combined planning review or auto-handoff claims.              |
-| Provider/device findings expose unresolved input custody                                 | Needed investigation and coordinated design/planning resolve custody before dependent edits; reuse current settled decisions and retain focused correction/material reassessment. |
-| Note claims a combined planning review producer without an actual reviewed plan          | Planned consumer refuses fabricated provenance; note identity is not approval.                                                                                                    |
-| Note bytes change while the retained hash stays old                                      | Inline consumer stops for stale note identity before dependent edits.                                                                                                             |
-| Otherwise settled work still has unresolved custody                                      | Selection requires the needed preparation even with green checks.                                                                                                                 |
-| Otherwise valid note requests unauthorized provider mutation                             | Genuine authority gate stops the mutation; neither note nor receipt grants permission.                                                                                            |
+| Scenario                                                                                                 | Required behavior                                                                                                                                                                 |
+| -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Settled instruction edit for PR delivery names source owner, accepted intent, consumers and verification | One guarded Execution Note, same-owner inline implementation, candidate closure/full checks/independent Phase 7; no combined planning review or auto-handoff claims.              |
+| Provider/device findings expose unresolved input custody                                                 | Needed investigation and coordinated design/planning resolve custody before dependent edits; reuse current settled decisions and retain focused correction/material reassessment. |
+| Note claims a combined planning review producer without an actual reviewed plan                          | Planned consumer refuses fabricated provenance; note identity is not approval.                                                                                                    |
+| Note bytes change while the retained hash stays old                                                      | Inline consumer stops for stale note identity before dependent edits.                                                                                                             |
+| Otherwise settled work still has unresolved custody                                                      | Selection requires the needed preparation even with green checks.                                                                                                                 |
+| Otherwise valid note requests unauthorized provider mutation                                             | Genuine authority gate stops the mutation; neither note nor receipt grants permission.                                                                                            |
 
 ### Acceptance scenarios for the active contract
 

@@ -193,6 +193,7 @@ digraph brainstorming {
     "User Review Gate" [shape=diamond];
     "Stop here\nkeep design" [shape=doublecircle];
     "Invoke play-planning skill" [shape=doublecircle];
+    "Return accepted design to issue priming" [shape=doublecircle];
 
     "Explore project context" -> "Ask clarifying questions";
     "Ask clarifying questions" -> "Durable owner referral classification";
@@ -208,13 +209,16 @@ digraph brainstorming {
     "Design self-review\n(fix inline)" -> "Auto mode?\n(post-write)";
     "Auto mode?\n(post-write)" -> "Invoke play-planning skill" [label="yes (record Design: <path>)"];
     "Auto mode?\n(post-write)" -> "User Review Gate" [label="no"];
-    "User Review Gate" -> "Invoke play-planning skill" [label="1 approve and plan"];
+    "User Review Gate" -> "Invoke play-planning skill" [label="1 approve and plan by default"];
+    "User Review Gate" -> "Return accepted design to issue priming" [label="1 approve for parent handoff"];
     "User Review Gate" -> "Write design doc" [label="2 request design changes"];
     "User Review Gate" -> "Stop here\nkeep design" [label="3 stop"];
 }
 ```
 
-**Executable implementation designs either stop as saved designs for later or proceed by invoking play-planning.** Do NOT invoke any other implementation skill. If the user approves planning, `play-planning` is the only valid next skill. If durable owner referral classification finds non-executable shaping work or unclear ownership that must route to product requirements, a behavior spec, roadmap, guideline, ADR, source owner, or capability classification before execution can safely continue, emit the durable owner referral notice and stop before design or implementation planning instead of forcing an implementation plan.
+**Executable designs stop as saved designs, return to the interactive
+issue-priming parent that owns the delivery choice, or proceed to
+`play-planning` when this skill owns the approved planning handoff.** If durable owner referral classification finds non-executable shaping work or unclear ownership that must route to product requirements, a behavior spec, roadmap, guideline, ADR, source owner, or capability classification before execution can safely continue, emit the durable owner referral notice and stop before design or implementation planning instead of forcing an implementation plan.
 
 ## The Process
 
@@ -523,7 +527,9 @@ Fix any issues inline. No need to re-review — just fix and move on.
 
 **User Review Gate:**
 After the design review loop passes, ask the user to review the written design
-before proceeding with this interactive option menu:
+before proceeding with the default interactive option menu below. For an
+interactive issue-priming parent, apply the option 1 variant below before
+presenting the choices:
 
 > "Design written to `<path>`. Please review it and choose one option:
 >
@@ -533,7 +539,17 @@ before proceeding with this interactive option menu:
 
 This prompt is the interactive User Review Gate, distinct from the producer notice line emitted in **Save** above (the contract surface `play-planning` parses). The two share the `Design written to` prefix but are not interchangeable: the notice line uses a bare `<repo-relative-path>` followed by a period, while this prompt wraps the path in backticks and continues with `" Please review it..."`. In `--auto` mode this prompt is skipped (see the `--auto` paragraph below), so only the contract notice is emitted; do not reword either form when extending this section.
 
-Wait for the user's response and route exactly as follows:
+For an interactive `issue-priming-workflow` parent that explicitly requests
+an accepted design return, label option 1 **Approve design and return to issue priming**.
+Keep the design review pause and options 2 and 3. On option 1, return the
+accepted design path and its actual producer notice to that parent. The parent
+owns the delivery endpoint and any later planning. On option 2, use the
+design revision loop below and return to this same gate. On option 3,
+return the user's stop choice so the parent preserves the design and stops.
+Keep the saved producer notice intact.
+
+For all other interactive invocations, wait for the user's response and
+route exactly as follows:
 
 1. Approval invokes `play-planning` with `Design: <path>` so play-planning
    writes the implementation plan. Approval does not start implementation
@@ -548,9 +564,10 @@ Wait for the user's response and route exactly as follows:
 
 **Implementation:**
 
-- If durable owner referral classification produced an executable implementation
-  design, invoke the play-planning skill to create a detailed implementation
-  plan. Pass the design as a `Design: <path>` reference in the invocation prose
+- If an accepted design returns to an interactive issue-priming parent, that
+  return ends this invocation and the parent owns later planning. Otherwise,
+  when the design is executable and this workflow owns the planning handoff,
+  invoke the play-planning skill to create the plan. Pass the design as a `Design: <path>` reference in the invocation prose
   (the path you just emitted in the notice line above), not as inline content.
   If this skill received a valid `Comment evidence: <path>` reference, forward
   that same line to `play-planning`; do not inline or summarize comment
@@ -561,8 +578,7 @@ Wait for the user's response and route exactly as follows:
   continue, emit the durable owner referral notice and stop. Do not invoke
   implementation planning or owner-authoring skills for non-executable
   owner work.
-- Do NOT invoke any other implementation skill. play-planning is the next step
-  only for executable implementation designs.
+- Do NOT invoke any other implementation skill.
 
 ## Common Mistakes
 

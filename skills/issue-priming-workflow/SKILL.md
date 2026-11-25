@@ -27,10 +27,9 @@ Continue a normalized handoff from `linear-issue-priming` or
 
 1. Apply [Inputs](#inputs) and [adopt the verified checkout and artifacts](#phase-1-adopt-the-handoff-artifacts).
 2. Apply [Preparation Selection](#preparation-selection). Settled work uses
-   one [Execution Note](#execution-note-guarded-local-context). Interactive
-   mode returns the guarded preparation for the user's implementation decision.
-   In `--auto`, the issue owner implements a validated note inline.
-3. Before acceptance, full checks, or independent review, enter
+   one [Execution Note](#execution-note-guarded-local-context). Apply
+   [Delivery Endpoint](#delivery-endpoint) after validated preparation.
+3. For PR delivery, before acceptance, full checks, or independent review, enter
    [Candidate Closure and Source Freeze](#candidate-closure-and-source-freeze).
    A source fix returns here on the new head.
 4. Pass [independent Phase 7 branch review](#phase-7-branch-review) before
@@ -77,7 +76,7 @@ Field semantics:
 | `issue-body-path`                         | Assessor, investigator, brainstorm args                                              |
 | `comment-evidence-path`                   | Assessor/investigator and downstream context                                         |
 | `worktree-path`                           | Phase 1 worktree adoption and all later phases                                       |
-| `mode`                                    | Phase 4 stop-vs-continue, Phases 5–8 gating                                          |
+| `mode`                                    | Delivery endpoint selection and auto-route eligibility                               |
 | `research`                                | Phase 2 gate-skip                                                                    |
 | paired `batch-*` binding fields           | Batch-only identity binding and initial owner handoff                                |
 | `batch-reporting-recipient-id`            | Nonempty verified coordinator identity for return reports                            |
@@ -291,7 +290,10 @@ dispatching gate/research/brainstorming work if the issue-body file later
 goes missing or unreadable, or if a present comment-evidence file later goes
 missing or unreadable.
 
-**If brainstorming concludes "don't implement":** Clean up the worktree with `play-branch-finish` (option: discard). A durable owner referral notice is a "don't implement" conclusion for this workflow.
+**If brainstorming concludes "don't implement":** Clean up the worktree with
+`play-branch-finish` (option: discard). A durable owner referral notice is such
+a conclusion. A user who stops after preparation keeps the worktree and
+preparation for later.
 
 ## Preparation Selection
 
@@ -352,10 +354,8 @@ executor, including direct unreviewed FULL, mechanical skip-dispatch or reduced
 routes. It supplies no publication, provider-mutation or cleanup authority;
 preserve the note and worktree under their existing lifecycle owners.
 
-Without `--auto`, return the note path and bounded decision summary for the
-user's existing implementation authority decision; do not implement. With
-`--auto`, the same authorized issue owner executes inline within the isolated
-checkout and accepted scope.
+After the delivery endpoint authorizes implementation, the same issue owner
+executes inline in the isolated checkout and accepted scope.
 
 Inline implementation retains that owner's current model and effort, subject to
 an explicit user override. Do not switch the owner session, create a replacement
@@ -364,20 +364,56 @@ Model/effort selection and validation for actual implementation subagents remain
 with their dispatch owners; a child override does not change the parent session.
 This applies to both Claude and Codex and changes no non-model gate.
 
-Compare guarded exact note bytes and current
-issue/source/root/base/head/dirty-state identity immediately before execution
-and after changed inputs. Account for authorized implementation edits and
+Immediately before the first edit, including on resume, rerun the design read
+guard and recheck semantic completeness. Compare the exact note bytes and
+current issue authority and content, source identities, repository and worktree
+root, base, head and working-tree state with the retained prepared baseline.
+Missing evidence or material change requires refreshing affected preparation
+before editing. Reuse a prior endpoint choice if its scope and authority still
+apply. Account for authorized implementation edits and
 commits explicitly; never reset others' changes or treat changed state as
 unchanged preparation. Revalidate affected claims; uncertainty stops dependent
 edits for needed preparation, and permission gaps take the genuine gate.
-Bounded implementation choices remain with the owner. Completion enters
-[Candidate Closure and Source Freeze](#candidate-closure-and-source-freeze), applicable acceptance, full repository
-checks, mandatory independent Phase 7 review and exact publication authority
-validated against retained human scope and fresh action bindings; a satisfied
-covered gate does not require another human decision.
+Bounded implementation choices remain with the owner. Finish through the
+[selected delivery endpoint](#delivery-endpoint).
 Every later source fix invalidates downstream evidence as on the planned route.
 For a batch-routed `--auto` note, apply [Issue Batch Routing Reports](#issue-batch-routing-reports)
 after route validation, including the initial owner handoff before any receipt.
+
+## Delivery Endpoint
+
+Apply this after validating the Execution Note or accepted design. Use the
+user's prior explicit endpoint when available. Explicit `--auto` selects PR
+delivery under its existing authority and assurance gates. Preserve genuine
+product, design, and authority decisions.
+
+If the endpoint is unresolved, put the preparation path, a brief result, and
+these choices in the user-facing reply:
+
+- **Stop after preparation**
+- **Implement and test locally**
+- **Implement, review, and publish a PR**
+
+A clear reply selects the endpoint. Structured controls may supplement the
+reply with equivalent choices. An unclear, unanswered, dismissed, or expired
+question leaves the work prepared and grants no authority.
+
+- **Preparation:** Return the validated handoff and stop.
+- **Local:** Revalidate preparation, implement, run applicable acceptance and
+  the required repository checks, and report the local result and any remaining
+  gap. Use the repository validation command selection rules below. Record
+  commands, results, and gaps for the local state checked. Stop before push
+  or PR creation.
+- **PR:** Revalidate preparation, implement, and continue through Candidate
+  Closure and Source Freeze, applicable acceptance, full validation,
+  independent Phase 7 review, and the Phase 8 publication gate.
+
+A selected endpoint does not change `payload.mode`, grant merge authority, or
+bypass a genuine gate. At a user-facing yield, state what finished, what
+happens next, and who needs to act.
+If a later publication decision remains open, state the candidate status and
+ask for that decision. If authority covers publication and current gates pass,
+continue.
 
 ## Auto-Route Continuation Boundary
 
@@ -421,11 +457,12 @@ that decision. Priming's own effect endpoint remains the reviewed PR; an eligibl
 covered delivery continues in the same owner through `pr-merge`, which retains
 merge effects and all its gates.
 
-## Phases 5-8: Autonomous Execution (`--auto` only)
+## Phases 5–8: Implementation and PR Delivery
 
-These phases run only when `--auto` is set. The reviewed-plan route chains after
-brainstorming through Phases 5–6; the Execution Note route implements inline
-under Preparation Selection and joins Candidate Closure and Source Freeze.
+Run Phases 5–6 when the selected implementation endpoint needs a reviewed
+plan. The Execution Note route implements inline. Both preparation routes
+use the selected endpoint to determine whether to stop locally or enter the
+PR-delivery gates.
 
 **`--auto` preserves assurance and authority gates.** Preparation Selection
 determines useful initial preparation, never apparent simplicity or green CI.
@@ -438,8 +475,9 @@ brainstorming still takes the Phase 1 "don't implement" cleanup path and stops.
 The shared workflow owns one proportional **Candidate Closure and Source
 Freeze** checkpoint between completed implementation (inline note or Phase 6) and
 downstream evidence. It is the only
-route from completed implementation, or any later source mutation, to
-acceptance, full validation, or Phase 7. It records no artifact, schema,
+PR-delivery route from completed implementation, or any later source mutation,
+to acceptance, full validation, or Phase 7. Local-only checks do not establish
+a frozen candidate or publication readiness. It records no artifact, schema,
 registry, cache, helper result, or persistent lifecycle state: the controller
 retains only the exact frozen candidate `HEAD` and readiness disposition.
 
@@ -489,7 +527,7 @@ checkpoint owns only readiness ordering, invalidation, and continuation.
 At Phase 7 entry, before preparing review context, invoking Branch Review, or
 handling a Phase 7 result or fix continuation, load the installed
 [`references/phase-7-review-handling.md`](references/phase-7-review-handling.md).
-If it is missing, blank, unreadable, or unavailable, stop `--auto` before any
+If it is missing, blank, unreadable, or unavailable, stop before any
 dependent operation. That reference owns review-evidence validation and
 retention, blocker and nit classification, Branch-Review-owned fix commits,
 paired rerun inputs, and the judgment-nits helper handoff.
@@ -579,12 +617,16 @@ reference owns detailed PR body, assumptions, explicit review-gate inputs,
 assignee, and nits explanation; this workflow owns the hard stops and
 arguments. If it is unavailable, stop before invoking `play-branch-finish`.
 
-Invoke `play-branch-finish`. In `--auto` mode, choose **option 2: push and create PR**
+With current publication authority, invoke `play-branch-finish` using
+**option 2: push and create PR**
 with the handoff arguments that reference defines: `assignee=@me`,
 `branch_review_required=true`, the final Phase 7 approval-summary path as
 `approval_summary_file`, the same `BRANCH_REVIEW_FULL_REVIEW_PATH_PATTERN` when
-Phase 7 branch-review ran with one, and `assumptions_comment_file` or
-`nits_file` only when the corresponding artifact exists. Do NOT merge:
+Phase 7 branch-review ran with one. Pass `assumptions_comment_file` or
+`nits_file` only when the artifact exists **and current authority covers its
+specific posting effect**, as defined in the Phase 8 handoff reference.
+If authority covers only push and PR creation, proceed with those effects and
+report any retained feedback in the user-facing result. Do NOT merge:
 priming's effect endpoint is the reviewed PR. For an eligible unchanged
 controller handoff, apply the router's
 [Covered Same-Owner Delivery](../issue-batch-routing/SKILL.md#covered-same-owner-delivery):
@@ -674,14 +716,14 @@ Phase 3 investigator, run
 When design remains necessary after Preparation Selection, load the
 [design and reviewed-plan procedure](references/reviewed-plan.md#phase-4-invoke-brainstorming).
 It owns the research-to-design handoff and Phase 4 dispositions. If unavailable,
-stop before brainstorming or consuming its result. In interactive mode return
-control after brainstorming under its own approval gates. In auto mode a
-durable owner referral follows the Phase 1 discard path, and genuine ambiguity
-takes the existing user decision gate.
+stop before brainstorming or consuming its result. Preserve brainstorming’s
+design gates. In interactive mode take back the accepted design and apply
+[Delivery Endpoint](#delivery-endpoint). A durable owner referral follows the
+Phase 1 discard path, and genuine ambiguity takes the existing decision gate.
 
 ### Phase 5: Write Plan (reviewed-plan route)
 
-On the auto reviewed-plan route with an actual accepted design, load the
+On a selected implementation route with an actual accepted design, load the
 [planning entry procedure](references/reviewed-plan.md#phase-5-write-plan-reviewed-plan-route).
 It owns design-path validation and the planning handoff. If unavailable or
 the design is missing, stop before planning. The planning owner must return
@@ -689,12 +731,11 @@ complete current combined review for the exact plan before Phase 6.
 
 ### Phase 6: Implement (reviewed-plan route)
 
-On the auto reviewed-plan route after planning returns, use the
+On the reviewed-plan route after planning returns, use the
 [executor handoff procedure](references/reviewed-plan.md#phase-6-implement-reviewed-plan-route).
 It owns reviewed-plan intake, rehashing, route attestation and the Phase 6
 handoff. If the procedure or required planning evidence is unavailable, stop
-before handing off to execution. Successful execution joins
-[Candidate Closure and Source Freeze](#candidate-closure-and-source-freeze).
+before handing off to execution. Successful execution rejoins the selected [delivery endpoint](#delivery-endpoint).
 
 ## Requested Run Assessments
 
@@ -821,7 +862,7 @@ See [`references/red-flags.md`](references/red-flags.md) for the full list and t
 
 ## What This Skill Does NOT Do
 
-- **Without `--auto`:** Does not write code, create PRs, or manage implementation.
+- **Interactive:** Continues beyond preparation only within the selected delivery endpoint.
 - **With `--auto`:** Does not merge PRs (reports the reviewed PR/head to the controller for separately authorized downstream delivery); selects initial preparation under Preparation Selection and preserves common assurance gates; does not silently pick between equally-valid design options (stops and asks instead).
 
 See [`references/scope.md`](references/scope.md) for the expanded list.

@@ -82,10 +82,12 @@ If brainstorming surfaces a genuinely ambiguous decision (two equally valid appr
 
 See [`references/auto-mode-discipline.md`](auto-mode-discipline.md) for why "document the assumption and let the user override at PR review" is the same violation, and why third-party "either is fine" doesn't count as authorization.
 
-Without `--auto`: hand off to `play-brainstorm` and return control to the
-user after `play-brainstorm` completes. `play-brainstorm` owns its approved
-handoff to `play-planning`; do not suppress or replace child skill approval
-gates.
+Without `--auto`, explicitly ask `play-brainstorm` to return its accepted
+design under its interactive issue-priming parent handoff. Preserve the
+child's design approval gates. A user stop preserves the saved design and
+ends preparation. A durable owner referral takes the issue workflow's
+Phase 1 discard path. After approval, return to the shared Delivery Endpoint
+with the guarded design and retained producer provenance.
 
 ## Phase 5: Write Plan (reviewed-plan route)
 
@@ -120,14 +122,16 @@ Include the literal `Comment evidence: <repo-relative-path>` line only when
 ```
 Write an implementation plan for <source-noun> issue <ID>: <TITLE>.
 
-`--auto` flow active (invoked by `issue-priming-workflow`). Do NOT prompt for execution mode at the end — return after saving the plan and only after complete combined planning review passes both remits so the parent skill can invoke `play-subagent-execution`. Invalid combined review stops before `play-subagent-execution`.
+Use play-planning's `--auto` return-to-parent behavior for this planning call only. Return after saving the plan and passing both remits of combined planning review. The parent owns execution and delivery; the planning flag supplies neither priming auto-route identity nor execution authority.
 
 Design: <repo-relative-path captured above>
 
 Comment evidence: <repo-relative-path from payload.comment-evidence-path>
 ```
 
-Do not wait for user review of the plan — proceed directly to implementation after `play-planning` returns. The plan path is captured from the producer notice line emitted by `play-planning`.
+Capture the plan path from the producer notice. When the selected implementation
+endpoint still covers the reviewed scope, proceed under that authority.
+A material scope or authority gap takes its existing gate.
 
 Current combined assurance may include the planning owner's narrow
 [source-established declaration verification](../../play-planning/references/combined-review-contract.md#source-established-declaration-verification).
@@ -164,7 +168,16 @@ node "$PHASE_ARTIFACTS_HELPER" validate-read plan "$PLAN_PATH"
 Use the helper contract from the issue worktree root; success is silent and a
 nonzero exit stops the phase.
 
-Before invoking `play-subagent-execution`, invoke
+For an interactive implementation endpoint, the issue owner uses
+[play-planning's reviewed inline execution route](../../play-planning/SKILL.md#execution-handoff).
+Revalidate the accepted design, current issue, source and checkout state under
+Preparation Provenance and rehash the guarded plan against its reviewed digest
+immediately before editing. Retain the combined producer, tag and reviewed
+digest. Execute the reviewed tasks with their existing review checkpoints,
+then rejoin the selected local or PR endpoint. This route has no auto handoff,
+reduced executor route, or auto-route attestation.
+
+For explicit priming `--auto`, before invoking `play-subagent-execution`, invoke
 `scripts/write-auto-handoff.mjs` from the issue worktree root. Resolve the
 script from the installed `issue-priming-workflow` skill bundle, pass
 `PLAN_PATH`, and capture stdout as the repo-relative auto-handoff artifact path.
@@ -252,10 +265,10 @@ Phase 7 final-review guarantee, both defined in
 [`references/phase-6-auto-handoff.md`](phase-6-auto-handoff.md)
 §§ "Single-Task Final-Review Carve-Out" and "Phase 7 Final-Review Guarantee".
 
-`play-subagent-execution` may execute trivial single-task plans inline (skip-dispatch path; see its [skip-dispatch policy](../../play-subagent-execution/references/skip-dispatch-policy.md)). On the reviewed-plan route, Phase 6 remains "invoke `play-subagent-execution`" — the inline optimization is internal to that skill. Four runtime guardrails (single-task, `**Mode:** mechanical`, structural task-contract gate satisfied, no TDD expectations or legacy TDD step-pair markers) plus one upstream precondition (current combined planning review provenance from Phase 5) gate the path; the runtime guardrails are checked by the skill's controller after plan extraction. A missing or invalid required contract checklist stops before implementation rather than falling back to mechanical dispatch.
+`play-subagent-execution` may execute trivial single-task plans inline (skip-dispatch path; see its [skip-dispatch policy](../../play-subagent-execution/references/skip-dispatch-policy.md)). In explicit priming auto mode, Phase 6 invokes `play-subagent-execution` — the inline optimization is internal to that skill. Four runtime guardrails (single-task, `**Mode:** mechanical`, structural task-contract gate satisfied, no TDD expectations or legacy TDD step-pair markers) plus one upstream precondition (current combined planning review provenance from Phase 5) gate the path; the runtime guardrails are checked by the skill's controller after plan extraction. A missing or invalid required contract checklist stops before implementation rather than falling back to mechanical dispatch.
 
-Successful `play-subagent-execution` completion returns control to this owning
-workflow. Phase 6 completion enters
+Successful `play-subagent-execution` completion on the auto route returns
+control to this owning workflow. Phase 6 completion enters
 [Candidate Closure and Source Freeze](../SKILL.md#candidate-closure-and-source-freeze)
 before any expensive downstream evidence.
 

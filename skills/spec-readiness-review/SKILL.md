@@ -94,6 +94,11 @@ Return a concise report in this shape:
 
 - <finding with concrete artifact/evidence reference>
 
+### Next Action
+
+- <for Needs revision or Blocked, name the highest-priority correction or
+  decision and its artifact owner, or what would establish that owner>
+
 ### Slicing Notes
 
 - <only include when useful; name issue-slicing implications without drafting tracker text>
@@ -101,6 +106,7 @@ Return a concise report in this shape:
 Final status: <repeat the same single status>
 ```
 
+Omit Next Action when Ready concludes the requested review.
 Keep findings tied to the artifact under review. Do not include implementation
 approval, implementation plans, issue bodies, tracker mutation steps, or review
 verdicts for code that already exists.
