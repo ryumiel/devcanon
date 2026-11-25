@@ -279,6 +279,53 @@ Bounded purpose-specific owner reads are allowed:
   stop at the established outcome or exhausted supported recovery/gap. Do not
   use recovery as a pretext to watch ordinary progress.
 
+## Dependency and capacity scheduling
+
+On authorized admission or a verified prerequisite change, reconcile existing
+tracker and routing effects, then reassess both the affected issue's prerequisites
+and existing jobs that need its output. Record each required output and the
+specific gate it affects. Admission verifies tracker identity and membership,
+reconciles uncertain creation, and reuses an equivalent issue; pass its canonical
+identity to the router for compatible owner reuse or dispatch. A named-issues-only
+grant requires the missing admission decision. Continue eligible authorized
+siblings while that decision waits.
+
+The default batch limit is four active issue jobs; retain an explicit positive
+integer user override and its authority provenance in the existing ledger. Count
+one reservation per admitted job that can run or resume independently, including
+CI or review waits and unresolved starts or resumes. A queued job consumes no
+slot. Apply resource-specific limits independently. The coordinator is the
+single ledger writer: serialize each capacity check and reservation before
+routing a start or resume, so competing notices cannot claim the same slot.
+Preserve the original router binding and reservation while an effect is pending
+or unknown; reconcile it before retry or release. Release a failed start only
+when the router establishes that no owner started.
+
+On resume recover the effective limit, its provenance and reservations before
+selecting starts. Use the default only when absence of an override is established;
+missing or conflicting override or occupancy evidence holds dependent starts.
+If recovered work exceeds the limit, let it drain without stopping active jobs.
+
+When all slots are occupied by owners blocked on a new prerequisite, release a
+parked owner's reservation only on positive current evidence bound to that owner
+and assignment: the owner is quiescent, any already delivered wake has settled
+without independent continuation, and every enabled queued or future wake path
+requires coordinator release. Idle status or silence is not proof. If any path
+cannot be verified, retain the reservation and surface the missing proof. Acquire
+capacity before re-enabling a wake path or releasing the parked owner.
+
+A shared validation investigation is an ordinary follow-up. Reuse a matching
+investigation under admission and routing rules; record each consumer's affected
+gate, what the next diagnostic distinguishes, and review or implementation that
+can proceed independently. Do not infer a diagnostic result. Each PR keeps its
+own publication gates.
+
+After a verified prerequisite merge, evaluate eligible successors and separately
+authorized cleanup in the same pass. Reconcile each effect under its existing
+owner and identity. A duplicate notice neither repeats a verified effect nor
+releases an unknown reservation; recover unfinished effects before retry. A
+cleanup hold protects its affected resource, not unrelated eligible work.
+
 ## Coordination cycle
 
 1. **Refresh.** On entry, event delivery, resume, or controller handoff, reread
@@ -287,7 +334,7 @@ Bounded purpose-specific owner reads are allowed:
    local state. Validate affected received owner reports and provider evidence through the
    router, within the bounded observation purposes above. Before a material routing action, recheck the applicable policy and
    live bindings.
-2. **Classify.** Keep running work, verified unfinished non-gate work, genuine
+2. **Classify.** Apply dependency and capacity scheduling above to verified admission and prerequisite changes before selecting effects. Keep running work, verified unfinished non-gate work, genuine
    gates, and terminal outcomes distinct. An idle owner is not automatically
    unfinished or complete. Let running owners work; use the router's receipt
    procedure for eligible unfinished continuation and its gate path for real
