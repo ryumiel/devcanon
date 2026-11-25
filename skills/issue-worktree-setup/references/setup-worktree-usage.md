@@ -36,8 +36,8 @@ selection, platform-native fallback invocation, output parsing,
 `WORKTREE_PATH` validation, and the `.ephemeral/` artifact path and
 write-target guards. The [owning skill](../SKILL.md) keeps the native-first
 policy and the `reuse` / `new` / `stop` continuation semantics; each consumer
-keeps its provider fetch, artifact naming rule, comment-evidence selection
-policy, and the verbatim write itself.
+keeps its provider fetch, artifact naming rule, and comment-evidence selection
+policy. The shared writer persists the selected content verbatim.
 
 ### Native-first selection
 
@@ -173,104 +173,19 @@ if ($LASTEXITCODE -ne 0 -or $GitPrefix.Length -ne 0) {
 
 ### Artifact write guards
 
-Consumers write up to two repo-relative artifacts inside `WORKTREE_PATH`:
-the issue body at `.ephemeral/<YYYY-MM-DD>-<id>-issue-body.md`
-(`ISSUE_BODY_PATH`) and, only when substantive comment evidence exists, the
-comment evidence at `.ephemeral/<YYYY-MM-DD>-<id>-comment-evidence.md`
-(`COMMENT_EVIDENCE_PATH`). The consumer derives `<id>` from its provider's
-identifier rule. For each artifact, validate the repo-relative path, then
-apply the write-target guard, then write. Both guards share one shape and
-differ only in the path variable and the `-issue-body.md` /
-`-comment-evidence.md` suffix; the two worked examples follow. Unsafe
-artifact paths fail before write.
+Run the shared [phase-artifacts helper](../../issue-priming-workflow/references/phase-artifacts-usage.md)
+from the validated worktree root. Use
+`write-tracker-artifact issue-body "$ISSUE_BODY_PATH"` for
+`.ephemeral/<YYYY-MM-DD>-<id>-issue-body.md` and
+`write-tracker-artifact comment-evidence "$COMMENT_EVIDENCE_PATH"` for
+`.ephemeral/<YYYY-MM-DD>-<id>-comment-evidence.md`. Pass the selected UTF-8
+content through stdin, preserving line endings and trailing newlines. Skip the
+comment-evidence call when there is no substantive evidence.
 
-### Issue-body guard example
-
-Validate the repo-relative path before writing. POSIX shell example:
-
-```bash
-case "$ISSUE_BODY_PATH" in
-  .ephemeral/*/*) echo "nested issue body path rejected: $ISSUE_BODY_PATH" >&2; exit 1 ;;
-  .ephemeral/*-issue-body.md) ;;
-  *) echo "issue body path validation failed: $ISSUE_BODY_PATH" >&2; exit 1 ;;
-esac
-[ "${ISSUE_BODY_PATH#*..}" = "$ISSUE_BODY_PATH" ] || { echo "path traversal: $ISSUE_BODY_PATH" >&2; exit 1; }
-```
-
-PowerShell example:
-
-```powershell
-if ($ISSUE_BODY_PATH -notmatch '^\.ephemeral/[^/\\]+-issue-body\.md$') { throw "issue body path validation failed: $ISSUE_BODY_PATH" }
-if ($ISSUE_BODY_PATH.Contains("..")) { throw "path traversal: $ISSUE_BODY_PATH" }
-```
-
-Apply the write-target guard before the write. POSIX shell example:
-
-```bash
-[ -L "$WORKTREE_PATH/.ephemeral" ] && rm "$WORKTREE_PATH/.ephemeral"
-mkdir -p "$WORKTREE_PATH/.ephemeral"
-[ -L "$WORKTREE_PATH/$ISSUE_BODY_PATH" ] && rm "$WORKTREE_PATH/$ISSUE_BODY_PATH"
-[ ! -d "$WORKTREE_PATH/$ISSUE_BODY_PATH" ] || { echo "issue body path is a directory: $WORKTREE_PATH/$ISSUE_BODY_PATH" >&2; exit 1; }
-[ ! -e "$WORKTREE_PATH/$ISSUE_BODY_PATH" ] || [ -f "$WORKTREE_PATH/$ISSUE_BODY_PATH" ] || { echo "issue body path exists but is not a regular file: $WORKTREE_PATH/$ISSUE_BODY_PATH" >&2; exit 1; }
-```
-
-PowerShell example:
-
-```powershell
-$EphemeralDir = Join-Path $WORKTREE_PATH ".ephemeral"
-$EphemeralItem = Get-Item -LiteralPath $EphemeralDir -Force -ErrorAction SilentlyContinue
-if ($EphemeralItem -and (($EphemeralItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { Remove-Item -LiteralPath $EphemeralDir }
-New-Item -ItemType Directory -Force -Path $EphemeralDir | Out-Null
-$IssueBodyFullPath = Join-Path $WORKTREE_PATH ($ISSUE_BODY_PATH -replace '/', [System.IO.Path]::DirectorySeparatorChar)
-$IssueBodyItem = Get-Item -LiteralPath $IssueBodyFullPath -Force -ErrorAction SilentlyContinue
-if ($IssueBodyItem -and (($IssueBodyItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { Remove-Item -LiteralPath $IssueBodyFullPath; $IssueBodyItem = $null }
-if ($IssueBodyItem -and $IssueBodyItem.PSIsContainer) { throw "issue body path is a directory: $IssueBodyFullPath" }
-if ($IssueBodyItem -and -not ($IssueBodyItem -is [System.IO.FileInfo])) { throw "issue body path exists but is not a regular file: $IssueBodyFullPath" }
-```
-
-### Comment-evidence guard example
-
-Validate the repo-relative path before writing. POSIX shell example:
-
-```bash
-case "$COMMENT_EVIDENCE_PATH" in
-  .ephemeral/*/*) echo "nested comment evidence path rejected: $COMMENT_EVIDENCE_PATH" >&2; exit 1 ;;
-  .ephemeral/*-comment-evidence.md) ;;
-  *) echo "comment evidence path validation failed: $COMMENT_EVIDENCE_PATH" >&2; exit 1 ;;
-esac
-[ "${COMMENT_EVIDENCE_PATH#*..}" = "$COMMENT_EVIDENCE_PATH" ] || { echo "path traversal: $COMMENT_EVIDENCE_PATH" >&2; exit 1; }
-```
-
-PowerShell example:
-
-```powershell
-if ($COMMENT_EVIDENCE_PATH -notmatch '^\.ephemeral/[^/\\]+-comment-evidence\.md$') { throw "comment evidence path validation failed: $COMMENT_EVIDENCE_PATH" }
-if ($COMMENT_EVIDENCE_PATH.Contains("..")) { throw "path traversal: $COMMENT_EVIDENCE_PATH" }
-```
-
-Apply the write-target guard before the write. POSIX shell example:
-
-```bash
-[ -L "$WORKTREE_PATH/.ephemeral" ] && rm "$WORKTREE_PATH/.ephemeral"
-mkdir -p "$WORKTREE_PATH/.ephemeral"
-[ -L "$WORKTREE_PATH/$COMMENT_EVIDENCE_PATH" ] && rm "$WORKTREE_PATH/$COMMENT_EVIDENCE_PATH"
-[ ! -d "$WORKTREE_PATH/$COMMENT_EVIDENCE_PATH" ] || { echo "comment evidence path is a directory: $WORKTREE_PATH/$COMMENT_EVIDENCE_PATH" >&2; exit 1; }
-[ ! -e "$WORKTREE_PATH/$COMMENT_EVIDENCE_PATH" ] || [ -f "$WORKTREE_PATH/$COMMENT_EVIDENCE_PATH" ] || { echo "comment evidence path exists but is not a regular file: $WORKTREE_PATH/$COMMENT_EVIDENCE_PATH" >&2; exit 1; }
-```
-
-PowerShell example:
-
-```powershell
-$EphemeralDir = Join-Path $WORKTREE_PATH ".ephemeral"
-$EphemeralItem = Get-Item -LiteralPath $EphemeralDir -Force -ErrorAction SilentlyContinue
-if ($EphemeralItem -and (($EphemeralItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { Remove-Item -LiteralPath $EphemeralDir }
-New-Item -ItemType Directory -Force -Path $EphemeralDir | Out-Null
-$CommentEvidenceFullPath = Join-Path $WORKTREE_PATH ($COMMENT_EVIDENCE_PATH -replace '/', [System.IO.Path]::DirectorySeparatorChar)
-$CommentEvidenceItem = Get-Item -LiteralPath $CommentEvidenceFullPath -Force -ErrorAction SilentlyContinue
-if ($CommentEvidenceItem -and (($CommentEvidenceItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { Remove-Item -LiteralPath $CommentEvidenceFullPath; $CommentEvidenceItem = $null }
-if ($CommentEvidenceItem -and $CommentEvidenceItem.PSIsContainer) { throw "comment evidence path is a directory: $CommentEvidenceFullPath" }
-if ($CommentEvidenceItem -and -not ($CommentEvidenceItem -is [System.IO.FileInfo])) { throw "comment evidence path exists but is not a regular file: $CommentEvidenceFullPath" }
-```
+When invoking from Node, pass the content as the `input` option of
+`spawnSync` and set `cwd` to the selected worktree. Stop before handoff if a
+write fails. The helper validates the destination, handles supported links,
+and writes the artifact in one invocation.
 
 ## Workflow boundary
 

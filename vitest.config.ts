@@ -24,6 +24,7 @@ const windowsHelperIntegrationIncludes = [
   "src/skill-scripts/issue-worktree-setup-windows-helper.integration.test.ts",
   // Issue priming canonical helpers must ignore ambient Bash on native Windows.
   "src/skill-scripts/issue-priming-native-helpers.integration.test.ts",
+  "src/skill-scripts/issue-priming-phase-artifacts-helper.integration.test.ts",
   // POSIX adapters use a verified Git-for-Windows Bash, never ambient bash.exe.
   "src/skill-scripts/issue-priming-posix-adapters.integration.test.ts",
   // PR merge cleanup/preflight helpers exercise Windows worktree and PATH handling.

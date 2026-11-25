@@ -10,7 +10,7 @@ export interface AtomicTextWriteResult {
 
 export async function writeTextAtomically(
   targetPath: string,
-  content: string,
+  content: string | Buffer,
 ): Promise<AtomicTextWriteResult> {
   const tempPath = path.join(
     path.dirname(targetPath),

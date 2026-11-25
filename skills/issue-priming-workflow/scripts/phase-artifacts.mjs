@@ -31,4 +31,5 @@ runRuntimeBackedHelper(
   scriptPath,
   ["issue-priming", "phase-artifacts", ...process.argv.slice(2)],
   (stdout) => requireExactSilentStdout(stdout, "phase-artifacts"),
+  { forwardStdin: process.argv[2] === "write-tracker-artifact" },
 );
