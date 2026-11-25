@@ -95,6 +95,8 @@ are excluded. Handle mixed item waits independently. Normalize missing/unknown
 reasons only on an authorized resume from supported facts; never infer a stall
 from idleness. Only this coordinator writes the ledger.
 
+## Ledger write procedure
+
 Keep the ledger as the single current view: provider identity, accepted scope
 and applicable authority, dependencies, owner/host/repository, current head,
 validation/readiness, gate/blocker/next action and evidence references. Keep
@@ -102,21 +104,56 @@ controller/successor, policy revision and monitor state as current batch facts.
 There is no separate current view, history section, append-only event log or
 coordinator archive. Derive batch summaries from the current items.
 
-Compare observations for the same item and operation using supported identity,
-applicable head/revision and verification evidence; timestamps alone do not
-order effects. A duplicate or superseded observation leaves verified facts and
-routed effects unchanged. Refresh conflicting or incomparable evidence from
-the affected authoritative owner/provider before action or reporting. Missing
-or conflicting evidence holds only its action. Replace obsolete observations,
-resolved blockers and completed queue entries; keep unknown facts explicit.
+Use this procedure for every write to the existing stable ledger, including
+startup or admission, a pre-dispatch write, result reconciliation, resume and
+closeout. Read the current saved state before changing it. A status-only
+request makes no write. Keep the ledger outside removable owner worktrees.
 
-Apply the router's [operational retention](../issue-batch-routing/SKILL.md#operational-retention)
-rules to authority, pending effects, route/receipt guards and notifications.
-A head change invalidates affected readiness and exact action bindings without
-revoking compatible standing authority. Keep review and recovery evidence at
-its owning workflow and link only what the current decision needs; never copy
-an execution diary or delete owner evidence while compacting the ledger.
-Store the ledger stably, never only in a removable owner worktree.
+1. **Reconcile the observation.** Match the item, operation, exact route or
+   action binding, and affected revision against saved facts. Use verified
+   owner/provider evidence to distinguish a replacement from a duplicate,
+   superseded report, or conflict. Timestamps alone cannot establish order.
+   A duplicate or superseded observation leaves current decisions and effect
+   guards intact. A late result may reconcile an unresolved effect at its
+   original binding without contributing readiness for the replacement head.
+   Refresh conflicts or incomparable evidence from the affected authority.
+   Until resolved, hold only the affected action and retain its evidence
+   references and uncertainty.
+2. **Replace the affected decision together.** Update the applicable head,
+   validation and readiness, exact action binding, gate, blocker, wait reason
+   and next action in the same saved update. Clear checks, review and approval
+   claims tied to the displaced head once they have no remaining consumer.
+   Compare local candidate and provider-verified published revisions by their
+   own bindings. Preserve an independently current published head and its
+   evidence when the local candidate changes. Evidence for either revision
+   applies only to that revision and operation.
+3. **Reconcile effects and compact.** Apply the router's
+   [operational retention](../issue-batch-routing/SKILL.md#operational-retention)
+   rules. Keep compatible standing authority. Preserve unresolved effects'
+   original complete route, applicable authority, owner/host/repository
+   binding and result reference until reconciliation, then retain any
+   still-needed duplicate guard. Keep the live relay's item identity, source
+   state, owner/host, branch, known PR and applicable wait binding while it
+   needs them. Keep required review and recovery evidence with its owner and
+   retain usable references. Remove positively obsolete facts, resolved waits
+   and completed queue entries. Leave unknown facts explicit.
+4. **Persist and use the reconciled state.** Derive the batch summary from
+   the updated items. Save the complete updated ledger in one replacement so
+   a reader can recover the item decisions and matching summary together.
+   Before a dependent instruction, effect, yield or terminal claim, reopen
+   the saved ledger and verify the affected decisions, bindings and retained
+   guards. A failed or uncertain write requires rereading and reconciling the
+   saved state before acting on the proposed update.
+
+When a merge is verified, record the outcome and required gate evidence
+references, and clear the merge receipt wait and queued merge action. Record
+each remaining obligation in its existing fields, including the exact
+resource, responsible actor, next action and verifiable release condition.
+After verified cleanup, record its evidence and clear the released resource's
+availability claim, wait and next action. Retain unresolved or partially
+completed cleanup at its original binding and update only the parts verified.
+The remaining obligations and usable evidence must be recoverable without
+reopening the owner's conversation or a removed checkout.
 
 ## Execution startup and authorization
 
@@ -302,26 +339,10 @@ Bounded purpose-specific owner reads are allowed:
    waits. Advance eligible
    queued work within authorization without a generic “proceed” request. A
    blocked item need not stop independent eligible siblings.
-4. **Record and yield.** Reconcile the router's outcome into the affected
-   current ledger item, then derive the batch summary from the updated items. Before
-   treating facts as current or using them for an action, compare the incoming
-   observation with retained current facts as above, then make the current
-   gate, blocker, next action, evidence, and any retained snapshot, digest and
-   observation time agree. Replace the prior monitor summary and clear only
-   positively obsolete or inapplicable fields; preserve unrelated items and
-   router-required operational markers under its retention rules.
-   In particular, after validating a merge result, record the verified merge
-   and clear its obsolete receipt wait and queued merge action before yielding
-   or issuing the next instruction. Keep separately unfinished integration,
-   activation, and cleanup visible with their own actions and waits. A delayed
-   duplicate cannot restore the cleared wait or repeat the merge.
-   Missing, unavailable, stale or conflicting required evidence holds the
-   affected action with its references rather than concealing the gap or
-   refreshing stale facts. For a terminal item, retain its disposition,
-   verified terminal evidence references, unresolved obligations and still-needed
-   operational markers; a closed source issue alone does not authorize archival. After an
-   already-authorized cleanup, replace location and availability claims with
-   the observed result; an unknown result remains unresolved. Select the
+4. **Record and yield.** Apply the [ledger write procedure](#ledger-write-procedure)
+   to the router outcome before issuing the next instruction or yielding.
+   Keep independent integration, activation and cleanup obligations visible.
+   A closed source issue alone does not authorize archival. Select the
    audience after reconciliation. Owners retain routine commits, intermediate
    checks, review preparation, shared-resource waits, bounded fixes and
    recoverable errors locally; these produce no coordinator message or
@@ -450,9 +471,9 @@ Assess these readiness questions separately:
 
 On resume, validate controller and owner locations. Use existing host recovery
 for a stale or deleted checkout; never silently use another repository. Restore
-the stable ledger and revalidate its hints. Remove positively superseded
-content and regenerate summaries from reconciled items, retaining unresolved
-effects and obligations under the router’s retention rules. Report lost authority or replay
+the stable ledger and revalidate its hints. Apply the
+[ledger write procedure](#ledger-write-procedure) to recover affected decisions
+and remove positively superseded content before resuming effects. Report lost authority or replay
 evidence; a receipt or archived transcript cannot reconstruct approval.
 
 The coordinator owns an authorized successor transition. Before successor
@@ -500,4 +521,8 @@ wake an archived owner solely for cleanup. The
 [cleanup scenarios](references/reporting-scenarios.md#post-delivery-cleanup-outcomes)
 cover archive-triggered removal, refusal and partial retries.
 
-For batch closeout, follow [monitor retirement](references/github-push.md#reconcile-delivery-and-stop) and the router's [Operational retention](../issue-batch-routing/SKILL.md#operational-retention) for releasing the batch's working state.
+For batch closeout, persist the reconciled outcomes and remaining obligations
+through the [ledger write procedure](#ledger-write-procedure). Follow
+[monitor retirement](references/github-push.md#reconcile-delivery-and-stop)
+and the router's [operational retention](../issue-batch-routing/SKILL.md#operational-retention)
+for releasing the batch's working state.
