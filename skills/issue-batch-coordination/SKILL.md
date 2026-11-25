@@ -121,8 +121,10 @@ request makes no write. Keep the ledger outside removable owner worktrees.
    references and uncertainty.
 2. **Replace the affected decision together.** Update the applicable head,
    validation and readiness, exact action binding, gate, blocker, wait reason
-   and next action in the same saved update. Clear checks, review and approval
-   claims tied to the displaced head once they have no remaining consumer.
+   and next action in the same saved update. Keep the associated evidence and
+   any retained snapshot, digest and observation time consistent with that
+   decision. Clear checks, review and approval claims tied to the displaced
+   head once they have no remaining consumer.
    Compare local candidate and provider-verified published revisions by their
    own bindings. Preserve an independently current published head and its
    evidence when the local candidate changes. Evidence for either revision
