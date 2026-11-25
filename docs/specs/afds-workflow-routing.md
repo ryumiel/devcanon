@@ -344,7 +344,9 @@ or resume. Count independently resumable owners and uncertain starts once,
 including CI/review waits; queued work does not count. Resource-specific limits
 apply independently. Recover the effective limit, provenance and reservations
 before scheduling on resume; uncertain evidence holds dependent starts and an
-over-limit batch drains. Preserve unknown effect bindings and reservations until
+over-limit batch drains. A verified terminal owner report releases its settled
+reservation and triggers same-pass reconsideration of eligible queued jobs when
+capacity opens. Preserve pending or unknown effect bindings and reservations until
 reconciled. Release a parked owner's reservation only with current proof for the
 exact owner and assignment that it is quiescent, delivered wakes have settled,
 and all wake paths require coordinator release. Otherwise retain the reservation
