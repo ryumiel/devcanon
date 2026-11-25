@@ -279,27 +279,34 @@ Bounded purpose-specific owner reads are allowed:
   stop at the established outcome or exhausted supported recovery/gap. Do not
   use recovery as a pretext to watch ordinary progress.
 
+## Review-driven repairs
+
+Before routing review-driven repairs, read the existing
+[finding proportionality reference](../play-review-response/references/finding-proportionality.md)
+and apply its classifications and dispositions without duplicating them here.
+Do not create another review layer or turn severity, a technically possible
+fix, or a successful experiment into scope authority. Keep acceptance and
+validation proportional to the approved behavior; do not add a general repair
+or proof framework to clear a batch.
+
 ## Dependency and capacity scheduling
 
-On authorized admission or a verified prerequisite change, reconcile existing
-tracker and routing effects, then reassess both the affected issue's prerequisites
-and existing jobs that need its output. Record each required output and the
-specific gate it affects. Admission verifies tracker identity and membership,
-reconciles uncertain creation, and reuses an equivalent issue; pass its canonical
-identity to the router for compatible owner reuse or dispatch. A named-issues-only
-grant requires the missing admission decision. Continue eligible authorized
-siblings while that decision waits.
+On authorized admission or a verified prerequisite change, reconcile tracker
+and routing effects. Reassess the affected issue's prerequisites and existing
+consumers, recording each required output and affected gate. Verify tracker
+identity and membership, reconcile uncertain creation, and reuse equivalent
+issues; pass the canonical identity to the router for owner reuse or dispatch.
+A named-issues-only grant requires an admission decision for the addition; let
+eligible authorized siblings continue while it waits.
 
-The default batch limit is four active issue jobs; retain an explicit positive
-integer user override and its authority provenance in the existing ledger. Count
-one reservation per admitted job that can run or resume independently, including
-CI or review waits and unresolved starts or resumes. A queued job consumes no
-slot. Apply resource-specific limits independently. The coordinator is the
-single ledger writer: serialize each capacity check and reservation before
-routing a start or resume, so competing notices cannot claim the same slot.
-Preserve the original router binding and reservation while an effect is pending
-or unknown; reconcile it before retry or release. Release a failed start only
-when the router establishes that no owner started.
+Default to four active issue jobs. Retain an explicit positive-integer override
+and its authority provenance in the ledger. Reserve one slot per admitted job
+that can run or resume independently, including CI/review waits and unresolved
+starts or resumes; queued jobs consume none. Apply resource-specific limits
+separately. As sole ledger writer, serialize the capacity check and reservation
+before routing each start or resume. Retain the original binding and reservation
+for pending or unknown effects; reconcile before retry or release. Release a
+failed start only when the router establishes that no owner started.
 
 On a verified terminal owner report, reconcile the original effect and release
 its settled reservation before selecting effects. Reconsider already eligible
@@ -417,14 +424,6 @@ unavailable, hold the affected handoff rather than reconstructing permission.
 Refreshing the controller does not refresh active owners' contexts.
 
 ## Scope and combined readiness
-
-Before routing review-driven repairs, read the existing
-[finding proportionality reference](../play-review-response/references/finding-proportionality.md)
-and apply its classifications and dispositions without duplicating them here.
-Do not create another review layer or turn severity, a technically possible
-fix, or a successful experiment into scope authority. Keep acceptance and
-validation proportional to the approved behavior; do not add a general repair
-or proof framework to clear a batch.
 
 Apply Connector-first selection under the accepted conditional policy in
 ROUTE-007-REVIEW to both initial and corrected published heads. Applicable

@@ -339,7 +339,7 @@ ordinary follow-up: identify each affected gate, the distinction the next
 run tests, and independent work that may proceed; preserve each PR's gates.
 
 Coordination defaults to four active issue jobs unless the user explicitly
-sets another positive limit. A serialized ledger reservation precedes any start
+sets another positive-integer limit. A serialized ledger reservation precedes any start
 or resume. Count independently resumable owners and uncertain starts once,
 including CI/review waits; queued work does not count. Resource-specific limits
 apply independently. Recover the effective limit, provenance and reservations

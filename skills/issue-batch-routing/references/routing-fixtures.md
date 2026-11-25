@@ -32,8 +32,9 @@ the named dimension; other facts remain consistent.
 ## Coordinator capacity handoff
 
 These cases verify router boundaries; they do not themselves perform host effects.
-A coordinator passes only a capacity-reserved eligible item with its unchanged
-scope and complete route binding. For a repeated admission, reuse the compatible
+For an owner start or resume, the coordinator passes a capacity-reserved eligible
+item with its unchanged scope and complete route binding. Independent cleanup
+does not consume an issue-job slot. For a repeated admission, reuse the compatible
 owner and suppress a completed route. For a pending or unknown dispatch, retain
 its original identity and reconcile it before retry; do not infer a denial or
 release its reservation. A verified merge may independently enable successor
