@@ -33,7 +33,7 @@ executables on `PATH`. The GitHub CLI must authenticate and read the selected
 repository in the service's environment.
 
 Place a `config.json` file in the state directory with the following fields.
-Replace the examples with the opted-in scope and GitHub IDs. Omit
+Replace the examples with the repository and GitHub IDs. Issue membership comes from the live ledger. Omit
 `ci_workflow_id` to disable CI notices. Configured CI notices cover completed
 `success`, `failure`, and `cancelled` PR runs after live verification.
 
@@ -41,7 +41,6 @@ Replace the examples with the opted-in scope and GitHub IDs. Omit
 {
   "repository": "org/repository",
   "repository_id": 123456789,
-  "issues": [123, 124],
   "base_branch": "main",
   "connector_id": 123456789,
   "connector_login": "chatgpt-codex-connector[bot]",

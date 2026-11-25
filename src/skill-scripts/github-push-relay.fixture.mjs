@@ -40,7 +40,6 @@ function fixture(t, issue, secret) {
   const config = {
     repository: repo,
     repository_id: repository.id,
-    issues: [issue],
     base_branch: "main",
     connector_id: connector.id,
     connector_login: connector.login,
@@ -276,6 +275,35 @@ test("signed deliveries stay within their coordinator instance and deduplicate c
     () => new Relay({ ...alpha.options, ledger: beta.options.ledger }),
     /different ledger or coordinator/,
   );
+});
+
+test("live ledger admission routes the next delivery without replay and rejects ambiguous bindings", async (t) => {
+  const instance = fixture(t, 108, "live-ledger-fixture-key");
+  const url = await endpoint(t, instance);
+  const item = instance.ledgerContents.items.pop();
+  instance.saveLedger();
+  const review = instance.reviewEvent();
+  assert.equal(await post(url, instance, "issue_comment", 60, review), 202);
+  assert.equal(instance.sent.length, 0);
+
+  instance.ledgerContents.items.push({ ...item, owner_thread_id: undefined });
+  instance.saveLedger();
+  assert.equal(await post(url, instance, "issue_comment", 61, review), 202);
+  assert.equal(instance.sent.length, 0);
+  instance.ledgerContents.items[0] = item;
+  instance.ledgerContents.items.push({ ...item });
+  instance.saveLedger();
+  assert.equal(await post(url, instance, "issue_comment", 62, review), 202);
+  assert.equal(instance.sent.length, 0);
+  instance.ledgerContents.items.pop();
+  instance.ledgerContents.items.push({ ...item, source_issue_identifier: "github:other/project#108" });
+  instance.saveLedger();
+  assert.equal(instance.sent.length, 0);
+  assert.equal(await post(url, instance, "issue_comment", 63, review), 202);
+  assert.equal(instance.sent.length, 1);
+  assert.equal(instance.sent[0].target, instance.owner);
+  assert.equal(await post(url, instance, "issue_comment", 64, review), 202);
+  assert.equal(instance.sent.length, 1);
 });
 
 test("review skips stale heads, nonterminal verdicts, unrelated authors and inactive ledgers", async (t) => {
