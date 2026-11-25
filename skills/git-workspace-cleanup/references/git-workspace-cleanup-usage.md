@@ -114,6 +114,71 @@ path into WSL or the reverse. After the required dry-run, retain the approval
 and force-flag rules from the workflow before changing `--dry-run` to
 `--execute`.
 
+### Windows PowerShell follow-up for a remaining checkout directory
+
+After Git worktree registration is gone, a remaining checkout directory can
+produce `directory-registration-mismatch` in targeted cleanup. The following
+directory-only follow-up requires existing cleanup authority for that exact
+checkout and reconciliation of any pending removal. Run it from a surviving
+checkout outside the target.
+
+If the path is already absent, verify filesystem and Git registration absence
+from the surviving checkout and finish without issuing removal. Treat
+inspection errors as unresolved. For a remaining directory, follow these steps.
+
+1. Establish exclusive control before the checks below and maintain it through
+   removal. Check ownership and Windows permissions for the target and every
+   ancestor up to the filesystem root. Identify who can add entries to the
+   target or rename, replace, or redirect any directory in its path. Confirm
+   that the checkout owner has released it and that jobs, editors, and other
+   processes with that access are stopped or excluded for the duration. Git
+   registration absence and repeated empty listings cannot establish this
+   control. If control is uncertain, retain and report the residual path
+   without issuing removal.
+2. Verify that the absolute, resolved target path matches the authorized
+   checkout. Use `Get-Item -LiteralPath $checkoutPath -Force -ErrorAction Stop`
+   to inspect the target itself. Require an ordinary filesystem directory and
+   check that every directory in its path has no `ReparsePoint` attribute.
+   Use a successful, fresh `git worktree list --porcelain` from the surviving
+   checkout to verify that no registration resolves to the target path. If
+   identity or registration is unresolved, stop and report the residual path.
+3. Count all immediate entries, including hidden and system entries,
+   with `@(Get-ChildItem -LiteralPath $checkoutPath -Force -ErrorAction Stop).Count`.
+   Proceed only when the count is zero. If any entry appears or enumeration
+   fails, stop and report the residual path.
+4. With exclusive control and the other guards still current, run this as a
+   standalone PowerShell command. Never add `-Force` or `-Recurse` to the
+   removal command. PowerShell can delete an entry created after its internal
+   child check without prompting, so a prompt cannot substitute for control
+   of the path.
+
+   ```powershell
+   Remove-Item -LiteralPath $checkoutPath -ErrorAction Stop
+   ```
+
+5. Decline or cancel any PowerShell prompt. A prompt, a removal failure, or a
+   remaining directory requires stopping and reporting the residual path.
+   Verify filesystem absence before recording directory cleanup as complete.
+
+#### Windows regression scenario
+
+In a private, isolated Windows workspace with no other writers, create three
+linked worktrees in a disposable Git repository and remove them with Git from
+the surviving checkout. Verify the registrations are absent, then recreate the
+directories at their former paths to model residual directories. Leave two
+empty and place a single file with the Windows `Hidden` attribute in the third.
+
+- Apply the follow-up to one empty directory under exclusive control. Record
+  the control evidence, zero entry count, successful removal, and verified
+  absence.
+- Apply it to the directory containing the hidden file. Record the count of
+  one and the residual path. Verify that no removal command was issued for that
+  target and that the directory and the hidden file, including its contents,
+  are intact.
+- Withhold confirmation of checkout release or control of an ancestor for the
+  other empty directory. Record that exclusive control could not be established.
+  Verify that no removal command was issued and the directory remains.
+
 ## Inputs
 
 For repository-wide mode, `--repo <path>` is optional and defaults to the current directory. `--dry-run` is the default mode; `--execute` enables cleanup. `--force-branches` and `--force-dirty-worktrees` are optional execute-mode overrides. It reads no stdin.
@@ -190,6 +255,8 @@ cleanup. Host attachment reconciliation is tracked separately.
 A snapshot or archived chat proves neither checkout nor branch deletion. Execute
 from a surviving checkout outside the selected target, never an active consumer's
 working directory. No app-side snapshot is implied by direct Git disposal.
+If registration is gone and a checkout directory remains on Windows, apply the
+[PowerShell follow-up](#windows-powershell-follow-up-for-a-remaining-checkout-directory).
 
 ### Nested repository classifications
 
